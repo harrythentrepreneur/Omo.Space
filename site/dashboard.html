@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="favicon.svg">
-  <meta name="description" content="Omo dashboard — your credits balance, API key, and usage. Every new account starts with $10 of free credits.">
-  <meta property="og:title" content="Omo — Your dashboard">
+  <meta name="description" content="Omo dashboard — browse every AI helper, manage credits, and copy your API key.">
+  <meta property="og:title" content="Omo — Your helper catalogue">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://omo.best/dashboard.html">
-  <title>Omo — Your dashboard</title>
+  <title>Omo — Your helper catalogue</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
@@ -25,19 +25,15 @@
       --display: "Fraunces", Georgia, serif;
       --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --shell: 1160px;
+      --dash-shell: 1560px;
     }
 
     *, *::before, *::after { box-sizing: border-box; }
     html { scroll-behavior: smooth; overflow-x: hidden; }
     body {
-      margin: 0;
-      min-width: 320px;
-      overflow-x: hidden;
-      background: var(--canvas);
-      color: var(--pine);
-      font-family: var(--body);
-      font-size: 16px;
-      line-height: 1.58;
+      margin: 0; min-width: 320px; overflow-x: hidden;
+      background: var(--canvas); color: var(--pine);
+      font-family: var(--body); font-size: 16px; line-height: 1.58;
       text-rendering: optimizeLegibility;
     }
     body, button, input, select, textarea { font-family: var(--body); }
@@ -48,6 +44,7 @@
     a { color: inherit; }
     p, h1, h2, h3, h4 { overflow-wrap: break-word; }
     h1, h2, h3, h4, p { margin-top: 0; }
+    [hidden] { display: none !important; }
 
     .skip-link {
       position: fixed; top: 8px; left: 8px; z-index: 100;
@@ -56,56 +53,49 @@
       transform: translateY(-160%);
     }
     .skip-link:focus { transform: translateY(0); }
-
-    :where(a, button, input, select, textarea):focus-visible {
-      outline: 3px solid var(--mint);
-      box-shadow: 0 0 0 1px var(--pine) inset;
+    :where(a, button, input, select, textarea, summary):focus-visible {
+      outline: 3px solid var(--mint); box-shadow: 0 0 0 1px var(--pine) inset;
       outline-offset: 3px;
     }
-
     .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
-
-    /* ── Signature Cut: one clipped corner, used sparingly ─────── */
+    .dash-shell { width: min(var(--dash-shell), calc(100% - 48px)); margin-inline: auto; }
     .sig-cut { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
 
-    /* ── Header ─────────────────────────────────────────────────── */
+    /* Header — the balance and key stay visible in the top-right. */
     .site-header {
-      position: relative; z-index: 10;
-      border-bottom: 1px solid var(--rule);
-      background: var(--canvas);
+      position: sticky; top: 0; z-index: 20;
+      border-bottom: 1px solid var(--rule); background: rgba(242,246,241,.96);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     }
-    .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-block: 10px; }
+    .nav-row {
+      min-height: 72px; display: flex; align-items: center;
+      justify-content: space-between; gap: 16px; padding-block: 10px;
+    }
     .wordmark {
-      font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1;
-      text-decoration: none; letter-spacing: -0.01em;
+      flex: 0 0 auto; font-family: var(--display); font-size: 28px; font-weight: 600;
+      line-height: 1; text-decoration: none; letter-spacing: -.01em;
     }
     .wordmark-dot { color: var(--orange); }
-    .nav-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .nav-link {
-      min-height: 44px; display: inline-flex; align-items: center;
-      font-size: 14px; font-weight: 700; text-decoration: none;
-      text-underline-offset: 4px; text-decoration-thickness: 1px;
-    }
-    .nav-link:hover, .nav-link:focus-visible { text-decoration: underline; }
-
-    /* ── Balance pill + API key chip (top-right, the headline) ─── */
+    .nav-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
     .balance-pill {
-      display: inline-flex; align-items: center; gap: 8px;
-      min-height: 40px; padding: 0 16px;
-      border-radius: 999px; background: var(--pine); color: #fff;
+      display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
+      padding: 0 16px; border-radius: 999px; background: var(--pine); color: #fff;
       font-size: 14px; font-weight: 700; white-space: nowrap;
     }
     .api-key-chip {
-      display: inline-flex; align-items: center; gap: 8px;
-      min-height: 40px; padding: 0 14px;
-      border: 1px solid var(--pine); border-radius: 999px;
-      background: var(--surface); color: var(--pine);
-      font-size: 13px; font-weight: 700; white-space: nowrap;
+      min-width: 0; display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
+      padding: 0 14px; border: 1px solid var(--pine); border-radius: 999px;
+      background: var(--surface); color: var(--pine); font-size: 13px; font-weight: 700;
+      white-space: nowrap;
     }
     .api-key-chip:hover { background: var(--mint); }
-    .api-key-chip code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; letter-spacing: .04em; }
+    .api-key-chip code {
+      max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12.5px; letter-spacing: .04em;
+    }
 
-    /* ── Buttons ────────────────────────────────────────────────── */
+    /* Storefront buttons. */
     .button {
       min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
       gap: 8px; padding: 0 20px; border-radius: 10px; border: 1px solid transparent;
@@ -121,83 +111,332 @@
     .button-small { min-height: 40px; padding: 0 16px; font-size: 14px; }
     .button-block { width: 100%; }
 
-    /* ── Main ───────────────────────────────────────────────────── */
-    .dash-hero { padding: 56px 0 12px; }
-    .dash-hero-inner { max-width: 720px; }
+    /* Catalogue-first dashboard layout. */
+    .dashboard-layout {
+      display: grid; grid-template-columns: 224px minmax(0, 1fr); gap: 40px;
+      padding: 40px 0 80px; align-items: start;
+    }
+    .catalog-sidebar {
+      position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow-y: auto;
+      scrollbar-width: thin; padding: 4px 0 20px;
+    }
+    .sidebar-kicker {
+      margin: 0 12px 12px; color: var(--moss); font-size: 11px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase;
+    }
+    .niche-nav { display: grid; gap: 4px; }
+    .niche-group-label {
+      margin: 20px 12px 7px; color: var(--moss); font-size: 10.5px; font-weight: 700;
+      letter-spacing: .13em; text-transform: uppercase;
+    }
+    .niche-group-label:first-child { margin-top: 0; }
+    .niche-item {
+      width: 100%; min-height: 42px; display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px 7px 12px; border: 1px solid transparent; border-radius: 10px;
+      background: transparent; color: var(--pine); text-align: left; font-size: 14px; font-weight: 700;
+    }
+    .niche-item:hover { background: rgba(255,255,255,.7); border-color: var(--rule); }
+    .niche-item.is-active { background: var(--pine); color: #fff; }
+    .niche-icon { width: 18px; flex: 0 0 18px; text-align: center; font-size: 14px; }
+    .niche-name { flex: 1; white-space: nowrap; }
+    .niche-count {
+      min-width: 26px; padding: 2px 7px; border-radius: 999px;
+      background: var(--surface); color: var(--moss); text-align: center;
+      font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    .niche-item.is-active .niche-count { background: var(--mint); color: var(--pine); }
+    .catalog-main { min-width: 0; }
+    .catalog-head { margin-bottom: 24px; }
     .eyebrow {
-      display: inline-flex; align-items: center; gap: 8px;
-      margin-bottom: 16px; padding: 6px 14px;
-      border: 1px solid var(--rule); border-radius: 999px;
-      background: var(--surface); color: var(--moss);
-      font-size: 12px; font-weight: 700; letter-spacing: .14em;
+      display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 6px 14px;
+      border: 1px solid var(--rule); border-radius: 999px; background: var(--surface);
+      color: var(--moss); font-size: 12px; font-weight: 700; letter-spacing: .14em;
     }
-    .dash-title {
-      margin-bottom: 14px;
-      font-family: var(--display); font-weight: 600;
-      font-size: clamp(34px, 5.4vw, 52px); line-height: 1.05; letter-spacing: -0.015em;
+    .catalog-title {
+      max-width: 760px; margin-bottom: 10px; font-family: var(--display); font-weight: 600;
+      font-size: clamp(36px, 5vw, 54px); line-height: 1.04; letter-spacing: -.02em;
+      text-wrap: balance;
     }
-    .dash-sub { max-width: 560px; color: var(--moss); font-size: 17px; margin-bottom: 8px; }
-    .dash-sub strong { color: var(--pine); }
+    .catalog-title em { color: var(--orange); font-style: italic; }
+    .catalog-sub { max-width: 680px; margin-bottom: 22px; color: var(--moss); font-size: 16px; }
+    .catalog-tools { display: grid; gap: 12px; }
+    .search-form { max-width: 680px; display: flex; gap: 0; }
+    .search-input {
+      flex: 1; min-width: 0; height: 52px; padding: 0 18px;
+      border: 1px solid var(--rule); border-right: 0; border-radius: 12px 0 0 12px;
+      background: var(--surface); color: var(--pine); font-size: 15px;
+    }
+    .search-input::placeholder { color: var(--moss); }
+    .search-submit {
+      height: 52px; padding: 0 20px; white-space: nowrap; border: 1px solid var(--pine);
+      border-radius: 0 12px 12px 0; background: var(--pine); color: #fff;
+      font-size: 14px; font-weight: 700;
+    }
+    .filter-row { display: flex; gap: 7px; flex-wrap: wrap; }
+    .filter-chip {
+      min-height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--rule);
+      background: var(--surface); color: var(--pine); font-size: 12.5px; font-weight: 700;
+    }
+    .filter-chip:hover { border-color: var(--pine); }
+    .filter-chip.is-active { background: var(--pine); border-color: var(--pine); color: #fff; }
+    .results-bar {
+      min-height: 32px; display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin: 18px 0 14px;
+    }
+    .results-label { margin: 0; color: var(--moss); font-size: 13.5px; }
+    .results-label strong { color: var(--pine); }
+    .clear-filters {
+      border: 0; background: transparent; color: var(--pine); font-size: 13px;
+      font-weight: 700; text-decoration: underline; text-underline-offset: 3px;
+    }
 
-    .dash-notice {
-      margin: 18px 0 0; padding: 12px 16px;
-      border: 1px solid var(--rule); border-radius: 12px;
-      background: var(--mint); color: var(--pine);
-      font-size: 14.5px; font-weight: 700;
+    /* Storefront listing cards. */
+    .feed-grid { display: grid; gap: 20px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .listing-card {
+      position: relative; min-width: 0; display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 14px;
+      padding: 0 0 20px; overflow: hidden;
+      transition: transform .12s ease, box-shadow .12s ease;
     }
-    .dash-notice.is-error { background: #FFE8E0; border-color: var(--orange); }
+    .listing-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(23,53,44,.08); }
+    .listing-card.sig-cut { border-radius: 14px 14px 0 14px; }
+    .listing-cover {
+      width: 100%; aspect-ratio: 16 / 9; margin-bottom: 16px;
+      background: var(--mint); overflow: hidden; position: relative;
+    }
+    .listing-cover img { width: 100%; height: 100%; object-fit: cover; }
+    .listing-cover.icon-cover { aspect-ratio: 1 / 1; margin-bottom: 0; border-bottom: 1px solid var(--rule); }
+    .listing-cover .cover-emoji {
+      position: absolute; right: 12px; bottom: 10px; padding: 6px 8px;
+      border-radius: 10px 10px 10px 3px; background: var(--surface); font-size: 26px;
+      line-height: 1; box-shadow: 0 2px 8px rgba(23,53,44,.14);
+    }
+    .listing-body { padding: 0 18px; display: flex; flex-direction: column; flex: 1; }
+    .listing-name {
+      margin-bottom: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      font-family: var(--display); font-size: 21px; font-weight: 600; line-height: 1.15;
+    }
+    .listing-promise {
+      min-height: 2.7em; margin-bottom: 12px; overflow: hidden; color: var(--pine);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      font-size: 14.5px; line-height: 1.4; text-wrap: pretty;
+    }
+    .listing-maker { margin-bottom: 4px; color: var(--moss); font-size: 13.5px; font-weight: 700; }
+    .listing-maker .maker-handle { color: var(--pine); }
+    .listing-meta { margin-bottom: 14px; color: var(--moss); font-size: 12px; }
+    .listing-footer {
+      margin-top: auto; padding-top: 14px; border-top: 1px solid var(--rule);
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    }
+    .listing-price { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.2; }
+    .listing-price .price-note { display: block; color: var(--moss); font-size: 11.5px; font-weight: 500; }
+    .listing-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+    .demo-link, .details-link {
+      min-height: 36px; padding: 0 11px; border-radius: 9px; font-size: 12.5px; font-weight: 700;
+      text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .demo-link { background: var(--pine); color: #fff; border: 1px solid var(--pine); }
+    .demo-link:hover { box-shadow: 0 4px 12px rgba(23,53,44,.2); }
+    .details-link { background: var(--surface); color: var(--pine); border: 1px solid var(--pine); }
+    .details-link:hover { background: var(--canvas); }
+    .upvote-btn {
+      display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px;
+      border: 1px solid var(--rule); border-radius: 999px; background: rgba(255,255,255,.92);
+      color: var(--moss); font-size: 12.5px; font-weight: 700; cursor: pointer;
+      backdrop-filter: blur(4px); box-shadow: 0 2px 8px rgba(23,53,44,.12);
+      transition: border-color .12s ease, color .12s ease, background .12s ease, transform .12s ease;
+    }
+    .listing-card > .upvote-btn { position: absolute; top: 10px; right: 10px; z-index: 2; }
+    .upvote-btn:hover { border-color: var(--orange); color: var(--orange); transform: translateY(-1px); }
+    .upvote-btn .upvote-arrow { font-size: 10px; line-height: 1; }
+    .upvote-btn.is-voted { background: var(--orange); border-color: var(--orange); color: #fff; }
+    .upvote-count { min-width: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+    .feed-empty {
+      margin: 0; padding: 48px 24px; border: 1px dashed var(--rule); border-radius: 14px;
+      color: var(--moss); text-align: center;
+    }
 
-    .dash-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
-      padding: 32px 0 56px;
+    /* Compact credits workspace. */
+    .credits-panel {
+      margin: 34px 0 0; border: 1px solid var(--rule); border-radius: 14px;
+      background: var(--surface); overflow: hidden;
     }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--rule);
-      border-radius: 14px;
-      padding: 28px;
+    .credits-summary {
+      min-height: 68px; padding: 14px 18px; display: flex; align-items: center; gap: 14px;
+      cursor: pointer; list-style: none;
     }
-    .card h2 { font-family: var(--display); font-weight: 600; font-size: 24px; margin-bottom: 6px; }
-    .card-intro { color: var(--moss); font-size: 14.5px; margin-bottom: 20px; }
-
-    /* ── Top-up amount chips ────────────────────────────────────── */
-    .amount-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+    .credits-summary::-webkit-details-marker { display: none; }
+    .credits-summary::after { content: '+'; margin-left: auto; font-size: 22px; font-weight: 500; }
+    .credits-panel[open] .credits-summary::after { content: '−'; }
+    .credits-summary-icon {
+      width: 38px; height: 38px; display: grid; place-items: center;
+      border-radius: 10px; background: var(--mint); font-size: 18px;
+    }
+    .credits-summary-copy { min-width: 0; }
+    .credits-summary-copy strong { display: block; line-height: 1.25; }
+    .credits-summary-copy span { color: var(--moss); font-size: 13px; }
+    .credits-summary-balance { margin-left: auto; font-size: 15px; font-weight: 700; white-space: nowrap; }
+    .credits-panel[open] .credits-summary-balance { margin-left: 0; }
+    .credits-body {
+      display: grid; grid-template-columns: minmax(240px, .8fr) minmax(300px, 1.2fr);
+      gap: 24px; padding: 22px; border-top: 1px solid var(--rule); background: var(--canvas);
+    }
+    .credit-card { min-width: 0; padding: 22px; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); }
+    .credit-card h2 { margin-bottom: 5px; font-family: var(--display); font-size: 22px; font-weight: 600; }
+    .card-intro { margin-bottom: 16px; color: var(--moss); font-size: 13.5px; }
+    .credit-balance { margin: 4px 0 16px; font-family: var(--display); font-size: 34px; font-weight: 600; line-height: 1; }
+    .amount-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
     .amount-chip {
-      min-height: 48px; min-width: 72px; flex: 1;
-      border: 1px solid var(--rule); border-radius: 10px;
-      background: var(--surface); color: var(--pine);
-      font-size: 16px; font-weight: 700;
+      min-height: 42px; min-width: 58px; flex: 1; border: 1px solid var(--rule);
+      border-radius: 10px; background: var(--surface); color: var(--pine); font-size: 14px; font-weight: 700;
     }
     .amount-chip:hover { border-color: var(--pine); }
     .amount-chip.is-active { background: var(--pine); color: #fff; border-color: var(--pine); }
-    .form-note { margin: 12px 0 0; color: var(--moss); font-size: 13.5px; min-height: 1.2em; }
+    .form-note { min-height: 1.2em; margin: 10px 0 0; color: var(--moss); font-size: 12.5px; }
     .form-note.is-ok { color: var(--pine); font-weight: 700; }
     .form-note.is-err { color: var(--orange); font-weight: 700; }
-
-    /* ── Usage list ─────────────────────────────────────────────── */
-    .usage-empty { color: var(--moss); font-size: 14.5px; margin: 0; }
+    .usage-empty { margin: 0; color: var(--moss); font-size: 14px; }
     .usage-list { list-style: none; margin: 0; padding: 0; }
-    .usage-row {
-      display: flex; align-items: baseline; gap: 12px;
-      padding: 12px 0; border-bottom: 1px solid var(--rule);
-      font-size: 14.5px;
-    }
+    .usage-row { display: flex; align-items: baseline; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; }
     .usage-row:last-child { border-bottom: 0; }
-    .usage-slug { font-weight: 700; flex: 1; overflow-wrap: anywhere; }
-    .usage-cost { font-weight: 700; white-space: nowrap; }
-    .usage-time { color: var(--moss); font-size: 13px; white-space: nowrap; }
+    .usage-slug { flex: 1; overflow-wrap: anywhere; font-weight: 700; }
+    .usage-cost { white-space: nowrap; font-weight: 700; }
+    .usage-time { white-space: nowrap; color: var(--moss); font-size: 12px; }
+    .dash-notice { margin: 0 0 18px; padding: 11px 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--mint); font-size: 13.5px; font-weight: 700; }
+    .dash-notice.is-error { background: #FFE8E0; border-color: var(--orange); }
+    .api-foot { margin: 14px 0 0; color: var(--moss); font-size: 12px; }
+    .api-foot code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 
-    .dash-foot { padding: 0 0 48px; color: var(--moss); font-size: 13px; }
-    .dash-foot code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    /* Detail dialog copied from the storefront. */
+    .listing-dialog {
+      width: min(680px, calc(100% - 32px)); max-height: min(88vh, 900px); padding: 0;
+      border: 0; border-radius: 18px; background: var(--canvas); color: var(--pine);
+    }
+    .listing-dialog::backdrop { background: rgba(23,53,44,.62); }
+    .dialog-body { max-height: min(88vh, 900px); padding: 28px; overflow-y: auto; }
+    .dialog-close {
+      position: absolute; top: 12px; right: 12px; z-index: 2; width: 44px; height: 44px;
+      border: 1px solid var(--rule); border-radius: 12px; background: var(--surface);
+      color: var(--pine); font-size: 20px; line-height: 1;
+    }
+    .dialog-close:hover { background: var(--canvas); }
+    .detail-cover {
+      width: 100%; aspect-ratio: 16 / 9; margin-bottom: 18px; overflow: hidden;
+      border-radius: 14px 14px 14px 4px; background: var(--mint);
+    }
+    .detail-cover img { width: 100%; height: 100%; object-fit: cover; }
+    .detail-hero-video {
+      position: relative; width: auto; height: min(46vh, 440px); aspect-ratio: 9 / 16;
+      max-width: 100%; margin: 0 auto 18px; overflow: hidden; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      border: 1px solid var(--rule); border-radius: 14px 14px 14px 4px;
+      background-color: var(--mint); background-size: cover; background-position: center;
+    }
+    .hero-video-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(23,53,44,.04), rgba(23,53,44,.42)); }
+    .hero-video-badge {
+      position: absolute; top: 12px; left: 12px; z-index: 1; padding: 4px 9px;
+      border-radius: 999px; background: rgba(23,53,44,.55); color: #fff;
+      font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    }
+    .hero-video-play {
+      position: relative; width: 56px; height: 56px; display: flex; align-items: center;
+      justify-content: center; padding-left: 4px; border-radius: 50%; background: rgba(255,255,255,.92);
+      color: var(--orange); box-shadow: 0 6px 18px rgba(23,53,44,.22);
+    }
+    .reel-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .detail-name { margin-bottom: 6px; font-family: var(--display); font-size: 30px; font-weight: 600; line-height: 1.1; }
+    .detail-maker { margin-bottom: 14px; color: var(--moss); font-size: 14px; font-weight: 700; }
+    .detail-maker .maker-handle { color: var(--pine); }
+    .detail-upvote-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .detail-upvote-row .upvote-btn { position: static; padding: 10px 18px; box-shadow: none; font-size: 14px; }
+    .detail-desc { margin-bottom: 20px; text-wrap: pretty; }
+    .detail-links { display: flex; gap: 8px; flex-wrap: wrap; margin: -4px 0 20px; }
+    .chip-link {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+      border: 1px solid var(--rule); border-radius: 999px; background: var(--surface);
+      color: var(--pine); font-size: 13.5px; font-weight: 700; text-decoration: none;
+    }
+    .chip-link:hover { border-color: var(--orange); color: var(--orange); }
+    .detail-section { margin-bottom: 26px; }
+    .detail-section h3 { margin-bottom: 11px; color: var(--moss); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .io-box { overflow: hidden; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); }
+    .io-col { padding: 16px 18px; }
+    .io-col + .io-col { border-top: 1px solid var(--rule); }
+    .io-label { margin-bottom: 8px; color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+    .io-box ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+    .io-box li { font-size: 14px; }
+    .price-tiers, .use-doors { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .tier, .door { padding: 14px 16px; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); }
+    .tier-name { margin-bottom: 4px; color: var(--moss); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .tier-price { font-size: 21px; font-weight: 700; line-height: 1.15; }
+    .tier-price small, .tier-note, .door p { color: var(--moss); font-size: 12.5px; font-weight: 500; }
+    .tier-note { margin-top: 5px; }
+    .door-emoji { margin-bottom: 6px; font-size: 20px; }
+    .door h4 { margin-bottom: 4px; font-size: 15px; }
+    .door p { margin: 0; }
+    .demo-box { padding: 20px; border: 1px solid var(--pine); border-radius: 14px; background: var(--surface); }
+    .demo-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+    .demo-head h3 { margin: 0; color: var(--pine); font-size: 17px; letter-spacing: 0; text-transform: none; }
+    .demo-cap { padding: 3px 10px; border-radius: 999px; background: var(--mint); color: var(--moss); font-size: 12px; font-weight: 700; }
+    .demo-note { margin: 0 0 16px; color: var(--moss); font-size: 13.5px; }
+    .demo-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .demo-field { margin-bottom: 2px; }
+    .field-label { display: block; margin: 0 0 6px; font-size: 12.5px; font-weight: 700; }
+    .demo-textarea, .demo-select {
+      width: 100%; min-height: 82px; padding: 11px 12px; resize: vertical;
+      border: 1px solid var(--rule); border-radius: 12px; background: var(--canvas); color: var(--pine); font-size: 14px;
+    }
+    .demo-select { min-height: 48px; resize: none; }
+    .demo-run { margin-top: 14px; }
+    .demo-status { margin: 10px 0 0; font-size: 13px; }
+    .demo-status[data-state="error"] { color: #8c2e16; font-weight: 700; }
+    .demo-result { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--rule); }
+    .demo-raw { max-height: 320px; margin: 0; overflow: auto; white-space: pre-wrap; padding: 14px; border-radius: 12px; background: var(--canvas); font: 12.5px/1.5 ui-monospace, monospace; }
+    .detail-footer { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
 
-    /* ── Sign-in gate ───────────────────────────────────────────── */
-    .gate { padding: 90px 0 120px; text-align: center; }
-    .gate h1 { font-family: var(--display); font-weight: 600; font-size: clamp(28px, 4vw, 40px); margin-bottom: 10px; }
-    .gate p { color: var(--moss); margin-bottom: 24px; }
+    /* Sign-in gate. */
+    .gate { padding: 110px 0 140px; text-align: center; }
+    .gate-mark { width: 52px; height: 52px; margin: 0 auto 18px; display: grid; place-items: center; border-radius: 14px; background: var(--mint); font-size: 24px; }
+    .gate h1 { margin-bottom: 10px; font-family: var(--display); font-size: clamp(30px, 4vw, 42px); font-weight: 600; }
+    .gate p { max-width: 460px; margin: 0 auto 24px; color: var(--moss); }
 
-    @media (max-width: 860px) {
-      .dash-grid { grid-template-columns: 1fr; }
-      .nav-actions { justify-content: flex-start; }
+    @media (min-width: 1420px) {
+      .feed-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    @media (max-width: 1120px) {
+      .dashboard-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 28px; }
+      .feed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .api-key-chip code { max-width: 150px; }
+    }
+    @media (max-width: 820px) {
+      .dash-shell { width: min(100% - 32px, var(--dash-shell)); }
+      .site-header { position: relative; }
+      .nav-row { align-items: flex-start; flex-direction: column; }
+      .nav-actions { width: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; }
+      .dashboard-layout { display: block; padding-top: 28px; }
+      .catalog-sidebar { position: static; max-height: none; overflow: visible; margin: 0 0 28px; padding: 0; }
+      .sidebar-kicker { margin-left: 0; }
+      .niche-nav { display: flex; gap: 8px; overflow-x: auto; padding: 0 0 8px; scroll-snap-type: x proximity; }
+      .niche-group-label { display: none; }
+      .niche-item { width: auto; min-width: max-content; scroll-snap-align: start; border-color: var(--rule); background: var(--surface); }
+      .credits-body { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 580px) {
+      .dash-shell { width: min(100% - 24px, var(--dash-shell)); }
+      .balance-pill, .api-key-chip { min-height: 38px; padding-inline: 12px; }
+      .api-key-chip code { max-width: 84px; }
+      .button-small { min-height: 38px; padding-inline: 13px; }
+      .catalog-title { font-size: 38px; }
+      .feed-grid { grid-template-columns: 1fr; }
+      .listing-card { padding-bottom: 16px; }
+      .listing-body { padding-inline: 16px; }
+      .credits-summary-balance { display: none; }
+      .credits-body { padding: 14px; }
+      .credit-card { padding: 18px; }
+      .usage-row { align-items: flex-start; flex-wrap: wrap; }
+      .usage-time { width: 100%; }
+      .dialog-body { padding: 20px; }
+      .price-tiers, .use-doors, .demo-row { grid-template-columns: 1fr; }
     }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -209,370 +448,618 @@
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="site-header">
-    <div class="shell nav-row">
+    <div class="dash-shell nav-row">
       <a class="wordmark" href="index.html">Omo<span class="wordmark-dot">.</span></a>
-      <nav class="nav-actions" aria-label="Primary">
-        <a class="nav-link" href="index.html#feed">Try a helper</a>
-        <span class="balance-pill" id="balance-pill" title="Credits balance">Balance …</span>
-        <button class="api-key-chip" id="api-key-chip" type="button" title="Click to reveal, click again to copy">
+      <nav class="nav-actions" aria-label="Account">
+        <span class="balance-pill auth-only" id="balance-pill" title="Credits balance">Balance …</span>
+        <button class="api-key-chip auth-only" id="api-key-chip" type="button" title="Click to reveal, click again to copy">
           <span id="api-key-label">API key</span>
           <code id="api-key-value" aria-live="polite">••••••••••••••••</code>
         </button>
-        <button class="button button-secondary button-small" id="sign-out-btn" type="button">Sign out</button>
+        <button class="button button-secondary button-small auth-only" id="sign-out-btn" type="button">Sign out</button>
+        <button class="button button-accent button-small" id="top-signin-btn" type="button" hidden>Sign in</button>
       </nav>
     </div>
   </header>
 
-  <!-- Sign-in gate: dashboard requires a Clerk session (demo mode fakes one). -->
   <main id="main" hidden>
-    <section class="dash-hero">
-      <div class="shell dash-hero-inner">
-        <p class="eyebrow">Your workspace</p>
-        <h1 class="dash-title">Credits, key, usage — one screen.</h1>
-        <p class="dash-sub">Every new account starts with <strong>$10 of free credits</strong>. Run any helper and we debit per use from the cost model. Top up when you need more, and grab your <strong>API key</strong> for the API door.</p>
-        <p class="dash-notice" id="dash-notice" role="status" aria-live="polite" hidden></p>
-      </div>
-    </section>
+    <div class="dash-shell dashboard-layout">
+      <aside class="catalog-sidebar" aria-label="Helper categories">
+        <p class="sidebar-kicker">Browse the catalogue</p>
+        <nav class="niche-nav" id="niche-nav" aria-label="Filter helpers by outcome or niche"></nav>
+      </aside>
 
-    <section class="shell dash-grid">
-      <div class="card sig-cut" id="topup-card">
-        <h2>Top up</h2>
-        <p class="card-intro">Pick an amount — we charge it once and the credits land on your balance.</p>
-        <form id="topup-form" novalidate>
-          <div class="amount-row" id="amount-row" role="group" aria-label="Top-up amount">
-            <button class="amount-chip" type="button" data-amount="5" aria-pressed="false">$5</button>
-            <button class="amount-chip is-active" type="button" data-amount="10" aria-pressed="true">$10</button>
-            <button class="amount-chip" type="button" data-amount="25" aria-pressed="false">$25</button>
-            <button class="amount-chip" type="button" data-amount="50" aria-pressed="false">$50</button>
+      <section class="catalog-main" aria-labelledby="catalog-title">
+        <header class="catalog-head">
+          <p class="eyebrow">Your helper catalogue</p>
+          <h1 class="catalog-title" id="catalog-title">Everything useful, <em>one place.</em></h1>
+          <p class="catalog-sub">Browse all 21 helpers, narrow by niche, and try the real workflow before you buy.</p>
+          <div class="catalog-tools">
+            <form class="search-form" id="search-form" role="search" aria-label="Search helpers">
+              <input class="search-input" id="search-input" type="search" name="q" placeholder="Search UGC, Shopify, SEO, video…" aria-label="Search helpers" autocomplete="off">
+              <button class="search-submit" type="submit">Search</button>
+            </form>
+            <div class="filter-row" id="outcome-filters" role="group" aria-label="Quick filter by outcome">
+              <button class="filter-chip is-active" type="button" data-outcome="all" aria-pressed="true">All outcomes</button>
+              <button class="filter-chip" type="button" data-outcome="content" aria-pressed="false">✂️ Content</button>
+              <button class="filter-chip" type="button" data-outcome="leads" aria-pressed="false">📈 Leads</button>
+              <button class="filter-chip" type="button" data-outcome="save" aria-pressed="false">💰 Save money</button>
+              <button class="filter-chip" type="button" data-outcome="ops" aria-pressed="false">🛠️ Ops</button>
+            </div>
           </div>
-          <button class="button button-primary button-block" id="topup-btn" type="submit">Top up with Stripe</button>
-          <p class="form-note" id="topup-note" role="status" aria-live="polite"></p>
-        </form>
-      </div>
+        </header>
 
-      <div class="card sig-cut" id="usage-card">
-        <h2>Usage</h2>
-        <p class="card-intro">Recent helper runs, newest first. Anonymous demos don't show here — signed-in runs do.</p>
-        <p class="usage-empty" id="usage-empty">No runs yet — go try a helper.</p>
-        <ul class="usage-list" id="usage-list" hidden></ul>
-      </div>
-    </section>
+        <p class="dash-notice" id="dash-notice" role="status" aria-live="polite" hidden></p>
+        <div class="results-bar">
+          <p class="results-label" id="results-label" aria-live="polite">Showing all helpers</p>
+          <button class="clear-filters" id="clear-filters" type="button" hidden>Clear filters</button>
+        </div>
+        <div class="feed-grid" id="listing-feed"></div>
+        <p class="feed-empty" id="feed-empty" hidden>No helpers match that search. Try another word or clear the filters.</p>
 
-    <p class="dash-foot shell">API base: <code id="api-base-label">—</code> · Keys are deterministic per account — the same user always gets the same <code>omo_</code> key.</p>
+        <details class="credits-panel" id="credits-panel">
+          <summary class="credits-summary">
+            <span class="credits-summary-icon" aria-hidden="true">◒</span>
+            <span class="credits-summary-copy"><strong>Credits &amp; usage</strong><span>Top up and see recent runs</span></span>
+            <span class="credits-summary-balance" id="credits-summary-balance">$10.00 available</span>
+          </summary>
+          <div class="credits-body">
+            <section class="credit-card sig-cut" id="topup-card" aria-labelledby="topup-title">
+              <h2 id="topup-title">Credits</h2>
+              <p class="card-intro">Your balance pays for cloud runs. New accounts start with $10.</p>
+              <p class="credit-balance" id="credit-balance">$10.00</p>
+              <form id="topup-form" novalidate>
+                <div class="amount-row" role="group" aria-label="Top-up amount">
+                  <button class="amount-chip" type="button" data-amount="5" aria-pressed="false">$5</button>
+                  <button class="amount-chip is-active" type="button" data-amount="10" aria-pressed="true">$10</button>
+                  <button class="amount-chip" type="button" data-amount="25" aria-pressed="false">$25</button>
+                  <button class="amount-chip" type="button" data-amount="50" aria-pressed="false">$50</button>
+                </div>
+                <button class="button button-primary button-block" id="topup-btn" type="submit">Top up with Stripe</button>
+                <p class="form-note" id="topup-note" role="status" aria-live="polite"></p>
+              </form>
+            </section>
+            <section class="credit-card" id="usage-card" aria-labelledby="usage-title">
+              <h2 id="usage-title">Recent usage</h2>
+              <p class="card-intro">Signed-in helper runs, newest first.</p>
+              <p class="usage-empty" id="usage-empty">No runs yet — pick a helper above and try it.</p>
+              <ul class="usage-list" id="usage-list" hidden></ul>
+              <p class="api-foot">API base: <code id="api-base-label">—</code> · Your <code>omo_</code> key is deterministic per account.</p>
+            </section>
+          </div>
+        </details>
+      </section>
+    </div>
   </main>
 
-  <main class="gate shell" id="signin-gate" hidden>
-    <h1>Your dashboard is one tap away.</h1>
-    <p>Sign in to see your credits balance, API key, and usage.</p>
+  <main class="gate dash-shell" id="signin-gate" hidden>
+    <div class="gate-mark" aria-hidden="true">✦</div>
+    <h1>Your catalogue is one tap away.</h1>
+    <p>Sign in to browse every helper, run demos, and manage your $10 starter credits.</p>
     <button class="button button-accent" id="gate-signin-btn" type="button">Sign in</button>
   </main>
 
+  <dialog class="listing-dialog" id="listing-dialog" aria-labelledby="detail-name">
+    <button class="dialog-close" id="dialog-close" type="button" aria-label="Close details">✕</button>
+    <div class="dialog-body" id="dialog-body"></div>
+  </dialog>
+
+  <script src="ig-workflows.js"></script>
+  <script src="ig-more.js"></script>
   <script src="clerk.js"></script>
+  <script src="stripe.js"></script>
   <script>
     (function () {
       'use strict';
 
-      /* ── Config ──────────────────────────────────────────────── */
-      // Point at the deployed Omo worker (e.g. 'https://demo.omo.best').
-      // Empty = same-origin /api/*. At file:// (or when the worker is
-      // unreachable) the dashboard falls back to MOCK MODE: balance, api key
-      // and usage live in localStorage, top-ups are simulated.
-      var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
+      window.CLERK_PUBLISHABLE_KEY = window.CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder';
+      window.STRIPE_PUBLISHABLE_KEY = window.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder';
+      window.OMO_API_BASE = window.OMO_API_BASE || '';
 
+      var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
       var BAL_KEY = 'omo_balance_v1';
       var KEY_KEY = 'omo_apikey_v1';
       var USE_KEY = 'omo_usage_v1';
       var SEEN_KEY = 'omo_seen_dashboard';
+      var VOTE_KEY = 'cognition_votes_v1';
 
-      var state = { mode: 'mock', userId: '', balanceUsd: 10, apiKey: '', runs: [] };
-      var chosenAmount = 10;
-      var revealed = false;
-
-      function el(id) {
-        return document.getElementById(id);
+      var PRODUCTS = {};
+      var igWorkflows = window.COGNITION_IG_WORKFLOWS || [];
+      var igMore = window.COGNITION_IG_MORE || [];
+      var i;
+      for (i = 0; i < igWorkflows.length; i++) {
+        if (igWorkflows[i] && igWorkflows[i].slug && !PRODUCTS[igWorkflows[i].slug]) PRODUCTS[igWorkflows[i].slug] = igWorkflows[i];
       }
-      function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-      function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-      function fmtUsd(v) { return '$' + Number(v).toFixed(2); }
+      for (i = 0; i < igMore.length; i++) {
+        if (igMore[i] && igMore[i].slug && !PRODUCTS[igMore[i].slug]) PRODUCTS[igMore[i].slug] = igMore[i];
+      }
+      var slugs = Object.keys(PRODUCTS);
+
+      function el(id) { return document.getElementById(id); }
+      function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+      function lsSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
       function esc(s) {
         return String(s == null ? '' : s)
           .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
+      function fmtUsd(v) { return '$' + Number(v).toFixed(2); }
+      function listingText(p) {
+        return [p.name, p.promise, p.category, (p.tags || []).join(' ')].join(' ').toLowerCase();
+      }
 
-      // Mirror of balance.mjs hashHex (FNV-1a) so mock-mode keys are
-      // deterministic per user id, exactly like the worker's.
+      /* Counts and matches come from name, promise, category, and tags. */
+      var FILTERS = [
+        { key: 'all', group: 'all', label: 'All helpers', icon: '✦', match: function () { return true; } },
+        { key: 'content', group: 'outcome', label: 'Content', icon: '✂', match: function (p) { return p.category === 'content'; } },
+        { key: 'leads', group: 'outcome', label: 'Leads', icon: '↗', match: function (p) { return p.category === 'leads'; } },
+        { key: 'save', group: 'outcome', label: 'Save money', icon: '$', match: function (p) { return p.category === 'save'; } },
+        { key: 'ops', group: 'outcome', label: 'Ops', icon: '⚙', match: function (p) { return p.category === 'ops'; } },
+        { key: 'ugc', group: 'niche', label: 'UGC', icon: '◎', match: function (p) { return /\bugc\b/.test(listingText(p)); } },
+        { key: 'ads', group: 'niche', label: 'Ads', icon: '◉', match: function (p) { return /\bad(s|vertising)?\b|\bcommercial\b|\bcreative(s)?\b/.test(listingText(p)); } },
+        { key: 'shopify', group: 'niche', label: 'Shopify', icon: '◇', match: function (p) { return /\bshopify\b/.test(listingText(p)); } },
+        { key: 'seo', group: 'niche', label: 'SEO', icon: '⌁', match: function (p) { return /\bseo\b|discover|recommend/.test(listingText(p)); } },
+        { key: 'photos', group: 'niche', label: 'Photos', icon: '□', match: function (p) { return /\bphoto(s)?\b|\bimage(s)?\b|\bpics?\b|\bshots?\b/.test(listingText(p)); } },
+        { key: 'video', group: 'niche', label: 'Video', icon: '▷', match: function (p) { return /\bvideo(s)?\b|\bclips?\b|\bcinematic\b|\bmotion\b|\bcommercial\b/.test(listingText(p)); } },
+        { key: 'voice', group: 'niche', label: 'Voice', icon: '◖', match: function (p) { return /\bvoice(over)?\b|\btalking\b/.test(listingText(p)); } },
+        { key: 'copy', group: 'niche', label: 'Copy', icon: '¶', match: function (p) { return /\bcopy\b|\bscript(s)?\b|\bcaption(s)?\b|\bdescription(s)?\b|\btitle(s)?\b|\bmeta tags?\b|\btranscript(s)?\b|\bprompt(s)?\b/.test(listingText(p)); } }
+      ];
+
+      function filterByKey(key) {
+        for (var j = 0; j < FILTERS.length; j++) if (FILTERS[j].key === key) return FILTERS[j];
+        return FILTERS[0];
+      }
+      function filterCount(filter) {
+        var count = 0;
+        for (var j = 0; j < slugs.length; j++) if (filter.match(PRODUCTS[slugs[j]])) count++;
+        return count;
+      }
+      function nicheButtonHTML(filter) {
+        var active = filter.key === currentScope;
+        return '<button class="niche-item' + (active ? ' is-active' : '') + '" type="button" data-niche="' + filter.key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
+          '<span class="niche-icon" aria-hidden="true">' + filter.icon + '</span>' +
+          '<span class="niche-name">' + esc(filter.label) + '</span>' +
+          '<span class="niche-count">' + filterCount(filter) + '</span></button>';
+      }
+
+      var currentScope = 'all';
+      var currentOutcome = 'all';
+      var currentQuery = '';
+
+      function renderSidebar() {
+        var nav = el('niche-nav');
+        if (!nav) return;
+        var html = '<p class="niche-group-label">Everything</p>' + nicheButtonHTML(FILTERS[0]);
+        html += '<p class="niche-group-label">Outcomes</p>';
+        for (var j = 1; j < FILTERS.length; j++) if (FILTERS[j].group === 'outcome') html += nicheButtonHTML(FILTERS[j]);
+        html += '<p class="niche-group-label">Niches</p>';
+        for (var k = 1; k < FILTERS.length; k++) if (FILTERS[k].group === 'niche') html += nicheButtonHTML(FILTERS[k]);
+        nav.innerHTML = html;
+      }
+
+      var votes = {};
+      try { votes = JSON.parse(lsGet(VOTE_KEY) || '{}'); } catch (e) { votes = {}; }
+      function saveVotes() { lsSet(VOTE_KEY, JSON.stringify(votes)); }
+      function totalVotes(p) { return (p.upvotes || 0) + (votes[p.slug] ? 1 : 0); }
+      function upvoteBtnHTML(p) {
+        var voted = !!votes[p.slug];
+        return '<button class="upvote-btn' + (voted ? ' is-voted' : '') + '" type="button" data-upvote="' + esc(p.slug) + '" aria-pressed="' + (voted ? 'true' : 'false') + '" aria-label="' + (voted ? 'Remove upvote from ' : 'Upvote ') + esc(p.name) + '">' +
+          '<span class="upvote-arrow" aria-hidden="true">▲</span><span class="upvote-count">' + totalVotes(p) + '</span></button>';
+      }
+      function isFreeListing(p) { return p.free === true; }
+      function runPriceLabel(p) { return 'run &asymp; $' + (p.runPrice || p.priceRun); }
+      function cardHTML(p, featured) {
+        var ownLabel = isFreeListing(p) ? 'Free' : '$' + p.priceOwn + ' one-time';
+        var visual = p.icon
+          ? '<div class="listing-cover icon-cover" aria-hidden="true"><img src="' + esc(p.icon) + '" alt="" loading="lazy"></div>'
+          : (p.cover
+            ? '<div class="listing-cover" aria-hidden="true"><img src="' + esc(p.cover) + '" alt="" loading="lazy"><span class="cover-emoji">' + p.emoji + '</span></div>'
+            : '<div class="listing-cover" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:52px;line-height:1">' + p.emoji + '</span></div>');
+        return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + esc(p.slug) + '" tabindex="0" role="button" aria-haspopup="dialog" aria-label="View details for ' + esc(p.name) + '">' +
+          visual + upvoteBtnHTML(p) + '<div class="listing-body">' +
+          '<h3 class="listing-name">' + esc(p.name) + '</h3>' +
+          '<p class="listing-promise">' + esc(p.promise) + '</p>' +
+          '<p class="listing-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +
+          '<p class="listing-meta">' + esc(p.version) + '</p>' +
+          '<div class="listing-footer"><p class="listing-price">' + ownLabel + '<span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
+          '<div class="listing-actions"><button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Try demo</button>' +
+          '<button class="details-link" type="button" data-action="details" aria-haspopup="dialog">View details</button></div></div></div></article>';
+      }
+      function matches(p) {
+        if (!filterByKey(currentScope).match(p)) return false;
+        if (currentOutcome !== 'all' && p.category !== currentOutcome) return false;
+        if (!currentQuery) return true;
+        return listingText(p).indexOf(currentQuery) !== -1;
+      }
+      function visibleSlugs() {
+        var visible = [];
+        for (var j = 0; j < slugs.length; j++) if (matches(PRODUCTS[slugs[j]])) visible.push(slugs[j]);
+        visible.sort(function (a, b) { return totalVotes(PRODUCTS[b]) - totalVotes(PRODUCTS[a]); });
+        return visible;
+      }
+      function renderFeed() {
+        var visible = visibleSlugs();
+        var feed = el('listing-feed');
+        if (feed) {
+          var cards = [];
+          for (var j = 0; j < visible.length; j++) cards.push(cardHTML(PRODUCTS[visible[j]], j === 0));
+          feed.innerHTML = cards.join('');
+        }
+        var empty = el('feed-empty');
+        if (empty) empty.hidden = visible.length > 0;
+        var active = filterByKey(currentScope);
+        var label = el('results-label');
+        if (label) {
+          var context = active.key === 'all' ? 'all helpers' : active.label;
+          label.innerHTML = 'Showing <strong>' + visible.length + '</strong> ' + (visible.length === 1 ? 'helper' : 'helpers') + ' in <strong>' + esc(context) + '</strong>';
+        }
+        var clear = el('clear-filters');
+        if (clear) clear.hidden = currentScope === 'all' && currentOutcome === 'all' && !currentQuery;
+      }
+      function setOutcome(key) {
+        currentOutcome = key || 'all';
+        var chips = document.querySelectorAll('[data-outcome]');
+        for (var j = 0; j < chips.length; j++) {
+          var active = chips[j].getAttribute('data-outcome') === currentOutcome;
+          chips[j].classList.toggle('is-active', active);
+          chips[j].setAttribute('aria-pressed', active ? 'true' : 'false');
+        }
+      }
+      function selectScope(key) {
+        currentScope = filterByKey(key).key;
+        setOutcome('all');
+        renderSidebar();
+        renderFeed();
+      }
+      function clearFilters() {
+        currentScope = 'all'; currentQuery = '';
+        if (el('search-input')) el('search-input').value = '';
+        setOutcome('all'); renderSidebar(); renderFeed();
+      }
+
+      /* Detail dialog, reel, demo, and purchase flow. */
+      var dialog = el('listing-dialog');
+      var dialogBody = el('dialog-body');
+      var closeBtn = el('dialog-close');
+      var currentSlug = null;
+      var lastTrigger = null;
+
+      function tierHTML(name, price, note) {
+        return '<div class="tier"><div class="tier-name">' + name + '</div><div class="tier-price">' + price + '</div><div class="tier-note">' + note + '</div></div>';
+      }
+      function doorHTML(emoji, title, text) {
+        return '<div class="door"><div class="door-emoji" aria-hidden="true">' + emoji + '</div><h4>' + title + '</h4><p>' + text + '</p></div>';
+      }
+      function demoBoxHTML(p) {
+        var inputs = p.inputs || [];
+        var fields = [];
+        for (var j = 0; j < inputs.length; j++) {
+          var sep = inputs[j].indexOf(':');
+          var key = sep === -1 ? inputs[j].trim() : inputs[j].slice(0, sep).trim();
+          var label = sep === -1 ? key : inputs[j].slice(sep + 1).trim();
+          fields.push('<div class="demo-field"><label class="field-label" for="demo-field-' + j + '">' + esc(label) + '</label>' +
+            '<textarea class="demo-textarea" id="demo-field-' + j + '" data-demo-field data-key="' + esc(key) + '" placeholder="' + esc(label) + '" required></textarea></div>');
+        }
+        return '<div class="demo-box sig-cut"><div class="demo-head"><h3>Try the demo</h3><span class="demo-cap">' + esc(p.demoCap || 'Free demo') + '</span></div>' +
+          '<p class="demo-note">This is the real helper running on Omo. Give it one job for free.</p>' +
+          '<form data-demo-form data-slug="' + esc(p.slug) + '" novalidate><div class="demo-row">' + fields.join('') + '</div>' +
+          '<button class="button button-primary demo-run" type="submit">Run the demo</button><p class="demo-status" data-demo-status role="status" aria-live="polite"></p></form>' +
+          '<div class="demo-result" data-demo-result hidden></div></div>';
+      }
+      function detailHTML(p) {
+        var ownPrice = isFreeListing(p) ? 'Free' : '$' + p.priceOwn + ' <small>one-time</small>';
+        var heroBg = p.cover || p.icon || '';
+        var visual = p.embedHtml
+          ? '<div class="detail-hero-video" data-reel-url="' + esc(p.reelUrl || '') + '"' + (heroBg ? ' style="background-image:url(' + esc(heroBg) + ')"' : '') + '><div class="hero-video-shade"></div><span class="hero-video-badge">Reel</span><span class="hero-video-play" aria-hidden="true">▶</span></div>'
+          : (heroBg
+            ? '<div class="detail-cover sig-cut" aria-hidden="true"><img src="' + esc(heroBg) + '" alt=""></div>'
+            : '<div class="detail-cover sig-cut" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:44px">' + p.emoji + '</span></div>');
+        var inputs = p.inputs || [];
+        var outputs = p.outputs || [];
+        var examples = p.exampleOut || [];
+        return visual + '<h2 class="detail-name" id="detail-name">' + esc(p.name) + '</h2>' +
+          '<p class="detail-maker">by <span class="maker-handle">' + esc(p.maker) + '</span> &middot; ' + esc(p.makerName) + ' &middot; ' + esc(p.version) + '</p>' +
+          '<div class="detail-upvote-row">' + upvoteBtnHTML(p) + '</div><p class="detail-desc">' + esc(p.desc) + '</p>' +
+          (p.reelUrl || p.video || p.github ? '<p class="detail-links">' +
+            (p.reelUrl ? '<a class="chip-link" href="' + esc(p.reelUrl) + '" target="_blank" rel="noopener">▶ Watch the creator\'s reel</a>' : '') +
+            (p.video ? '<a class="chip-link" href="' + esc(p.video) + '" target="_blank" rel="noopener">▶ Watch the video</a>' : '') +
+            (p.github ? '<a class="chip-link" href="' + esc(p.github) + '" target="_blank" rel="noopener">GitHub</a>' : '') + '</p>' : '') +
+          '<section class="detail-section"><h3>What it needs</h3><div class="io-box"><div class="io-col"><p class="io-label">INPUT</p><ul>' + inputs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+          '<div class="io-col"><p class="io-label">OUTPUT</p><ul>' + outputs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div></section>' +
+          '<section class="detail-section"><h3>See it work — a real example</h3><div class="io-box"><div class="io-col"><p class="io-label">INPUT</p><p style="margin:0;font-size:14px">' + esc(p.exampleIn) + '</p></div>' +
+          '<div class="io-col"><p class="io-label">OUTPUT</p><ul>' + examples.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div></section>' +
+          '<section class="detail-section"><h3>Price — clear and upfront</h3><div class="price-tiers">' +
+          tierHTML('Own it', ownPrice, isFreeListing(p) ? 'Prompts and how-to are yours.' : 'Workflow files + prompts are yours forever.') +
+          tierHTML('Run it', runPriceLabel(p) + ' <small>per run</small>', 'We run it in our cloud and handle the API keys.') + '</div></section>' +
+          '<section class="detail-section"><h3>Two ways to use it</h3><div class="use-doors">' +
+          doorHTML('💻', 'Download', 'Take the workflow and prompts. Run it on your machine.') +
+          doorHTML('🔌', 'API', 'We run it in our cloud and handle the service keys.') + '</div></section>' +
+          '<section class="detail-section">' + demoBoxHTML(p) + '</section>' +
+          '<div class="detail-footer"><button class="button button-primary" type="button" data-action="demo">Try the demo</button>' +
+          '<a class="button button-secondary" href="#" data-action="buy">' + (isFreeListing(p) ? 'Download — Free' : 'Buy — $' + p.priceOwn) + '</a></div>';
+      }
+      function openDialog(p, focusDemo) {
+        if (!p || !dialog || !dialogBody) return;
+        currentSlug = p.slug; lastTrigger = document.activeElement;
+        dialogBody.innerHTML = detailHTML(p);
+        if (typeof dialog.showModal === 'function') dialog.showModal();
+        else dialog.setAttribute('open', '');
+        if (focusDemo) {
+          var box = dialogBody.querySelector('.demo-box');
+          if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } else if (closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus({ preventScroll: true });
+      }
+      function toggleVote(slug) {
+        if (votes[slug]) delete votes[slug]; else votes[slug] = 1;
+        saveVotes(); renderFeed();
+        if (dialog && (dialog.open || dialog.hasAttribute('open'))) {
+          var button = dialog.querySelector('[data-upvote="' + slug + '"]');
+          if (button) {
+            var voted = !!votes[slug];
+            button.classList.toggle('is-voted', voted);
+            button.setAttribute('aria-pressed', voted ? 'true' : 'false');
+            var count = button.querySelector('.upvote-count');
+            if (count) count.textContent = totalVotes(PRODUCTS[slug]);
+          }
+        }
+      }
+      function markPurchased() {
+        var buy = dialogBody && dialogBody.querySelector('[data-action="buy"]');
+        if (buy) { buy.textContent = 'It\'s yours ✓'; buy.className = 'button button-primary'; buy.removeAttribute('data-action'); }
+      }
+      function handleBuy(slug) {
+        var listing = PRODUCTS[slug];
+        var user = window.ClerkAuth && ClerkAuth.getUser ? ClerkAuth.getUser() : null;
+        if (window.StripePay && typeof StripePay.checkout === 'function') {
+          StripePay.checkout(slug, listing, user, { onSuccess: markPurchased, onError: function (msg) { showNote(msg, true); } });
+        } else showNote('Checkout could not start right now.', true);
+      }
+      function renderDemoOutput(output) {
+        return '<pre class="demo-raw">' + esc(JSON.stringify(output, null, 2)) + '</pre>';
+      }
+
+      /* Credits and API key logic retained from the previous dashboard. */
+      var account = { mode: 'mock', userId: '', balanceUsd: 10, apiKey: '', runs: [] };
+      var chosenAmount = 10;
+      var revealed = false;
       function fnv1a(str) {
         var h = 0x811c9dc5;
-        for (var i = 0; i < str.length; i++) {
-          h ^= str.charCodeAt(i);
-          h = (h * 0x01000193) >>> 0;
-        }
+        for (var j = 0; j < str.length; j++) { h ^= str.charCodeAt(j); h = (h * 0x01000193) >>> 0; }
         return h >>> 0;
       }
       function hashHex(str) {
-        var a = fnv1a(str).toString(16);
-        var b = fnv1a('\u0001' + str + '\u0002').toString(16);
-        while (a.length < 8) a = '0' + a;
-        while (b.length < 8) b = '0' + b;
+        var a = fnv1a(str).toString(16); var b = fnv1a('\u0001' + str + '\u0002').toString(16);
+        while (a.length < 8) a = '0' + a; while (b.length < 8) b = '0' + b;
         return a + b;
       }
-      function defaultKey(userId) {
-        return 'omo_' + hashHex(userId + '|omo-demo') + hashHex('omo-demo|' + userId);
+      function defaultKey(userId) { return 'omo_' + hashHex(userId + '|omo-demo') + hashHex('omo-demo|' + userId); }
+      function maskKey() { return '••••••••••••••••'; }
+      function showNote(message, isError) {
+        var notice = el('dash-notice');
+        if (!notice) return;
+        notice.textContent = message; notice.hidden = false;
+        notice.classList.toggle('is-error', !!isError);
       }
-      function maskKey() {
-        return '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+      function renderAccount() {
+        if (el('balance-pill')) el('balance-pill').textContent = 'Balance ' + fmtUsd(account.balanceUsd);
+        if (el('credit-balance')) el('credit-balance').textContent = fmtUsd(account.balanceUsd);
+        if (el('credits-summary-balance')) el('credits-summary-balance').textContent = fmtUsd(account.balanceUsd) + ' available';
+        revealed = false;
+        if (el('api-key-value')) el('api-key-value').textContent = maskKey();
+        if (el('api-key-label')) el('api-key-label').textContent = 'API key';
+        if (el('api-key-chip')) el('api-key-chip').setAttribute('title', 'Click to reveal, click again to copy');
+        var list = el('usage-list'); var empty = el('usage-empty');
+        if (list && empty && account.runs && account.runs.length) {
+          empty.hidden = true; list.hidden = false;
+          list.innerHTML = account.runs.map(function (run) {
+            var time = '';
+            try { var date = new Date(run.created_at || run.ts); if (!isNaN(date.getTime())) time = date.toLocaleString(); } catch (e) {}
+            return '<li class="usage-row"><span class="usage-slug">' + esc(run.slug) + '</span><span class="usage-cost">' +
+              fmtUsd(run.cost_usd != null ? run.cost_usd : run.costUsd) + '</span><span class="usage-time">' + esc(time) + '</span></li>';
+          }).join('');
+        } else if (list && empty) { empty.hidden = false; list.hidden = true; list.innerHTML = ''; }
+        if (el('api-base-label')) el('api-base-label').textContent = API_BASE || '(same origin)';
       }
-
-      function showNote(msg, isError) {
-        var n = el('dash-notice');
-        if (!n) return;
-        n.textContent = msg;
-        n.hidden = false;
-        if (isError) n.classList.add('is-error');
-        else n.classList.remove('is-error');
-      }
-
-      function render() {
-        var pill = el('balance-pill');
-        if (pill) pill.textContent = 'Balance ' + fmtUsd(state.balanceUsd);
-        var val = el('api-key-value');
-        if (val) {
-          revealed = false;
-          val.textContent = maskKey();
-        }
-        var label = el('api-key-label');
-        if (label) label.textContent = 'API key';
-        var chip = el('api-key-chip');
-        if (chip) chip.setAttribute('title', 'Click to reveal, click again to copy');
-
-        var list = el('usage-list');
-        var empty = el('usage-empty');
-        if (list && empty) {
-          if (state.runs && state.runs.length) {
-            empty.hidden = true;
-            list.hidden = false;
-            list.innerHTML = state.runs.map(function (r) {
-              var t = '';
-              try {
-                var d = new Date(r.created_at || r.ts);
-                if (!isNaN(d.getTime())) t = d.toLocaleString();
-              } catch (e) {}
-              return '<li class="usage-row"><span class="usage-slug">' + esc(r.slug) + '</span>' +
-                '<span class="usage-cost">' + fmtUsd(r.cost_usd != null ? r.cost_usd : r.costUsd) + '</span>' +
-                '<span class="usage-time">' + esc(t) + '</span></li>';
-            }).join('');
-          } else {
-            empty.hidden = false;
-            list.hidden = true;
-          }
-        }
-        var base = el('api-base-label');
-        if (base) base.textContent = API_BASE || '(same origin)';
-      }
-
       function currentUser() {
         if (window.ClerkAuth && typeof ClerkAuth.isSignedIn === 'function' && ClerkAuth.isSignedIn()) {
-          var u = ClerkAuth.getUser();
-          if (u && u.id) return u;
+          var user = ClerkAuth.getUser(); if (user && user.id) return user;
         }
         return null;
       }
-
-      /* ── Load: server (/api/me) first, localStorage mock as fallback ── */
-      function load() {
-        var user = currentUser();
-        if (!user) { showGate(); return; }
-        state.userId = user.id;
-        try { localStorage.setItem(SEEN_KEY, '1'); } catch (e) {}
-
-        var canFetch = typeof fetch === 'function' &&
-          window.location && window.location.protocol !== 'file:';
-        if (!canFetch) { loadMock(user); return; }
-
-        fetch(API_BASE + '/api/me?user_id=' + encodeURIComponent(user.id))
-          .then(function (res) { return res.json().catch(function () { return {}; }); })
-          .then(function (data) {
-            if (data && data.ok) {
-              state.mode = 'server';
-              state.balanceUsd = Number(data.balance_usd != null ? data.balance_usd : data.balance);
-              state.apiKey = data.api_key || defaultKey(user.id);
-              state.runs = (data.runs || []).map(function (r) {
-                return { slug: r.slug, cost_usd: r.cost_usd, created_at: r.created_at };
-              });
-              // Mirror into localStorage so the mock fallback stays coherent.
-              lsSet(BAL_KEY, String(state.balanceUsd));
-              lsSet(KEY_KEY, state.apiKey);
-              lsSet(USE_KEY, JSON.stringify(state.runs));
-              render();
-              return;
-            }
-            loadMock(user);
-          })
-          .catch(function () { loadMock(user); });
-      }
-
       function loadMock(user) {
-        state.mode = 'mock';
-        var bal = parseFloat(lsGet(BAL_KEY));
-        state.balanceUsd = isFinite(bal) ? bal : 10;
-        state.apiKey = lsGet(KEY_KEY) || defaultKey(user.id);
-        var runs = [];
-        try {
-          var raw = lsGet(USE_KEY);
-          if (raw) { var arr = JSON.parse(raw); if (Array.isArray(arr)) runs = arr; }
-        } catch (e) {}
-        state.runs = runs;
-        lsSet(BAL_KEY, String(state.balanceUsd));
-        if (!lsGet(KEY_KEY)) lsSet(KEY_KEY, state.apiKey);
-        render();
+        account.mode = 'mock';
+        var balance = parseFloat(lsGet(BAL_KEY));
+        account.balanceUsd = isFinite(balance) ? balance : 10;
+        account.apiKey = lsGet(KEY_KEY) || defaultKey(user.id);
+        account.runs = [];
+        try { var raw = lsGet(USE_KEY); if (raw) { var runs = JSON.parse(raw); if (Array.isArray(runs)) account.runs = runs; } } catch (e) {}
+        lsSet(BAL_KEY, String(account.balanceUsd)); lsSet(KEY_KEY, account.apiKey); renderAccount();
       }
-
+      function loadAccount(user) {
+        account.userId = user.id; lsSet(SEEN_KEY, '1');
+        var canFetch = typeof fetch === 'function' && window.location && window.location.protocol !== 'file:';
+        if (!canFetch) { loadMock(user); return; }
+        fetch(API_BASE + '/api/me?user_id=' + encodeURIComponent(user.id))
+          .then(function (response) { return response.json().catch(function () { return {}; }); })
+          .then(function (data) {
+            if (!data || !data.ok) { loadMock(user); return; }
+            account.mode = 'server';
+            account.balanceUsd = Number(data.balance_usd != null ? data.balance_usd : data.balance);
+            account.apiKey = data.api_key || defaultKey(user.id);
+            account.runs = data.runs || [];
+            lsSet(BAL_KEY, String(account.balanceUsd)); lsSet(KEY_KEY, account.apiKey); lsSet(USE_KEY, JSON.stringify(account.runs));
+            renderAccount();
+          }).catch(function () { loadMock(user); });
+      }
       function showGate() {
-        var gate = el('signin-gate');
-        var main = el('main');
-        if (gate) gate.hidden = false;
-        if (main) main.hidden = true;
-        var btn = el('gate-signin-btn');
-        if (btn) {
-          btn.addEventListener('click', function () {
-            if (window.ClerkAuth && typeof ClerkAuth.signIn === 'function') ClerkAuth.signIn();
-          });
-        }
-        if (window.ClerkAuth && typeof ClerkAuth.onAuthChange === 'function') {
-          ClerkAuth.onAuthChange(function () {
-            if (!ClerkAuth.isSignedIn()) return;
-            if (gate) gate.hidden = true;
-            if (main) main.hidden = false;
-            load();
-          });
-        }
+        if (el('signin-gate')) el('signin-gate').hidden = false;
+        if (el('main')) el('main').hidden = true;
+        if (el('top-signin-btn')) el('top-signin-btn').hidden = false;
+        var authOnly = document.querySelectorAll('.auth-only');
+        for (var j = 0; j < authOnly.length; j++) authOnly[j].hidden = true;
       }
-
-      /* ── Top-up: Stripe Checkout via the worker, simulated fallback ── */
-      function mockTopup(amountUsd) {
-        state.balanceUsd = Math.round((state.balanceUsd + amountUsd) * 100) / 100;
-        lsSet(BAL_KEY, String(state.balanceUsd));
-        render();
-        return true;
+      function showDashboard(user) {
+        if (el('signin-gate')) el('signin-gate').hidden = true;
+        if (el('main')) el('main').hidden = false;
+        if (el('top-signin-btn')) el('top-signin-btn').hidden = true;
+        var authOnly = document.querySelectorAll('.auth-only');
+        for (var j = 0; j < authOnly.length; j++) authOnly[j].hidden = false;
+        loadAccount(user);
       }
-
-      function submitTopup(ev) {
-        if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
-        var amount = chosenAmount || 10;
-        var btn = el('topup-btn');
-        var note = el('topup-note');
-        if (btn) btn.disabled = true;
-        if (note) { note.textContent = ''; note.className = 'form-note'; }
-
-        function done(msg, ok) {
-          if (note) { note.textContent = msg; note.className = 'form-note' + (ok ? ' is-ok' : ' is-err'); }
-          if (btn) btn.disabled = false;
-        }
-        function simulate(reason) {
-          mockTopup(amount);
-          done(reason + ' Simulated +' + fmtUsd(amount) + ' (mock mode). Connect Stripe to charge for real.', false);
-        }
-
-        if (state.mode !== 'server') { simulate('Live checkout is not configured yet.'); return; }
-
-        fetch(API_BASE + '/api/topup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: state.userId, amount_usd: amount })
-        }).then(function (res) {
-          return res.json().catch(function () { return {}; }).then(function (d) { return { status: res.status, data: d }; });
-        }).then(function (res) {
-          if (res.status === 200 && res.data && res.data.url) {
-            window.location.href = res.data.url;
-            return;
-          }
-          if (res.status === 501) simulate('Stripe is not configured on the worker yet.');
-          else simulate('Checkout could not start right now.');
-        }).catch(function () {
-          simulate('Could not reach the checkout server.');
-        });
+      function refreshAuth() {
+        var user = currentUser();
+        if (user) showDashboard(user); else showGate();
       }
-
-      /* ── API key chip: click to reveal, click again to copy ── */
+      function mockTopup(amount) {
+        account.balanceUsd = Math.round((account.balanceUsd + amount) * 100) / 100;
+        lsSet(BAL_KEY, String(account.balanceUsd)); renderAccount();
+      }
+      function submitTopup(event) {
+        if (event && event.preventDefault) event.preventDefault();
+        var amount = chosenAmount || 10; var button = el('topup-btn'); var note = el('topup-note');
+        if (button) button.disabled = true;
+        function done(message, ok) {
+          if (note) { note.textContent = message; note.className = 'form-note' + (ok ? ' is-ok' : ' is-err'); }
+          if (button) button.disabled = false;
+        }
+        function simulate(reason) { mockTopup(amount); done(reason + ' Simulated +' + fmtUsd(amount) + ' in mock mode.', false); }
+        if (account.mode !== 'server') { simulate('Live checkout is not configured yet.'); return; }
+        fetch(API_BASE + '/api/topup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: account.userId, amount_usd: amount }) })
+          .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { status: response.status, data: data }; }); })
+          .then(function (result) {
+            if (result.status === 200 && result.data && result.data.url) { window.location.href = result.data.url; return; }
+            simulate(result.status === 501 ? 'Stripe is not configured on the worker yet.' : 'Checkout could not start right now.');
+          }).catch(function () { simulate('Could not reach the checkout server.'); });
+      }
       function copyKey() {
         var label = el('api-key-label');
-        var done = function () {
-          if (label) label.textContent = 'Copied \u2713';
-          setTimeout(function () { if (label) label.textContent = 'API key'; }, 1600);
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(state.apiKey).then(done, done);
-        } else {
-          try { window.prompt('Your Omo API key', state.apiKey); } catch (e) {}
-          done();
-        }
+        function done() { if (label) label.textContent = 'Copied ✓'; setTimeout(function () { if (label) label.textContent = 'API key'; }, 1600); }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(account.apiKey).then(done, done);
+        else { try { window.prompt('Your Omo API key', account.apiKey); } catch (e) {} done(); }
       }
 
       function wire() {
-        var chips = document.querySelectorAll('.amount-chip');
-        for (var i = 0; i < chips.length; i++) {
+        var nav = el('niche-nav');
+        if (nav) nav.addEventListener('click', function (event) {
+          var button = event.target.closest('[data-niche]');
+          if (button) selectScope(button.getAttribute('data-niche'));
+        });
+        var searchForm = el('search-form'); var searchInput = el('search-input');
+        if (searchForm) searchForm.addEventListener('submit', function (event) { event.preventDefault(); currentQuery = searchInput.value.trim().toLowerCase(); renderFeed(); });
+        if (searchInput) searchInput.addEventListener('input', function () { currentQuery = searchInput.value.trim().toLowerCase(); renderFeed(); });
+        var outcome = el('outcome-filters');
+        if (outcome) outcome.addEventListener('click', function (event) {
+          var button = event.target.closest('[data-outcome]');
+          if (!button) return;
+          setOutcome(button.getAttribute('data-outcome')); renderFeed();
+        });
+        if (el('clear-filters')) el('clear-filters').addEventListener('click', clearFilters);
+
+        var feed = el('listing-feed');
+        if (feed) {
+          feed.addEventListener('click', function (event) {
+            var card = event.target.closest('[data-slug]'); if (!card) return;
+            var vote = event.target.closest('[data-upvote]');
+            if (vote) { event.stopPropagation(); toggleVote(vote.getAttribute('data-upvote')); return; }
+            var product = PRODUCTS[card.getAttribute('data-slug')];
+            var action = event.target.closest('[data-action]');
+            openDialog(product, !!(action && action.getAttribute('data-action') === 'demo'));
+          });
+          feed.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            if (event.target.closest('[data-upvote]')) return;
+            var card = event.target.closest('[data-slug]'); if (!card) return;
+            event.preventDefault(); openDialog(PRODUCTS[card.getAttribute('data-slug')], false);
+          });
+        }
+        if (dialogBody) {
+          dialogBody.addEventListener('click', function (event) {
+            var vote = event.target.closest('[data-upvote]');
+            if (vote) { toggleVote(vote.getAttribute('data-upvote')); return; }
+            var buy = event.target.closest('[data-action="buy"]');
+            if (buy) { event.preventDefault(); handleBuy(currentSlug); return; }
+            var reel = event.target.closest('.detail-hero-video');
+            if (reel && !reel.getAttribute('data-loaded')) {
+              event.preventDefault(); reel.setAttribute('data-loaded', '1');
+              var url = (PRODUCTS[currentSlug] && PRODUCTS[currentSlug].reelUrl) || reel.getAttribute('data-reel-url') || '';
+              var shortcode = /\/reel\/([A-Za-z0-9_-]+)/.exec(url);
+              if (shortcode) reel.innerHTML = '<iframe class="reel-frame" src="https://www.instagram.com/reel/' + shortcode[1] + '/embed/" title="Instagram reel" allow="autoplay; fullscreen; encrypted-media" allowfullscreen></iframe>';
+              else reel.innerHTML = '<p style="padding:20px">The reel could not load. <a class="chip-link" href="' + esc(url) + '" target="_blank" rel="noopener">Watch on Instagram ↗</a></p>';
+              return;
+            }
+            var demoAction = event.target.closest('[data-action="demo"]');
+            if (demoAction) { var box = dialogBody.querySelector('.demo-box'); if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+          });
+          dialogBody.addEventListener('submit', function (event) {
+            var form = event.target.closest('[data-demo-form]'); if (!form) return;
+            event.preventDefault();
+            var product = PRODUCTS[form.getAttribute('data-slug')]; var status = form.querySelector('[data-demo-status]');
+            var resultBox = form.parentElement.querySelector('[data-demo-result]'); var runButton = form.querySelector('.demo-run');
+            var fields = form.querySelectorAll('[data-demo-field]'); var payload = { slug: product.slug, fields: {} }; var missing = '';
+            for (var j = 0; j < fields.length; j++) { var value = fields[j].value.trim(); payload.fields[fields[j].getAttribute('data-key')] = value; if (!value) missing = fields[j].getAttribute('data-key'); }
+            if (missing) { status.setAttribute('data-state', 'error'); status.textContent = 'Add ' + missing + ' to run the demo.'; return; }
+            if (product.workflow && product.workflow.steps && product.workflow.steps[0] && product.workflow.steps[0].system) payload.system_prompt = product.workflow.steps[0].system;
+            var user = currentUser(); if (user) payload.user_id = user.id;
+            runButton.disabled = true; runButton.textContent = 'Running the demo…'; status.textContent = ''; resultBox.hidden = true;
+            fetch((API_BASE || 'https://cognition-demo.pages.dev') + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+              .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { status: response.status, data: data }; }); })
+              .then(function (result) {
+                if (!result.data.ok) { status.setAttribute('data-state', 'error'); status.textContent = result.data.error || (result.status === 402 ? 'Not enough credits — top up below.' : 'The demo could not run.'); return; }
+                resultBox.innerHTML = renderDemoOutput(result.data.output !== undefined ? result.data.output : result.data); resultBox.hidden = false; status.textContent = 'Done — that’s the real helper output.';
+              }).catch(function () { status.setAttribute('data-state', 'error'); status.textContent = 'Could not reach the demo server right now.'; })
+              .finally(function () { runButton.disabled = false; runButton.textContent = 'Run the demo'; });
+          });
+        }
+        if (closeBtn) closeBtn.addEventListener('click', function () { if (dialog.close) dialog.close(); else dialog.removeAttribute('open'); });
+        if (dialog) {
+          dialog.addEventListener('close', function () { if (lastTrigger && lastTrigger.focus) lastTrigger.focus({ preventScroll: true }); });
+          dialog.addEventListener('click', function (event) { if (event.target === dialog && dialog.close) dialog.close(); });
+        }
+
+        var amountChips = document.querySelectorAll('.amount-chip');
+        for (var j = 0; j < amountChips.length; j++) {
           (function (chip) {
             chip.addEventListener('click', function () {
               chosenAmount = Number(chip.getAttribute('data-amount')) || 10;
-              for (var j = 0; j < chips.length; j++) {
-                var on = chips[j] === chip;
-                chips[j].classList.toggle('is-active', on);
-                chips[j].setAttribute('aria-pressed', on ? 'true' : 'false');
+              for (var k = 0; k < amountChips.length; k++) {
+                var active = amountChips[k] === chip; amountChips[k].classList.toggle('is-active', active);
+                amountChips[k].setAttribute('aria-pressed', active ? 'true' : 'false');
               }
             });
-          })(chips[i]);
+          })(amountChips[j]);
         }
-        var form = el('topup-form');
-        if (form) form.addEventListener('submit', submitTopup);
-        var chipBtn = el('api-key-chip');
-        if (chipBtn) {
-          chipBtn.addEventListener('click', function () {
-            if (!revealed) {
-              revealed = true;
-              var val = el('api-key-value');
-              if (val) val.textContent = state.apiKey;
-              chipBtn.setAttribute('title', 'Click to copy');
-            } else {
-              copyKey();
-            }
-          });
-        }
-        var so = el('sign-out-btn');
-        if (so) {
-          so.addEventListener('click', function () {
-            if (window.ClerkAuth && typeof ClerkAuth.signOut === 'function') ClerkAuth.signOut();
-            try { window.location.href = 'index.html'; } catch (e) {}
-          });
-        }
-        if (window.ClerkAuth && typeof ClerkAuth.onAuthChange === 'function') {
-          ClerkAuth.onAuthChange(function () {
-            if (ClerkAuth.isSignedIn()) load();
-          });
-        }
-        // After a Stripe top-up lands back here, tell the user + refresh.
-        try {
-          if (window.location.search && window.location.search.indexOf('topup=success') !== -1) {
-            showNote('Payment complete \u2014 your credits were added.', false);
-          }
-        } catch (e) {}
+        if (el('topup-form')) el('topup-form').addEventListener('submit', submitTopup);
+        if (el('api-key-chip')) el('api-key-chip').addEventListener('click', function () {
+          if (!revealed) { revealed = true; el('api-key-value').textContent = account.apiKey; this.setAttribute('title', 'Click to copy'); }
+          else copyKey();
+        });
+        if (el('sign-out-btn')) el('sign-out-btn').addEventListener('click', function () {
+          if (window.ClerkAuth && ClerkAuth.signOut) ClerkAuth.signOut();
+          try { window.location.href = 'index.html'; } catch (e) {}
+        });
+        function signIn() { if (window.ClerkAuth && ClerkAuth.signIn) ClerkAuth.signIn(); }
+        if (el('gate-signin-btn')) el('gate-signin-btn').addEventListener('click', signIn);
+        if (el('top-signin-btn')) el('top-signin-btn').addEventListener('click', signIn);
+        if (window.ClerkAuth && ClerkAuth.onAuthChange) ClerkAuth.onAuthChange(refreshAuth);
+        try { if (window.location.search && window.location.search.indexOf('topup=success') !== -1) showNote('Payment complete — your credits were added.', false); } catch (e) {}
       }
 
+      renderSidebar();
+      renderFeed();
+      renderAccount();
       wire();
-      load();
+      refreshAuth();
 
-      // Exposed for tests / console debugging. topup(amount) forces a chosen
-      // amount and runs the same submit path the form button uses.
       window.__omoDashboard = {
-        state: state,
-        refresh: load,
-        topup: function (amountUsd) {
-          if (typeof amountUsd === 'number') chosenAmount = amountUsd;
-          submitTopup(null);
-        },
-        reveal: function () {
-          if (el('api-key-chip')) el('api-key-chip').click();
-        }
+        state: account,
+        products: PRODUCTS,
+        filters: FILTERS,
+        visibleSlugs: visibleSlugs,
+        selectNiche: selectScope,
+        clearFilters: clearFilters,
+        refresh: refreshAuth,
+        topup: function (amount) { if (typeof amount === 'number') chosenAmount = amount; submitTopup(null); },
+        reveal: function () { if (el('api-key-chip')) el('api-key-chip').click(); }
       };
     })();
   </script>
