@@ -838,7 +838,6 @@
         revealed = false;
         if (el('api-key-value')) el('api-key-value').textContent = maskKey();
         if (el('api-key-label')) el('api-key-label').textContent = 'API key';
-        if (el('api-key-chip')) el('api-key-chip').setAttribute('title', 'Click to reveal, click again to copy');
         var list = el('usage-list'); var empty = el('usage-empty');
         if (list && empty && account.runs && account.runs.length) {
           empty.hidden = true; list.hidden = false;
@@ -1020,10 +1019,6 @@
           })(amountChips[j]);
         }
         if (el('topup-form')) el('topup-form').addEventListener('submit', submitTopup);
-        if (el('api-key-chip')) el('api-key-chip').addEventListener('click', function () {
-          if (!revealed) { revealed = true; el('api-key-value').textContent = account.apiKey; this.setAttribute('title', 'Click to copy'); }
-          else copyKey();
-        });
         if (el('sign-out-btn')) el('sign-out-btn').addEventListener('click', function () {
           if (window.ClerkAuth && ClerkAuth.signOut) ClerkAuth.signOut();
           try { window.location.href = 'index.html'; } catch (e) {}
@@ -1049,8 +1044,7 @@
         selectNiche: selectScope,
         clearFilters: clearFilters,
         refresh: refreshAuth,
-        topup: function (amount) { if (typeof amount === 'number') chosenAmount = amount; submitTopup(null); },
-        reveal: function () { if (el('api-key-chip')) el('api-key-chip').click(); }
+        topup: function (amount) { if (typeof amount === 'number') chosenAmount = amount; submitTopup(null); }
       };
     })();
   </script>
