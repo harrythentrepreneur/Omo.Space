@@ -1,4 +1,4 @@
-/* stripe.js — Stripe Checkout payments for the Cognition storefront, with a
+/* stripe.js — Stripe Checkout payments for the Omo storefront, with a
  * simulated fallback so the whole flow works with zero Stripe credentials.
  *
  * How it works:
@@ -7,7 +7,7 @@
  *    the store runs in SIMULATED mode: buying records the purchase to
  *    localStorage (cognition_purchases_v1) and calls onSuccess, so the
  *    library + buy flow is fully testable with zero Stripe setup.
- *  - With a real key, creates a Stripe Checkout session via the Cognition
+ *  - With a real key, creates a Stripe Checkout session via the Omo
  *    worker (POST https://cognition-demo.pages.dev/api/checkout, which
  *    returns a Checkout URL when the worker has STRIPE_SECRET_KEY set) and
  *    redirects the buyer to Stripe's hosted Checkout page. If the worker is
@@ -89,7 +89,7 @@
     }
   }
 
-  // Real path: ask the Cognition worker for a Checkout session, then send the
+  // Real path: ask the Omo worker for a Checkout session, then send the
   // buyer to Stripe's hosted page. Falls back to simulateCheckout (with a
   // notice) if the worker is unreachable or not configured.
   function realCheckout(slug, listing, user, callbacks) {

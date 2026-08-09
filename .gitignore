@@ -21,3 +21,4 @@ node_modules/
 
 # Local server logs
 *.log
+.vercel

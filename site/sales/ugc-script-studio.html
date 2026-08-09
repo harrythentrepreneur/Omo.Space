@@ -1,10 +1,10 @@
 <!doctype html>
 <!--
-  Cognition — Creator Sales Page (template)
+  Omo — Creator Sales Page (template)
   ==========================================
   One file per creator. Edit the CONFIG object below (slug, name, handle,
   helper, price, links) and save as site/sales/<slug>.html. All styling follows
-  the Cognition brand PRD: Workshop Green palette, "Cognition Cut" clipped
+  the Omo brand PRD: Workshop Green palette, "Omo Cut" clipped
   corners, skool-simple layout, 8-year-old-simple copy rules.
 
   When a creator's helper goes live, this page is the shareable link we DM
@@ -14,7 +14,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>@ugcstudioai — UGC Script Studio | Cognition</title>
+  <title>@ugcstudioai — UGC Script Studio | Omo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
@@ -50,7 +50,7 @@
     .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
     .logo-mark {
       width: 28px; height: 28px; background: var(--pine); color: #fff;
-      border-radius: 7px 7px 7px 2px; /* Cognition Cut */
+      border-radius: 7px 7px 7px 2px; /* Omo Cut */
       display: grid; place-items: center; font-size: 14px; font-weight: 700;
     }
     .topbar-links { display: flex; gap: 22px; align-items: center; font-size: 14.5px; }
@@ -58,7 +58,7 @@
     .topbar-links a:hover { color: var(--orange); }
     .btn {
       display: inline-block; border: 0; cursor: pointer; text-decoration: none;
-      font-weight: 700; font-size: 15px; padding: 11px 20px; border-radius: 10px 10px 10px 3px; /* Cognition Cut */
+      font-weight: 700; font-size: 15px; padding: 11px 20px; border-radius: 10px 10px 10px 3px; /* Omo Cut */
       transition: transform .06s ease;
     }
     .btn:active { transform: translateY(1px); }
@@ -197,7 +197,7 @@
 
 <div class="topbar">
   <div class="shell topbar-in">
-    <a class="logo" href="/"><span class="logo-mark">C</span> Cognition</a>
+    <a class="logo" href="/"><span class="logo-mark">C</span> Omo</a>
     <nav class="topbar-links">
       <a href="/" class="hide-sm">Store</a>
       <a href="#price" class="hide-sm">Price</a>
@@ -260,7 +260,7 @@
         <p style="color:var(--moss);font-size:14.5px;margin:0">One key lets you plug it into your own app. Pay a little each time it runs.</p>
       </div>
       <div class="io-card">
-        <div class="io-label">Right here on Cognition</div>
+        <div class="io-label">Right here on Omo</div>
         <p style="color:var(--moss);font-size:14.5px;margin:0">Open it and use it. Nothing to install. It remembers you and your settings.</p>
       </div>
       <div class="io-card">
@@ -297,7 +297,7 @@
     </div>
     <div class="money-strip" style="margin-top:16px">
       💸 <strong id="moneyLine">On a $39 license, the maker keeps $33.15.</strong>
-      <span style="color:var(--moss)">Cognition takes 15%. That's the deal — always.</span>
+      <span style="color:var(--moss)">Omo takes 15%. That's the deal — always.</span>
     </div>
   </div>
 </section>
@@ -307,7 +307,7 @@
     <h2>Made better, over time</h2>
     <p class="lede">The maker can ship a new version any time. Everyone who bought it gets it.</p>
     <ul class="updates-list">
-      <li><span class="u-date">Just now</span> Helper is live on Cognition.</li>
+      <li><span class="u-date">Just now</span> Helper is live on Omo.</li>
       <li><span class="u-date">Next</span> New version of the helper — everyone gets it.</li>
     </ul>
   </div>
@@ -315,10 +315,10 @@
 
 <footer class="footer">
   <div class="shell footer-in">
-    <div><strong style="color:var(--pine)">Cognition</strong> — the store for AI helpers.</div>
+    <div><strong style="color:var(--pine)">Omo</strong> — the store for AI helpers.</div>
     <div>
       <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="mailto:support@cognition.cv">support@cognition.cv</a> ·
-      <a href="/sell">Sell on Cognition</a>
+      <a href="/sell">Sell on Omo</a>
     </div>
   </div>
 </footer>
@@ -330,7 +330,7 @@
     var c = window.COGNITION || window.BENCH;
     if (!c) return;
     var $ = function (id) { return document.getElementById(id); };
-    document.title = "@" + c.handle + " — " + c.helper + " | Cognition";
+    document.title = "@" + c.handle + " — " + c.helper + " | Omo";
     $("creatorName").innerHTML = c.creatorName + ' <span class="verified">Maker</span>';
     $("creatorHandle").textContent = "@" + c.handle;
     $("helperName").textContent = c.helper;

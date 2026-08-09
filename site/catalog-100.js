@@ -1,4 +1,4 @@
-// Cognition — 100-skill catalog (2026-08-08)
+// Omo — 100-skill catalog (2026-08-08)
 // Each entry is a WORKFLOW we run automatically. runPrice is precomputed from
 // cost-model.mjs (LLM_RATES + API_STEP_COSTS, ×1.25 markup, $0.10 floor).
 // Shape mirrors the storefront PRODUCTS entries; icon stays null (emoji fallback).

@@ -1,4 +1,4 @@
-// Cognition — 14 more Instagram-verified workflows (2026-08-08, browser agent, oEmbed-verified)
+// Omo — 14 more Instagram-verified workflows (2026-08-08, browser agent, oEmbed-verified)
 window.COGNITION_IG_MORE = [
   {
     slug: 'prompt-to-ugc-ad-maxfusion-seedance-2-0',

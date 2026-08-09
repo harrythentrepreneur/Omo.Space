@@ -1,4 +1,4 @@
-// Cognition — 5 Instagram-verified workflows (scraped 2026-08-08 by Luna agent,
+// Omo — 5 Instagram-verified workflows (scraped 2026-08-08 by Luna agent,
 // URLs independently oEmbed-verified by the parent agent).
 // These are REAL workflows creators post about; listed with their reel URLs.
 // runPrice precomputed from cost-model.mjs (×1.25 markup, $0.10 floor).
@@ -56,7 +56,7 @@ window.COGNITION_IG_WORKFLOWS = [
     priceMaintain: 12,
     version: 'v1.0.0 · 2026-08-08',
     demoCap: 'Free demo: 2 a day',
-    desc: 'Paste the product link, generate a UGC video prompt, make the video, and prepare it for a Meta ad. Cognition runs the chain for you.',
+    desc: 'Paste the product link, generate a UGC video prompt, make the video, and prepare it for a Meta ad. Omo runs the chain for you.',
     reelUrl: 'https://www.instagram.com/reel/DZIoBk8R6KU/',
     inputs: ['product_url: the product page link', 'claim: the main selling point'],
     outputs: ['ad_prompt — the UGC video generation prompt', 'video — avatar-rendered UGC ad', 'script — what the ad says'],

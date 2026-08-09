@@ -1,4 +1,4 @@
-/* clerk.js — Clerk auth for the Cognition storefront, with a demo fallback.
+/* clerk.js — Clerk auth for the Omo storefront, with a demo fallback.
  *
  * How it works:
  *  - Reads the publishable key from window.CLERK_PUBLISHABLE_KEY (set in

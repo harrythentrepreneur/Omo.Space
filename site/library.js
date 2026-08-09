@@ -1,4 +1,4 @@
-/* library.js — the logged-in library view for the Cognition storefront.
+/* library.js — the logged-in library view for the Omo storefront.
  *
  * Works with clerk.js. Shows two sections, same Workshop Green look as the
  * storefront (it reuses the site's own .listing-card / .button styles):
