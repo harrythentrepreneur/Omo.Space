@@ -13,8 +13,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const src = fs.readFileSync(path.join(here, 'worker.js'), 'utf8');
-const cjs = src.replace('export default', 'const __workerExport =');
+
+// worker.js imports balance.mjs + cost-model.mjs (bundled at deploy time).
+// The vm sandbox can't resolve imports, so concatenate them first with the
+// `export`/`import` keywords stripped — dependency-free modules concatenate
+// safely and keep a single source of truth.
+function stripModule(p) {
+  return fs.readFileSync(path.join(here, p), 'utf8')
+    .replace(/^import .*$/gm, '')
+    .replace(/^export /gm, '');
+}
+const prelude = stripModule('balance.mjs') + '\n' + stripModule('cost-model.mjs') + '\n';
+const workerSrc = fs.readFileSync(path.join(here, 'worker.js'), 'utf8').replace(/^import .*$/gm, '');
+const cjs = prelude + workerSrc.replace('export default', 'const __workerExport =');
 
 const sandbox = {};
 vm.createContext(sandbox);

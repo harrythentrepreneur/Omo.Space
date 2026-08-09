@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
+  <meta name="description" content="Omo dashboard — your credits balance, API key, and usage. Every new account starts with $10 of free credits.">
+  <meta property="og:title" content="Omo — Your dashboard">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://omo.best/dashboard.html">
+  <title>Omo — Your dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      background: var(--canvas);
+      color: var(--pine);
+      font-family: var(--body);
+      font-size: 16px;
+      line-height: 1.58;
+      text-rendering: optimizeLegibility;
+    }
+    body, button, input, select, textarea { font-family: var(--body); }
+    img, svg { display: block; max-width: 100%; }
+    button, input, select, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    p, h1, h2, h3, h4 { overflow-wrap: break-word; }
+    h1, h2, h3, h4, p { margin-top: 0; }
+
+    .skip-link {
+      position: fixed; top: 8px; left: 8px; z-index: 100;
+      padding: 10px 14px; border-radius: 8px;
+      background: var(--surface); color: var(--pine);
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    :where(a, button, input, select, textarea):focus-visible {
+      outline: 3px solid var(--mint);
+      box-shadow: 0 0 0 1px var(--pine) inset;
+      outline-offset: 3px;
+    }
+
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+
+    /* ── Signature Cut: one clipped corner, used sparingly ─────── */
+    .sig-cut { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    .site-header {
+      position: relative; z-index: 10;
+      border-bottom: 1px solid var(--rule);
+      background: var(--canvas);
+    }
+    .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-block: 10px; }
+    .wordmark {
+      font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1;
+      text-decoration: none; letter-spacing: -0.01em;
+    }
+    .wordmark-dot { color: var(--orange); }
+    .nav-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .nav-link {
+      min-height: 44px; display: inline-flex; align-items: center;
+      font-size: 14px; font-weight: 700; text-decoration: none;
+      text-underline-offset: 4px; text-decoration-thickness: 1px;
+    }
+    .nav-link:hover, .nav-link:focus-visible { text-decoration: underline; }
+
+    /* ── Balance pill + API key chip (top-right, the headline) ─── */
+    .balance-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      min-height: 40px; padding: 0 16px;
+      border-radius: 999px; background: var(--pine); color: #fff;
+      font-size: 14px; font-weight: 700; white-space: nowrap;
+    }
+    .api-key-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      min-height: 40px; padding: 0 14px;
+      border: 1px solid var(--pine); border-radius: 999px;
+      background: var(--surface); color: var(--pine);
+      font-size: 13px; font-weight: 700; white-space: nowrap;
+    }
+    .api-key-chip:hover { background: var(--mint); }
+    .api-key-chip code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; letter-spacing: .04em; }
+
+    /* ── Buttons ────────────────────────────────────────────────── */
+    .button {
+      min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 0 20px; border-radius: 10px; border: 1px solid transparent;
+      font-size: 15px; font-weight: 700; text-decoration: none; line-height: 1.2;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .button:hover { transform: translateY(-1px); }
+    .button-primary { background: var(--pine); color: #fff; }
+    .button-primary:hover { box-shadow: 0 6px 18px rgba(23,53,44,.18); }
+    .button-accent { background: var(--orange); color: var(--pine); }
+    .button-accent:hover { box-shadow: 0 6px 18px rgba(255,107,61,.28); }
+    .button-secondary { background: var(--surface); color: var(--pine); border-color: var(--pine); }
+    .button-small { min-height: 40px; padding: 0 16px; font-size: 14px; }
+    .button-block { width: 100%; }
+
+    /* ── Main ───────────────────────────────────────────────────── */
+    .dash-hero { padding: 56px 0 12px; }
+    .dash-hero-inner { max-width: 720px; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-bottom: 16px; padding: 6px 14px;
+      border: 1px solid var(--rule); border-radius: 999px;
+      background: var(--surface); color: var(--moss);
+      font-size: 12px; font-weight: 700; letter-spacing: .14em;
+    }
+    .dash-title {
+      margin-bottom: 14px;
+      font-family: var(--display); font-weight: 600;
+      font-size: clamp(34px, 5.4vw, 52px); line-height: 1.05; letter-spacing: -0.015em;
+    }
+    .dash-sub { max-width: 560px; color: var(--moss); font-size: 17px; margin-bottom: 8px; }
+    .dash-sub strong { color: var(--pine); }
+
+    .dash-notice {
+      margin: 18px 0 0; padding: 12px 16px;
+      border: 1px solid var(--rule); border-radius: 12px;
+      background: var(--mint); color: var(--pine);
+      font-size: 14.5px; font-weight: 700;
+    }
+    .dash-notice.is-error { background: #FFE8E0; border-color: var(--orange); }
+
+    .dash-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+      padding: 32px 0 56px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      border-radius: 14px;
+      padding: 28px;
+    }
+    .card h2 { font-family: var(--display); font-weight: 600; font-size: 24px; margin-bottom: 6px; }
+    .card-intro { color: var(--moss); font-size: 14.5px; margin-bottom: 20px; }
+
+    /* ── Top-up amount chips ────────────────────────────────────── */
+    .amount-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+    .amount-chip {
+      min-height: 48px; min-width: 72px; flex: 1;
+      border: 1px solid var(--rule); border-radius: 10px;
+      background: var(--surface); color: var(--pine);
+      font-size: 16px; font-weight: 700;
+    }
+    .amount-chip:hover { border-color: var(--pine); }
+    .amount-chip.is-active { background: var(--pine); color: #fff; border-color: var(--pine); }
+    .form-note { margin: 12px 0 0; color: var(--moss); font-size: 13.5px; min-height: 1.2em; }
+    .form-note.is-ok { color: var(--pine); font-weight: 700; }
+    .form-note.is-err { color: var(--orange); font-weight: 700; }
+
+    /* ── Usage list ─────────────────────────────────────────────── */
+    .usage-empty { color: var(--moss); font-size: 14.5px; margin: 0; }
+    .usage-list { list-style: none; margin: 0; padding: 0; }
+    .usage-row {
+      display: flex; align-items: baseline; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--rule);
+      font-size: 14.5px;
+    }
+    .usage-row:last-child { border-bottom: 0; }
+    .usage-slug { font-weight: 700; flex: 1; overflow-wrap: anywhere; }
+    .usage-cost { font-weight: 700; white-space: nowrap; }
+    .usage-time { color: var(--moss); font-size: 13px; white-space: nowrap; }
+
+    .dash-foot { padding: 0 0 48px; color: var(--moss); font-size: 13px; }
+    .dash-foot code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+    /* ── Sign-in gate ───────────────────────────────────────────── */
+    .gate { padding: 90px 0 120px; text-align: center; }
+    .gate h1 { font-family: var(--display); font-weight: 600; font-size: clamp(28px, 4vw, 40px); margin-bottom: 10px; }
+    .gate p { color: var(--moss); margin-bottom: 24px; }
+
+    @media (max-width: 860px) {
+      .dash-grid { grid-template-columns: 1fr; }
+      .nav-actions { justify-content: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="wordmark" href="index.html">Omo<span class="wordmark-dot">.</span></a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="nav-link" href="index.html#feed">Try a helper</a>
+        <span class="balance-pill" id="balance-pill" title="Credits balance">Balance …</span>
+        <button class="api-key-chip" id="api-key-chip" type="button" title="Click to reveal, click again to copy">
+          <span id="api-key-label">API key</span>
+          <code id="api-key-value" aria-live="polite">••••••••••••••••</code>
+        </button>
+        <button class="button button-secondary button-small" id="sign-out-btn" type="button">Sign out</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Sign-in gate: dashboard requires a Clerk session (demo mode fakes one). -->
+  <main id="main" hidden>
+    <section class="dash-hero">
+      <div class="shell dash-hero-inner">
+        <p class="eyebrow">Your workspace</p>
+        <h1 class="dash-title">Credits, key, usage — one screen.</h1>
+        <p class="dash-sub">Every new account starts with <strong>$10 of free credits</strong>. Run any helper and we debit per use from the cost model. Top up when you need more, and grab your <strong>API key</strong> for the API door.</p>
+        <p class="dash-notice" id="dash-notice" role="status" aria-live="polite" hidden></p>
+      </div>
+    </section>
+
+    <section class="shell dash-grid">
+      <div class="card sig-cut" id="topup-card">
+        <h2>Top up</h2>
+        <p class="card-intro">Pick an amount — we charge it once and the credits land on your balance.</p>
+        <form id="topup-form" novalidate>
+          <div class="amount-row" id="amount-row" role="group" aria-label="Top-up amount">
+            <button class="amount-chip" type="button" data-amount="5" aria-pressed="false">$5</button>
+            <button class="amount-chip is-active" type="button" data-amount="10" aria-pressed="true">$10</button>
+            <button class="amount-chip" type="button" data-amount="25" aria-pressed="false">$25</button>
+            <button class="amount-chip" type="button" data-amount="50" aria-pressed="false">$50</button>
+          </div>
+          <button class="button button-primary button-block" id="topup-btn" type="submit">Top up with Stripe</button>
+          <p class="form-note" id="topup-note" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+
+      <div class="card sig-cut" id="usage-card">
+        <h2>Usage</h2>
+        <p class="card-intro">Recent helper runs, newest first. Anonymous demos don't show here — signed-in runs do.</p>
+        <p class="usage-empty" id="usage-empty">No runs yet — go try a helper.</p>
+        <ul class="usage-list" id="usage-list" hidden></ul>
+      </div>
+    </section>
+
+    <p class="dash-foot shell">API base: <code id="api-base-label">—</code> · Keys are deterministic per account — the same user always gets the same <code>omo_</code> key.</p>
+  </main>
+
+  <main class="gate shell" id="signin-gate" hidden>
+    <h1>Your dashboard is one tap away.</h1>
+    <p>Sign in to see your credits balance, API key, and usage.</p>
+    <button class="button button-accent" id="gate-signin-btn" type="button">Sign in</button>
+  </main>
+
+  <script src="clerk.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      /* ── Config ──────────────────────────────────────────────── */
+      // Point at the deployed Omo worker (e.g. 'https://demo.omo.best').
+      // Empty = same-origin /api/*. At file:// (or when the worker is
+      // unreachable) the dashboard falls back to MOCK MODE: balance, api key
+      // and usage live in localStorage, top-ups are simulated.
+      var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
+
+      var BAL_KEY = 'omo_balance_v1';
+      var KEY_KEY = 'omo_apikey_v1';
+      var USE_KEY = 'omo_usage_v1';
+      var SEEN_KEY = 'omo_seen_dashboard';
+
+      var state = { mode: 'mock', userId: '', balanceUsd: 10, apiKey: '', runs: [] };
+      var chosenAmount = 10;
+      var revealed = false;
+
+      function el(id) {
+        return document.getElementById(id);
+      }
+      function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+      function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+      function fmtUsd(v) { return '$' + Number(v).toFixed(2); }
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      // Mirror of balance.mjs hashHex (FNV-1a) so mock-mode keys are
+      // deterministic per user id, exactly like the worker's.
+      function fnv1a(str) {
+        var h = 0x811c9dc5;
+        for (var i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h = (h * 0x01000193) >>> 0;
+        }
+        return h >>> 0;
+      }
+      function hashHex(str) {
+        var a = fnv1a(str).toString(16);
+        var b = fnv1a('\u0001' + str + '\u0002').toString(16);
+        while (a.length < 8) a = '0' + a;
+        while (b.length < 8) b = '0' + b;
+        return a + b;
+      }
+      function defaultKey(userId) {
+        return 'omo_' + hashHex(userId + '|omo-demo') + hashHex('omo-demo|' + userId);
+      }
+      function maskKey() {
+        return '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+      }
+
+      function showNote(msg, isError) {
+        var n = el('dash-notice');
+        if (!n) return;
+        n.textContent = msg;
+        n.hidden = false;
+        if (isError) n.classList.add('is-error');
+        else n.classList.remove('is-error');
+      }
+
+      function render() {
+        var pill = el('balance-pill');
+        if (pill) pill.textContent = 'Balance ' + fmtUsd(state.balanceUsd);
+        var val = el('api-key-value');
+        if (val) {
+          revealed = false;
+          val.textContent = maskKey();
+        }
+        var label = el('api-key-label');
+        if (label) label.textContent = 'API key';
+        var chip = el('api-key-chip');
+        if (chip) chip.setAttribute('title', 'Click to reveal, click again to copy');
+
+        var list = el('usage-list');
+        var empty = el('usage-empty');
+        if (list && empty) {
+          if (state.runs && state.runs.length) {
+            empty.hidden = true;
+            list.hidden = false;
+            list.innerHTML = state.runs.map(function (r) {
+              var t = '';
+              try {
+                var d = new Date(r.created_at || r.ts);
+                if (!isNaN(d.getTime())) t = d.toLocaleString();
+              } catch (e) {}
+              return '<li class="usage-row"><span class="usage-slug">' + esc(r.slug) + '</span>' +
+                '<span class="usage-cost">' + fmtUsd(r.cost_usd != null ? r.cost_usd : r.costUsd) + '</span>' +
+                '<span class="usage-time">' + esc(t) + '</span></li>';
+            }).join('');
+          } else {
+            empty.hidden = false;
+            list.hidden = true;
+          }
+        }
+        var base = el('api-base-label');
+        if (base) base.textContent = API_BASE || '(same origin)';
+      }
+
+      function currentUser() {
+        if (window.ClerkAuth && typeof ClerkAuth.isSignedIn === 'function' && ClerkAuth.isSignedIn()) {
+          var u = ClerkAuth.getUser();
+          if (u && u.id) return u;
+        }
+        return null;
+      }
+
+      /* ── Load: server (/api/me) first, localStorage mock as fallback ── */
+      function load() {
+        var user = currentUser();
+        if (!user) { showGate(); return; }
+        state.userId = user.id;
+        try { localStorage.setItem(SEEN_KEY, '1'); } catch (e) {}
+
+        var canFetch = typeof fetch === 'function' &&
+          window.location && window.location.protocol !== 'file:';
+        if (!canFetch) { loadMock(user); return; }
+
+        fetch(API_BASE + '/api/me?user_id=' + encodeURIComponent(user.id))
+          .then(function (res) { return res.json().catch(function () { return {}; }); })
+          .then(function (data) {
+            if (data && data.ok) {
+              state.mode = 'server';
+              state.balanceUsd = Number(data.balance_usd != null ? data.balance_usd : data.balance);
+              state.apiKey = data.api_key || defaultKey(user.id);
+              state.runs = (data.runs || []).map(function (r) {
+                return { slug: r.slug, cost_usd: r.cost_usd, created_at: r.created_at };
+              });
+              // Mirror into localStorage so the mock fallback stays coherent.
+              lsSet(BAL_KEY, String(state.balanceUsd));
+              lsSet(KEY_KEY, state.apiKey);
+              lsSet(USE_KEY, JSON.stringify(state.runs));
+              render();
+              return;
+            }
+            loadMock(user);
+          })
+          .catch(function () { loadMock(user); });
+      }
+
+      function loadMock(user) {
+        state.mode = 'mock';
+        var bal = parseFloat(lsGet(BAL_KEY));
+        state.balanceUsd = isFinite(bal) ? bal : 10;
+        state.apiKey = lsGet(KEY_KEY) || defaultKey(user.id);
+        var runs = [];
+        try {
+          var raw = lsGet(USE_KEY);
+          if (raw) { var arr = JSON.parse(raw); if (Array.isArray(arr)) runs = arr; }
+        } catch (e) {}
+        state.runs = runs;
+        lsSet(BAL_KEY, String(state.balanceUsd));
+        if (!lsGet(KEY_KEY)) lsSet(KEY_KEY, state.apiKey);
+        render();
+      }
+
+      function showGate() {
+        var gate = el('signin-gate');
+        var main = el('main');
+        if (gate) gate.hidden = false;
+        if (main) main.hidden = true;
+        var btn = el('gate-signin-btn');
+        if (btn) {
+          btn.addEventListener('click', function () {
+            if (window.ClerkAuth && typeof ClerkAuth.signIn === 'function') ClerkAuth.signIn();
+          });
+        }
+        if (window.ClerkAuth && typeof ClerkAuth.onAuthChange === 'function') {
+          ClerkAuth.onAuthChange(function () {
+            if (!ClerkAuth.isSignedIn()) return;
+            if (gate) gate.hidden = true;
+            if (main) main.hidden = false;
+            load();
+          });
+        }
+      }
+
+      /* ── Top-up: Stripe Checkout via the worker, simulated fallback ── */
+      function mockTopup(amountUsd) {
+        state.balanceUsd = Math.round((state.balanceUsd + amountUsd) * 100) / 100;
+        lsSet(BAL_KEY, String(state.balanceUsd));
+        render();
+        return true;
+      }
+
+      function submitTopup(ev) {
+        if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+        var amount = chosenAmount || 10;
+        var btn = el('topup-btn');
+        var note = el('topup-note');
+        if (btn) btn.disabled = true;
+        if (note) { note.textContent = ''; note.className = 'form-note'; }
+
+        function done(msg, ok) {
+          if (note) { note.textContent = msg; note.className = 'form-note' + (ok ? ' is-ok' : ' is-err'); }
+          if (btn) btn.disabled = false;
+        }
+        function simulate(reason) {
+          mockTopup(amount);
+          done(reason + ' Simulated +' + fmtUsd(amount) + ' (mock mode). Connect Stripe to charge for real.', false);
+        }
+
+        if (state.mode !== 'server') { simulate('Live checkout is not configured yet.'); return; }
+
+        fetch(API_BASE + '/api/topup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: state.userId, amount_usd: amount })
+        }).then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (d) { return { status: res.status, data: d }; });
+        }).then(function (res) {
+          if (res.status === 200 && res.data && res.data.url) {
+            window.location.href = res.data.url;
+            return;
+          }
+          if (res.status === 501) simulate('Stripe is not configured on the worker yet.');
+          else simulate('Checkout could not start right now.');
+        }).catch(function () {
+          simulate('Could not reach the checkout server.');
+        });
+      }
+
+      /* ── API key chip: click to reveal, click again to copy ── */
+      function copyKey() {
+        var label = el('api-key-label');
+        var done = function () {
+          if (label) label.textContent = 'Copied \u2713';
+          setTimeout(function () { if (label) label.textContent = 'API key'; }, 1600);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(state.apiKey).then(done, done);
+        } else {
+          try { window.prompt('Your Omo API key', state.apiKey); } catch (e) {}
+          done();
+        }
+      }
+
+      function wire() {
+        var chips = document.querySelectorAll('.amount-chip');
+        for (var i = 0; i < chips.length; i++) {
+          (function (chip) {
+            chip.addEventListener('click', function () {
+              chosenAmount = Number(chip.getAttribute('data-amount')) || 10;
+              for (var j = 0; j < chips.length; j++) {
+                var on = chips[j] === chip;
+                chips[j].classList.toggle('is-active', on);
+                chips[j].setAttribute('aria-pressed', on ? 'true' : 'false');
+              }
+            });
+          })(chips[i]);
+        }
+        var form = el('topup-form');
+        if (form) form.addEventListener('submit', submitTopup);
+        var chipBtn = el('api-key-chip');
+        if (chipBtn) {
+          chipBtn.addEventListener('click', function () {
+            if (!revealed) {
+              revealed = true;
+              var val = el('api-key-value');
+              if (val) val.textContent = state.apiKey;
+              chipBtn.setAttribute('title', 'Click to copy');
+            } else {
+              copyKey();
+            }
+          });
+        }
+        var so = el('sign-out-btn');
+        if (so) {
+          so.addEventListener('click', function () {
+            if (window.ClerkAuth && typeof ClerkAuth.signOut === 'function') ClerkAuth.signOut();
+            try { window.location.href = 'index.html'; } catch (e) {}
+          });
+        }
+        if (window.ClerkAuth && typeof ClerkAuth.onAuthChange === 'function') {
+          ClerkAuth.onAuthChange(function () {
+            if (ClerkAuth.isSignedIn()) load();
+          });
+        }
+        // After a Stripe top-up lands back here, tell the user + refresh.
+        try {
+          if (window.location.search && window.location.search.indexOf('topup=success') !== -1) {
+            showNote('Payment complete \u2014 your credits were added.', false);
+          }
+        } catch (e) {}
+      }
+
+      wire();
+      load();
+
+      // Exposed for tests / console debugging. topup(amount) forces a chosen
+      // amount and runs the same submit path the form button uses.
+      window.__omoDashboard = {
+        state: state,
+        refresh: load,
+        topup: function (amountUsd) {
+          if (typeof amountUsd === 'number') chosenAmount = amountUsd;
+          submitTopup(null);
+        },
+        reveal: function () {
+          if (el('api-key-chip')) el('api-key-chip').click();
+        }
+      };
+    })();
+  </script>
+</body>
+</html>

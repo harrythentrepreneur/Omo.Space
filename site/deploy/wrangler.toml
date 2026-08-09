@@ -1,4 +1,4 @@
-# Cognition — demo API worker (single project, three routes dispatched in worker.js)
+# Cognition — demo API worker (single project, routes dispatched in worker.js)
 #
 # Deploy:
 #   1. npm i -g wrangler
@@ -10,6 +10,11 @@
 #   /api/ugc-script-studio
 #   /api/meta-ads-analyser
 #   /api/product-photo-generator
+#   /api/run               (generic helper runner — debits balance when user_id sent)
+#   /api/checkout          (Stripe Checkout for license purchases)
+#   /api/me                (balance + api key + usage for the dashboard)
+#   /api/topup             (Stripe Checkout for credit top-ups)
+#   /api/clerk-webhook     (user.created → $10 signup grant)
 #
 # To attach a custom domain instead of the workers.dev URL, either:
 #   a) Dashboard: Workers & Pages → cognition-demos → Settings → Domains & Routes
@@ -31,6 +36,19 @@ compatibility_date = "2026-08-01"
 # [[kv_namespaces]]
 # binding = "BENCH_KV"
 # id = "PASTE_NAMESPACE_ID_HERE"
+
+# Credits backend — balances + usage in D1. To go live (see site/SETUP.md):
+#   1. npx wrangler d1 create omo-balances
+#   2. paste the returned database_id below, then uncomment
+#   3. npx wrangler d1 execute omo-balances --file=schema.sql
+# Without this binding the worker runs in MOCK mode: an in-memory Map gives
+# every user $10 and a deterministic 'omo_' key, so tests and local dev work
+# with zero infra. In real mode the binding name must be BALANCE_DB.
+# [d1_databases]
+# [[d1_databases]]
+# binding = "BALANCE_DB"
+# database_name = "omo-balances"
+# database_id = "PASTE_D1_DATABASE_ID_HERE"
 
 [vars]
 LLM_BASE_URL = "https://opencode.ai/zen/go/v1"

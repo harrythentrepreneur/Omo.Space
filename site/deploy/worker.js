@@ -1,24 +1,47 @@
-// Cognition — demo API worker (single Cloudflare Worker)
+// Omo — demo API worker (single Cloudflare Worker)
 // The "it actually runs" proof for the storefront. One worker, several endpoints:
 //
 //   POST /api/ugc-script-studio        → UGC ad script from a product link
 //   POST /api/meta-ads-analyser        → Meta Ads read/judge/advise (winners, losers, next move)
 //   POST /api/product-photo-generator  → listing image shot plan + copy
+//   POST /api/run                      → generic helper runner {slug, system_prompt, fields};
+//                                         with body.user_id it DEBITS the user's credits
+//                                         (cost-model run price) and 402s when short
 //   POST /api/checkout                 → Stripe Checkout session {slug, priceUsd, email?}
+//   GET/POST /api/me?user_id=…         → {balance, api_key, currency, runs} for the dashboard
+//   POST /api/topup                    → Stripe Checkout for credit top-ups {user_id, amount_usd}
+//   POST /api/clerk-webhook            → Clerk webhook: user.created → $10 signup grant
 //
 // Env vars (set in Cloudflare dashboard / wrangler secret):
 //   LLM_API_KEY  — key for the OpenAI-compatible endpoint below (SECRET)
 //   LLM_BASE_URL — default https://opencode.ai/zen/go/v1
 //   LLM_MODEL    — default deepseek-v4-flash
 //   STRIPE_SECRET_KEY — Stripe secret key (sk_test_…/sk_live_…); without it
-//                       /api/checkout returns 501 and the storefront simulates
-//                       purchases. Never logged or echoed.
+//                       /api/checkout and /api/topup return 501 and the
+//                       storefront simulates. Never logged or echoed.
+//   CLERK_WEBHOOK_SECRET — Svix signing secret from the Clerk dashboard; when
+//                       set, /api/clerk-webhook verifies the signature.
+//   BALANCE_KEY_SECRET — optional extra entropy for deterministic API keys;
+//                       falls back to LLM_API_KEY, then a dev constant.
+//   SIGNUP_GRANT_USD  — optional override of the $10 signup grant (tests).
+//
+// Bindings:
+//   BALANCE_DB (D1) — users + runs tables (schema.sql). Without it the worker
+//                       runs in MOCK mode: an in-memory Map grants $10 + a
+//                       deterministic 'omo_' key per user, so tests and local
+//                       dev work with zero infra.
+//   BENCH_KV — optional per-IP daily demo caps (skipped without it).
 //
 // Demo caps (per route, per IP per day; mirror each SKILL.md demo_caps):
 //   UGC:   DEMO_MAX_TOKENS_UGC=4000, DEMO_MAX_INPUT_UGC=2000, DEMO_DAILY_CAP_UGC=5
 //   META:  DEMO_MAX_TOKENS_META=5000, DEMO_MAX_INPUT_META=20000, DEMO_DAILY_CAP_META=3
 //   PHOTO: DEMO_MAX_TOKENS_PHOTO=4000, DEMO_MAX_INPUT_PHOTO=2000, DEMO_DAILY_CAP_PHOTO=5
-// Without a BENCH_KV binding, caps are skipped (worker still works, just uncapped).
+// Signed-in /api/run calls (body.user_id) are PAID runs — no free-demo cap.
+
+// Pure credit math lives in ./balance.mjs (bundled at deploy time); the cost
+// model in ./cost-model.mjs sets the per-run price (5x markup, $0.10 floor).
+import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts } from './balance.mjs';
+import { runPrice, llmWorkflow } from './cost-model.mjs';
 
 // ── System prompts (hardened: exact JSON shape, flat string arrays, no fences) ──
 
@@ -96,13 +119,18 @@ Rules:
 - Output ONLY the JSON object, no markdown fences, no commentary.`;
 
 // ── Router ─────────────────────────────────────────────────────────────────
+// Each route maps to { handler } (POST-only by default) or { handler, methods }
+// for routes that accept other verbs (/api/me takes GET for the dashboard).
 
 const ROUTES = {
-  '/api/ugc-script-studio': handleUgc,
-  '/api/meta-ads-analyser': handleMeta,
-  '/api/product-photo-generator': handlePhoto,
-  '/api/run': handleGenericRun, // any catalog skill: {slug, system_prompt, fields:{...}}
-  '/api/checkout': handleCheckout, // Stripe Checkout session: {slug, priceUsd, email?}
+  '/api/ugc-script-studio': { handler: handleUgc },
+  '/api/meta-ads-analyser': { handler: handleMeta },
+  '/api/product-photo-generator': { handler: handlePhoto },
+  '/api/run': { handler: handleGenericRun }, // any catalog skill: {slug, system_prompt, fields:{...}, user_id?}
+  '/api/checkout': { handler: handleCheckout }, // Stripe Checkout session: {slug, priceUsd, email?}
+  '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
+  '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
+  '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $10 grant
 };
 
 export default {
@@ -110,16 +138,17 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: cors() });
     }
-    if (request.method !== 'POST') {
-      return json({ error: 'POST only' }, 405, cors());
-    }
 
     const url = new URL(request.url);
-    const handler = ROUTES[url.pathname];
-    if (!handler) {
+    const route = ROUTES[url.pathname];
+    if (!route) {
       return json({ error: `Unknown route: ${url.pathname}`, routes: Object.keys(ROUTES) }, 404, cors());
     }
-    return handler(request, env);
+    const methods = route.methods || ['POST'];
+    if (!methods.includes(request.method)) {
+      return json({ error: 'Method not allowed', methods }, 405, cors());
+    }
+    return route.handler(request, env, url);
   },
 };
 
@@ -238,24 +267,24 @@ async function handlePhoto(request, env) {
 }
 
 // ── Route: Generic skill runner (catalog skills) ───────────────────────────
-// Body: { slug, system_prompt, fields: { key: value, ... }, max_tokens? }
+// Body: { slug, system_prompt, fields: { key: value, ... }, max_tokens?, user_id? }
 // The storefront sends the skill's prompt + the buyer's input values; the
 // worker runs it through the LLM and returns the raw + parsed output. This is
 // what lets every catalog skill (100+) be tested in-browser with zero per-skill code.
+//
+// CREDITS: when body.user_id is present this becomes a PAID run — the balance
+// is checked BEFORE the LLM call (402 {error:'insufficient_balance'} when the
+// user is short) and debited at the cost-model run price (5x markup, $0.10
+// floor) AFTER a successful run. Anonymous runs stay on the free demo caps.
 
 async function handleGenericRun(request, env) {
-  const ip = request.headers.get('CF-Connecting-IP') || 'local';
-  const cap = await capCheck(env, 'run', ip, env.DEMO_DAILY_CAP_RUN || 20);
-  if (!cap.allowed) {
-    return json({ error: 'Free demo limit reached for today. Buy the license to keep going.' }, 429, cors());
-  }
-
   let body;
   try { body = await request.json(); } catch { body = {}; }
   const slug = String(body.slug || '').trim();
   const systemPrompt = String(body.system_prompt || '').trim();
   const fields = body.fields && typeof body.fields === 'object' ? body.fields : {};
   const maxTokens = Number(body.max_tokens || env.DEMO_MAX_TOKENS_RUN || 4000);
+  const userId = String(body.user_id || '').trim();
 
   if (!slug || !systemPrompt) {
     return json({ error: 'Send slug and system_prompt.' }, 400, cors());
@@ -274,11 +303,46 @@ async function handleGenericRun(request, env) {
   }
   userPrompt += '\nRun the skill now and return your output.';
 
+  // Paid path: check + reserve the run price before spending LLM budget.
+  let billing = null;
+  let costUsd = 0;
+  if (userId) {
+    billing = (await getUserRecord(env, userId)).record;
+    costUsd = runPrice(llmWorkflow(systemPrompt, maxTokens));
+    const check = debitForRun(billing.balance_cents / 100, costUsd);
+    if (!check.ok) {
+      return json({
+        error: 'insufficient_balance',
+        balance: check.balance,
+        cost_usd: check.costUsd,
+        shortfall_usd: check.shortfallUsd,
+        topup_url: '/dashboard.html',
+      }, 402, cors());
+    }
+  }
+
+  // Anonymous runs stay capped per IP; paid runs skip the free-demo cap.
+  const ip = request.headers.get('CF-Connecting-IP') || 'local';
+  const cap = userId ? { allowed: true } : await capCheck(env, 'run', ip, env.DEMO_DAILY_CAP_RUN || 20);
+  if (!cap.allowed) {
+    return json({ error: 'Free demo limit reached for today. Buy the license to keep going.' }, 429, cors());
+  }
+
   try {
     const llm = await callLLM(env, systemPrompt, userPrompt, maxTokens);
     if (llm.error) return json({ error: llm.error }, 502, cors());
     const parsed = stripJson(llm.content);
     await capBump(env, cap.key, cap.used);
+    if (billing) {
+      // Debit only on success (the buyer paid for a result, not a 502).
+      const nextCents = Math.max(0, Math.round((billing.balance_cents / 100 - costUsd) * 100));
+      await setBalanceCents(env, userId, nextCents);
+      await addRun(env, userId, slug, Math.round(costUsd * 100));
+      return json({
+        ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content,
+        cost_usd: costUsd, balance: +(nextCents / 100).toFixed(2),
+      }, 200, cors());
+    }
     return json({ ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content }, 200, cors());
   } catch (e) {
     return json({ error: String(e.message || e) }, 500, cors());
@@ -334,6 +398,243 @@ async function handleCheckout(request, env) {
     return json({ url: data.url }, 200, cors());
   } catch (e) {
     return json({ error: 'stripe unavailable' }, 502, cors());
+  }
+}
+
+// ── Route: dashboard /api/me ───────────────────────────────────────────────
+// GET /api/me?user_id=…  (POST /api/me {user_id} also works) →
+//   { ok, balance: "10.00", balance_usd, balance_cents, currency: "usd",
+//     api_key: "omo_…", mock: true|false, runs: [{slug, cost_usd, created_at}] }
+// The record is self-provisioned: the first time a user_id appears they get
+// the $10 signup grant + a deterministic API key (no double grant on repeat
+// visits). With no D1 binding this runs off the in-memory mock store.
+
+async function handleMe(request, env, url) {
+  let userId = (url.searchParams && url.searchParams.get('user_id')) || '';
+  if (!userId && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      userId = String(body.user_id || '').trim();
+    } catch (e) { /* fall through */ }
+  }
+  if (!userId) return json({ error: 'Send user_id.' }, 400, cors());
+
+  const { record } = await getUserRecord(env, userId);
+  const runs = await listRuns(env, userId, 50);
+  return json({
+    ok: true,
+    balance: (record.balance_cents / 100).toFixed(2),
+    balance_usd: +(record.balance_cents / 100).toFixed(2),
+    balance_cents: record.balance_cents,
+    currency: 'usd',
+    api_key: record.api_key,
+    mock: !env.BALANCE_DB,
+    runs: runs.map((r) => ({
+      slug: r.slug,
+      cost_usd: +(r.cost_cents / 100).toFixed(2),
+      created_at: r.created_at,
+    })),
+  }, 200, cors());
+}
+
+// ── Route: credit top-up ───────────────────────────────────────────────────
+// Body: { user_id, amount_usd } → Stripe Checkout Session for a credits
+// top-up; returns { url } when STRIPE_SECRET_KEY is set, else 501 (the
+// dashboard then simulates the top-up in mock mode). The user is provisioned
+// first so credits land on a real account row.
+
+async function handleTopup(request, env) {
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const userId = String(body.user_id || '').trim();
+  const amountUsd = Number(body.amount_usd);
+  if (!userId || !isFinite(amountUsd) || amountUsd <= 0 || amountUsd > 1000) {
+    return json({ error: 'Send user_id and amount_usd (positive, up to $1000).' }, 400, cors());
+  }
+
+  const secretKey = env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    return json({ error: 'stripe not configured' }, 501, cors());
+  }
+
+  await getUserRecord(env, userId); // ensure the account exists for the credits
+
+  const cents = Math.round(amountUsd * 100);
+  const params = new URLSearchParams();
+  params.set('mode', 'payment');
+  params.set('success_url', 'https://omo.best/dashboard.html?topup=success');
+  params.set('cancel_url', 'https://omo.best/dashboard.html');
+  params.set('client_reference_id', userId);
+  params.set('metadata[user_id]', userId);
+  params.set('metadata[type]', 'credits_topup');
+  params.set('line_items[0][quantity]', '1');
+  params.set('line_items[0][price_data][currency]', 'usd');
+  params.set('line_items[0][price_data][product_data][name]', `Omo credits — $${amountUsd}`);
+  params.set('line_items[0][price_data][unit_amount]', String(cents));
+
+  try {
+    const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Bearer ${secretKey}`,
+      },
+      body: params.toString(),
+    });
+    if (!res.ok) {
+      return json({ error: `stripe error ${res.status}` }, 502, cors());
+    }
+    const data = await res.json();
+    if (!data || !data.url) {
+      return json({ error: 'stripe returned no checkout url' }, 502, cors());
+    }
+    return json({ url: data.url }, 200, cors());
+  } catch (e) {
+    return json({ error: 'stripe unavailable' }, 502, cors());
+  }
+}
+
+// ── Route: Clerk webhook ───────────────────────────────────────────────────
+// Clerk dashboard → Webhooks → Endpoint URL https://<worker>/api/clerk-webhook,
+// event: user.created. On that event we grant the $10 signup credits (INSERT
+// OR IGNORE — an existing row keeps its balance, so no double grants, and a
+// lazy /api/me provision doesn't get reset by the webhook).
+// When CLERK_WEBHOOK_SECRET is set the Svix signature is verified (svix-id /
+// svix-timestamp / svix-signature headers, HMAC-SHA256). Without the secret
+// (mock/local) validation is skipped.
+
+async function handleClerkWebhook(request, env) {
+  let raw;
+  try { raw = await request.text(); } catch { raw = ''; }
+  let body;
+  try { body = JSON.parse(raw); } catch {
+    return json({ error: 'invalid json' }, 400, cors());
+  }
+
+  const secret = env.CLERK_WEBHOOK_SECRET;
+  if (secret && !(await verifySvix(request.headers, raw, secret))) {
+    return json({ error: 'invalid signature' }, 401, cors());
+  }
+
+  if (body.type !== 'user.created' || !body.data || !body.data.id) {
+    return json({ ok: true, ignored: true }, 200, cors());
+  }
+
+  const userId = String(body.data.id);
+  const { record, created } = await getUserRecord(env, userId);
+  return json({
+    ok: true,
+    granted: created,
+    user_id: userId,
+    balance: (record.balance_cents / 100).toFixed(2),
+    balance_cents: record.balance_cents,
+  }, 200, cors());
+}
+
+// ── Balance store (D1 when bound, in-memory mock otherwise) ────────────────
+// MOCK MODE: with no BALANCE_DB binding every user gets $10 + a deterministic
+// 'omo_' key from an in-memory Map, so tests and local dev run with zero
+// infra. REAL MODE: D1 (schema.sql) — users (balance_cents, api_key) and runs.
+
+const mockUsers = new Map(); // user_id → { balance_cents, api_key, created_at }
+const mockRuns = new Map();  // user_id → [{slug, cost_cents, created_at}]
+
+function balanceSecret(env) {
+  return env.BALANCE_KEY_SECRET || env.LLM_API_KEY || 'omo-dev-secret';
+}
+
+function signupGrantCents(env) {
+  const override = Number(env.SIGNUP_GRANT_USD);
+  const amountUsd = isFinite(override) && override > 0 ? override : grantSignupCredits().amountUsd;
+  return Math.round(amountUsd * 100);
+}
+
+// Fetch (and lazily provision) a user's balance record. Returns
+// { record: {balance_cents, api_key, created_at}, created: boolean }.
+async function getUserRecord(env, userId) {
+  const now = new Date().toISOString();
+  const apiKey = apiKeyFor(userId, balanceSecret(env));
+
+  if (env.BALANCE_DB) {
+    const existing = await env.BALANCE_DB
+      .prepare('SELECT balance_cents, api_key, created_at FROM users WHERE user_id = ?')
+      .bind(userId).first();
+    if (existing) return { record: existing, created: false };
+    await env.BALANCE_DB
+      .prepare('INSERT OR IGNORE INTO users (user_id, balance_cents, api_key, created_at) VALUES (?, ?, ?, ?)')
+      .bind(userId, signupGrantCents(env), apiKey, now).run();
+    const row = await env.BALANCE_DB
+      .prepare('SELECT balance_cents, api_key, created_at FROM users WHERE user_id = ?')
+      .bind(userId).first();
+    return { record: row || { balance_cents: signupGrantCents(env), api_key: apiKey, created_at: now }, created: true };
+  }
+
+  if (!mockUsers.has(userId)) {
+    mockUsers.set(userId, { balance_cents: signupGrantCents(env), api_key: apiKey, created_at: now });
+    return { record: mockUsers.get(userId), created: true };
+  }
+  return { record: mockUsers.get(userId), created: false };
+}
+
+async function setBalanceCents(env, userId, cents) {
+  if (env.BALANCE_DB) {
+    await env.BALANCE_DB
+      .prepare('UPDATE users SET balance_cents = ? WHERE user_id = ?')
+      .bind(cents, userId).run();
+    return;
+  }
+  const rec = mockUsers.get(userId);
+  if (rec) rec.balance_cents = cents;
+}
+
+async function addRun(env, userId, slug, costCents) {
+  const now = new Date().toISOString();
+  if (env.BALANCE_DB) {
+    await env.BALANCE_DB
+      .prepare('INSERT INTO runs (user_id, slug, cost_cents, created_at) VALUES (?, ?, ?, ?)')
+      .bind(userId, slug, costCents, now).run();
+    return;
+  }
+  const list = mockRuns.get(userId) || [];
+  list.unshift({ slug, cost_cents: costCents, created_at: now });
+  mockRuns.set(userId, list);
+}
+
+async function listRuns(env, userId, limit) {
+  if (env.BALANCE_DB) {
+    const res = await env.BALANCE_DB
+      .prepare('SELECT slug, cost_cents, created_at FROM runs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
+      .bind(userId, limit || 50).all();
+    return res.results || [];
+  }
+  return (mockRuns.get(userId) || []).slice(0, limit || 50);
+}
+
+// ── Clerk (Svix) webhook signature verification ────────────────────────────
+// Signature header: v1,<hex>,…  — verify any v1 entry over
+// `${svix-id}.${svix-timestamp}.${rawBody}` with HMAC-SHA256.
+
+async function verifySvix(headers, rawBody, secret) {
+  try {
+    const id = headers.get('svix-id');
+    const ts = headers.get('svix-timestamp');
+    const sig = headers.get('svix-signature');
+    if (!id || !ts || !sig) return false;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const tsNum = Number(ts);
+    if (!isFinite(tsNum) || Math.abs(nowSec - tsNum) > 300) return false; // ±5 min
+
+    if (typeof crypto === 'undefined' || !crypto.subtle) return false;
+    const key = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
+    );
+    const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${id}.${ts}.${rawBody}`));
+    const hex = Array.from(new Uint8Array(mac)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    return sig.split(',').filter((p) => p.startsWith('v1,')).map((p) => p.slice(3)).includes(hex);
+  } catch (e) {
+    return false;
   }
 }
 
@@ -442,7 +743,7 @@ function toStrArray(v) {
 function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
   };
