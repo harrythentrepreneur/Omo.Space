@@ -124,6 +124,12 @@
       margin-bottom: 26px; font-size: 18px; line-height: 1.5; color: var(--moss);
       max-width: 560px; margin-inline: auto; text-wrap: pretty;
     }
+    .rotating-tool {
+      display: inline-block; width: 3.8em; color: var(--orange); font-weight: 700;
+      text-align: center; transform: translateY(0);
+      transition: opacity .25s ease, transform .25s ease;
+    }
+    .rotating-tool.is-changing { opacity: 0; transform: translateY(.35em); }
     .search-form { max-width: 560px; margin: 0 auto 16px; display: flex; gap: 0; }
     .search-input {
       flex: 1; min-width: 0; height: 56px; padding: 0 18px;
@@ -194,8 +200,16 @@
     }
     .listing-body { padding: 0 20px; display: flex; flex-direction: column; flex: 1; }
     @media (max-width: 639px) { .listing-body { padding: 0 16px; } }
-    .listing-name { font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.15; margin-bottom: 8px; }
-    .listing-promise { margin-bottom: 12px; color: var(--pine); font-size: 15px; text-wrap: pretty; }
+    .listing-name {
+      font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.15; margin-bottom: 8px;
+      display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    }
+    .listing-promise {
+      margin-bottom: 12px; color: var(--pine); font-size: 15px; text-wrap: pretty;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; min-height: 2.7em;
+    }
     .listing-maker { margin-bottom: 4px; font-size: 14px; font-weight: 700; color: var(--moss); }
     .listing-maker .maker-handle { color: var(--pine); }
     .listing-meta { font-size: 13px; color: var(--moss); margin-bottom: 16px; }
@@ -580,7 +594,7 @@
       <div class="shell hero-inner">
         <p class="eyebrow">The AI helper store</p>
         <h1 class="hero-title" id="hero-title">Find an AI helper.<br>Or <em>sell</em> your own.</h1>
-        <p class="hero-sub">Makers build useful AI helpers. They sell them on Omo. Try one before you buy it.</p>
+        <p class="hero-sub">The easy way to run the <span class="rotating-tool" id="rotating-tool" aria-live="polite" aria-atomic="true">Claude</span> workflows you see on reels.</p>
         <form class="search-form" id="search-form" role="search" aria-label="Search helpers">
           <input class="search-input" id="search-input" type="search" name="q" placeholder="Search helpers, e.g. UGC scripts, ads, photos…" aria-label="Search helpers" autocomplete="off">
           <button class="search-submit" type="submit">Search</button>
@@ -656,13 +670,13 @@
       <div class="shell">
         <div class="maker-head">
           <h2 class="maker-title" id="maker-title">From “DM me” to <em>getting paid</em>.</h2>
-          <p class="maker-sub">Made a helper with Claude Code, Codex, or Hermes? Put it on Omo. No GitHub or payment setup needed, and the split is clear.</p>
+          <p class="maker-sub">Built a Claude, Codex, or Hermes skill or workflow? Put the skill.md and prompts on Omo. No GitHub or payment setup needed, and the split is clear.</p>
         </div>
         <div class="maker-grid">
           <article class="maker-card sig-cut">
             <p class="maker-num">01 — SELL</p>
             <h3>Put it on the table</h3>
-            <p>Omo gives your helper a page, collects payment, and delivers the files or API access to the buyer. Buyers don't need technical skills to use it.</p>
+            <p>Omo gives your skill or workflow a page, collects payment, and delivers the files or API access to the buyer. Buyers don't need technical skills to use it.</p>
             <ul class="split-list">
               <li><span>Store sale</span><span class="split-num highlight">You keep 85% · Omo 15%</span></li>
               <li><span>Sale from your own link</span><span class="split-num">You keep 95% · Omo 5%</span></li>
@@ -725,8 +739,8 @@
     <section class="cta-section" id="waitlist" aria-labelledby="cta-title">
       <div class="shell">
         <div class="cta-card sig-cut">
-          <h2 class="cta-title" id="cta-title">You made the helper. Let <em>Omo</em> sell it.</h2>
-          <p class="cta-sub">Make it once. Sell it again. Keep it fresh.</p>
+          <h2 class="cta-title" id="cta-title">Get paid for the <em>skill.md files</em> and workflows you create.</h2>
+          <p class="cta-sub">Built a Claude, Codex, or Hermes skill or workflow? List the skill.md and prompts on Omo. Buyers download it or run it on our cloud. You keep 85% of every store sale.</p>
           <div class="cta-money" id="cta-money">
             <p><strong>85%</strong> of every store sale goes to you.</p>
             <p><strong>95%</strong> when the buyer comes from your own link.</p>
@@ -734,7 +748,7 @@
           </div>
           <div class="cta-actions">
             <a class="button button-accent" href="#library" id="cta-view-library">View Library</a>
-            <a class="button button-secondary" href="#waitlist" id="cta-sell-yours">Sell Yours</a>
+            <a class="button button-secondary" href="#waitlist" id="cta-sell-yours">Submit your skill or workflow</a>
           </div>
         </div>
       </div>
@@ -787,6 +801,22 @@
       // locally instead of charging a card — swap the key (and set the
       // worker's STRIPE_SECRET_KEY) and buying goes to real Stripe Checkout.
       window.STRIPE_PUBLISHABLE_KEY = 'pk_test_placeholder';
+
+      /* ── Rotating hero tool name ────────────────────────────── */
+      var rotatingTool = document.getElementById('rotating-tool');
+      var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (rotatingTool && !prefersReducedMotion) {
+        var toolNames = ['Claude', 'Codex', 'Hermes'];
+        var toolIndex = 0;
+        window.setInterval(function () {
+          rotatingTool.classList.add('is-changing');
+          window.setTimeout(function () {
+            toolIndex = (toolIndex + 1) % toolNames.length;
+            rotatingTool.textContent = toolNames[toolIndex];
+            rotatingTool.classList.remove('is-changing');
+          }, 250);
+        }, 2750);
+      }
 
       var ESC = function (s) {
         return String(s == null ? '' : s)
