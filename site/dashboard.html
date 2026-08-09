@@ -82,18 +82,13 @@
       padding: 0 16px; border-radius: 999px; background: var(--pine); color: #fff;
       font-size: 14px; font-weight: 700; white-space: nowrap;
     }
-    .api-key-chip {
+    .api-link {
       min-width: 0; display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
-      padding: 0 14px; border: 1px solid var(--pine); border-radius: 999px;
-      background: var(--surface); color: var(--pine); font-size: 13px; font-weight: 700;
-      white-space: nowrap;
+      padding: 0 18px; border: 1px solid var(--pine); border-radius: 999px;
+      background: var(--surface); color: var(--pine); font-size: 13.5px; font-weight: 700;
+      white-space: nowrap; text-decoration: none; transition: background .12s ease;
     }
-    .api-key-chip:hover { background: var(--mint); }
-    .api-key-chip code {
-      max-width: 260px; overflow: hidden; text-overflow: ellipsis;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 12.5px; letter-spacing: .04em;
-    }
+    .api-link:hover { background: var(--mint); }
 
     /* Storefront buttons. */
     .button {
@@ -406,7 +401,7 @@
     @media (max-width: 1120px) {
       .dashboard-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 28px; }
       .feed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .api-key-chip code { max-width: 150px; }
+      .api-link { min-height: 38px; padding-inline: 14px; }
     }
     @media (max-width: 820px) {
       .dash-shell { width: min(100% - 32px, var(--dash-shell)); }
@@ -423,8 +418,7 @@
     }
     @media (max-width: 580px) {
       .dash-shell { width: min(100% - 24px, var(--dash-shell)); }
-      .balance-pill, .api-key-chip { min-height: 38px; padding-inline: 12px; }
-      .api-key-chip code { max-width: 84px; }
+      .balance-pill, .api-link { min-height: 38px; padding-inline: 12px; }
       .button-small { min-height: 38px; padding-inline: 13px; }
       .catalog-title { font-size: 38px; }
       .feed-grid { grid-template-columns: 1fr; }
@@ -452,10 +446,7 @@
       <a class="wordmark" href="index.html">Omo<span class="wordmark-dot">.</span></a>
       <nav class="nav-actions" aria-label="Account">
         <span class="balance-pill auth-only" id="balance-pill" title="Credits balance">Balance …</span>
-        <button class="api-key-chip auth-only" id="api-key-chip" type="button" title="Click to reveal, click again to copy">
-          <span id="api-key-label">API key</span>
-          <code id="api-key-value" aria-live="polite">••••••••••••••••</code>
-        </button>
+        <a class="api-link auth-only" href="api.html" id="api-link" title="Your API key, base URL, and how to call Omo">API</a>
         <button class="button button-secondary button-small auth-only" id="sign-out-btn" type="button">Sign out</button>
         <button class="button button-accent button-small" id="top-signin-btn" type="button" hidden>Sign in</button>
       </nav>
