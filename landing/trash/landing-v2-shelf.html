@@ -1,0 +1,1258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Bench is a clear, trusted store where people can try AI workflows before buying them for API, platform, or local use.">
+  <title>Bench — THE SHELF</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --buzz-yellow: #d7d72e;
+      --buzz-ink: #231e1e;
+      --buzz-white: #ffffff;
+      --buzz-lime: #dbfa52;
+      --buzz-blue: #d7e7f5;
+      --buzz-dot: rgba(35,30,30,.16);
+      --buzz-hairline: #ebebeb;
+      --ink: var(--buzz-ink);
+      --chartreuse: var(--buzz-yellow);
+      --lime: var(--buzz-lime);
+      --blue: var(--buzz-blue);
+      --white: var(--buzz-white);
+      --line: var(--buzz-hairline);
+      --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", "JetBrains Mono", "Space Mono", monospace;
+      --pad: clamp(1rem, 3vw, 3.25rem);
+      --section: clamp(5.5rem, 11vw, 10rem);
+      --ease: cubic-bezier(.2, .75, .25, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      overflow-x: hidden;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--white);
+      font-family: var(--display);
+      font-size: 1rem;
+      line-height: 1.45;
+      overflow-x: hidden;
+      text-rendering: optimizeLegibility;
+    }
+
+    button, input { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    a { color: inherit; }
+    p { margin: 0; }
+    h1, h2, h3 { margin: 0; font-weight: 400; }
+
+    ::selection { color: var(--white); background: var(--ink); }
+
+    :focus-visible {
+      outline: 3px solid var(--ink);
+      outline-offset: 4px;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: .75rem;
+      left: .75rem;
+      z-index: 100;
+      padding: .75rem 1rem;
+      color: var(--white);
+      background: var(--ink);
+      font-family: var(--mono);
+      font-size: .75rem;
+      transform: translateY(-180%);
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .eyebrow,
+    .micro,
+    .section-index,
+    .price-note,
+    .status,
+    .nav-link,
+    .field-note,
+    .legal a,
+    .scroll-cue {
+      font-family: var(--mono);
+      font-size: .72rem;
+      font-weight: 500;
+      line-height: 1.35;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+
+    .shell {
+      width: min(100%, 1600px);
+      margin-inline: auto;
+      padding-inline: var(--pad);
+    }
+
+    .site-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 5.2rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .wordmark {
+      display: inline-flex;
+      align-items: center;
+      gap: .65rem;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 1.22rem;
+      font-weight: 700;
+      letter-spacing: -.035em;
+    }
+
+    .wordmark-mark {
+      display: grid;
+      width: 1.25rem;
+      height: 1.25rem;
+      grid-template: repeat(2, 1fr) / repeat(2, 1fr);
+      gap: 2px;
+    }
+
+    .wordmark-mark i { display: block; background: currentColor; }
+    .wordmark-mark i:nth-child(2) { background: transparent; border: 1px solid currentColor; }
+
+    .site-nav { display: flex; align-items: center; gap: clamp(1rem, 3vw, 2.75rem); }
+    .nav-link { text-decoration: none; }
+    .nav-link:hover { text-decoration: underline; text-underline-offset: .3em; }
+
+    .hero {
+      position: relative;
+      min-height: 100svh;
+      background: var(--chartreuse);
+    }
+
+    .hero-inner {
+      display: grid;
+      min-height: calc(100svh - 5.2rem);
+      padding-top: clamp(2.5rem, 5vw, 5.5rem);
+      padding-bottom: 1.4rem;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 2.1rem;
+    }
+
+    .hero-title {
+      max-width: 100%;
+      font-family: var(--display);
+      font-size: clamp(4.15rem, 13.35vw, 13rem);
+      font-stretch: 75%;
+      font-weight: 700;
+      line-height: .81;
+      letter-spacing: -.065em;
+      text-wrap: balance;
+    }
+
+    .hero-title .line { display: block; white-space: nowrap; }
+    .hero-title .line:last-child { margin-left: clamp(0rem, 7.5vw, 7rem); }
+
+    .hero-lower {
+      display: grid;
+      align-items: end;
+      align-self: end;
+      grid-template-columns: minmax(15rem, .78fr) minmax(20rem, 1.22fr);
+      gap: clamp(2rem, 8vw, 8rem);
+    }
+
+    .hero-copy { max-width: 34rem; }
+    .hero-copy > p { max-width: 31rem; font-size: clamp(1rem, 1.35vw, 1.16rem); }
+
+    .actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.55rem; }
+
+    .button {
+      display: inline-flex;
+      min-height: 3.2rem;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.75rem;
+      padding: .86rem 1.05rem;
+      border: 1px solid var(--ink);
+      border-radius: 0;
+      color: var(--ink);
+      background: transparent;
+      font-family: var(--mono);
+      font-size: .72rem;
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: .065em;
+      text-decoration: none;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: color .22s var(--ease), background .22s var(--ease), transform .22s var(--ease);
+    }
+
+    .button::after { content: "↗"; font-size: 1rem; line-height: .5; }
+    .button-primary { color: var(--white); background: var(--ink); }
+    .button:hover { color: var(--white); background: var(--ink); transform: translateY(-3px); }
+    .button-primary:hover { color: var(--ink); background: var(--lime); }
+    .button[disabled] { cursor: not-allowed; opacity: .62; transform: none; }
+
+    .hero-demo {
+      border: 1px solid var(--ink);
+      background: var(--white);
+    }
+
+    .demo-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .65rem .8rem;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .demo-dots { display: flex; gap: .28rem; }
+    .demo-dots i { width: .42rem; height: .42rem; border: 1px solid var(--ink); border-radius: 50%; }
+    .demo-dots i:first-child { background: var(--ink); }
+
+    .demo-thread {
+      display: grid;
+      min-height: 13.4rem;
+      align-content: end;
+      gap: .65rem;
+      padding: 1rem;
+    }
+
+    .bubble {
+      width: fit-content;
+      max-width: 88%;
+      padding: .75rem .85rem;
+      border: 1px solid var(--ink);
+      background: var(--white);
+      font-family: var(--mono);
+      font-size: .75rem;
+      line-height: 1.55;
+    }
+
+    .bubble-agent { background: var(--blue); }
+    .bubble-user { margin-left: auto; background: var(--lime); }
+    .bubble[hidden] { display: none; }
+
+    .typing::after {
+      content: "▋";
+      display: inline-block;
+      margin-left: .1em;
+      animation: blink .7s step-end infinite;
+    }
+
+    .demo-cap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 2.7rem;
+      padding: .62rem .8rem;
+      border-top: 1px solid var(--ink);
+      gap: 1rem;
+    }
+
+    .demo-cap a { font-family: var(--mono); font-size: .68rem; font-weight: 500; text-transform: uppercase; }
+
+    .scroll-cue {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 1.1rem;
+      border-top: 1px solid var(--line);
+      text-decoration: none;
+    }
+
+    .scroll-cue::after { content: "↓"; font-size: 1rem; }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .how {
+      background: var(--white);
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .how-head {
+      display: flex;
+      justify-content: space-between;
+      padding-block: 1.2rem;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .step {
+      min-height: 15rem;
+      padding: 1.2rem 1rem 1.45rem 0;
+      border-right: 1px solid var(--ink);
+    }
+
+    .step:not(:first-child) { padding-left: 1rem; }
+    .step:last-child { border-right: 0; }
+    .step-number { display: block; margin-bottom: 3.8rem; }
+    .step h3 { margin-bottom: .55rem; font-size: clamp(2rem, 3vw, 3.15rem); line-height: .95; letter-spacing: -.045em; }
+    .step p { max-width: 16rem; font-size: .95rem; }
+
+    .features { padding-block: var(--section); background: var(--chartreuse); }
+
+    .section-heading {
+      max-width: 12ch;
+      margin-top: 1.2rem;
+      font-size: clamp(3.6rem, 7vw, 7.25rem);
+      line-height: .86;
+      letter-spacing: -.06em;
+    }
+
+    .feature-stack { margin-top: clamp(4.5rem, 9vw, 9rem); border-top: 1px solid var(--ink); }
+
+    .feature-block {
+      display: grid;
+      min-height: 34rem;
+      grid-template-columns: minmax(14rem, .75fr) minmax(24rem, 1.25fr);
+      gap: clamp(2rem, 7vw, 8rem);
+      padding-block: clamp(2rem, 5vw, 5rem);
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .feature-block:nth-child(even) { grid-template-columns: minmax(24rem, 1.25fr) minmax(14rem, .75fr); }
+    .feature-block:nth-child(even) .feature-copy { order: 2; }
+    .feature-block:nth-child(even) .visual { order: 1; }
+
+    .feature-copy { display: flex; flex-direction: column; justify-content: space-between; max-width: 28rem; }
+    .feature-copy h3 { margin-block: 1.15rem .9rem; font-size: clamp(2.8rem, 5vw, 5.8rem); line-height: .89; letter-spacing: -.055em; }
+    .feature-copy p { max-width: 26rem; font-size: 1rem; }
+
+    .feature-note { display: flex; gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+    .feature-note span:last-child { max-width: 19rem; }
+
+    .visual {
+      align-self: stretch;
+      border: 1px solid var(--ink);
+      background: var(--white);
+      transition: transform .28s var(--ease), background .28s var(--ease);
+    }
+
+    .feature-block:hover .visual { transform: translate(-5px, -5px); background: var(--lime); }
+
+    .visual-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 3.1rem;
+      padding: .7rem .9rem;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .chat-visual { display: grid; grid-template-rows: auto 1fr auto; }
+    .chat-body { display: grid; align-content: center; gap: 1rem; padding: clamp(1rem, 4vw, 3rem); }
+    .chat-input { display: flex; justify-content: space-between; gap: 1rem; padding: .9rem; border-top: 1px solid var(--ink); color: var(--ink); }
+    .chat-input span:last-child { color: var(--ink); }
+
+    .config-visual { display: grid; grid-template-rows: auto 1fr auto; background: var(--ink); color: var(--blue); }
+    .config-visual .visual-top, .config-visual .file-tabs, .config-visual .code { border-color: var(--blue); }
+    .file-tabs { display: flex; border-bottom: 1px solid var(--blue); }
+    .file-tabs span { padding: .7rem .9rem; border-right: 1px solid var(--blue); }
+    .file-tabs span:first-child { color: var(--ink); background: var(--lime); }
+    .code { margin: 0; padding: clamp(1rem, 3vw, 2rem); overflow: hidden; font-family: var(--mono); font-size: clamp(.66rem, 1.2vw, .83rem); line-height: 1.85; white-space: pre-wrap; }
+    .code .key { color: var(--lime); }
+    .code .muted { color: var(--blue); }
+
+    .deploy-visual { display: grid; grid-template-rows: auto 1fr; background: var(--blue); }
+    .deploy-body { display: grid; padding: clamp(1.2rem, 4vw, 3.5rem); grid-template-columns: auto 1fr; align-content: center; gap: 0 1.1rem; }
+    .deploy-line { display: contents; }
+    .deploy-node { position: relative; width: .8rem; height: .8rem; margin-top: .25rem; border: 1px solid var(--ink); background: var(--white); }
+    .deploy-node::after { content: ""; position: absolute; left: calc(50% - .5px); top: calc(100% + 1px); width: 1px; height: 4.6rem; background: var(--ink); }
+    .deploy-line:last-child .deploy-node::after { display: none; }
+    .deploy-line:last-child .deploy-node { background: var(--lime); }
+    .deploy-event { min-height: 4.8rem; }
+    .deploy-event strong { display: block; font-size: 1.05rem; font-weight: 500; }
+    .deploy-event span { font-family: var(--mono); font-size: .7rem; text-transform: uppercase; }
+
+    .payout-block {
+      display: grid;
+      min-height: 38rem;
+      grid-template-columns: .62fr 1.38fr;
+      gap: clamp(2rem, 7vw, 8rem);
+      padding-block: clamp(3rem, 7vw, 7rem);
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .payout-copy h3 { max-width: 8ch; margin-block: 1.15rem 1.3rem; font-size: clamp(3.3rem, 6vw, 6.5rem); line-height: .86; letter-spacing: -.06em; }
+    .payout-copy p { max-width: 25rem; }
+
+    .waterfall { align-self: end; border: 1px solid var(--ink); background: var(--blue); }
+    .waterfall-row { display: grid; grid-template-columns: 1fr auto; align-items: end; min-height: 6.4rem; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--ink); transition: padding-left .2s var(--ease), background .2s var(--ease); }
+    .waterfall-row:last-child { border-bottom: 0; }
+    .waterfall-row:hover { padding-left: 1.4rem; background: var(--white); }
+    .waterfall-row span:first-child { max-width: 22rem; }
+    .waterfall-row strong { font-size: clamp(2rem, 4vw, 4rem); font-weight: 500; line-height: .85; letter-spacing: -.05em; white-space: nowrap; }
+
+    .pricing { padding-block: var(--section); background: var(--white); }
+    .pricing-intro { display: grid; grid-template-columns: 1.35fr .65fr; align-items: end; gap: 2rem; }
+    .pricing-intro p { max-width: 24rem; justify-self: end; }
+    .pricing-list { margin-top: clamp(4rem, 8vw, 7rem); border-top: 1px solid var(--ink); }
+
+    .price-row {
+      display: grid;
+      grid-template-columns: .18fr .62fr .7fr 1fr;
+      align-items: baseline;
+      min-height: 8.2rem;
+      gap: 1rem;
+      padding: 1.1rem 0 1.4rem;
+      border-bottom: 1px solid var(--ink);
+      transition: padding-inline .24s var(--ease), background .24s var(--ease);
+    }
+
+    .price-row:hover { padding-inline: 1rem; background: var(--lime); }
+    .price-name { font-size: clamp(2.15rem, 4.2vw, 4.7rem); line-height: .9; letter-spacing: -.055em; }
+    .price-value { font-size: clamp(1.25rem, 2vw, 2.05rem); line-height: 1; }
+    .price-detail { max-width: 27rem; font-size: .96rem; }
+    .pricing-foot { display: flex; justify-content: space-between; gap: 2rem; margin-top: 1.2rem; }
+
+    .cta-band { padding-block: clamp(5rem, 9vw, 9rem); background: var(--chartreuse); }
+    .cta-layout { display: grid; grid-template-columns: 1.15fr .85fr; align-items: end; gap: clamp(3rem, 8vw, 9rem); }
+    .cta-title { max-width: 10ch; margin-top: 1.1rem; font-size: clamp(4rem, 9vw, 9.5rem); line-height: .82; letter-spacing: -.065em; }
+    .cta-side > p { max-width: 26rem; margin-bottom: 1.4rem; }
+
+    .waitlist-form { border-top: 1px solid var(--ink); }
+    .form-row { display: grid; grid-template-columns: 1fr auto; }
+    .waitlist-form label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .waitlist-form input {
+      min-width: 0;
+      min-height: 4rem;
+      padding: .8rem 0;
+      border: 0;
+      border-bottom: 1px solid var(--ink);
+      border-radius: 0;
+      color: var(--ink);
+      background: transparent;
+      font-size: 1rem;
+      outline: none;
+    }
+    .waitlist-form input::placeholder { color: var(--ink); opacity: .64; }
+    .waitlist-form input:focus { background: var(--lime); }
+    .waitlist-form input[aria-invalid="true"] { background: var(--white); box-shadow: inset 0 -3px 0 var(--ink); }
+    .form-submit { min-width: 4rem; min-height: 4rem; padding: 0; border-width: 0 0 1px 1px; }
+    .form-submit::after { content: "→"; font-size: 1.35rem; }
+    .field-note { min-height: 2.35rem; padding-top: .7rem; }
+    .field-note[data-state="error"] { font-weight: 700; }
+    .success-box { min-height: 8.7rem; padding: 1.2rem; border: 1px solid var(--ink); background: var(--lime); }
+    .success-box strong { display: block; margin-top: 1.5rem; font-size: 1.55rem; font-weight: 500; }
+    [hidden] { display: none !important; }
+
+    .site-footer { color: var(--blue); background: var(--ink); }
+    .footer-main { display: grid; min-height: 20rem; padding-block: 2rem; grid-template-columns: 1fr auto; align-items: end; gap: 2rem; }
+    .footer-wordmark { color: var(--lime); font-size: clamp(4rem, 9vw, 9rem); line-height: .8; letter-spacing: -.07em; }
+    .legal { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 1.5rem; }
+    .legal a { text-underline-offset: .3em; }
+    .back-top {
+      display: inline-grid;
+      width: 3rem;
+      height: 3rem;
+      margin-left: auto;
+      place-items: center;
+      border: 1px solid var(--blue);
+      border-radius: 0;
+      color: var(--blue);
+      background: transparent;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+    .back-top:hover { color: var(--ink); background: var(--chartreuse); }
+
+    @media (max-width: 920px) {
+      .hero-title { font-size: clamp(4rem, 14.5vw, 8.4rem); }
+      .hero-lower, .pricing-intro, .cta-layout { grid-template-columns: 1fr; }
+      .hero-lower { gap: 2.5rem; }
+      .hero-demo { width: min(100%, 42rem); justify-self: end; }
+      .steps { grid-template-columns: repeat(2, 1fr); }
+      .step:nth-child(2) { border-right: 0; }
+      .step:nth-child(-n+2) { border-bottom: 1px solid var(--ink); }
+      .feature-block, .feature-block:nth-child(even), .payout-block { grid-template-columns: 1fr; }
+      .feature-block:nth-child(even) .feature-copy, .feature-block:nth-child(even) .visual { order: initial; }
+      .feature-copy { min-height: 18rem; }
+      .visual { min-height: 27rem; }
+      .payout-block { gap: 4rem; }
+      .pricing-intro p { justify-self: start; }
+      .price-row { grid-template-columns: .14fr .55fr .55fr 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      :root { --pad: 1rem; }
+      .site-header { min-height: 4.2rem; }
+      .site-nav .nav-link:first-child { display: none; }
+      .hero-inner { min-height: calc(100svh - 4.2rem); padding-top: 2.2rem; gap: 1.5rem; }
+      .hero-title { font-size: clamp(3.95rem, 18vw, 6rem); line-height: .84; letter-spacing: -.067em; }
+      .hero-title .line { white-space: normal; }
+      .hero-title .line:last-child { margin-left: 0; }
+      .hero-copy > p { max-width: 21rem; }
+      .actions { display: grid; grid-template-columns: 1fr; }
+      .button { width: 100%; }
+      .hero-demo { width: 100%; }
+      .demo-thread { min-height: 11.2rem; }
+      .how-head { display: block; }
+      .how-head .micro { display: block; margin-top: .45rem; }
+      .steps { grid-template-columns: 1fr; }
+      .step { min-height: auto; padding: 1.25rem 0 2rem !important; border-right: 0; border-bottom: 1px solid var(--ink); }
+      .step:last-child { border-bottom: 0; }
+      .step-number { margin-bottom: 2rem; }
+      .features, .pricing { padding-block: 5.5rem; }
+      .section-heading { font-size: clamp(3.55rem, 17vw, 5rem); }
+      .feature-stack { margin-top: 4rem; }
+      .feature-block { min-height: 0; padding-block: 2.8rem; gap: 2.5rem; }
+      .feature-copy { min-height: 17rem; }
+      .feature-copy h3 { font-size: 3.7rem; }
+      .visual { min-height: 23rem; }
+      .code { font-size: .62rem; line-height: 1.7; }
+      .file-tabs span { padding-inline: .6rem; }
+      .payout-block { min-height: 0; padding-block: 4rem; gap: 3rem; }
+      .waterfall-row { grid-template-columns: 1fr; align-items: start; }
+      .waterfall-row strong { font-size: 2.5rem; }
+      .price-row { grid-template-columns: 2.5rem 1fr; gap: .65rem 1rem; padding-block: 1.25rem; }
+      .price-number { grid-row: 1 / span 3; }
+      .price-value, .price-detail { grid-column: 2; }
+      .price-name { font-size: 3.1rem; }
+      .price-value { margin-top: .5rem; }
+      .pricing-foot { display: block; }
+      .pricing-foot span { display: block; margin-top: .45rem; }
+      .cta-band { padding-block: 5.5rem; }
+      .cta-title { font-size: clamp(4rem, 18vw, 6rem); }
+      .footer-main { min-height: 16rem; grid-template-columns: 1fr; }
+      .legal { justify-content: flex-start; }
+      .back-top { margin: 1rem 0 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+      }
+    }
+
+    /* Buzz polish pass — presentation only. */
+    :root {
+      --pad: clamp(1.1rem, 3.35vw, 4rem);
+      --section: clamp(7.5rem, 12.5vw, 12.5rem);
+      --hairline: 1px solid var(--buzz-hairline);
+    }
+
+    html {
+      background: var(--ink);
+      scrollbar-gutter: stable;
+    }
+
+    body {
+      -webkit-font-smoothing: antialiased;
+      font-kerning: normal;
+    }
+
+    .eyebrow,
+    .micro,
+    .section-index,
+    .price-note,
+    .status,
+    .nav-link,
+    .field-note,
+    .legal a,
+    .scroll-cue {
+      font-size: .71875rem;
+      line-height: 1.25;
+      letter-spacing: .115em;
+    }
+
+    .shell { width: min(100%, 1728px); }
+
+    .site-header {
+      min-height: 4.75rem;
+      border-bottom-color: var(--buzz-hairline);
+    }
+
+    .wordmark {
+      gap: .72rem;
+      font-size: 1.28rem;
+      letter-spacing: -.045em;
+    }
+
+    .wordmark-mark {
+      width: 1.35rem;
+      height: 1.35rem;
+      gap: 2px;
+    }
+
+    .site-nav { gap: clamp(.75rem, 2.7vw, 2.8rem); }
+
+    .site-nav .nav-link {
+      display: inline-flex;
+      min-height: 2.75rem;
+      align-items: center;
+      text-underline-offset: .35em;
+    }
+
+    .site-nav .nav-link:last-child {
+      min-height: 2.75rem;
+      padding-inline: 1rem;
+      color: var(--white);
+      background: var(--ink);
+      text-decoration: none;
+    }
+
+    .site-nav .nav-link:last-child:hover,
+    .site-nav .nav-link:last-child:focus-visible {
+      color: var(--ink);
+      background: var(--lime);
+    }
+
+    .hero-inner {
+      min-height: calc(100svh - 4.75rem);
+      padding-top: clamp(3rem, 6vw, 6.75rem);
+      padding-bottom: 1.75rem;
+      grid-template-rows: auto auto minmax(2rem, 1fr) auto;
+      gap: clamp(1.8rem, 3.4vw, 3.65rem);
+    }
+
+    .hero-title {
+      max-width: 100%;
+      font-size: clamp(5rem, 13.75vw, 13.75rem);
+      font-stretch: 75%;
+      font-weight: 700;
+      line-height: .79;
+      letter-spacing: -.068em;
+      text-wrap: balance;
+    }
+
+    .hero-title .line:last-child { margin-left: clamp(1.5rem, 8.75vw, 9rem); }
+
+    .hero-lower {
+      grid-template-columns: minmax(15rem, .62fr) minmax(24rem, 1.38fr);
+      gap: clamp(3rem, 10vw, 11rem);
+    }
+
+    .hero-copy {
+      max-width: 31rem;
+      padding-bottom: .25rem;
+    }
+
+    .hero-copy > p {
+      max-width: 29rem;
+      font-size: clamp(1rem, 1.16vw, 1.16rem);
+      line-height: 1.52;
+    }
+
+    .actions {
+      gap: .55rem;
+      margin-top: 1.8rem;
+    }
+
+    .button {
+      min-height: 3.5rem;
+      gap: 2.25rem;
+      padding: .95rem 1.15rem;
+      letter-spacing: .09em;
+      transition: color .18s var(--ease), background-color .18s var(--ease);
+    }
+
+    .button::after { transition: transform .18s var(--ease); }
+    .button:hover { transform: none; }
+    .button:hover::after { transform: translate(3px, -3px); }
+
+    .hero-demo {
+      width: min(100%, 47rem);
+      justify-self: end;
+      border: var(--hairline);
+      background: var(--white);
+    }
+
+    .demo-bar { min-height: 3rem; padding-inline: 1rem; }
+    .demo-thread { min-height: clamp(12.5rem, 16vw, 16.5rem); padding: 1.15rem; }
+    .bubble { padding: .82rem .95rem; line-height: 1.6; }
+    .demo-cap { min-height: 3rem; padding-inline: 1rem; }
+
+    .scroll-cue {
+      min-height: 3rem;
+      padding-top: .85rem;
+      border-top-color: var(--buzz-hairline);
+    }
+
+    .scroll-cue::after { transition: transform .18s var(--ease); }
+    .scroll-cue:hover::after { transform: translateY(4px); }
+
+    .how-head {
+      min-height: 5rem;
+      align-items: center;
+      padding-block: 1.25rem;
+    }
+
+    .step {
+      min-height: clamp(18rem, 23vw, 23rem);
+      padding: 1.5rem 1.5rem 1.75rem 0;
+    }
+
+    .step:not(:first-child) { padding-left: 1.5rem; }
+    .step-number { margin-bottom: clamp(4rem, 8vw, 8rem); }
+
+    .step h3 {
+      margin-bottom: .72rem;
+      font-size: clamp(2.7rem, 4.2vw, 4.8rem);
+      line-height: .86;
+      letter-spacing: -.057em;
+    }
+
+    .step p { max-width: 18rem; line-height: 1.5; }
+
+    .section-heading {
+      max-width: 10.5ch;
+      margin-top: 1.5rem;
+      font-size: clamp(4.5rem, 8.25vw, 9rem);
+      line-height: .82;
+      letter-spacing: -.065em;
+      text-wrap: balance;
+    }
+
+    .feature-stack { margin-top: clamp(6rem, 11vw, 11.5rem); }
+
+    .feature-block {
+      min-height: clamp(38rem, 48vw, 48rem);
+      grid-template-columns: minmax(15rem, .63fr) minmax(28rem, 1.37fr);
+      gap: clamp(3rem, 9vw, 10rem);
+      padding-block: clamp(3.5rem, 6vw, 6.5rem);
+    }
+
+    .feature-block:nth-child(even) {
+      grid-template-columns: minmax(28rem, 1.37fr) minmax(15rem, .63fr);
+    }
+
+    .feature-copy { max-width: 31rem; }
+
+    .feature-copy h3 {
+      margin-block: 1.35rem 1.05rem;
+      font-size: clamp(3.5rem, 6vw, 6.75rem);
+      line-height: .83;
+      letter-spacing: -.065em;
+      text-wrap: balance;
+    }
+
+    .feature-copy p { max-width: 27rem; line-height: 1.55; }
+    .feature-note { padding-top: 1.2rem; }
+
+    .visual {
+      min-width: 0;
+      border: var(--hairline);
+      background: var(--white);
+      transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
+    }
+
+    .feature-block:hover .visual {
+      transform: none;
+      background: var(--white);
+      box-shadow: inset 7px 0 0 var(--lime);
+    }
+
+    .visual-top { min-height: 3.45rem; padding-inline: 1.1rem; }
+    .deploy-visual { background: var(--white); }
+    .deploy-visual .visual-top { background: var(--blue); }
+    .deploy-line:last-child .deploy-node { background: var(--lime); }
+    .chat-visual .visual-top { background: var(--blue); }
+    .config-visual .file-tabs span:first-child { background: var(--lime); }
+
+    .payout-block {
+      min-height: clamp(42rem, 52vw, 52rem);
+      grid-template-columns: .56fr 1.44fr;
+      gap: clamp(3rem, 9vw, 10rem);
+      padding-block: clamp(5rem, 8vw, 8rem);
+    }
+
+    .payout-copy h3 {
+      max-width: 7ch;
+      margin-block: 1.35rem 1.55rem;
+      font-size: clamp(4.2rem, 7vw, 7.8rem);
+      line-height: .82;
+      letter-spacing: -.068em;
+    }
+
+    .payout-copy p { line-height: 1.55; }
+
+    .waterfall { background: var(--white); }
+    .waterfall-row { min-height: 7.4rem; padding: 1.25rem; }
+
+    .waterfall-row:hover {
+      padding-left: 1.25rem;
+      background: var(--white);
+      box-shadow: inset 7px 0 0 var(--blue);
+    }
+
+    .waterfall-row strong {
+      font-size: clamp(2.6rem, 4.8vw, 5.25rem);
+      letter-spacing: -.06em;
+    }
+
+    .pricing-intro {
+      grid-template-columns: 1.42fr .58fr;
+      gap: clamp(3rem, 8vw, 9rem);
+    }
+
+    .pricing-intro p { line-height: 1.55; }
+    .pricing-list { margin-top: clamp(6rem, 10vw, 10rem); }
+
+    .price-row {
+      grid-template-columns: .14fr .62fr .65fr 1fr;
+      min-height: 9.5rem;
+      padding-block: 1.4rem 1.7rem;
+      transition: padding-left .18s var(--ease), box-shadow .18s var(--ease);
+    }
+
+    .price-row:hover {
+      padding-inline: 1rem 0;
+      background: transparent;
+      box-shadow: inset 7px 0 0 var(--lime);
+    }
+
+    .price-name {
+      font-size: clamp(2.8rem, 4.8vw, 5.5rem);
+      line-height: .84;
+      letter-spacing: -.06em;
+    }
+
+    .price-detail { line-height: 1.52; }
+    .pricing-foot { margin-top: 1.5rem; }
+
+    .cta-band { padding-block: clamp(7rem, 11vw, 11rem); }
+
+    .cta-layout {
+      grid-template-columns: 1.3fr .7fr;
+      gap: clamp(4rem, 10vw, 12rem);
+    }
+
+    .cta-title {
+      max-width: 9ch;
+      margin-top: 1.35rem;
+      font-size: clamp(5rem, 10vw, 11rem);
+      line-height: .79;
+      letter-spacing: -.07em;
+      text-wrap: balance;
+    }
+
+    .cta-side { padding-bottom: .5rem; }
+    .cta-side > p { line-height: 1.55; }
+
+    .waitlist-form { border-top: var(--hairline); }
+
+    .waitlist-form input {
+      min-height: 4.35rem;
+      transition: box-shadow .18s var(--ease), background-color .18s var(--ease);
+    }
+
+    .waitlist-form input:focus {
+      background: transparent;
+      box-shadow: inset 0 -6px 0 var(--lime);
+    }
+
+    .form-submit { min-width: 4.35rem; min-height: 4.35rem; }
+
+    .success-box {
+      border: var(--hairline);
+      background: var(--white);
+      box-shadow: inset 7px 0 0 var(--lime);
+    }
+
+    .footer-main {
+      min-height: clamp(24rem, 35vw, 35rem);
+      padding-block: 2.75rem;
+      align-items: end;
+    }
+
+    .footer-wordmark {
+      font-size: clamp(5.5rem, 13vw, 14rem);
+      line-height: .72;
+      letter-spacing: -.075em;
+    }
+
+    .legal { gap: .8rem; }
+
+    .legal a {
+      display: inline-flex;
+      min-height: 2.75rem;
+      align-items: center;
+      gap: .8rem;
+    }
+
+    .legal a + a::before {
+      content: "|";
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .back-top {
+      width: 3.5rem;
+      height: 3.5rem;
+      margin-top: 1rem;
+      transition: color .18s var(--ease), background-color .18s var(--ease);
+    }
+
+    .hero-title,
+    .hero-lower > *,
+    .feature-block > *,
+    .payout-block > *,
+    .pricing-intro > *,
+    .cta-layout > * { min-width: 0; }
+
+    @media (max-width: 920px) {
+      .hero-title {
+        max-width: 100%;
+        font-size: clamp(4.5rem, 14.6vw, 8.6rem);
+      }
+
+      .hero-title .line:last-child { margin-left: clamp(1rem, 6vw, 4rem); }
+      .hero-lower, .pricing-intro, .cta-layout { grid-template-columns: 1fr; }
+      .hero-demo { width: min(100%, 46rem); }
+      .feature-block, .feature-block:nth-child(even), .payout-block { grid-template-columns: 1fr; }
+      .feature-block { min-height: 0; }
+      .feature-copy { min-height: 20rem; }
+      .payout-block { min-height: 0; }
+      .price-row { grid-template-columns: .12fr .56fr .55fr 1fr; }
+      .cta-side { max-width: 36rem; justify-self: end; }
+    }
+
+    @media (max-width: 620px) {
+      :root { --pad: 1rem; --section: 6.75rem; }
+
+      .site-header { min-height: 4.35rem; }
+      .site-nav { gap: .75rem; }
+      .site-nav .nav-link { font-size: .64rem; letter-spacing: .08em; }
+      .site-nav .nav-link:last-child { min-height: 2.5rem; padding-inline: .8rem; }
+
+      .hero-inner {
+        min-height: calc(100svh - 4.35rem);
+        padding-top: 2.8rem;
+        padding-bottom: 1.25rem;
+        gap: 1.75rem;
+      }
+
+      .hero-title {
+        max-width: 100%;
+        font-size: clamp(4rem, 17vw, 5.6rem);
+        line-height: .82;
+        letter-spacing: -.066em;
+        overflow-wrap: anywhere;
+      }
+
+      .hero-title .line:last-child { margin-left: 0; }
+      .hero-lower { gap: 3rem; }
+      .actions { gap: .5rem; }
+      .button { min-height: 3.65rem; }
+      .hero-demo { width: 100%; }
+      .demo-thread { min-height: 12rem; }
+      .scroll-cue { min-height: 3.25rem; }
+
+      .how-head { min-height: 5.5rem; }
+      .step { padding-block: 1.5rem 2.5rem !important; }
+      .step-number { margin-bottom: 3.5rem; }
+      .step h3 { font-size: 3.5rem; }
+
+      .features, .pricing { padding-block: var(--section); }
+      .section-heading { font-size: clamp(4rem, 17vw, 5.6rem); }
+      .feature-stack { margin-top: 5.5rem; }
+      .feature-block { padding-block: 3.75rem; gap: 3rem; }
+      .feature-copy { min-height: 18rem; }
+      .feature-copy h3 { font-size: clamp(3.6rem, 15.5vw, 4.75rem); }
+      .visual { min-height: 22rem; }
+      .payout-block { padding-block: 5rem; gap: 3.5rem; }
+      .payout-copy h3 { font-size: clamp(4rem, 17vw, 5.7rem); }
+      .waterfall-row { min-height: 7.25rem; }
+
+      .pricing-list { margin-top: 5.5rem; }
+      .price-row { min-height: 0; padding-block: 1.5rem; }
+      .price-row:hover { padding-inline: .65rem 0; }
+      .price-name { font-size: 3.4rem; }
+
+      .cta-band { padding-block: 6.75rem; }
+      .cta-title { font-size: clamp(4.5rem, 18vw, 6rem); }
+      .cta-side { justify-self: stretch; }
+
+      .footer-main { min-height: 23rem; padding-block: 2.25rem; }
+      .footer-wordmark { font-size: clamp(5rem, 25vw, 7rem); }
+      .legal { gap: .55rem; }
+      .legal a { gap: .55rem; }
+      .back-top { margin-top: 1.25rem; }
+    }
+
+    /* Buzz-authentic palette texture, hairlines, and static fuzz treatment. */
+    .hero-title { filter: url("#buzz-fuzz-hero"); }
+    .footer-wordmark { filter: url("#buzz-fuzz-footer"); }
+
+    .how {
+      background-color: var(--white);
+      background-image: radial-gradient(circle at 1px 1px, var(--buzz-dot) 1px, transparent 1.15px);
+      background-size: 22px 22px;
+    }
+
+    .how,
+    .how-head,
+    .step,
+    .feature-stack,
+    .feature-block,
+    .feature-note,
+    .payout-block,
+    .pricing-list,
+    .price-row { border-color: var(--buzz-hairline); }
+
+    .config-visual { color: var(--blue); }
+    .config-visual .visual-top,
+    .config-visual .file-tabs,
+    .config-visual .code { border-color: var(--blue); }
+    .config-visual .code .key { color: var(--lime); }
+    .config-visual .code .muted { color: var(--blue); }
+
+    .site-footer { color: var(--blue); }
+    .site-footer .footer-wordmark { color: var(--lime); }
+    .site-footer :focus-visible { outline-color: var(--lime); }
+
+    @media (max-width: 620px) {
+      .hero-title,
+      .footer-wordmark { filter: url("#buzz-fuzz-mobile"); }
+    }
+
+    /* VARIATION: THE SHELF. Change the working name at the PRODUCT_NAME line in the script. */
+    .mode-visual, .files-visual { min-height: 23rem; display: flex; flex-direction: column; justify-content: space-between; padding: 1rem; }
+    .mode-visual .visual-top, .files-visual .visual-top { margin: -1rem -1rem 0; }
+    .mode-word { font-size: clamp(2.2rem, 5vw, 5.6rem); font-weight: 700; line-height: .88; letter-spacing: -.055em; overflow-wrap: anywhere; }
+    .mode-visual > p, .files-visual > p { font-family: var(--mono); font-size: .72rem; letter-spacing: .07em; text-transform: uppercase; }
+    .file-list { display: grid; gap: .65rem; }
+    .file-list span { border: 1px solid currentColor; padding: .9rem; font-family: var(--mono); font-size: .75rem; letter-spacing: .1em; }
+    .direction-tag { display: inline-flex; padding: .42rem .58rem; border: 1px solid currentColor; margin-right: .55rem; }
+    .hero-copy strong { font-weight: 700; }
+    .hero-title .line { white-space: normal; }
+    .cta-title { overflow-wrap: anywhere; }
+    @media (max-width: 620px) {
+      .hero-title { font-size: clamp(3.35rem, 18vw, 5.1rem); line-height: .84; }
+      .hero-title .line:last-child { margin-left: 0; }
+      .mode-word { font-size: 2.7rem; }
+      .direction-tag { margin-bottom: .55rem; }
+    }
+
+    .hero { background: var(--white); }
+    .hero-inner { padding-top: clamp(4rem, 8vw, 8rem); gap: 3rem; }
+    .hero-title { font-weight: 600; font-size: clamp(4rem, 11.5vw, 11rem); line-height: .87; }
+    .hero-demo, .step:nth-child(even), .payout-block { background: var(--blue); }
+    .how { background-color: var(--white); background-size: 28px 28px; }
+    .features { padding-top: calc(var(--section) * 1.2); }
+    .feature-block, .price-row { border-color: var(--buzz-hairline); }
+    .cta-band { background: var(--blue); }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <filter id="buzz-fuzz-hero" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="9.6" result="softLogo"></feGaussianBlur>
+      <feTurbulence type="fractalNoise" baseFrequency="0.68" numOctaves="4" seed="7" result="textureNoise"></feTurbulence>
+      <feDisplacementMap in="softLogo" in2="textureNoise" scale="14.4" xChannelSelector="R" yChannelSelector="G" result="buzzedLogo"></feDisplacementMap>
+      <feColorMatrix in="textureNoise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.66 0.66 0.66 0 0" result="grainMask"></feColorMatrix>
+      <feComposite in="buzzedLogo" in2="grainMask" operator="in" result="grainLogo"></feComposite>
+      <feMerge>
+        <feMergeNode in="grainLogo"></feMergeNode>
+        <feMergeNode in="buzzedLogo"></feMergeNode>
+      </feMerge>
+    </filter>
+    <filter id="buzz-fuzz-footer" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="softLogo"></feGaussianBlur>
+      <feTurbulence type="fractalNoise" baseFrequency="0.68" numOctaves="4" seed="7" result="textureNoise"></feTurbulence>
+      <feDisplacementMap in="softLogo" in2="textureNoise" scale="24" xChannelSelector="R" yChannelSelector="G" result="buzzedLogo"></feDisplacementMap>
+      <feColorMatrix in="textureNoise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.66 0.66 0.66 0 0" result="grainMask"></feColorMatrix>
+      <feComposite in="buzzedLogo" in2="grainMask" operator="in" result="grainLogo"></feComposite>
+      <feMerge>
+        <feMergeNode in="grainLogo"></feMergeNode>
+        <feMergeNode in="buzzedLogo"></feMergeNode>
+      </feMerge>
+    </filter>
+    <filter id="buzz-fuzz-mobile" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="softLogo"></feGaussianBlur>
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" seed="7" result="textureNoise"></feTurbulence>
+      <feDisplacementMap in="softLogo" in2="textureNoise" scale="14.4" xChannelSelector="R" yChannelSelector="G" result="buzzedLogo"></feDisplacementMap>
+      <feColorMatrix in="textureNoise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.66 0.66 0.66 0 0" result="grainMask"></feColorMatrix>
+      <feComposite in="buzzedLogo" in2="grainMask" operator="in" result="grainLogo"></feComposite>
+      <feMerge>
+        <feMergeNode in="grainLogo"></feMergeNode>
+        <feMergeNode in="buzzedLogo"></feMergeNode>
+      </feMerge>
+    </filter>
+  </svg>
+
+  <header class="hero" id="top">
+    <div class="shell">
+      <div class="site-header"><a class="wordmark" href="#top" aria-label="Back to top"><span class="wordmark-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span data-product-name>Bench</span></a><nav class="site-nav" aria-label="Primary navigation"><a class="nav-link" href="#how">How it works</a><a class="nav-link" href="#pricing">Pricing</a><a class="nav-link" href="#waitlist">Join</a></nav></div>
+      <div class="hero-inner">
+        <p class="eyebrow"><span class="direction-tag">THE SHELF</span> THE AI WORKFLOW STORE</p>
+        <h1 class="hero-title"><span class="line">The store for</span><span class="line">AI workflows.</span></h1>
+        <div class="hero-lower">
+          <div class="hero-copy"><p>Browse prompts, skills, and automations made by real people. Try one live, buy it, then use it by API, on Bench, or on your own machine. Creators get a proper store without a GitHub page, payment setup, hosting, or tech skills.</p><div class="actions"><button class="button button-primary" type="button" id="try-demo">Try it live</button><a class="button" href="#creator-payouts">Sell on Bench</a></div></div>
+          <div class="hero-demo" id="live-demo" role="region" aria-label="Live workflow demo" aria-live="polite"><div class="demo-bar"><span class="micro">Decision helper / live</span><span class="status" id="demo-status">01 demo ready</span></div><div class="demo-thread"><div class="bubble bubble-agent">I turn loose notes into three clear decisions. Want to see one pass?</div><div class="bubble bubble-user" id="demo-question" hidden>Sort these notes into the decisions I need to make.</div><div class="bubble bubble-agent" id="demo-answer" hidden></div></div><div class="demo-cap"><span class="micro" id="cap-message">One preview run included</span><a href="#pricing" id="buy-link" hidden>Buy the workflow →</a></div></div>
+        </div>
+        <a class="scroll-cue" href="#how">See how Bench works</a>
+      </div>
+    </div>
+  </header>
+  <main id="main">
+    <section class="how" id="how" aria-labelledby="how-title"><div class="shell"><div class="how-head"><h2 class="eyebrow" id="how-title">How it works</h2><span class="micro">THE SHELF / four steps</span></div><div class="steps"><article class="step"><span class="step-number micro">01 / Browse</span><h3>Browse</h3><p>Find workflows by the job you need done.</p></article><article class="step"><span class="step-number micro">02 / Try live</span><h3>Try live</h3><p>See a real answer before you spend.</p></article><article class="step"><span class="step-number micro">03 / Buy</span><h3>Buy</h3><p>Choose the workflow that earns its place.</p></article><article class="step"><span class="step-number micro">04 / Use anywhere</span><h3>Use anywhere</h3><p>Pick API, Bench, or files for your machine.</p></article></div></div></section>
+    <section class="features" aria-labelledby="features-title"><div class="shell"><p class="eyebrow">One purchase / three clear choices</p><h2 class="section-heading" id="features-title">Yours, three ways.</h2>
+        <div class="feature-stack">
+          <article class="feature-block">
+            <div class="feature-copy">
+              <div><span class="section-index">01 / API</span><h3>One key for your app.</h3><p>Use one key to put any workflow you buy inside your own app. Pay only when you use it.</p></div>
+              <div class="feature-note micro"><span>API</span><span>Your app asks. The workflow answers.</span></div>
+            </div>
+            <div class="visual mode-visual" role="img" aria-label="API access shown as one key connecting an app to a purchased workflow"><div class="visual-top"><span class="micro">API / one key</span><span class="micro">Ready</span></div><div class="mode-word">KEY → WORKFLOW</div><p>Your app · one key · any purchase</p></div>
+          </article>
+          <article class="feature-block">
+            <div class="feature-copy">
+              <div><span class="section-index">02 / Platform</span><h3>Use it right here.</h3><p>Open the hosted version on Bench, give it a task, and get the result. There is nothing to install.</p></div>
+              <div class="feature-note micro"><span>Platform</span><span>Hosted on Bench and ready to use.</span></div>
+            </div>
+            <div class="visual chat-visual" role="img" aria-label="A purchased workflow being used on the Bench platform"><div class="visual-top"><span class="micro">On Bench</span><span class="micro">Hosted</span></div><div class="chat-body"><div class="bubble bubble-user">Sort these notes into the three decisions I need to make.</div><div class="bubble bubble-agent">Done. I grouped the evidence under each decision and marked what is still missing.</div></div><div class="chat-input micro"><span>Give this workflow a task…</span><span>Send ↗</span></div></div>
+          </article>
+          <article class="feature-block">
+            <div class="feature-copy">
+              <div><span class="section-index">03 / Local</span><h3>The files in your hands.</h3><p>Choose data transfer, take the workflow files, and run them on your own machine. The files are yours to keep and move.</p></div>
+              <div class="feature-note micro"><span>Local</span><span>Your files. Your machine. Your choice.</span></div>
+            </div>
+            <div class="visual files-visual" role="img" aria-label="A local purchase package containing prompt, skill, and automation files"><div class="visual-top"><span class="micro">Local package</span><span class="micro">Yours</span></div><div class="file-list"><span>PROMPT</span><span>SKILL</span><span>AUTOMATION</span></div><p>Data transfer complete → run on your machine</p></div>
+          </article>
+          <article class="payout-block" id="creator-payouts">
+            <div class="payout-copy"><span class="section-index">04 / Creator payouts</span><h3>A fair shelf for creators.</h3><p>Creators get paid and anyone can sell. If you now say “DM me for the workflow” and share a GitHub link, Bench gives your prompt, skill, or automation a store page and handles payments and hosting—no tech skills needed. Creators receive 85/15 on Bench-found licenses, 95/5 from their own link, 20% of positive hosting margin, and 85/15 on maintenance.</p></div>
+            <div class="waterfall" role="group" aria-label="Creator payout split"><div class="waterfall-row"><span>License sale found through Bench</span><strong>85 / 15</strong></div><div class="waterfall-row"><span>License sale from your link</span><strong>95 / 5</strong></div><div class="waterfall-row"><span>Your share of positive hosting margin</span><strong>20%</strong></div><div class="waterfall-row"><span>Maintenance subscription</span><strong>85 / 15</strong></div></div>
+          </article>
+        </div></div></section>
+
+    <section class="pricing" id="pricing" aria-labelledby="pricing-title">
+      <div class="shell">
+        <div class="pricing-intro"><div><p class="eyebrow">Launch / ≈ pricing proposals</p><h2 class="section-heading" id="pricing-title">Clear ways to use it.</h2></div><p>Try for free. Buy the access that fits: API, hosted on Bench, local files, maintenance, or team use.</p></div>
+        <div class="pricing-list" role="list" aria-label="Proposed launch pricing">
+          <article class="price-row" role="listitem"><span class="price-number micro">01</span><h3 class="price-name">Browse</h3><p class="price-value">Free</p><p class="price-detail">Capped live demo. Try a workflow before you buy.</p></article>
+          <article class="price-row" role="listitem"><span class="price-number micro">02</span><h3 class="price-name">API</h3><p class="price-value">≈ Pay per use</p><p class="price-detail"><span class="price-note">Launch / ≈</span><br>One key for your app. Pay when the workflow runs.</p></article>
+          <article class="price-row" role="listitem"><span class="price-number micro">03</span><h3 class="price-name">Platform</h3><p class="price-value">≈ Hosted credits</p><p class="price-detail"><span class="price-note">Launch / ≈</span><br>Use the hosted workflow right here on Bench.</p></article>
+          <article class="price-row" role="listitem"><span class="price-number micro">04</span><h3 class="price-name">Local</h3><p class="price-value">≈ One-time</p><p class="price-detail"><span class="price-note">Launch / ≈</span><br>Buy the files once and run them on your machine.</p></article>
+          <article class="price-row" role="listitem"><span class="price-number micro">05</span><h3 class="price-name">Maintain</h3><p class="price-value">≈ Monthly</p><p class="price-detail"><span class="price-note">Launch / ≈</span><br>Updates and support from the creator.</p></article>
+          <article class="price-row" role="listitem"><span class="price-number micro">06</span><h3 class="price-name">Team</h3><p class="price-value">Talk to us</p><p class="price-detail">Private catalogs, SSO, and audit for larger teams.</p></article>
+        </div>
+        <div class="pricing-foot micro"><span>These are launch proposals, not final prices.</span><span>Launch / ≈</span></div>
+      </div>
+    </section>
+    <section class="cta-band" id="waitlist" aria-labelledby="waitlist-title"><div class="shell cta-layout"><div><p class="eyebrow">A better place to buy and sell</p><h2 class="cta-title" id="waitlist-title">Good workflows deserve a good store.</h2></div><div class="cta-side"><p>Join the waitlist to browse the first shelf or put your work on it.</p><form class="waitlist-form" id="waitlist-form" novalidate><div id="form-fields"><div class="form-row"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-describedby="email-note" required><button class="button button-primary form-submit" type="submit" aria-label="Join the Bench waitlist"></button></div><p class="field-note" id="email-note">No spam. Launch updates only.</p></div><div class="success-box" id="form-success" role="status" hidden><span class="micro">You're on the list</span><strong>You're in. We'll open the store soon.</strong></div></form></div></div></section>
+  </main>
+  <footer class="site-footer"><div class="shell footer-main"><div><p class="footer-wordmark" data-product-name>Bench</p><p class="micro" style="margin-top: 1.6rem;">A clear store for useful AI workflows.</p></div><div><nav class="legal" aria-label="Legal and support"><a href="#terms" aria-label="Terms placeholder">Terms</a><a href="#privacy" aria-label="Privacy placeholder">Privacy</a><a href="mailto:support@example.com">Support</a></nav><button class="back-top" id="back-top" type="button" aria-label="Back to top" title="Back to top">↑</button></div></div></footer>
+
+  <script>
+    const PRODUCT_NAME = 'Bench'; // RENAME: change this one line to update every visible product name and the page title.
+
+    document.querySelectorAll('[data-product-name]').forEach((node) => {
+      node.textContent = PRODUCT_NAME;
+    });
+    document.title = `${PRODUCT_NAME} — THE SHELF`;
+
+    const tryButton = document.querySelector('#try-demo');
+    const demo = document.querySelector('#live-demo');
+    const question = document.querySelector('#demo-question');
+    const answer = document.querySelector('#demo-answer');
+    const status = document.querySelector('#demo-status');
+    const capMessage = document.querySelector('#cap-message');
+    const buyLink = document.querySelector('#buy-link');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cannedReply = '1. Approve the launch scope. 2. Resolve the data-access blocker. 3. Assign an owner to the customer escalation. I kept the evidence attached to each decision.';
+    let demoUsed = false;
+
+    const typeReply = (text) => {
+      answer.hidden = false;
+      answer.classList.add('typing');
+      if (reducedMotion) {
+        answer.textContent = text;
+        answer.classList.remove('typing');
+        finishDemo();
+        return;
+      }
+      let index = 0;
+      const timer = window.setInterval(() => {
+        answer.textContent += text.charAt(index);
+        index += 1;
+        if (index >= text.length) {
+          window.clearInterval(timer);
+          answer.classList.remove('typing');
+          finishDemo();
+        }
+      }, 18);
+    };
+
+    const finishDemo = () => {
+      status.textContent = 'Demo cap reached';
+      capMessage.textContent = 'Demo cap reached — buy the workflow';
+      buyLink.hidden = false;
+      tryButton.disabled = true;
+      tryButton.textContent = 'Preview used';
+      tryButton.setAttribute('aria-disabled', 'true');
+    };
+
+    tryButton.addEventListener('click', () => {
+      if (demoUsed) return;
+      demoUsed = true;
+      demo.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+      question.hidden = false;
+      status.textContent = 'Agent typing';
+      window.setTimeout(() => typeReply(cannedReply), reducedMotion ? 0 : 360);
+    });
+
+    const form = document.querySelector('#waitlist-form');
+    const email = document.querySelector('#email');
+    const emailNote = document.querySelector('#email-note');
+    const formFields = document.querySelector('#form-fields');
+    const formSuccess = document.querySelector('#form-success');
+
+    const showEmailError = (message) => {
+      email.setAttribute('aria-invalid', 'true');
+      emailNote.dataset.state = 'error';
+      emailNote.textContent = message;
+    };
+
+    email.addEventListener('input', () => {
+      if (email.getAttribute('aria-invalid') === 'true') {
+        email.removeAttribute('aria-invalid');
+        emailNote.dataset.state = '';
+        emailNote.textContent = 'No spam. Launch updates only.';
+      }
+    });
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const value = email.value.trim();
+      if (!value) {
+        showEmailError('Add your email to join.');
+        email.focus();
+        return;
+      }
+      if (!email.validity.valid) {
+        showEmailError('Enter a complete email, like you@company.com.');
+        email.focus();
+        return;
+      }
+      formFields.hidden = true;
+      formSuccess.hidden = false;
+    });
+
+    document.querySelector('#back-top').addEventListener('click', () => {
+      document.querySelector('#top').scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth' });
+    });
+  </script>
+</body>
+</html>

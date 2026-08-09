@@ -1,0 +1,48 @@
+platform,category,url,what_it_does,pricing_model,provenance_label,retrieved_2026-08-08
+Vercel,general cloud app hosting,https://vercel.com/pricing,"Web apps and serverless/edge functions","Free; Pro $20/month plus usage",OFFICIAL pricing page,2026-08-08
+Railway,general cloud app hosting,https://railway.com/pricing,"Git/Docker services databases workers and cron","Trial/free signal; $1/month after trial; Hobby $5 minimum usage",OFFICIAL pricing page,2026-08-08
+Render,general cloud app hosting,https://render.com/pricing,"Web/private services workers cron and managed data","Hobby $0 plus instance compute; usage based",OFFICIAL pricing page,2026-08-08
+Fly.io,general cloud app hosting,https://fly.io/docs/about/pricing/,"OCI apps and API-controlled Machines","Per-second VM plus storage/egress",OFFICIAL pricing page,2026-08-08
+Cloudflare Workers,general cloud app hosting,https://developers.cloudflare.com/workers/platform/pricing/,"Edge functions and bindings","Free; Paid $5/account/month minimum plus usage",OFFICIAL pricing page,2026-08-08
+Cloudflare Durable Objects,general cloud app hosting,https://developers.cloudflare.com/durable-objects/platform/pricing/,"Stateful edge actors with SQLite/KV storage","Free/Paid Workers request compute and storage billing",OFFICIAL pricing page,2026-08-08
+AWS Lambda,general cloud app hosting,https://aws.amazon.com/lambda/pricing/,"Event-driven functions","Per request and GB-second; 1M requests and 400K GB-seconds free monthly",OFFICIAL pricing page,2026-08-08
+Google Cloud Run,general cloud app hosting,https://cloud.google.com/run/pricing,"Scale-to-zero containers and jobs","Per vCPU-second GiB-second requests and network after free tier",OFFICIAL pricing page,2026-08-08
+Azure Container Apps,general cloud app hosting,https://azure.microsoft.com/en-us/pricing/details/container-apps/,"Serverless containers and jobs","Consumption per second or dedicated capacity; regional",OFFICIAL pricing page,2026-08-08
+Netlify,general cloud app hosting,https://www.netlify.com/pricing/,"Frontends functions and deploy previews","Free; Personal $9/month; Pro $20/month; credit usage",OFFICIAL pricing page,2026-08-08
+Modal,serverless GPU / compute,https://modal.com/pricing,"Autoscaling Python CPU/GPU functions endpoints jobs and containers","Per-second CPU/GPU; H100 $0.001097/sec observed",OFFICIAL pricing page,2026-08-08
+RunPod,serverless GPU / compute,https://www.runpod.io/pricing,"GPU Pods and serverless workers/endpoints","Per-second/hour by GPU; H200 $4.39/hr observed",OFFICIAL pricing page,2026-08-08
+Beam,serverless GPU / compute,https://www.beam.cloud/pricing,"Serverless/on-demand GPU endpoints jobs and sandboxes","Usage based; $30 monthly credit; H100 from $1.74/hr",OFFICIAL pricing page,2026-08-08
+Replicate,serverless GPU / compute,https://replicate.com/pricing,"Hosted model APIs and custom deployments","Per prediction/output/hardware time",OFFICIAL pricing page,2026-08-08
+dstack,serverless GPU / compute,https://dstack.ai/docs/,"Open-source GPU workload orchestration across clouds","OSS plus underlying provider infrastructure",OFFICIAL docs,2026-08-08
+Baseten,serverless GPU / compute,https://www.baseten.co/pricing/,"Production model inference and dedicated deployments","Basic $0/month pay as you go; Pro/custom",OFFICIAL pricing page,2026-08-08
+Together AI,serverless GPU / compute,https://www.together.ai/pricing,"Serverless model APIs fine-tuning and dedicated endpoints","Per token for APIs; GPU-hour dedicated endpoints",OFFICIAL pricing page,2026-08-08
+LangGraph Platform / LangSmith,agent-specific platform,https://www.langchain.com/pricing,"Stateful agent deployments tracing and evaluation","Developer $0/seat plus usage; Plus $39/seat/month plus usage",OFFICIAL pricing page,2026-08-08
+LangSmith deployment docs,agent-specific platform,https://docs.langchain.com/langsmith/deployment,"Deployment modes and managed control/data planes","Usage and deployment mode dependent",OFFICIAL docs,2026-08-08
+CrewAI AMP,agent-specific platform,https://crewai.com/pricing,"Managed agent crews and workflow executions","Free 50 executions/month; paid enterprise price unclear",OFFICIAL pricing page,2026-08-08
+Microsoft AutoGen,agent-specific platform,https://microsoft.github.io/autogen/stable/,"Open-source multi-agent framework/runtime","OSS plus chosen hosting/models",OFFICIAL docs,2026-08-08
+Dify Cloud,agent-specific platform,https://dify.ai/pricing,"Visual LLM apps agents workflows and knowledge","Professional $590/workspace/year; Team $1590/workspace/year",OFFICIAL pricing page,2026-08-08
+n8n Cloud,agent-specific platform,https://n8n.io/pricing/,"Hosted/self-host workflow automation with AI nodes","Execution tiers; Pro €50/month annual observed",OFFICIAL pricing page,2026-08-08
+Flowise,agent-specific platform,https://docs.flowiseai.com/configuration/running-in-production,"Visual agent/LLM flows and APIs","OSS plus infrastructure; Cloud numeric price not verified",OFFICIAL docs,2026-08-08
+Stack AI,agent-specific platform,https://www.stackai.com/pricing,"No-code enterprise AI agents/workflows","Free 500 runs/month; paid custom",OFFICIAL pricing page,2026-08-08
+Relevance AI,agent-specific platform,https://relevanceai.com/pricing,"Managed agent teams tools and runs","Credit/plan based; numeric paid price not retrievable",UNVERIFIED,2026-08-08
+Relevance AI docs,agent-specific platform,https://relevanceai.com/docs/get-started/introduction,"Official managed agent platform documentation","Plan/credit dependent",OFFICIAL docs,2026-08-08
+AirOps,agent-specific platform,https://www.airops.com/pricing,"Managed AI workflows for content/search operations","Free signal; task allowances; paid numeric price unclear",OFFICIAL pricing page,2026-08-08
+Lindy,agent-specific platform,https://www.lindy.ai/pricing,"Hosted assistants automations and computer use","Plus $49.99/month; Pro $99.99/month",OFFICIAL pricing page,2026-08-08
+LobeHub / LobeChat,agent-specific platform,https://lobehub.com/docs/self-hosting/start,"Open-source chat/agent UI self-host patterns","OSS plus host model database and storage",OFFICIAL docs,2026-08-08
+OpenClaw,agent-specific platform,https://github.com/openclaw/openclaw,"Open-source personal agent/gateway self-host pattern","OSS plus VM/container/model costs",OFFICIAL docs,2026-08-08
+Smithery,MCP hosting / registry,https://smithery.ai/docs,"MCP registry discovery deployment/connectivity","Current hosted price not verified",OFFICIAL docs,2026-08-08
+Smithery pricing,MCP hosting / registry,https://smithery.ai/pricing,"Pricing page for Smithery MCP services","Dynamic page; dependable numeric price unavailable",UNVERIFIED,2026-08-08
+Glama,MCP hosting / registry,https://glama.ai/mcp/servers,"MCP server directory/gateway ecosystem","Site timed out; pricing and hosted execution not verified",UNVERIFIED,2026-08-08
+Cloudflare remote MCP,MCP hosting / registry,https://developers.cloudflare.com/agents/model-context-protocol/guides/remote-mcp-server/,"Remote MCP servers on Workers with OAuth patterns","Workers Free or $5/month minimum plus usage",OFFICIAL docs,2026-08-08
+AWS Bedrock AgentCore,MCP hosting / registry,https://aws.amazon.com/bedrock/agentcore/pricing/,"Agent runtime gateway identity browser observability and registry","Feature usage based; Agent Registry free during preview",OFFICIAL pricing page,2026-08-08
+DigitalOcean MCP Server,MCP hosting / registry,https://docs.digitalocean.com/reference/mcp/,"Official MCP server controlling DigitalOcean resources","Bridge price not separately established; resources billed normally",OFFICIAL docs,2026-08-08
+Browserbase,browser / computer use,https://www.browserbase.com/pricing,"Managed remote browsers sessions and agent runs","Free; paid $20/$99/custom; usage limits",OFFICIAL pricing page,2026-08-08
+Steel.dev,browser / computer use,https://steel.dev/#pricing,"Managed browser API/CDP infrastructure","Launch $0 plus usage; $30 credit; Scale $250/month plus usage",OFFICIAL pricing page,2026-08-08
+Stagehand,browser / computer use,https://docs.stagehand.dev/v3/first-steps/introduction,"AI browser automation SDK built on Playwright","OSS plus browser provider and model tokens",OFFICIAL docs,2026-08-08
+browser-use Cloud,browser / computer use,https://browser-use.com/pricing,"Hosted AI web agents and stealth browsers","PAYG; 10 free tasks/month; stealth browser from $0.02/hr",OFFICIAL pricing page,2026-08-08
+Cloudflare Browser Run,browser / computer use,https://developers.cloudflare.com/browser-run/pricing/,"Browser sessions controlled from Workers","Free 10 min/day; Paid 10 hr/month then $0.09/hr",OFFICIAL pricing page,2026-08-08
+Playwright,browser / computer use,https://playwright.dev/docs/docker,"Self-hosted browser automation in Docker","OSS plus underlying compute/proxy",OFFICIAL docs,2026-08-08
+E2B,sandboxed code execution,https://e2b.dev/pricing,"Ephemeral secure code sandboxes/virtual computers","Hobby free plus usage and $100 credit; Pro $150/month plus usage",OFFICIAL pricing page,2026-08-08
+Daytona,sandboxed code execution,https://www.daytona.io/pricing,"Programmatic secure CPU/GPU workspaces","Per second/hour; vCPU $0.0504/hr and H100 $3.95/hr observed",OFFICIAL pricing page,2026-08-08
+Modal Sandboxes,sandboxed code execution,https://modal.com/docs/guide/sandboxes,"Programmatic isolated containers for generated code","Modal per-second compute/storage",OFFICIAL docs,2026-08-08
+Fly Machines,sandboxed code execution,https://fly.io/docs/machines/,"API-controlled microVMs for isolated workers","Per-second CPU/RAM plus disk and egress",OFFICIAL docs,2026-08-08

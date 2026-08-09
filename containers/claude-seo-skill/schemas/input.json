@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cognition.marketplace/schemas/claude-seo-skill/input.json",
+  "title": "Claude SEO Skill run input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["website_or_business_name", "niche"],
+  "properties": {
+    "website_or_business_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "\\S"
+    },
+    "niche": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "\\S"
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "\\S"
+    }
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "happy_paths": [
+    {
+      "id": "ecommerce-brand",
+      "input": {
+        "website_or_business_name": "https://northstartrail.com",
+        "niche": "Direct-to-consumer hiking backpacks",
+        "goal": "Grow non-brand organic traffic to product and collection pages"
+      },
+      "output": {
+        "findings": [
+          {
+            "issue": "Collection pages may not clearly target how shoppers search by trip length and pack capacity.",
+            "fix": "Map one primary intent such as day hiking backpacks or multi-day hiking backpacks to each collection, then align its title, heading, introduction, and product links to that intent.",
+            "priority": "high"
+          },
+          {
+            "issue": "Product descriptions may leave comparison questions unanswered.",
+            "fix": "Add scannable details for capacity, fit, weight, use case, and warranty, and link each product back to its closest collection and buying guide.",
+            "priority": "medium"
+          }
+        ],
+        "quick_wins": [
+          "Give every collection a unique search-focused title and visible introductory paragraph.",
+          "Add descriptive internal links from buying guides to the matching products and collections."
+        ],
+        "summary": "Start by making collection intent explicit, then strengthen product comparison copy and internal links."
+      }
+    },
+    {
+      "id": "local-service-business",
+      "input": {
+        "website_or_business_name": "Bishkek Bright Dental",
+        "niche": "Local family and cosmetic dentistry in Bishkek",
+        "goal": "Increase qualified appointment requests from local search"
+      },
+      "output": {
+        "findings": [
+          {
+            "issue": "Core services may not each have a dedicated page aligned to local patient intent.",
+            "fix": "Create distinct, useful pages for priority services such as family dentistry, emergency appointments, and whitening, including location, process, eligibility, and booking details.",
+            "priority": "high"
+          },
+          {
+            "issue": "Business identity and location signals should be checked for consistency.",
+            "fix": "Verify the same clinic name, address, phone, hours, and appointment URL across the website and major local profiles.",
+            "priority": "high"
+          }
+        ],
+        "quick_wins": [
+          "Put the clinic location and appointment action in the title, main heading, and visible page copy where natural.",
+          "Add a short FAQ answering cost, availability, and first-visit questions on each priority service page."
+        ],
+        "summary": "Build clear service pages and consistent local business signals before expanding informational content."
+      }
+    },
+    {
+      "id": "saas",
+      "input": {
+        "website_or_business_name": "LedgerLoop",
+        "niche": "Accounts receivable automation software for small B2B teams"
+      },
+      "output": {
+        "findings": [
+          {
+            "issue": "The site may not separate category, use-case, and comparison search intent.",
+            "fix": "Assign distinct pages to accounts receivable automation, invoice follow-up workflows, and relevant alternative or comparison queries, with unique proof and calls to action.",
+            "priority": "high"
+          },
+          {
+            "issue": "Educational content may attract traffic without leading readers toward the product.",
+            "fix": "Create topic clusters around late-payment prevention and collections workflows, then link each guide to the most relevant feature or use-case page.",
+            "priority": "medium"
+          }
+        ],
+        "quick_wins": [
+          "Rewrite the homepage title and main heading to state the product category and target customer plainly.",
+          "Add contextual links from existing receivables articles to one matching use-case page."
+        ],
+        "summary": "Clarify the SaaS category first, then connect educational demand to focused use-case and comparison pages."
+      }
+    }
+  ],
+  "negative_cases": [
+    {
+      "id": "missing-required-field",
+      "schema": "input.json",
+      "reason": "niche is required",
+      "instance": {
+        "website_or_business_name": "Example Co"
+      }
+    },
+    {
+      "id": "empty-string",
+      "schema": "input.json",
+      "reason": "website_or_business_name cannot be empty",
+      "instance": {
+        "website_or_business_name": "",
+        "niche": "Home cleaning"
+      }
+    },
+    {
+      "id": "wrong-type",
+      "schema": "input.json",
+      "reason": "goal must be a string",
+      "instance": {
+        "website_or_business_name": "Example Co",
+        "niche": "B2B software",
+        "goal": ["more", "traffic"]
+      }
+    },
+    {
+      "id": "oversized-field",
+      "schema": "input.json",
+      "reason": "niche cannot exceed 200 characters",
+      "instance": {
+        "website_or_business_name": "Example Co",
+        "niche": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "id": "bad-priority-enum",
+      "schema": "output.json",
+      "reason": "priority must be high, medium, or low",
+      "instance": {
+        "findings": [
+          {
+            "issue": "A useful issue",
+            "fix": "A useful fix",
+            "priority": "urgent"
+          }
+        ],
+        "quick_wins": ["Make one useful change."],
+        "summary": "A short summary."
+      }
+    }
+  ]
+}

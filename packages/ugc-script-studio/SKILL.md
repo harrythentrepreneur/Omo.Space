@@ -1,0 +1,82 @@
+---
+name: ugc-script-studio
+description: "Turn a product link or description into a ready-to-film UGC ad script — hook, shot list, on-screen captions, and a CTA — in the brand's voice."
+version: 1.0.0
+author: Bench
+license: proprietary
+metadata:
+  bench:
+    id: ugc-script-studio
+    category: make-content
+    niche: ecom-ugc
+    price_license: 39
+    price_run: 15
+    price_maintain: 12
+    demo_caps:
+      free_sessions_per_day: 5
+      max_tokens_per_session: 4000
+      max_steps_per_session: 1
+    input_schema:
+      product_url: string
+      brand_voice: enum [raw, honest, hype, luxury, funny]
+      length: enum [15, 30, 60]
+    output_schema:
+      hook: string
+      shots: array[string]
+      captions: array[string]
+      cta: string
+    runtime:
+      model: deepseek-v4-flash
+      adapter: bench-cloudflare-workers
+    creator:
+      handle: "@ugcstudioai"
+      name: "Maya Chen"
+      split: 85
+---
+
+# UGC Script Studio
+
+Paste a product link. Get a ready-to-film UGC ad script in the brand's voice:
+hook line, 3-5 shot descriptions, on-screen captions, and a call to action.
+Built for ecom brands that need authentic-feeling ads without hiring a studio.
+
+## When to use
+
+- You sell a physical or DTC product and want UGC-style ad scripts fast
+- You're a media buyer testing hooks for a new ad set
+- You want 10 script variations to A/B test in one sitting
+
+## How it works (the flow the demo runs)
+
+1. **Input** — product URL or description + voice (raw/honest/hype/luxury/funny) + length
+2. **Extract** — the product's core promise, audience, and proof points
+3. **Draft** — hook (first 2 seconds), 3-5 shot descriptions with camera notes,
+   on-screen captions timed to each shot, and a CTA
+4. **Deliver** — script in the requested voice; captions formatted for TikTok/IG
+
+## Example
+
+Input:
+- product_url: https://example.com/silk-pillowcase
+- brand_voice: raw
+- length: 30
+
+Output (abridged):
+- hook: "I was skeptical about the $60 pillowcase. Day 30, I get it."
+- shots: ["CU: hair flip, bed hair gone", "Hands-on: silk vs cotton texture",
+  "B-roll: night routine, time-lapse 30 days", "Direct-to-camera: 'wake up with
+  no crease lines'", "Split screen: morning vs old mornings"]
+- captions: ["i was a skeptic", "the texture difference is REAL", "30 days in",
+  "no more sleep creases", "link in bio if you're curious"]
+- cta: "Try it for 30 nights. Your skin will notice before you do."
+
+## Versioning
+
+- v1.0.0 — initial release (2026-08-08)
+- License: one-time purchase, perpetual, non-transferable
+- Updates: buyers get new versions automatically
+
+## Support
+
+- Creator: @ugcstudioai on Instagram
+- Bench support: support@dmmedone.com

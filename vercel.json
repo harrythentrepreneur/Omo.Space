@@ -1,0 +1,29 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "name": "cognition",
+  "version": 2,
+  "framework": null,
+  "outputDirectory": "site",
+  "buildCommand": null,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/covers/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+    },
+    {
+      "source": "/icons/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+    },
+    {
+      "source": "/embeds/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+    }
+  ],
+  "rewrites": [
+    { "source": "/creators", "destination": "/creators.html" },
+    { "source": "/library", "destination": "/index.html" },
+    { "source": "/sell", "destination": "/creators.html" }
+  ]
+}

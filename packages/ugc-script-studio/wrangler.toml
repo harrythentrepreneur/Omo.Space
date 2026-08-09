@@ -1,0 +1,33 @@
+# Bench — UGC Script Studio demo worker deployment (Cloudflare Workers)
+#
+# Deploy (once founder has a Cloudflare account):
+#   1. npm i -g wrangler
+#   2. wrangler login
+#   3. wrangler secret put LLM_API_KEY     # value: the opencode/deepseek key
+#   4. wrangler deploy                     # from packages/ugc-script-studio/
+#
+# The worker runs the exact flow verified by demo.mjs (same prompt + normalizer).
+
+name = "bench-ugc-script-studio"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# Demo caps (per IP per day) — mirror SKILL.md demo_caps.
+# Without a KV binding, caps are skipped (worker still works, just uncapped).
+# Create a KV namespace in the dashboard, then:
+#   wrangler kv namespace create BENCH_KV  → paste the id below.
+
+# [kv_namespaces]
+# [[kv_namespaces]]
+# binding = "BENCH_KV"
+# id = "PASTE_NAMESPACE_ID_HERE"
+
+[vars]
+LLM_BASE_URL = "https://opencode.ai/zen/go/v1"
+LLM_MODEL = "deepseek-v4-flash"
+DEMO_MAX_TOKENS = "4000"
+DEMO_MAX_INPUT = "2000"
+DEMO_DAILY_CAP = "5"
+
+[observability]
+enabled = true

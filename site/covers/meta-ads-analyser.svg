@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-label="Meta Ads API Analyser cover">
+  <rect width="1200" height="675" fill="#F2F6F1"/>
+  <!-- desk -->
+  <rect x="0" y="60" width="1200" height="615" fill="#FFFFFF"/>
+  <line x1="0" y1="60" x2="1200" y2="60" stroke="#D9E2DC" stroke-width="3"/>
+  <!-- laptop -->
+  <g transform="translate(240,150)">
+    <rect x="0" y="60" width="420" height="280" rx="16" fill="#17352C"/>
+    <rect x="18" y="80" width="384" height="220" rx="8" fill="#F2F6F1"/>
+    <rect x="120" y="340" width="180" height="26" rx="10" fill="#17352C"/>
+    <!-- performance bars: two strong mint, one weak orange -->
+    <rect x="60" y="210" width="70" height="90" rx="8" fill="#BDEFD4"/>
+    <rect x="150" y="160" width="70" height="140" rx="8" fill="#17352C"/>
+    <rect x="240" y="230" width="70" height="70" rx="8" fill="#FF6B3D"/>
+    <circle cx="370" cy="120" r="10" fill="#FF6B3D"/>
+  </g>
+  <!-- campaign cards -->
+  <g transform="translate(760,180)">
+    <rect x="0" y="0" width="170" height="110" rx="12" fill="#17352C"/>
+    <rect x="16" y="16" width="60" height="14" rx="7" fill="#BDEFD4"/>
+    <rect x="16" y="44" width="130" height="14" rx="7" fill="#6F7E77"/>
+    <rect x="16" y="70" width="80" height="14" rx="7" fill="#6F7E77"/>
+    <rect x="0" y="130" width="170" height="110" rx="12" fill="#BDEFD4"/>
+    <rect x="16" y="146" width="60" height="14" rx="7" fill="#17352C"/>
+    <rect x="16" y="174" width="130" height="14" rx="7" fill="#6F7E77"/>
+    <rect x="16" y="200" width="80" height="14" rx="7" fill="#6F7E77"/>
+  </g>
+  <!-- weak card being moved aside (orange) -->
+  <g transform="translate(950,360) rotate(-14)">
+    <rect x="0" y="0" width="170" height="110" rx="12" fill="#FF6B3D" opacity="0.85"/>
+    <rect x="16" y="16" width="60" height="14" rx="7" fill="#FFFFFF"/>
+    <rect x="16" y="44" width="130" height="14" rx="7" fill="#FFFFFF" opacity="0.6"/>
+  </g>
+  <!-- decisive hand moving it -->
+  <path d="M1010 300 Q 1060 330 1000 380" stroke="#17352C" stroke-width="22" fill="none" stroke-linecap="round"/>
+  <ellipse cx="1000" cy="392" rx="26" ry="20" fill="#17352C"/>
+  <!-- arrow: weak out, strong in -->
+  <path d="M760 470 L 560 470" stroke="#BDEFD4" stroke-width="10" stroke-linecap="round" marker-end="url(#arr)"/>
+  <defs><marker id="arr" markerWidth="14" markerHeight="14" refX="10" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 z" fill="#17352C"/></marker></defs>
+  <!-- labels as color blocks -->
+  <rect x="60" y="560" width="40" height="40" rx="10" fill="#BDEFD4"/>
+  <rect x="120" y="560" width="40" height="40" rx="10" fill="#17352C"/>
+  <rect x="180" y="560" width="40" height="40" rx="10" fill="#FF6B3D"/>
+  <rect x="60" y="620" width="160" height="12" rx="6" fill="#D9E2DC"/>
+</svg>

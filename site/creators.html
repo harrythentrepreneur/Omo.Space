@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Made an AI helper with Claude Code, Codex, or Hermes? Sell it on Cognition. We host it, you keep 85% of every sale, and free prompts grow your email list.">
+  <meta property="og:title" content="Cognition — Sell your AI helper here.">
+  <meta property="og:description" content="You made it. We run it. You keep 85% of every store sale. Free prompts build your email list. Partner with us.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://cognition.cv/creators.html">
+  <title>Cognition — Sell your AI helper here.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      background: var(--canvas);
+      color: var(--pine);
+      font-family: var(--body);
+      font-size: 16px;
+      line-height: 1.58;
+      text-rendering: optimizeLegibility;
+    }
+    body, button, input, select, textarea { font-family: var(--body); }
+    img, svg { display: block; max-width: 100%; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    a { color: inherit; }
+    p, h1, h2, h3, h4 { overflow-wrap: break-word; }
+    h1, h2, h3, h4, p { margin-top: 0; }
+
+    .skip-link {
+      position: fixed; top: 8px; left: 8px; z-index: 100;
+      padding: 10px 14px; border-radius: 8px;
+      background: var(--surface); color: var(--pine);
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    :where(a, button, input, select, textarea):focus-visible {
+      outline: 3px solid var(--mint);
+      box-shadow: 0 0 0 1px var(--pine) inset;
+      outline-offset: 3px;
+    }
+
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+
+    /* ── Signature Cut: one clipped corner, used sparingly ─────── */
+    .sig-cut { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    .site-header {
+      position: relative; z-index: 10;
+      border-bottom: 1px solid var(--rule);
+      background: var(--canvas);
+    }
+    .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .wordmark {
+      font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1;
+      text-decoration: none; letter-spacing: -0.01em;
+    }
+    .wordmark-dot { color: var(--orange); }
+    .nav-actions { display: flex; align-items: center; gap: 16px; }
+    .nav-link {
+      min-height: 44px; display: inline-flex; align-items: center;
+      font-size: 14px; font-weight: 700; text-decoration: none;
+      text-underline-offset: 4px; text-decoration-thickness: 1px;
+    }
+    .nav-link:hover, .nav-link:focus-visible { text-decoration: underline; }
+
+    /* ── Buttons ────────────────────────────────────────────────── */
+    .button {
+      min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 0 20px; border-radius: 10px; border: 1px solid transparent;
+      font-size: 15px; font-weight: 700; text-decoration: none; line-height: 1.2;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .button:hover { transform: translateY(-1px); }
+    .button-primary { background: var(--pine); color: #fff; }
+    .button-primary:hover { box-shadow: 0 6px 18px rgba(23,53,44,.18); }
+    .button-accent { background: var(--orange); color: var(--pine); }
+    .button-accent:hover { box-shadow: 0 6px 18px rgba(255,107,61,.28); }
+    .button-secondary { background: var(--surface); color: var(--pine); border-color: var(--pine); }
+    .button-small { min-height: 40px; padding: 0 16px; font-size: 14px; }
+
+    /* ── Hero ───────────────────────────────────────────────────── */
+    .hero { padding: 72px 0 64px; }
+    .hero-inner { max-width: 760px; margin-inline: auto; text-align: center; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-bottom: 16px; padding: 6px 14px;
+      border: 1px solid var(--rule); border-radius: 999px;
+      background: var(--surface); color: var(--moss);
+      font-size: 12px; font-weight: 700; letter-spacing: .14em;
+    }
+    .hero-title {
+      margin-bottom: 14px;
+      font-family: var(--display); font-weight: 600;
+      font-size: clamp(38px, 8vw, 60px); line-height: 1.04; letter-spacing: -0.02em;
+      text-wrap: balance;
+    }
+    .hero-title em { font-style: italic; color: var(--orange); }
+    .hero-sub {
+      margin-bottom: 26px; font-size: 18px; line-height: 1.5; color: var(--moss);
+      max-width: 560px; margin-inline: auto; text-wrap: pretty;
+    }
+    .hero-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .hero-actions .button { min-width: 120px; }
+    .hero-note { margin: 0; font-size: 14px; line-height: 1.45; color: var(--moss); }
+
+    /* ── Why partner ────────────────────────────────────────────── */
+    .why-section { padding: 64px 0 96px; }
+    .why-head { max-width: 640px; margin-bottom: 48px; }
+    .why-title { font-family: var(--display); font-size: clamp(30px, 5vw, 42px); font-weight: 600; line-height: 1.08; margin-bottom: 14px; }
+    .why-title em { font-style: italic; color: var(--orange); }
+    .why-sub { color: var(--moss); font-size: 17px; margin: 0; text-wrap: pretty; }
+    .why-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    @media (min-width: 760px) { .why-grid { grid-template-columns: repeat(3, 1fr); } }
+    .why-card {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 14px;
+      padding: 24px; position: relative;
+    }
+    .why-card.sig-cut { border-radius: 14px 14px 0 14px; }
+    .why-emoji {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border-radius: 12px 12px 12px 4px; margin-bottom: 14px;
+      background: var(--mint); font-size: 22px; line-height: 1;
+    }
+    .why-card h3 { font-size: 20px; margin-bottom: 10px; }
+    .why-card p { margin: 0; color: var(--moss); font-size: 15px; }
+
+    /* ── Three ways buyers use your tool ─────────────────────────── */
+    .ways-section { padding: 96px 0; background: var(--pine); color: #F2F6F1; }
+    .ways-head { max-width: 640px; margin-bottom: 40px; }
+    .ways-title { font-family: var(--display); font-size: clamp(30px, 5vw, 42px); font-weight: 600; line-height: 1.08; margin-bottom: 14px; }
+    .ways-title em { font-style: italic; color: var(--mint); }
+    .ways-sub { color: rgba(242,246,241,.78); font-size: 17px; margin: 0; text-wrap: pretty; }
+    .ways-list { display: grid; gap: 0; }
+    .way-row {
+      display: grid; gap: 8px 28px;
+      padding: 24px 4px;
+      border-top: 1px solid rgba(242,246,241,.16);
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 760px) { .way-row { grid-template-columns: 220px 1fr; align-items: baseline; } }
+    .way-row:first-child { border-top: 0; }
+    .way-name { font-family: var(--display); font-size: 22px; font-weight: 600; margin: 0; }
+    .way-row p { margin: 0; color: rgba(242,246,241,.78); font-size: 15px; max-width: 640px; }
+    .way-row p strong { color: var(--mint); font-weight: 700; }
+
+    /* ── Get paid ───────────────────────────────────────────────── */
+    .paid-section { padding: 96px 0; }
+    .paid-head { max-width: 640px; margin-bottom: 40px; }
+    .paid-title { font-family: var(--display); font-size: clamp(30px, 5vw, 42px); font-weight: 600; line-height: 1.08; margin-bottom: 14px; }
+    .paid-title em { font-style: italic; color: var(--orange); }
+    .paid-sub { color: var(--moss); font-size: 17px; margin: 0; text-wrap: pretty; }
+    .paid-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    @media (min-width: 700px) { .paid-grid { grid-template-columns: repeat(4, 1fr); } }
+    .paid-step {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 14px;
+      padding: 20px;
+    }
+    .paid-step.sig-cut { border-radius: 14px 14px 0 14px; }
+    .paid-num {
+      font-family: var(--display); font-size: 15px; font-weight: 600; letter-spacing: .1em;
+      color: var(--orange); margin-bottom: 8px;
+    }
+    .paid-step h3 { font-size: 17px; margin-bottom: 6px; }
+    .paid-step p { margin: 0; color: var(--moss); font-size: 14.5px; }
+    .paid-affiliate {
+      margin-top: 24px; padding: 20px 24px;
+      background: var(--mint); border: 1px solid var(--rule); border-radius: 14px 14px 14px 4px;
+      font-size: 15px; color: var(--pine);
+    }
+    .paid-affiliate strong { color: var(--pine); }
+    .paid-cta { margin-top: 32px; display: flex; justify-content: center; }
+
+    /* ── Footer ─────────────────────────────────────────────────── */
+    .site-footer { border-top: 1px solid var(--rule); padding: 40px 0 56px; }
+    .footer-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+    .footer-brand .wordmark { font-size: 24px; }
+    .footer-tagline { margin: 8px 0 0; color: var(--moss); font-size: 14px; }
+    .footer-links { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .footer-links a {
+      min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px;
+      font-size: 14px; font-weight: 700; text-decoration: none; color: var(--moss);
+      text-underline-offset: 4px;
+    }
+    .footer-links a:hover { color: var(--pine); text-decoration: underline; }
+
+    @media (max-width: 639px) {
+      .hero { padding: 56px 0 48px; }
+      .hero-sub { margin-bottom: 24px; font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="wordmark" href="index.html">Cognition<span class="wordmark-dot">.</span></a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="nav-link" href="index.html">See the store</a>
+        <a class="button button-accent button-small" href="mailto:partners@cognition.cv">Partner with us</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ── Hero ─────────────────────────────────────────────── -->
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="shell hero-inner">
+        <p class="eyebrow">For creators</p>
+        <h1 class="hero-title" id="hero-title">Sell your AI helper <em>here</em>.</h1>
+        <p class="hero-sub">You made it. We run it. Buyers find it, try it, and pay for it — while you keep most of the money.</p>
+        <div class="hero-actions">
+          <a class="button button-accent" href="mailto:partners@cognition.cv">Partner with us</a>
+          <a class="button button-secondary" href="index.html">See the store</a>
+        </div>
+        <p class="hero-note">Built with Claude Code, Codex, or Hermes? That counts.</p>
+      </div>
+    </section>
+
+    <!-- ── Why partner ──────────────────────────────────────── -->
+    <section class="why-section" aria-labelledby="why-title">
+      <div class="shell">
+        <div class="why-head">
+          <h2 class="why-title" id="why-title">Why <em>partner</em> with us?</h2>
+          <p class="why-sub">You make the helper. We handle the boring, expensive, and fiddly parts.</p>
+        </div>
+        <div class="why-grid">
+          <article class="why-card sig-cut">
+            <span class="why-emoji" aria-hidden="true">🛠️</span>
+            <h3>You made it. We run it.</h3>
+            <p>Your tool gets a page on Cognition. We host it, and buyers use it through the API or download it. No setup for them, none for you.</p>
+          </article>
+          <article class="why-card">
+            <span class="why-emoji" aria-hidden="true">💰</span>
+            <h3>Keep 85%</h3>
+            <p>On a $100 sale you keep $85. Hosted runs pay you too, on the same 85/15 split. Money in daylight — stated before checkout.</p>
+          </article>
+          <article class="why-card">
+            <span class="why-emoji" aria-hidden="true">📧</span>
+            <h3>Free = email list</h3>
+            <p>Give your prompts away free and collect the email list. Your audience grows while you work on the next thing.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Three ways buyers use your tool ──────────────────── -->
+    <section class="ways-section" aria-labelledby="ways-title">
+      <div class="shell">
+        <div class="ways-head">
+          <h2 class="ways-title" id="ways-title">Three ways buyers <em>use</em> your tool.</h2>
+          <p class="ways-sub">One helper, three doors in. You decide which ones to open.</p>
+        </div>
+        <div class="ways-list">
+          <div class="way-row">
+            <h3 class="way-name">💻 Download</h3>
+            <p>One-time price — they own it. The workflow and prompts go home with them, to run on their machine forever.</p>
+          </div>
+          <div class="way-row">
+            <h3 class="way-name">🔌 API</h3>
+            <p>Per-use pricing — everything runs on our cloud. We hold the keys to tools like HeyGen, so buyers pay per run, usually cents to a few dollars.</p>
+          </div>
+          <div class="way-row">
+            <h3 class="way-name">📧 Free</h3>
+            <p>Prompts given away as a lead magnet. Buyers get the how-to for nothing — you get their email to grow your audience.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Get paid ─────────────────────────────────────────── -->
+    <section class="paid-section" aria-labelledby="paid-title">
+      <div class="shell">
+        <div class="paid-head">
+          <h2 class="paid-title" id="paid-title">Get <em>paid</em>.</h2>
+          <p class="paid-sub">It's a short walk from “I made this” to “it pays for itself”.</p>
+        </div>
+        <div class="paid-grid">
+          <div class="paid-step sig-cut">
+            <p class="paid-num">01 — SIGN UP</p>
+            <h3>Partner with us</h3>
+            <p>Send us a line. Tell us what your helper does.</p>
+          </div>
+          <div class="paid-step">
+            <p class="paid-num">02 — WE LIST YOU</p>
+            <h3>Your page goes live</h3>
+            <p>We set up the page, hosting, and checkout.</p>
+          </div>
+          <div class="paid-step">
+            <p class="paid-num">03 — BUYERS PAY</p>
+            <h3>They buy or subscribe</h3>
+            <p>One-time downloads or per-use runs. We handle it.</p>
+          </div>
+          <div class="paid-step">
+            <p class="paid-num">04 — YOU GET PAID</p>
+            <h3>85% lands with you</h3>
+            <p>Paid out on sales and hosted runs, plainly.</p>
+          </div>
+        </div>
+        <p class="paid-affiliate"><strong>Share your link.</strong> When someone signs up through your link and lists their own helper, you earn affiliate revenue from their sales too. Your audience becomes a channel — not just a following.</p>
+        <div class="paid-cta">
+          <a class="button button-primary" href="mailto:partners@cognition.cv">Partner with us</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-row">
+      <div class="footer-brand">
+        <a class="wordmark" href="index.html">Cognition<span class="wordmark-dot">.</span></a>
+        <p class="footer-tagline">The store for AI helpers. Try it. Buy it. Use it anywhere.</p>
+      </div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="index.html">Back to the store</a>
+        <a href="mailto:partners@cognition.cv">partners@cognition.cv</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

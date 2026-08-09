@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-label="Product Photo Generator cover">
+  <rect width="1200" height="675" fill="#F2F6F1"/>
+  <!-- centered product bottle -->
+  <g transform="translate(505,190)">
+    <rect x="40" y="70" width="150" height="260" rx="28" fill="#17352C"/>
+    <rect x="78" y="30" width="74" height="70" rx="14" fill="#17352C"/>
+    <rect x="56" y="150" width="118" height="110" rx="14" fill="#BDEFD4"/>
+    <circle cx="115" cy="205" r="30" fill="#FFFFFF"/>
+  </g>
+  <!-- material swatch card -->
+  <g transform="translate(60,150)">
+    <rect width="200" height="150" rx="14" fill="#FFFFFF" stroke="#D9E2DC" stroke-width="3"/>
+    <rect x="18" y="18" width="70" height="70" rx="10" fill="#BDEFD4"/>
+    <rect x="18" y="100" width="110" height="14" rx="7" fill="#D9E2DC"/>
+    <rect x="18" y="122" width="80" height="14" rx="7" fill="#D9E2DC"/>
+  </g>
+  <!-- lifestyle photo card -->
+  <g transform="translate(60,390)">
+    <rect width="200" height="150" rx="14" fill="#FFFFFF" stroke="#D9E2DC" stroke-width="3"/>
+    <rect x="18" y="18" width="164" height="80" rx="8" fill="#BDEFD4"/>
+    <circle cx="70" cy="58" r="16" fill="#FFFFFF"/>
+    <rect x="96" y="48" width="60" height="12" rx="6" fill="#17352C"/>
+    <rect x="18" y="112" width="110" height="14" rx="7" fill="#D9E2DC"/>
+  </g>
+  <!-- packaging silhouette card -->
+  <g transform="translate(940,150)">
+    <rect width="200" height="150" rx="14" fill="#FFFFFF" stroke="#D9E2DC" stroke-width="3"/>
+    <rect x="70" y="24" width="60" height="96" rx="10" fill="#17352C"/>
+    <rect x="84" y="10" width="32" height="26" rx="6" fill="#17352C"/>
+  </g>
+  <!-- audience mood card -->
+  <g transform="translate(940,390)">
+    <rect width="200" height="150" rx="14" fill="#FFFFFF" stroke="#D9E2DC" stroke-width="3"/>
+    <circle cx="70" cy="55" r="24" fill="#FF6B3D"/>
+    <rect x="18" y="96" width="130" height="14" rx="7" fill="#D9E2DC"/>
+    <rect x="18" y="118" width="90" height="14" rx="7" fill="#D9E2DC"/>
+  </g>
+  <!-- connectors from product to cards -->
+  <g stroke="#6F7E77" stroke-width="4" stroke-dasharray="8 8" fill="none">
+    <line x1="505" y1="310" x2="270" y2="280"/>
+    <line x1="505" y1="430" x2="270" y2="470"/>
+    <line x1="695" y1="310" x2="930" y2="280"/>
+    <line x1="695" y1="430" x2="930" y2="470"/>
+  </g>
+  <!-- ad-angle accent -->
+  <polygon points="600,600 600,640 660,620" fill="#FF6B3D"/>
+  <rect x="60" y="620" width="140" height="12" rx="6" fill="#D9E2DC"/>
+</svg>

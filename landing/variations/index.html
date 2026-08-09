@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Landing page directions for Bench, the store for AI workflows.">
+  <title>Bench — landing page directions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink:#231e1e; --yellow:#d7d72e; --lime:#dbfa52; --blue:#d7e7f5; --white:#fff; --line:#ebebeb; --display:"Archivo",system-ui,sans-serif; --mono:"IBM Plex Mono",monospace; --pad:clamp(1rem,4vw,3.5rem); }
+    *,*::before,*::after{box-sizing:border-box} html{scroll-behavior:smooth;overflow-x:hidden} body{margin:0;background:var(--yellow);color:var(--ink);font-family:var(--display);overflow-x:hidden} a{color:inherit} .skip-link{position:fixed;top:.75rem;left:.75rem;z-index:10;padding:.75rem 1rem;background:var(--ink);color:var(--white);font-family:var(--mono);font-size:.75rem;transform:translateY(-180%)}.skip-link:focus{transform:none}:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
+    .shell{width:min(100%,1600px);margin-inline:auto;padding-inline:var(--pad)} header{min-height:43svh;border-bottom:1px solid var(--ink)} nav{display:flex;align-items:center;justify-content:space-between;min-height:5.2rem;border-bottom:1px solid rgba(35,30,30,.28)} .brand{font-size:1.25rem;font-weight:700;text-decoration:none;letter-spacing:-.04em}.micro,.kicker,.number,.choose{font-family:var(--mono);font-size:.72rem;line-height:1.35;letter-spacing:.1em;text-transform:uppercase}
+    .hero{padding-block:clamp(3rem,7vw,7rem)} h1{max-width:1300px;margin:.6rem 0 0;font-size:clamp(4.2rem,13vw,13rem);font-stretch:75%;font-weight:700;line-height:.78;letter-spacing:-.065em;filter:url("#buzz-fuzz-hero");text-wrap:balance}.intro{max-width:42rem;margin:2rem 0 0;font-size:clamp(1rem,1.5vw,1.25rem)}
+    main{background:var(--white)}.directions{border-top:1px solid var(--line)}.card{display:grid;grid-template-columns:6rem minmax(0,1.2fr) minmax(18rem,.8fr);gap:clamp(1rem,3vw,3rem);align-items:center;min-height:15rem;padding:2rem var(--pad);border-bottom:1px solid var(--line);text-decoration:none;transition:background .2s ease,color .2s ease}.card:hover{background:var(--lime)}.card:nth-child(2):hover{background:var(--blue)}.card:nth-child(3){background:var(--ink);color:var(--blue)}.card:nth-child(3):hover{color:var(--ink);background:var(--lime)}.card:nth-child(4):hover{background:var(--ink);color:var(--blue)}.card:nth-child(5):hover{background:var(--blue)}.card h2{margin:0;font-size:clamp(2.8rem,6.4vw,7rem);font-weight:650;line-height:.83;letter-spacing:-.055em}.card p{max-width:34rem;margin:0;line-height:1.5}.choose{justify-self:end;border:1px solid currentColor;padding:.8rem 1rem;white-space:nowrap}
+    footer{min-height:16rem;padding-block:3rem;background:var(--ink);color:var(--blue)}.footer-word{margin:0;color:var(--lime);font-size:clamp(4rem,14vw,12rem);font-weight:700;line-height:.75;letter-spacing:-.065em;filter:url("#buzz-fuzz-footer")}.footer-note{margin-top:2rem}
+    @media(max-width:760px){.card{grid-template-columns:3rem minmax(0,1fr);min-height:17rem}.card p,.choose{grid-column:2}.choose{justify-self:start}.card h2{overflow-wrap:anywhere}h1{font-size:clamp(3.6rem,19vw,5.8rem);filter:url("#buzz-fuzz-mobile")}.footer-word{filter:url("#buzz-fuzz-mobile")}}
+    .hidden-svg{position:absolute;width:0;height:0;overflow:hidden}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.card{transition:none}}
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to directions</a>
+  <svg class="hidden-svg" width="0" height="0" aria-hidden="true" focusable="false">
+    <filter id="buzz-fuzz-hero" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="9.6" result="softLogo"></feGaussianBlur><feTurbulence type="fractalNoise" baseFrequency="0.68" numOctaves="4" seed="7" result="textureNoise"></feTurbulence><feDisplacementMap in="softLogo" in2="textureNoise" scale="14.4" xChannelSelector="R" yChannelSelector="G" result="buzzedLogo"></feDisplacementMap><feMerge><feMergeNode in="buzzedLogo"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge></filter>
+    <filter id="buzz-fuzz-footer" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="16" result="softLogo"></feGaussianBlur><feTurbulence type="fractalNoise" baseFrequency="0.68" numOctaves="4" seed="7" result="textureNoise"></feTurbulence><feDisplacementMap in="softLogo" in2="textureNoise" scale="24" xChannelSelector="R" yChannelSelector="G" result="buzzedLogo"></feDisplacementMap><feMerge><feMergeNode in="buzzedLogo"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge></filter>
+    <filter id="buzz-fuzz-mobile" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="7" result="softLogo"></feGaussianBlur><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" seed="7" result="textureNoise"></feTurbulence><feDisplacementMap in="softLogo" in2="textureNoise" scale="14.4" xChannelSelector="R" yChannelSelector="G" result="buzzedLogo"></feDisplacementMap><feMerge><feMergeNode in="buzzedLogo"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge></filter>
+  </svg>
+  <header>
+    <div class="shell"><nav aria-label="Gallery navigation"><a class="brand" href="index.html" data-product-name>Bench</a><span class="micro">Landing directions / 02</span></nav><div class="hero"><p class="kicker">Choose the message before the pixels</p><h1>Two ways to say what Bench is.</h1><p class="intro">The same store. Two different reasons to care. Open each direction to compare its audience, voice, and visual treatment.</p></div></div>
+  </header>
+  <main id="main" class="directions" aria-label="Landing page directions">
+    <a class="card" href="landing-v5-skool.html" aria-label="Open SKOOL variation"><span class="number">01</span><h2>SKOOL</h2><p>Super-simple, community-feed style for non-technical everyday people: familiar, friendly, zero intimidation.</p><span class="choose">Open direction ↗</span></a>
+    <a class="card" href="landing-v6-workshop.html" aria-label="Open Workshop variation"><span class="number">02</span><h2>WORKSHOP</h2><p>Bench's own identity — Workshop Green, the Bench Cut, 8-year-old-simple copy. Skool's simplicity, our own look.</p><span class="choose">Open direction ↗</span></a>
+  </main>
+  <footer><div class="shell"><p class="footer-word" data-product-name>Bench</p><p class="micro footer-note">Working name / strategic copy exploration</p></div></footer>
+  <script>
+    const PRODUCT_NAME = 'Bench'; // RENAME: change this one line to update the visible product name and page title.
+    document.querySelectorAll('[data-product-name]').forEach((node) => { node.textContent = PRODUCT_NAME; });
+    document.title = `${PRODUCT_NAME} — landing page directions`;
+  </script>
+</body>
+</html>

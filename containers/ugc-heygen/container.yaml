@@ -1,0 +1,147 @@
+spec_version: cognition.container/v1
+name: UGC HeyGen Video
+slug: ugc-heygen-video
+version: 0.1.0
+status: canary
+
+# Reproducible digest: SHA-256 over sorted UTF-8 path + NUL + content + NUL
+# entries for this file (with spec_hash normalized to sha256:PENDING),
+# prompts/*.txt, and schemas/*.json.
+spec_hash: sha256:8dac39db711ba4d5305017ecedc89e0165b6baaeacd36b462a9e2f7efa0c7116
+
+source:
+  kind: repository
+  path: site/deploy/workflows.mjs
+  content_hash: sha256:d07b3e9abff476f44fe0f74f8201d6e78ac5eefd089abb5723ef5158816d9222
+
+image:
+  base: debian-slim
+  python: "3.12"
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - pydantic==2.13.3
+    - openai==2.36.0
+    - jsonschema==4.26.0
+  development_packages:
+    - pytest==8.4.0
+
+gpu: null
+resources:
+  cpu: 0.25
+  memory_mb: 512
+  timeout_seconds: 1200
+  min_containers: 0
+  max_containers: 10
+  scaledown_window_seconds: 2
+
+endpoint:
+  mode: async_job
+  auth: modal_proxy_token
+  submit_path: /v1/runs
+  result_path: /v1/runs/{call_id}
+
+canary:
+  render_video: false
+  external_provider_spend_allowed: false
+  note: LLM calls are stubbed in Day-1 tests; the HeyGen operation is unresolved.
+
+secret_name: cognition-ugc-heygen
+env_keys:
+  - LLM_API_KEY
+  - LLM_BASE_URL
+  - LLM_MODEL
+  - HEYGEN_API_KEY
+
+egress_allowlist:
+  - configured_llm_base_url_host
+  - api.heygen.com
+
+input_schema: schemas/input.json
+
+steps:
+  - id: script
+    type: llm
+    provider: openai_compatible
+    model: deepseek-v4-flash
+    resolved: true
+    system_prompt: prompts/script.txt
+    params:
+      max_output_tokens: 700
+      temperature: 0.2
+    input_bindings:
+      product_description: $.input.product_description
+      brand_voice: $.input.brand_voice
+      length_seconds: $.input.length_seconds
+    output_binding: $.steps.script.output
+    output_schema: schemas/script.json
+
+  # One future physical HeyGen mutation covers avatar rendering and voice.
+  - id: video
+    type: api
+    provider: heygen
+    model: v3
+    operation: v3.videos.create_and_wait
+    resolved: false
+    status: pending_day_3
+    enabled: false
+    render_video: false
+    depends_on: [script]
+    system_prompt: null
+    input_bindings:
+      avatar_id: $.input.avatar_id
+      voice_id: $.input.voice_id
+      script: $.steps.script.output
+    output_binding: $.steps.video.output
+    output_schema: null
+    idempotency_key: $.run.id
+    cost_tags: [heygen_avatar_render, heygen_voiceover]
+
+  - id: captions
+    type: llm
+    provider: openai_compatible
+    model: deepseek-v4-flash
+    resolved: true
+    depends_on: [script]
+    system_prompt: prompts/captions.txt
+    params:
+      max_output_tokens: 300
+      temperature: 0.2
+    input_bindings:
+      script: $.steps.script.output
+    output_binding: $.steps.captions.output
+    output_schema: schemas/captions.json
+
+output_projection:
+  run_id: $.run.id
+  status:
+    literal: completed
+  workflow_version:
+    literal: ugc-heygen@0.1.0
+  script: $.steps.script.output
+  captions: $.steps.captions.output.captions
+  video:
+    literal: null
+  usage: $.run.usage
+  note:
+    literal: Video rendering is disabled in the Day-1 canary (render_video=false).
+
+output_schema: schemas/output.json
+
+cost:
+  canary_estimated_cost_usd: 0.00045
+  canary_buyer_run_price_usd: 0.10
+  production_estimated_cost_usd_pending: 0.12045
+  production_buyer_run_price_usd_pending: 0.15
+  notes:
+    - Day-1 tests use a stubbed LLM client and incur zero provider cost.
+    - HeyGen avatar and voice are ledger tags for one future physical v3 call.
+
+tests:
+  cases: tests/cases.json
+  contract: tests/test_contract.py
+
+budget:
+  max_estimated_cost_usd: 0.20
+  max_provider_retries: 2
+  max_total_steps: 3

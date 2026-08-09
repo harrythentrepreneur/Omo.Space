@@ -1,0 +1,87 @@
+spec_version: cognition.container/v1
+name: claude-seo-skill
+slug: claude-seo-skill
+version: 0.1.0
+status: canary
+
+source:
+  kind: repository
+  path: site/ig-more.js
+  listing_slug: claude-seo-skill-replaces-2k-mo-agency
+
+image:
+  base: debian-slim
+  python: "3.12"
+  builder: uv_pip_install
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - openai==2.36.0
+    - jsonschema==4.26.0
+  development_packages:
+    - pytest==8.4.0
+
+gpu: null
+resources:
+  cpu: 0.25
+  memory_mb: 512
+  timeout_seconds: 150
+  min_containers: 0
+  max_containers: 20
+  scaledown_window_seconds: 2
+
+endpoint:
+  mode: synchronous
+  auth: modal_proxy_token
+  run_path: /v1/run
+  success_status: 200
+  invalid_input_status: 422
+
+secret_name: cognition-claude-seo-skill
+env_keys:
+  - LLM_API_KEY
+  - LLM_BASE_URL
+  - LLM_MODEL
+
+egress_allowlist:
+  - configured_llm_base_url_host
+
+input_schema: schemas/input.json
+
+steps:
+  - id: seo-audit
+    type: llm
+    role: plan
+    provider: openai-compatible
+    model: "${LLM_MODEL:-deepseek-v4-flash}"
+    system_prompt: prompts/audit.txt
+    params:
+      max_output_tokens: 500
+      temperature: 0.2
+    input_bindings:
+      website_or_business_name: $.input.website_or_business_name
+      niche: $.input.niche
+      goal: $.input.goal
+    output_binding: $.result
+    output_schema: schemas/output.json
+
+output_schema: schemas/output.json
+
+cost:
+  estimated_cost_usd: 0.0002
+  buyer_run_price_usd: 0.10
+  buyer_price_policy: marketplace_floor
+  notes:
+    - One remote LLM completion is the entire workflow.
+    - Estimated provider cost is $0.0002 per run.
+    - Buyer run price is floored at $0.10.
+    - Offline tests use a stubbed client and incur zero provider cost.
+
+tests:
+  cases: tests/cases.json
+  contract: tests/test_contract.py
+
+budget:
+  max_estimated_cost_usd: 0.001
+  max_provider_retries: 0
+  max_total_steps: 1

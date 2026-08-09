@@ -1,0 +1,185 @@
+{
+  "happy_paths": [
+    {
+      "id": "dtc-skincare-cinematic-9x16",
+      "input": {
+        "product_description": "A frosted 30 ml facial serum bottle for a direct-to-consumer skincare launch.",
+        "style_hint": "cinematic",
+        "aspect": "9:16"
+      },
+      "concept": {
+        "scene": "A frosted skincare serum bottle stands on wet black stone as a soft ripple catches the label-free silhouette.",
+        "visual_style": "Cinematic luxury beauty campaign with restrained cool neutrals and tactile water detail.",
+        "camera": "85mm macro hero close-up, low three-quarter angle, shallow depth of field, vertical negative space for motion.",
+        "lighting": "Narrow cool rim light with a diffused warm key and crisp reflections controlled by flags.",
+        "prompt_text": "Cinematic vertical product photograph of a frosted skincare serum bottle on wet black stone, delicate water ripple, luxury cool-neutral palette, 85mm macro close-up, low three-quarter view, shallow depth of field, cool rim light and diffused warm key, realistic materials, product hero centered, no people, no readable text."
+      },
+      "output": {
+        "concept": {
+          "scene": "A frosted skincare serum bottle stands on wet black stone as a soft ripple catches the label-free silhouette.",
+          "visual_style": "Cinematic luxury beauty campaign with restrained cool neutrals and tactile water detail.",
+          "camera": "85mm macro hero close-up, low three-quarter angle, shallow depth of field, vertical negative space for motion.",
+          "lighting": "Narrow cool rim light with a diffused warm key and crisp reflections controlled by flags.",
+          "prompt_text": "Cinematic vertical product photograph of a frosted skincare serum bottle on wet black stone, delicate water ripple, luxury cool-neutral palette, 85mm macro close-up, low three-quarter view, shallow depth of field, cool rim light and diffused warm key, realistic materials, product hero centered, no people, no readable text."
+        },
+        "images": [
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-skincare-1.png",
+            "width": 576,
+            "height": 1024,
+            "aspect": "9:16"
+          },
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-skincare-2.png",
+            "width": 576,
+            "height": 1024,
+            "aspect": "9:16"
+          },
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-skincare-3.png",
+            "width": 576,
+            "height": 1024,
+            "aspect": "9:16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "streetwear-bold-1x1",
+      "input": {
+        "product_description": "A heavyweight limited-run streetwear sneaker with a sculpted sole and monochrome upper.",
+        "style_hint": "bold",
+        "aspect": "1:1"
+      },
+      "concept": {
+        "scene": "A heavyweight streetwear sneaker lands on a saturated red plinth surrounded by suspended concrete fragments.",
+        "visual_style": "Bold graphic street campaign with hard geometry, saturated color blocking, and gritty material contrast.",
+        "camera": "24mm close wide angle from below, square framing, dynamic diagonal composition with room for punch-in motion.",
+        "lighting": "Hard frontal flash plus a red edge light, deep deliberate shadows, and sharp specular accents.",
+        "prompt_text": "Bold square product photograph of a heavyweight streetwear sneaker on a saturated red plinth, suspended concrete fragments, graphic color blocking, gritty premium materials, 24mm low-angle close wide shot, dynamic diagonal composition, hard frontal flash, red edge light, deep shadows, no people, no readable text."
+      },
+      "output": {
+        "concept": {
+          "scene": "A heavyweight streetwear sneaker lands on a saturated red plinth surrounded by suspended concrete fragments.",
+          "visual_style": "Bold graphic street campaign with hard geometry, saturated color blocking, and gritty material contrast.",
+          "camera": "24mm close wide angle from below, square framing, dynamic diagonal composition with room for punch-in motion.",
+          "lighting": "Hard frontal flash plus a red edge light, deep deliberate shadows, and sharp specular accents.",
+          "prompt_text": "Bold square product photograph of a heavyweight streetwear sneaker on a saturated red plinth, suspended concrete fragments, graphic color blocking, gritty premium materials, 24mm low-angle close wide shot, dynamic diagonal composition, hard frontal flash, red edge light, deep shadows, no people, no readable text."
+        },
+        "images": [
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-streetwear-1.png",
+            "width": 1024,
+            "height": 1024,
+            "aspect": "1:1"
+          },
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-streetwear-2.png",
+            "width": 1024,
+            "height": 1024,
+            "aspect": "1:1"
+          },
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-streetwear-3.png",
+            "width": 1024,
+            "height": 1024,
+            "aspect": "1:1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "coffee-premium-16x9",
+      "input": {
+        "product_description": "A matte black bag of single-origin whole-bean coffee presented beside a ceramic cup.",
+        "style_hint": "premium",
+        "aspect": "16:9"
+      },
+      "concept": {
+        "scene": "A matte coffee bag and ceramic cup rest on dark walnut while a ribbon of steam crosses a dawn-toned background.",
+        "visual_style": "Premium editorial coffee campaign with warm minimalism and finely resolved natural textures.",
+        "camera": "50mm eye-level medium close-up, widescreen composition, gentle foreground layer and clear lateral motion path.",
+        "lighting": "Soft sunrise key through diffusion, subtle amber backlight on the steam, and controlled negative fill.",
+        "prompt_text": "Premium widescreen product photograph of a matte coffee bag beside a ceramic cup on dark walnut, elegant ribbon of steam, warm editorial minimalism, finely resolved natural textures, 50mm eye-level medium close-up, soft sunrise key, amber steam backlight, controlled negative fill, no people, no readable text."
+      },
+      "output": {
+        "concept": {
+          "scene": "A matte coffee bag and ceramic cup rest on dark walnut while a ribbon of steam crosses a dawn-toned background.",
+          "visual_style": "Premium editorial coffee campaign with warm minimalism and finely resolved natural textures.",
+          "camera": "50mm eye-level medium close-up, widescreen composition, gentle foreground layer and clear lateral motion path.",
+          "lighting": "Soft sunrise key through diffusion, subtle amber backlight on the steam, and controlled negative fill.",
+          "prompt_text": "Premium widescreen product photograph of a matte coffee bag beside a ceramic cup on dark walnut, elegant ribbon of steam, warm editorial minimalism, finely resolved natural textures, 50mm eye-level medium close-up, soft sunrise key, amber steam backlight, controlled negative fill, no people, no readable text."
+        },
+        "images": [
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-coffee-1.png",
+            "width": 1024,
+            "height": 576,
+            "aspect": "16:9"
+          },
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-coffee-2.png",
+            "width": 1024,
+            "height": 576,
+            "aspect": "16:9"
+          },
+          {
+            "url": "https://mock.cognition.market/gpt-image-seedance-ad/MOCK-coffee-3.png",
+            "width": 1024,
+            "height": 576,
+            "aspect": "16:9"
+          }
+        ]
+      }
+    }
+  ],
+  "negative_cases": [
+    {
+      "id": "missing-required-field",
+      "reason": "product_description is required",
+      "input": {
+        "style_hint": "cinematic",
+        "aspect": "9:16"
+      }
+    },
+    {
+      "id": "empty-product-description",
+      "reason": "product_description cannot be empty",
+      "input": {
+        "product_description": "",
+        "style_hint": "clean",
+        "aspect": "1:1"
+      }
+    },
+    {
+      "id": "bad-style-enum",
+      "reason": "style_hint must use the canonical enum",
+      "input": {
+        "product_description": "A sufficiently detailed reusable water bottle product description.",
+        "style_hint": "moody",
+        "aspect": "9:16"
+      }
+    },
+    {
+      "id": "wrong-product-description-type",
+      "reason": "product_description must be a string",
+      "input": {
+        "product_description": [
+          "A product",
+          "description"
+        ],
+        "style_hint": "funny",
+        "aspect": "16:9"
+      }
+    },
+    {
+      "id": "oversized-product-description",
+      "reason": "product_description cannot exceed 2000 characters",
+      "input": {
+        "product_description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "style_hint": "premium",
+        "aspect": "1:1"
+      }
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+# Cognition — demo API worker (single project, three routes dispatched in worker.js)
+#
+# Deploy:
+#   1. npm i -g wrangler
+#   2. wrangler login
+#   3. wrangler secret put LLM_API_KEY     # value: the opencode/deepseek key (NEVER in this file)
+#   4. wrangler deploy                     # from site/deploy/
+#
+# Routes are handled INSIDE worker.js by URL path:
+#   /api/ugc-script-studio
+#   /api/meta-ads-analyser
+#   /api/product-photo-generator
+#
+# To attach a custom domain instead of the workers.dev URL, either:
+#   a) Dashboard: Workers & Pages → cognition-demos → Settings → Domains & Routes
+#      → Add custom domain → demo.cognition.cv   (Cloudflare auto-creates the DNS record), or
+#   b) uncomment the [[routes]] block below (custom_domain = true attaches it at deploy time).
+
+name = "cognition-demos"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# [[routes]]
+# pattern = "demo.cognition.cv/api/*"
+# custom_domain = true
+
+# Optional: per-IP daily caps need a KV namespace (without it the worker runs uncapped).
+#   1. wrangler kv namespace create BENCH_KV
+#   2. paste the returned id below, then uncomment.
+# [kv_namespaces]
+# [[kv_namespaces]]
+# binding = "BENCH_KV"
+# id = "PASTE_NAMESPACE_ID_HERE"
+
+[vars]
+LLM_BASE_URL = "https://opencode.ai/zen/go/v1"
+LLM_MODEL = "deepseek-v4-flash"
+
+# Demo caps per route (per IP per day) — mirror each SKILL.md demo_caps.
+# UGC Script Studio
+DEMO_MAX_TOKENS_UGC = "4000"
+DEMO_MAX_INPUT_UGC = "2000"
+DEMO_DAILY_CAP_UGC = "5"
+# Meta Ads Analyser
+DEMO_MAX_TOKENS_META = "5000"
+DEMO_MAX_INPUT_META = "20000"
+DEMO_DAILY_CAP_META = "3"
+# Product Photo Generator
+DEMO_MAX_TOKENS_PHOTO = "4000"
+DEMO_MAX_INPUT_PHOTO = "2000"
+DEMO_DAILY_CAP_PHOTO = "5"
+
+[observability]
+enabled = true

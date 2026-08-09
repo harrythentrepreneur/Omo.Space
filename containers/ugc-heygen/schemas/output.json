@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cognition.marketplace/schemas/ugc-heygen/output.json",
+  "title": "Completed UGC HeyGen run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "script",
+    "captions",
+    "video",
+    "usage",
+    "note"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "const": "completed"
+    },
+    "workflow_version": {
+      "const": "ugc-heygen@0.1.0"
+    },
+    "script": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hook", "lines", "cta"],
+      "properties": {
+        "hook": {"type": "string", "minLength": 1, "maxLength": 500},
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        },
+        "cta": {"type": "string", "minLength": 1, "maxLength": 500}
+      }
+    },
+    "captions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {"type": "string", "minLength": 1, "maxLength": 120}
+    },
+    "video": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["video_id", "video_url", "duration_seconds"],
+          "properties": {
+            "video_id": {"type": "string", "minLength": 1},
+            "video_url": {"type": "string", "format": "uri"},
+            "thumbnail_url": {"type": ["string", "null"], "format": "uri"},
+            "subtitle_url": {"type": ["string", "null"], "format": "uri"},
+            "duration_seconds": {"type": "number", "minimum": 1, "maximum": 90}
+          }
+        }
+      ]
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["estimated_cost_usd", "buyer_run_price_usd"],
+      "properties": {
+        "estimated_cost_usd": {"type": "number", "minimum": 0},
+        "buyer_run_price_usd": {"type": "number", "minimum": 0}
+      }
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

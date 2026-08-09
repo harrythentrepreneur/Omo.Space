@@ -1,0 +1,368 @@
+<!doctype html>
+<!--
+  Cognition — Creator Sales Page (template)
+  ==========================================
+  One file per creator. Edit the CONFIG object below (slug, name, handle,
+  helper, price, links) and save as site/sales/<slug>.html. All styling follows
+  the Cognition brand PRD: Workshop Green palette, "Cognition Cut" clipped
+  corners, skool-simple layout, 8-year-old-simple copy rules.
+
+  When a creator's helper goes live, this page is the shareable link we DM
+  them. Keep it short, honest, and money-visible.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>@CONFIG_HANDLE — CONFIG_HELPER | Cognition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, sans-serif;
+      --shell: 1060px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; min-width: 320px;
+      background: var(--canvas); color: var(--pine);
+      font-family: var(--body); font-size: 16px; line-height: 1.58;
+      text-rendering: optimizeLegibility;
+    }
+    body, button, input { font-family: var(--body); }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; }
+    .shell { max-width: var(--shell); margin: 0 auto; padding: 0 20px; }
+
+    /* ── Top bar ─────────────────────────────── */
+    .topbar { border-bottom: 1px solid var(--rule); background: var(--canvas); }
+    .topbar-in { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
+    .logo-mark {
+      width: 28px; height: 28px; background: var(--pine); color: #fff;
+      border-radius: 7px 7px 7px 2px; /* Cognition Cut */
+      display: grid; place-items: center; font-size: 14px; font-weight: 700;
+    }
+    .topbar-links { display: flex; gap: 22px; align-items: center; font-size: 14.5px; }
+    .topbar-links a { text-decoration: none; color: var(--pine); }
+    .topbar-links a:hover { color: var(--orange); }
+    .btn {
+      display: inline-block; border: 0; cursor: pointer; text-decoration: none;
+      font-weight: 700; font-size: 15px; padding: 11px 20px; border-radius: 10px 10px 10px 3px; /* Cognition Cut */
+      transition: transform .06s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--pine); color: #fff; }
+    .btn-primary:hover { background: #1f4a3c; }
+    .btn-orange { background: var(--orange); color: #fff; }
+    .btn-orange:hover { background: #e85a2e; }
+    .btn-ghost { background: transparent; color: var(--pine); border: 1.5px solid var(--rule); }
+    .btn-ghost:hover { border-color: var(--pine); }
+
+    /* ── Creator hero ────────────────────────── */
+    .hero { padding: 56px 0 40px; }
+    .hero-cover {
+      width: 100%; aspect-ratio: 16 / 7; border-radius: 16px 16px 16px 5px;
+      background: var(--mint); margin-bottom: 26px; overflow: hidden;
+    }
+    .hero-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .maker-contact { font-size: 14px; color: var(--moss); margin: 0 0 22px; }
+    .maker-contact a { color: var(--pine); font-weight: 700; }
+    .maker-contact a:hover { color: var(--orange); }
+    .creator-line { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--orange), var(--mint));
+      display: grid; place-items: center; color: var(--pine); font-weight: 700; font-size: 18px;
+    }
+    .creator-name { font-weight: 700; }
+    .creator-handle { color: var(--moss); font-size: 14px; }
+    .verified { font-size: 12px; font-weight: 700; color: var(--pine); background: var(--mint);
+      padding: 2px 8px; border-radius: 20px; margin-left: 6px; }
+    .hero h1 {
+      font-family: var(--display); font-size: clamp(34px, 5.4vw, 54px);
+      line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 14px;
+    }
+    .hero .sub { font-size: 19px; color: var(--moss); max-width: 640px; margin: 0 0 26px; }
+    .hero-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    /* ── Try it (demo) ───────────────────────── */
+    .section { padding: 46px 0; border-top: 1px solid var(--rule); }
+    .section h2 { font-family: var(--display); font-size: 28px; letter-spacing: -0.01em; margin: 0 0 6px; }
+    .section .lede { color: var(--moss); margin: 0 0 22px; max-width: 620px; }
+    .demo {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 14px 14px 14px 4px;
+      padding: 22px; box-shadow: 0 2px 0 rgba(23,53,44,.04);
+    }
+    .demo-frame {
+      border: 1.5px dashed var(--rule); border-radius: 10px 10px 10px 3px;
+      min-height: 260px; display: grid; place-items: center; color: var(--moss);
+      font-size: 15px; text-align: center; padding: 30px;
+    }
+    .demo-free {
+      margin-top: 14px; font-size: 13.5px; color: var(--moss);
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .free-tag { background: var(--mint); color: var(--pine); font-weight: 700; padding: 2px 9px; border-radius: 20px; font-size: 12.5px; }
+
+    /* ── In → Out ────────────────────────────── */
+    .io-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    .io-card {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 12px 12px 12px 4px;
+      padding: 18px;
+    }
+    .io-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--moss); margin-bottom: 8px; }
+    .io-card .arrow { color: var(--orange); font-weight: 700; margin: 10px 0; }
+    .io-card pre {
+      background: var(--canvas); border: 1px solid var(--rule); border-radius: 8px 8px 8px 3px;
+      padding: 12px; font-size: 13.5px; white-space: pre-wrap; word-break: break-word; margin: 0;
+    }
+    .io-card .sample { font-size: 14px; color: var(--pine); background: var(--canvas); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; }
+
+    /* ── Use it your way ─────────────────────── */
+    .doors-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .door {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 12px 12px 12px 4px;
+      padding: 20px;
+    }
+    .door h3 { font-size: 17px; margin: 0 0 8px; }
+    .door p { color: var(--moss); font-size: 14.5px; margin: 0; }
+
+    /* ── Price ───────────────────────────────── */
+    .price-card {
+      background: var(--pine); color: #fff; border-radius: 16px 16px 16px 5px; padding: 30px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;
+    }
+    .price-col .k { font-size: 13px; color: #b9cfc6; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .price-col .v { font-family: var(--display); font-size: 30px; margin: 6px 0 4px; }
+    .price-col .d { font-size: 14px; color: #b9cfc6; }
+    .price-col .btn { margin-top: 14px; }
+
+    /* ── Money strip ─────────────────────────── */
+    .money-strip {
+      background: var(--mint); border-radius: 12px 12px 12px 4px; padding: 18px 22px;
+      font-size: 15px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+    }
+    .money-strip strong { color: var(--pine); }
+
+    /* ── Updates ─────────────────────────────── */
+    .updates-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    .updates-list li { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px 10px 10px 3px; padding: 12px 16px; font-size: 14.5px; display: flex; gap: 12px; align-items: baseline; }
+    .updates-list .u-date { color: var(--moss); font-size: 12.5px; white-space: nowrap; }
+
+    /* ── Footer ──────────────────────────────── */
+    .footer { border-top: 1px solid var(--rule); padding: 34px 0 44px; color: var(--moss); font-size: 14px; }
+    .footer-in { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .footer a { color: var(--moss); text-decoration: none; }
+    .footer a:hover { color: var(--orange); }
+
+    @media (max-width: 640px) {
+      .hero { padding-top: 36px; }
+      .topbar-links .hide-sm { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════ CONFIG — edit per creator ══════════ -->
+<script>
+  window.COGNITION = {
+    slug: "creatorhandle",        // page slug — used for checkout links
+    handle: "creatorhandle",      // IG/TikTok handle, no @
+    creatorName: "Creator Name",
+    helper: "Helper Name",        // the workflow/agent name
+    cover: "covers/PLACEHOLDER.svg",
+    email: "maker@cognition.cv",
+    tagline: "One line about what it does.",
+    priceLicense: "$29",          // one-time license
+    priceRun: "$10",              // prepaid run credits
+    priceMaintain: "$9/mo",       // updates + support
+    demoNote: "Try one job free — no sign-up.",
+    inSample: "Paste a product description…",
+    outSample: "Get a ready-to-post UGC script with hook, shots and captions.",
+    coverEmoji: "🛠️"
+  };
+</script>
+<!-- ══════════════════════════════════════════════ -->
+
+<div class="topbar">
+  <div class="shell topbar-in">
+    <a class="logo" href="/"><span class="logo-mark">C</span> Cognition</a>
+    <nav class="topbar-links">
+      <a href="/" class="hide-sm">Store</a>
+      <a href="#price" class="hide-sm">Price</a>
+      <a href="#updates" class="hide-sm">Updates</a>
+      <a class="btn btn-ghost" href="/sell">Sell yours</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="shell">
+    <div class="hero-cover" id="heroCover" aria-hidden="true"></div>
+    <div class="creator-line">
+      <div class="avatar" id="avatar">C</div>
+      <div>
+        <div class="creator-name" id="creatorName">Creator Name <span class="verified">Maker</span></div>
+        <div class="creator-handle" id="creatorHandle">@creatorhandle</div>
+      </div>
+    </div>
+    <h1 id="helperName">Helper Name</h1>
+    <p class="sub" id="tagline">One line about what it does.</p>
+    <p class="maker-contact" id="makerContact"></p>
+    <div class="hero-btns">
+      <a class="btn btn-primary" href="#try">Try it free</a>
+      <a class="btn btn-orange" href="#price">Buy — <span id="heroPrice">$29</span></a>
+    </div>
+  </div>
+</header>
+
+<section class="section" id="try">
+  <div class="shell">
+    <h2>Try it before you buy it</h2>
+    <p class="lede" id="demoLede">Give it one real job. See the actual output. No install, no API key, no card.</p>
+    <div class="demo">
+      <div class="demo-frame">
+        <div>
+          <div style="font-size:40px" id="coverEmoji">🛠️</div>
+          <p style="margin:10px 0 0">Live demo goes here.<br><span style="font-size:13.5px">(Connected once the helper is hosted.)</span></p>
+        </div>
+      </div>
+      <div class="demo-free"><span class="free-tag">Free</span> <span id="demoNote">Try one job free — no sign-up.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <h2>What you get</h2>
+    <p class="lede">One purchase, three ways to use it. Your choice, any time.</p>
+    <div class="io-grid">
+      <div class="io-card">
+        <div class="io-label">You put in</div>
+        <div class="sample" id="inSample">Paste a product description…</div>
+        <div class="arrow">↓</div>
+        <div class="io-label">You get out</div>
+        <div class="sample" id="outSample">A ready-to-post UGC script with hook, shots and captions.</div>
+      </div>
+      <div class="io-card">
+        <div class="io-label">Through our API</div>
+        <p style="color:var(--moss);font-size:14.5px;margin:0">One key lets you plug it into your own app. Pay a little each time it runs.</p>
+      </div>
+      <div class="io-card">
+        <div class="io-label">Right here on Cognition</div>
+        <p style="color:var(--moss);font-size:14.5px;margin:0">Open it and use it. Nothing to install. It remembers you and your settings.</p>
+      </div>
+      <div class="io-card">
+        <div class="io-label">On your machine</div>
+        <p style="color:var(--moss);font-size:14.5px;margin:0">Take the files with you. Run them on your own computer, your own way.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="price">
+  <div class="shell">
+    <h2>Pick how you want it</h2>
+    <p class="lede">Prices are shown before you pay. No surprises.</p>
+    <div class="price-card">
+      <div class="price-col">
+        <div class="k">Own it</div>
+        <div class="v" id="priceLicense">$29</div>
+        <div class="d">One-time. The files are yours to keep.</div>
+        <a class="btn btn-orange" id="buyLicense" href="checkout.html?product=creatorhandle">Buy license</a>
+      </div>
+      <div class="price-col">
+        <div class="k">Run it here</div>
+        <div class="v" id="priceRun">$10</div>
+        <div class="d">Prepaid credits. Pay only for what runs.</div>
+        <a class="btn btn-orange" id="buyRun" href="checkout.html?product=creatorhandle">Buy credits</a>
+      </div>
+      <div class="price-col">
+        <div class="k">Keep it fresh</div>
+        <div class="v" id="priceMaintain">$9/mo</div>
+        <div class="d">New versions + help from the maker.</div>
+        <a class="btn btn-orange" id="buyMaintain" href="checkout.html?product=creatorhandle">Subscribe</a>
+      </div>
+    </div>
+    <div class="money-strip" style="margin-top:16px">
+      💸 <strong id="moneyLine">On a $29 license, the maker keeps $24.65.</strong>
+      <span style="color:var(--moss)">Cognition takes 15%. That's the deal — always.</span>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="updates">
+  <div class="shell">
+    <h2>Made better, over time</h2>
+    <p class="lede">The maker can ship a new version any time. Everyone who bought it gets it.</p>
+    <ul class="updates-list">
+      <li><span class="u-date">Just now</span> Helper is live on Cognition.</li>
+      <li><span class="u-date">Next</span> New version of the helper — everyone gets it.</li>
+    </ul>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="shell footer-in">
+    <div><strong style="color:var(--pine)">Cognition</strong> — the store for AI helpers.</div>
+    <div>
+      <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="mailto:support@cognition.cv">support@cognition.cv</a> ·
+      <a href="/sell">Sell on Cognition</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Apply CONFIG to the page. Reads window.COGNITION first,
+  // falls back to window.BENCH for backward compatibility.
+  (function () {
+    var c = window.COGNITION || window.BENCH;
+    if (!c) return;
+    var $ = function (id) { return document.getElementById(id); };
+    document.title = "@" + c.handle + " — " + c.helper + " | Cognition";
+    $("creatorName").innerHTML = c.creatorName + ' <span class="verified">Maker</span>';
+    $("creatorHandle").textContent = "@" + c.handle;
+    $("helperName").textContent = c.helper;
+    $("tagline").textContent = c.tagline;
+    $("heroPrice").textContent = c.priceLicense;
+    $("priceLicense").textContent = c.priceLicense;
+    $("priceRun").textContent = c.priceRun;
+    $("priceMaintain").textContent = c.priceMaintain;
+    $("demoNote").textContent = c.demoNote;
+    $("inSample").textContent = c.inSample;
+    $("outSample").textContent = c.outSample;
+    $("coverEmoji").textContent = c.coverEmoji;
+    $("avatar").textContent = (c.creatorName || "?").trim().charAt(0).toUpperCase();
+    // Cover image + maker email
+    if (c.cover) {
+      var coverEl = $("heroCover");
+      if (coverEl) coverEl.innerHTML = '<img src="' + c.cover + '" alt="">';
+    }
+    if (c.email) {
+      var contactEl = $("makerContact");
+      if (contactEl) contactEl.innerHTML = 'Questions? <a href="mailto:' + c.email + '">' + c.email + '</a> — the maker replies.';
+    }
+    // Point every Buy button at checkout.
+    var slug = encodeURIComponent(c.slug || c.handle);
+    ["buyLicense", "buyRun", "buyMaintain"].forEach(function (id) {
+      var el = $(id);
+      if (el) el.href = "checkout.html?product=" + slug;
+    });
+    // Money-visible math: 85% to the maker.
+    var m = c.priceLicense.replace(/[^0-9.]/g, "");
+    if (m) { var keep = (parseFloat(m) * 0.85).toFixed(2).replace(/\.00$/, ""); $("moneyLine").textContent = "On a $" + m + " license, the maker keeps $" + keep + "."; }
+  })();
+</script>
+</body>
+</html>

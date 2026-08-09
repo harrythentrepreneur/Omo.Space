@@ -1,0 +1,23 @@
+platform,url,title,what_it_does,provenance_label,retrieved_2026-08-08
+Poe,https://creator.poe.com/docs,Poe Creator docs,Creators publish bots; hosted prompt/script bots; per-message payouts,OFFICIAL,2026-08-08
+Poe,https://poe.com/pages/demos/creator-monetization,Poe Creator monetization,Per-message pricing + subscription-attributed earnings; $10 Stripe threshold; 23 countries,OFFICIAL,2026-08-08
+Poe,https://creator.poe.com/docs/resources/how-we-cover-your-costs,How we cover your costs,Poe covers inference and per-message costs for creators,OFFICIAL,2026-08-08
+Poe,https://poe.com/pages/earnings-tos,Poe Earnings Terms,Terms for creator earnings payouts,OFFICIAL,2026-08-08
+Dify Cloud,https://github.com/langgenius/dify-docs/blob/main/en/cloud/use-dify/publish/README.mdx,Dify publish docs,Every app gets hosted web app/API with Anyone mode for public demos,OFFICIAL,2026-08-08
+Dify Cloud,https://github.com/langgenius/dify-docs/blob/main/en/cloud/use-dify/publish/publish-to-marketplace.mdx,Dify marketplace publishing,Creators submit exported app configs users copy into workspaces,OFFICIAL,2026-08-08
+Relevance AI,https://marketplace.relevanceai.com/,Relevance AI Marketplace,Free cloneable hosted agents; execution on Relevance runtime with credits,OFFICIAL,2026-08-08
+Gumloop,https://www.gumloop.com/templates,Gumloop templates,185+ agent/workflow templates with named creators,OFFICIAL,2026-08-08
+Gumloop,https://www.gumloop.com/pricing,Gumloop pricing,Pro $37/month 20k credits; 14-day trial,OFFICIAL,2026-08-08
+Gumloop,https://www.gumloop.com/blog/agenthub-to-gumloop,AgentHub to Gumloop,Documents AgentHub pivot from publish-host-share agents to automation,OFFICIAL,2026-08-08
+n8n,https://n8n.io/workflows/,n8n workflows,11190 importable workflow templates,OFFICIAL,2026-08-08
+n8n,https://docs.n8n.io/workflows/templates/,n8n templates docs,Creator marketplace described as under development,OFFICIAL,2026-08-08
+n8n,https://n8n.io/affiliates/,n8n affiliates,30% of net Cloud subs for 12 months; €100 monthly PayPal threshold,OFFICIAL,2026-08-08
+Hugging Face Spaces,https://huggingface.co/docs/hub/spaces-overview,Spaces overview,Hosted out-of-box interactive demos; repository-backed and forkable,OFFICIAL,2026-08-08
+Hugging Face Spaces,https://huggingface.co/docs/hub/spaces-zerogpu,ZeroGPU,Free GPU demos for users; creators fund compute,OFFICIAL,2026-08-08
+Vercel,https://vercel.com/blog/ai-agents-and-services-on-the-vercel-marketplace,Vercel Marketplace blog,Unified install/auth/provisioning/billing/observability for commercial AI agents,OFFICIAL,2026-08-08
+Vercel,https://vercel.com/docs/deployments/deploy-button,Deploy Button docs,One-click deploy of templates,OFFICIAL,2026-08-08
+Skyfire,https://docs.skyfire.xyz/docs/seller-guide.md,Skyfire seller guide,Per-use/per-MB/subscription pricing with token settlement,OFFICIAL,2026-08-08
+Stripe,https://docs.stripe.com/agents,Stripe agents docs,Metered LLM/API billing and agentic commerce,OFFICIAL,2026-08-08
+x402,https://www.x402.org/,x402,Payment-gated HTTP requests per call,OFFICIAL,2026-08-08
+Character.AI,https://blog.character.ai/creator-bundle/,Character.AI creator bundle,Hosted characters + analytics (June 2026); no cash monetization verified,OFFICIAL,2026-08-08
+Lindy,https://www.lindy.ai/templates,Lindy templates,Hosted skills/templates + 7-day trial; no open marketplace/payout,OFFICIAL,2026-08-08

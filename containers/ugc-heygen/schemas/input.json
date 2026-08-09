@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cognition.marketplace/schemas/ugc-heygen/input.json",
+  "title": "UGC HeyGen run input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "product_description",
+    "brand_voice",
+    "length_seconds",
+    "avatar_id",
+    "voice_id"
+  ],
+  "properties": {
+    "product_description": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 2000
+    },
+    "brand_voice": {
+      "type": "string",
+      "enum": ["raw", "honest", "hype", "luxury", "funny"]
+    },
+    "length_seconds": {
+      "type": "integer",
+      "enum": [15, 30, 60]
+    },
+    "avatar_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "voice_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    }
+  }
+}

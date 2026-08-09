@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cognition.marketplace/schemas/gpt-image-seedance-ad/output.json",
+  "title": "Cinematic product ad result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["concept", "images"],
+  "properties": {
+    "concept": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scene", "visual_style", "camera", "lighting", "prompt_text"],
+      "properties": {
+        "scene": {"type": "string", "minLength": 1, "maxLength": 800, "pattern": "\\S"},
+        "visual_style": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S"},
+        "camera": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S"},
+        "lighting": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S"},
+        "prompt_text": {"type": "string", "minLength": 10, "maxLength": 2000, "pattern": "\\S"}
+      }
+    },
+    "images": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "width", "height", "aspect"],
+        "properties": {
+          "url": {"type": "string", "format": "uri", "pattern": "^https://"},
+          "width": {"type": "integer", "minimum": 1, "maximum": 4096},
+          "height": {"type": "integer", "minimum": 1, "maximum": 4096},
+          "aspect": {"type": "string", "enum": ["9:16", "1:1", "16:9"]}
+        }
+      }
+    }
+  }
+}

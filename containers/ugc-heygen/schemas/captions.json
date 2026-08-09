@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cognition.marketplace/schemas/ugc-heygen/captions.json",
+  "title": "UGC captions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["captions"],
+  "properties": {
+    "captions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      }
+    }
+  }
+}

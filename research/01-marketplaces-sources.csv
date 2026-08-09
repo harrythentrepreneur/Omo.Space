@@ -1,0 +1,71 @@
+platform,category,url,title,provenance_label,retrieved_2026-08-08
+PromptBase,prompt marketplace,https://promptbase.com/marketplace,Prompt Marketplace | PromptBase,OFFICIAL,2026-08-08
+PromptBase,prompt marketplace,https://promptbase.com/sell,Sell your Prompts | PromptBase,OFFICIAL,2026-08-08
+PromptBase,prompt marketplace,https://promptbase.com/knowledge-base/payouts,How do payouts work on PromptBase?,OFFICIAL,2026-08-08
+PromptsIdeas,prompt marketplace,https://promptsideas.com/market,PromptsIdeas Marketplace,OFFICIAL,2026-08-08
+PromptHero,prompt marketplace,https://prompthero.com/,PromptHero,OFFICIAL,2026-08-08
+PromptHero,prompt marketplace,https://prompthero.com/plans,Plans & Pricing | PromptHero,OFFICIAL,2026-08-08
+FlowGPT,prompt marketplace,https://flowgpt.com/,Free AI Character Roleplay and Prompts Store | FlowGPT,OFFICIAL,2026-08-08
+AIPRM,prompt marketplace,https://www.aiprm.com/,AIPRM Prompt Library,OFFICIAL,2026-08-08
+AIPRM,prompt marketplace,https://www.aiprm.com/pricing/,Pricing of AIPRM Premium Plans,OFFICIAL,2026-08-08
+ChatX,prompt marketplace,https://chatx.ai/,ChatX multi-model AI platform,OFFICIAL,2026-08-08
+ChatX,prompt marketplace,https://chatx.ai/marketplace,Former ChatX marketplace route (404),OFFICIAL,2026-08-08
+PromptDen,prompt marketplace,https://promptden.com/,PromptDen (unreachable during retrieval),OFFICIAL,2026-08-08
+OpenAI GPT Store,assistant/app store,https://openai.com/index/introducing-the-gpt-store/,Introducing the GPT Store,OFFICIAL,2026-08-08
+OpenAI GPT Store,assistant/app store,https://help.openai.com/en/articles/9119255-monetizing-your-gpt-faq,Sharing publishing and monetizing GPTs,OFFICIAL,2026-08-08
+Poe,assistant/app store,https://poe.com/pages/demos/creator-monetization,Creator monetization - Poe,OFFICIAL,2026-08-08
+Poe,assistant/app store,https://creator.poe.com/docs/resources/creator-monetization,Creator Monetization | Poe Creator Platform,OFFICIAL,2026-08-08
+Poe,assistant/app store,https://poe.com/pages/earnings-tos,Poe Creator Earnings Terms,OFFICIAL,2026-08-08
+Google Gemini Gems,assistant/app store,https://gemini.google/overview/gems/,Gemini Gems — build custom AI experts,OFFICIAL,2026-08-08
+Google Gemini Gems,assistant/app store,https://support.google.com/gemini/answer/16504957,Share a Gem from Gemini Apps,OFFICIAL,2026-08-08
+Microsoft Copilot Agent Store,assistant/app store,https://learn.microsoft.com/en-us/microsoft-365/copilot/copilot-agent-store,Agent Store in Microsoft 365 Copilot,OFFICIAL,2026-08-08
+Microsoft Marketplace,assistant/app store,https://marketplace.microsoft.com/,Microsoft Marketplace,OFFICIAL,2026-08-08
+Salesforce AgentExchange,assistant/app store,https://www.salesforce.com/agentforce/agentexchange/,AgentExchange: One Unified Marketplace for the Agentic Enterprise,OFFICIAL,2026-08-08
+Anthropic Agent Skills,agent skill/tool marketplace,https://github.com/anthropics/skills,Public repository for Agent Skills,OFFICIAL,2026-08-08
+agentskill.sh,agent skill/tool marketplace,https://agentskill.sh/,AI Agent Skills Directory & Marketplace,DIRECTORY,2026-08-08
+ClaudeMarketplaces.com,agent skill/tool marketplace,https://claudemarketplaces.com/skills,Claude Skills Directory — Browse 23600+ Claude Code Skills,DIRECTORY,2026-08-08
+SkillsClaude,agent skill/tool marketplace,https://skillsclaude.org/skills,Browse Claude Skills — Marketplace Directory,DIRECTORY,2026-08-08
+Hugging Face Spaces,agent skill/tool marketplace,https://huggingface.co/spaces,Spaces - Hugging Face,OFFICIAL,2026-08-08
+Hugging Face,agent skill/tool marketplace,https://huggingface.co/pricing,Pricing - Hugging Face,OFFICIAL,2026-08-08
+Replicate,agent skill/tool marketplace,https://replicate.com/explore,Explore - Replicate,OFFICIAL,2026-08-08
+Replicate,agent skill/tool marketplace,https://replicate.com/pricing,Pricing - Replicate,OFFICIAL,2026-08-08
+LangChain Hub,agent skill/tool marketplace,https://smith.langchain.com/hub,LangChain Hub / LangSmith,OFFICIAL,2026-08-08
+LangChain Hub,agent skill/tool marketplace,https://docs.langchain.com/langsmith/manage-prompts,Manage prompts - LangChain Docs,OFFICIAL,2026-08-08
+CrewAI Marketplace,agent skill/tool marketplace,https://marketplace.crewai.com/,CrewAI Enterprise Agentic App Marketplace,OFFICIAL,2026-08-08
+CrewAI Marketplace,agent skill/tool marketplace,https://docs-platform.crewai.com/platform/en/features/marketplace,Marketplace - CrewAI Platform,OFFICIAL,2026-08-08
+Official MCP Registry,MCP registry,https://registry.modelcontextprotocol.io/,Official MCP Registry,OFFICIAL,2026-08-08
+Smithery,MCP registry,https://smithery.ai/servers,MCPs | Smithery,OFFICIAL,2026-08-08
+mcp.so,MCP registry,https://mcp.so/servers,MCP Servers,DIRECTORY,2026-08-08
+Glama,MCP registry,https://glama.ai/mcp/servers,The MCP Server Registry Inspector and Gateway,DIRECTORY,2026-08-08
+PulseMCP,MCP registry,https://www.pulsemcp.com/,PulseMCP | Keep up-to-date with MCP,DIRECTORY,2026-08-08
+PulseMCP,MCP registry,https://www.pulsemcp.com/statistics,MCP Statistics | PulseMCP,DIRECTORY,2026-08-08
+MCP Market,MCP registry,https://mcpmarket.com/server,Browse All MCP Servers | MCP Market,DIRECTORY,2026-08-08
+Docker MCP Catalog,MCP registry,https://hub.docker.com/mcp,Docker MCP Catalog,OFFICIAL,2026-08-08
+MCPServers.org,MCP registry,https://mcpservers.org/,Awesome MCP Servers,DIRECTORY,2026-08-08
+Cloudflare MCP Servers,MCP registry,https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/,Cloudflare own MCP servers,OFFICIAL,2026-08-08
+n8n Templates,automation/workflow marketplace,https://n8n.io/workflows/,Discover 11190 Automation Workflows,OFFICIAL,2026-08-08
+n8n Templates,automation/workflow marketplace,https://docs.n8n.io/build/ways-of-building-workflows/use-templates/,Use templates | n8n Docs,OFFICIAL,2026-08-08
+Zapier Templates,automation/workflow marketplace,https://zapier.com/templates,Workflow Automation Templates | Zapier,OFFICIAL,2026-08-08
+Zapier Templates,automation/workflow marketplace,https://docs.zapier.com/integrations/publish/zap-templates,Zap templates publishing docs,OFFICIAL,2026-08-08
+Make Templates,automation/workflow marketplace,https://www.make.com/en/templates,Workflow Automation Templates | Make,OFFICIAL,2026-08-08
+Flowise,automation/workflow marketplace,https://flowiseai.com/,Flowise - Build AI Agents Visually (sunsetting notice),OFFICIAL,2026-08-08
+Dify Marketplace,automation/workflow marketplace,https://marketplace.dify.ai/,Dify Marketplace,OFFICIAL,2026-08-08
+Coze Global,automation/workflow marketplace,https://www.coze.com/store,Coze Store Global,OFFICIAL,2026-08-08
+Coze China,automation/workflow marketplace,https://www.coze.cn/store,扣子 Store China,OFFICIAL,2026-08-08
+Stack AI,automation/workflow marketplace,https://www.stackai.com/templates,Customizable AI Workflow Templates by Stack AI,OFFICIAL,2026-08-08
+Relevance AI,automation/workflow marketplace,https://marketplace.relevanceai.com/,AI Agent Marketplace | Free Agents,OFFICIAL,2026-08-08
+AirOps,automation/workflow marketplace,https://www.airops.com/templates,AirOps Templates,OFFICIAL,2026-08-08
+Gumloop,automation/workflow marketplace,https://www.gumloop.com/templates,Gumloop Community Templates,OFFICIAL,2026-08-08
+Pipedream,automation/workflow marketplace,https://pipedream.com/apps,Pipedream Apps,OFFICIAL,2026-08-08
+Activepieces,automation/workflow marketplace,https://www.activepieces.com/templates,Activepieces Templates,OFFICIAL,2026-08-08
+Agent.ai,dedicated agent marketplace,https://agent.ai/,Agent.ai,OFFICIAL,2026-08-08
+AgentHub.dev,dedicated agent marketplace,https://agenthub.dev/,AgentHub redirect to Gumloop,OFFICIAL,2026-08-08
+Gumloop,dedicated agent marketplace,https://www.gumloop.com/,Gumloop: Build AI agents for work,OFFICIAL,2026-08-08
+Fetch.ai Agentverse,dedicated agent marketplace,https://agentverse.ai/,Agentverse,OFFICIAL,2026-08-08
+Fetch.ai Agentverse,dedicated agent marketplace,https://docs.agentverse.ai/,Agentverse Documentation,OFFICIAL,2026-08-08
+SingularityNET AI Marketplace,dedicated agent marketplace,https://marketplace.singularitynet.io/,SingularityNET AI Marketplace,OFFICIAL,2026-08-08
+Skyfire,dedicated agent marketplace,https://skyfire.xyz/,Skyfire agent identity and payments,OFFICIAL,2026-08-08
+Vercel AI Templates,dedicated agent marketplace,https://vercel.com/templates?type=ai,AI Templates - Vercel,OFFICIAL,2026-08-08
+Langflow,dedicated agent marketplace,https://www.langflow.org/,Langflow low-code AI builder,OFFICIAL,2026-08-08
+Langflow,dedicated agent marketplace,https://www.langflow.org/templates,Langflow templates route (404),OFFICIAL,2026-08-08
+AWS Marketplace AI Agents,dedicated agent marketplace,https://aws.amazon.com/marketplace/solutions/ai-agents-and-tools,AI Agent Solutions | AWS Marketplace,OFFICIAL,2026-08-08

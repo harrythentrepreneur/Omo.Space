@@ -1,0 +1,1474 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Cognition is the store for useful AI helpers. Try a free demo, buy the ones you like, then download them or run them through the API on our cloud. Made by real makers — you keep 85% of every store sale.">
+  <meta property="og:title" content="Cognition — The AI helper store. Try it. Buy it. Use it your way.">
+  <meta property="og:description" content="Find an AI helper or sell your own. Try a free demo, then download the files or run the helper through the API on our cloud.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://cognition.cv/">
+  <title>Cognition — The AI helper store. Try it. Buy it. Use it your way.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      background: var(--canvas);
+      color: var(--pine);
+      font-family: var(--body);
+      font-size: 16px;
+      line-height: 1.58;
+      text-rendering: optimizeLegibility;
+    }
+    body, button, input, select, textarea { font-family: var(--body); }
+    img, svg { display: block; max-width: 100%; }
+    button, input, select, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    p, h1, h2, h3, h4 { overflow-wrap: break-word; }
+    h1, h2, h3, h4, p { margin-top: 0; }
+
+    .skip-link {
+      position: fixed; top: 8px; left: 8px; z-index: 100;
+      padding: 10px 14px; border-radius: 8px;
+      background: var(--surface); color: var(--pine);
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    :where(a, button, input, select, textarea):focus-visible {
+      outline: 3px solid var(--mint);
+      box-shadow: 0 0 0 1px var(--pine) inset;
+      outline-offset: 3px;
+    }
+
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+
+    /* ── Signature Cut: one clipped corner, used sparingly ─────── */
+    .sig-cut { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    .site-header {
+      position: relative; z-index: 10;
+      border-bottom: 1px solid var(--rule);
+      background: var(--canvas);
+    }
+    .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .wordmark {
+      font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1;
+      text-decoration: none; letter-spacing: -0.01em;
+    }
+    .wordmark-dot { color: var(--orange); }
+    .nav-actions { display: flex; align-items: center; gap: 16px; }
+    .nav-link {
+      min-height: 44px; display: inline-flex; align-items: center;
+      font-size: 14px; font-weight: 700; text-decoration: none;
+      text-underline-offset: 4px; text-decoration-thickness: 1px;
+    }
+    .nav-link:hover, .nav-link:focus-visible { text-decoration: underline; }
+
+    /* ── Buttons ────────────────────────────────────────────────── */
+    .button {
+      min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 0 20px; border-radius: 10px; border: 1px solid transparent;
+      font-size: 15px; font-weight: 700; text-decoration: none; line-height: 1.2;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .button:hover { transform: translateY(-1px); }
+    .button-primary { background: var(--pine); color: #fff; }
+    .button-primary:hover { box-shadow: 0 6px 18px rgba(23,53,44,.18); }
+    .button-accent { background: var(--orange); color: var(--pine); }
+    .button-accent:hover { box-shadow: 0 6px 18px rgba(255,107,61,.28); }
+    .button-secondary { background: var(--surface); color: var(--pine); border-color: var(--pine); }
+    .button-small { min-height: 40px; padding: 0 16px; font-size: 14px; }
+    .button-block { width: 100%; }
+
+    /* ── Hero ───────────────────────────────────────────────────── */
+    .hero { padding: 52px 0 48px; }
+    .hero-inner { max-width: 760px; margin-inline: auto; text-align: center; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-bottom: 16px; padding: 6px 14px;
+      border: 1px solid var(--rule); border-radius: 999px;
+      background: var(--surface); color: var(--moss);
+      font-size: 12px; font-weight: 700; letter-spacing: .14em;
+    }
+    .hero-title {
+      margin-bottom: 14px;
+      font-family: var(--display); font-weight: 600;
+      font-size: clamp(38px, 8vw, 60px); line-height: 1.04; letter-spacing: -0.02em;
+      text-wrap: balance;
+    }
+    .hero-title em { font-style: italic; }
+    .hero-sub {
+      margin-bottom: 26px; font-size: 18px; line-height: 1.5; color: var(--moss);
+      max-width: 560px; margin-inline: auto; text-wrap: pretty;
+    }
+    .search-form { max-width: 560px; margin: 0 auto 16px; display: flex; gap: 0; }
+    .search-input {
+      flex: 1; min-width: 0; height: 56px; padding: 0 18px;
+      border: 1px solid var(--rule); border-right: 0; border-radius: 12px 0 0 12px;
+      background: var(--surface); color: var(--pine); font-size: 16px;
+    }
+    .search-input::placeholder { color: var(--moss); }
+    .search-submit {
+      height: 56px; padding: 0 20px; white-space: nowrap;
+      border: 1px solid var(--pine); border-radius: 0 12px 12px 0;
+      background: var(--pine); color: #fff; font-weight: 700; font-size: 15px;
+    }
+    .hero-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .hero-actions .button { min-width: 120px; }
+    .hero-note { margin: 0; font-size: 14px; line-height: 1.45; color: var(--moss); }
+
+    /* ── Feed ───────────────────────────────────────────────────── */
+    .feed-section { padding: 32px 0 96px; }
+    .feed-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+    .feed-title { font-family: var(--display); font-size: clamp(28px, 4.5vw, 36px); font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; margin-bottom: 6px; }
+    .feed-sub { margin: 0; color: var(--moss); font-size: 15px; line-height: 1.45; }
+    .feed-tools { display: flex; flex-direction: column; align-items: flex-end; }
+    .filter-row { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .filter-chip {
+      min-height: 40px; padding: 0 16px; border-radius: 999px;
+      border: 1px solid var(--rule); background: var(--surface);
+      color: var(--pine); font-size: 14px; font-weight: 700;
+    }
+    .filter-chip:hover { border-color: var(--pine); }
+    .filter-chip.is-active { background: var(--pine); border-color: var(--pine); color: #fff; }
+
+    @media (max-width: 639px) {
+      .hero { padding: 44px 0 42px; }
+      .hero-sub { margin-bottom: 24px; font-size: 17px; }
+      .feed-section { padding-top: 28px; }
+      .feed-head { align-items: flex-start; gap: 16px; }
+      .feed-tools { width: 100%; align-items: flex-start; }
+      .filter-row { justify-content: flex-start; }
+    }
+
+    .feed-grid {
+      display: grid; gap: 20px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 640px) { .feed-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 1000px) { .feed-grid { grid-template-columns: repeat(3, 1fr); } }
+
+    .listing-card {
+      display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 14px;
+      padding: 0 0 20px; overflow: hidden; transition: transform .12s ease, box-shadow .12s ease;
+    }
+    @media (max-width: 639px) { .listing-card { padding: 0 0 16px; } }
+    .listing-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(23,53,44,.08); }
+    .listing-card.sig-cut { border-radius: 14px 14px 0 14px; }
+
+    .listing-cover {
+      width: 100%; aspect-ratio: 16 / 9; margin-bottom: 16px;
+      background: var(--mint); overflow: hidden; position: relative;
+    }
+    .listing-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .listing-cover.icon-cover { aspect-ratio: 1 / 1; margin-bottom: 0; border-bottom: 1px solid var(--rule); }
+    .listing-cover.icon-cover img { object-fit: cover; }
+    .listing-cover .cover-emoji {
+      position: absolute; right: 12px; bottom: 10px; font-size: 26px; line-height: 1;
+      background: var(--surface); border-radius: 10px 10px 10px 3px; padding: 6px 8px;
+      box-shadow: 0 2px 8px rgba(23,53,44,.14);
+    }
+    .listing-body { padding: 0 20px; display: flex; flex-direction: column; flex: 1; }
+    @media (max-width: 639px) { .listing-body { padding: 0 16px; } }
+    .listing-name { font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.15; margin-bottom: 8px; }
+    .listing-promise { margin-bottom: 12px; color: var(--pine); font-size: 15px; text-wrap: pretty; }
+    .listing-maker { margin-bottom: 4px; font-size: 14px; font-weight: 700; color: var(--moss); }
+    .listing-maker .maker-handle { color: var(--pine); }
+    .listing-meta { font-size: 13px; color: var(--moss); margin-bottom: 16px; }
+    .listing-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--rule); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .listing-price { font-size: 20px; font-weight: 700; line-height: 1.2; }
+    .listing-price .price-note { display: block; font-size: 12.5px; font-weight: 500; color: var(--moss); }
+    .listing-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .demo-link, .details-link {
+      min-height: 40px; padding: 0 14px; border-radius: 10px; font-size: 14px; font-weight: 700;
+      text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .demo-link { background: var(--pine); color: #fff; border: 1px solid var(--pine); }
+    .demo-link:hover { box-shadow: 0 4px 12px rgba(23,53,44,.2); }
+    .details-link { background: var(--surface); color: var(--pine); border: 1px solid var(--pine); }
+    .details-link:hover { background: var(--canvas); }
+
+    /* ── Upvotes ──────────────────────────────────────────────── */
+    .upvote-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      border: 1px solid var(--rule); background: rgba(255,255,255,.92);
+      color: var(--moss); font-size: 12.5px; font-weight: 700; cursor: pointer;
+      padding: 6px 10px; border-radius: 999px;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 2px 8px rgba(23,53,44,.12);
+      transition: border-color .12s ease, color .12s ease, background .12s ease, transform .12s ease;
+    }
+    .upvote-btn:hover { border-color: var(--orange); color: var(--orange); transform: translateY(-1px); }
+    .upvote-btn .upvote-arrow { font-size: 10px; line-height: 1; }
+    .upvote-btn.is-voted { background: var(--orange); border-color: var(--orange); color: #fff; }
+    .upvote-btn.is-voted:hover { background: #e85a2e; color: #fff; }
+    .upvote-count { min-width: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+
+    /* Top-right floating upvote on cards (cute corner pill) */
+    .listing-card { position: relative; }
+    .listing-cover + .listing-body .upvote-btn,
+    .listing-body > .upvote-btn {
+      position: absolute; top: 10px; right: 10px; z-index: 2;
+    }
+    .listing-card .upvote-btn { position: absolute; top: 10px; right: 10px; z-index: 2; }
+    .detail-upvote-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .detail-upvote-row .upvote-btn { position: static; font-size: 14.5px; padding: 10px 18px; box-shadow: none; }
+
+    /* ── View more ────────────────────────────────────────────── */
+    .feed-more-wrap { display: flex; justify-content: center; padding-top: 28px; }
+    .feed-more {
+      min-height: 44px; padding: 0 28px; border-radius: 999px;
+      border: 1px solid var(--pine); background: var(--surface); color: var(--pine);
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: background .12s ease, color .12s ease;
+    }
+    .feed-more:hover { background: var(--pine); color: #fff; }
+
+    .feed-empty { text-align: center; color: var(--moss); padding: 48px 0; border: 1px dashed var(--rule); border-radius: 14px; }
+
+    /* ── Moat: We run it. You use it. ───────────────────────────── */
+    .moat-section { padding: 96px 0; background: var(--pine); color: #F2F6F1; }
+    .moat-head { max-width: 640px; margin-bottom: 48px; }
+    .moat-title { font-family: var(--display); font-size: clamp(30px, 5vw, 42px); font-weight: 600; line-height: 1.08; margin-bottom: 14px; }
+    .moat-title em { font-style: italic; color: var(--mint); }
+    .moat-sub { color: rgba(242,246,241,.78); font-size: 17px; margin: 0; text-wrap: pretty; }
+    .moat-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    @media (min-width: 760px) { .moat-grid { grid-template-columns: repeat(3, 1fr); } }
+    .moat-card {
+      background: rgba(255,255,255,.06); border: 1px solid rgba(242,246,241,.16);
+      border-radius: 14px; padding: 24px;
+    }
+    .moat-step {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 10px; margin-bottom: 14px;
+      background: var(--orange); color: var(--pine); font-weight: 700; font-size: 15px;
+    }
+    .moat-card h3 { font-size: 19px; margin-bottom: 8px; }
+    .moat-card p { margin: 0; color: rgba(242,246,241,.78); font-size: 15px; }
+    .moat-card .use-doors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .door-pill {
+      padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+      background: rgba(189,239,212,.16); color: var(--mint); border: 1px solid rgba(189,239,212,.3);
+    }
+    .moat-note { margin: 14px 0 0; font-size: 13.5px; color: rgba(242,246,241,.72); line-height: 1.55; max-width: 540px; }
+    .moat-note strong { color: var(--mint); }
+
+    /* ── Maker economics ────────────────────────────────────────── */
+    .maker-section { padding: 96px 0; }
+    .maker-head { max-width: 640px; margin-bottom: 48px; }
+    .maker-title { font-family: var(--display); font-size: clamp(30px, 5vw, 42px); font-weight: 600; line-height: 1.08; margin-bottom: 14px; }
+    .maker-title em { font-style: italic; color: var(--orange); }
+    .maker-sub { color: var(--moss); font-size: 17px; margin: 0; text-wrap: pretty; }
+    .maker-grid { display: grid; gap: 20px; grid-template-columns: 1fr; counter-reset: maker; }
+    @media (min-width: 760px) { .maker-grid { grid-template-columns: repeat(3, 1fr); } }
+    .maker-card {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 14px;
+      padding: 24px; position: relative;
+    }
+    .maker-card.sig-cut { border-radius: 14px 14px 0 14px; }
+    .maker-num {
+      font-family: var(--display); font-size: 15px; font-weight: 600; letter-spacing: .1em;
+      color: var(--orange); margin-bottom: 12px;
+    }
+    .maker-card h3 { font-size: 20px; margin-bottom: 10px; }
+    .maker-card p { margin: 0 0 10px; color: var(--moss); font-size: 15px; }
+    .split-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+    .split-list li {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+      padding: 10px 12px; border-radius: 10px; background: var(--canvas);
+      font-size: 14px;
+    }
+    .split-list .split-num { font-weight: 700; white-space: nowrap; }
+    .split-list .split-num.highlight { color: var(--orange); }
+    .maker-quote { margin-top: 16px; font-size: 14px; color: var(--moss); }
+    .maker-quote strong { color: var(--pine); }
+
+    /* ── Pricing ────────────────────────────────────────────────── */
+    .pricing-section { padding: 96px 0; background: var(--surface); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+    .pricing-head { max-width: 640px; margin: 0 auto 48px; text-align: center; }
+    .pricing-title { font-family: var(--display); font-size: clamp(30px, 5vw, 42px); font-weight: 600; line-height: 1.08; margin-bottom: 14px; }
+    .pricing-sub { color: var(--moss); font-size: 17px; margin: 0; text-wrap: pretty; }
+    .pricing-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    @media (min-width: 700px) { .pricing-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 1000px) { .pricing-grid { grid-template-columns: repeat(3, 1fr); } }
+    .pricing-card {
+      background: var(--canvas); border: 1px solid var(--rule); border-radius: 14px;
+      padding: 24px; display: flex; flex-direction: column;
+    }
+    .pricing-card.sig-cut { border-radius: 14px 14px 0 14px; }
+    .pricing-name { font-family: var(--display); font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+    .pricing-price { font-size: 15px; font-weight: 700; color: var(--orange); margin-bottom: 12px; }
+    .pricing-card p { margin: 0; color: var(--moss); font-size: 15px; }
+    .pricing-note { margin-top: 32px; text-align: center; font-size: 13.5px; color: var(--moss); }
+
+    /* ── CTA band ───────────────────────────────────────────────── */
+    .cta-section { padding: 96px 0; }
+    .cta-card {
+      background: var(--pine); color: #F2F6F1;
+      border-radius: 20px; padding: 48px 32px; text-align: center;
+      position: relative;
+    }
+    .cta-card.sig-cut { border-radius: 20px 20px 0 20px; }
+    .cta-title { font-family: var(--display); font-size: clamp(28px, 4.5vw, 38px); font-weight: 600; line-height: 1.1; margin-bottom: 12px; }
+    .cta-title em { font-style: italic; color: var(--mint); }
+    .cta-sub { color: rgba(242,246,241,.78); font-size: 17px; margin: 0 auto 24px; max-width: 440px; text-wrap: pretty; }
+    .cta-money { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 0 auto 28px; max-width: 520px; }
+    .cta-money p {
+      margin: 0; padding: 10px 16px; border-radius: 999px;
+      background: rgba(189,239,212,.12); border: 1px solid rgba(189,239,212,.28);
+      font-size: 14px; color: rgba(242,246,241,.9);
+    }
+    .cta-money strong { color: var(--mint); font-size: 16px; }
+    /* ── CTA band buttons ─────────────────────────────────────── */
+    .cta-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .cta-actions .button { min-height: 52px; padding: 0 28px; font-size: 16px; }
+    .cta-actions .button-secondary { background: transparent; color: #F2F6F1; border-color: rgba(242,246,241,.55); }
+    @media (max-width: 480px) {
+      .cta-actions { flex-direction: column; }
+      .cta-actions .button { width: 100%; }
+    }
+
+    /* ── Footer ─────────────────────────────────────────────────── */
+    .site-footer { border-top: 1px solid var(--rule); padding: 40px 0 56px; }
+    .footer-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+    .footer-brand .wordmark { font-size: 24px; }
+    .footer-tagline { margin: 8px 0 0; color: var(--moss); font-size: 14px; }
+    .footer-links { display: flex; gap: 8px; flex-wrap: wrap; }
+    .footer-links a {
+      min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px;
+      font-size: 14px; font-weight: 700; text-decoration: none; color: var(--moss);
+      text-underline-offset: 4px;
+    }
+    .footer-links a:hover { color: var(--pine); text-decoration: underline; }
+
+    /* ── Detail dialog ──────────────────────────────────────────── */
+    .listing-dialog {
+      border: 0; border-radius: 18px; padding: 0; width: min(680px, calc(100% - 32px));
+      background: var(--canvas); color: var(--pine);
+      max-height: min(88vh, 900px);
+    }
+    .listing-dialog::backdrop { background: rgba(23, 53, 44, .62); }
+    .dialog-body { padding: 28px; overflow-y: auto; max-height: min(88vh, 900px); }
+    @media (max-width: 639px) { .dialog-body { padding: 20px; } }
+    .dialog-close {
+      position: absolute; top: 12px; right: 12px; z-index: 2;
+      width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--rule);
+      background: var(--surface); color: var(--pine); font-size: 20px; line-height: 1;
+    }
+    .dialog-close:hover { background: var(--canvas); }
+    .detail-cover {
+      width: 100%; aspect-ratio: 16 / 9; border-radius: 14px 14px 14px 4px; margin-bottom: 18px;
+      background: var(--mint); overflow: hidden;
+    }
+    .detail-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .detail-email { font-size: 14px; color: var(--moss); margin: 0 0 18px; }
+    .detail-email a { color: var(--pine); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+    .detail-email a:hover { color: var(--orange); }
+    .detail-links { display: flex; gap: 8px; flex-wrap: wrap; margin: -8px 0 18px; }
+    .chip-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--rule); background: var(--surface); color: var(--pine);
+      font-size: 13.5px; font-weight: 700; text-decoration: none;
+      padding: 8px 14px; border-radius: 999px;
+    }
+    .chip-link:hover { border-color: var(--orange); color: var(--orange); }
+
+    /* ── Embedded reel player ─────────────────────────────────── */
+    .detail-video {
+      margin: 0 0 18px; border: 1px solid var(--rule); border-radius: 14px;
+      background: var(--canvas); overflow: hidden; min-height: 120px;
+    }
+    .video-placeholder {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; padding: 28px 20px; cursor: pointer; min-height: 160px;
+      text-align: center; color: var(--moss);
+    }
+    .video-placeholder:hover { background: var(--mint); }
+    .video-play {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--orange); color: #fff; font-size: 20px;
+      display: flex; align-items: center; justify-content: center;
+      padding-left: 4px; box-shadow: 0 4px 12px rgba(255,107,61,.35);
+    }
+    .video-placeholder p { margin: 0; font-size: 14px; font-weight: 700; color: var(--pine); }
+    .detail-video .instagram-media, .detail-hero-video .instagram-media { margin: 0 auto !important; max-width: 100% !important; }
+
+    /* Hero-position reel: clean click-to-play 9:16 player (no IG chrome) */
+    .detail-hero-video {
+      position: relative; width: auto; height: min(46vh, 440px); aspect-ratio: 9 / 16;
+      max-width: 100%; margin: 0 auto 18px; border-radius: 14px 14px 14px 4px;
+      background-size: cover; background-position: center;
+      border: 1px solid var(--rule); overflow: hidden; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    }
+    .hero-video-shade {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(23,53,44,.04) 0%, rgba(23,53,44,.42) 100%);
+      transition: background .3s ease;
+    }
+    .detail-hero-video:hover .hero-video-shade { background: linear-gradient(180deg, rgba(23,53,44,.12) 0%, rgba(23,53,44,.55) 100%); }
+    .hero-video-badge {
+      position: absolute; top: 12px; left: 12px; z-index: 1;
+      background: rgba(23,53,44,.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .1em;
+      text-transform: uppercase; padding: 4px 9px; border-radius: 999px;
+    }
+    .hero-video-play {
+      position: relative; width: 56px; height: 56px; border-radius: 50%;
+      background: rgba(255,255,255,.92); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      color: var(--orange); font-size: 17px; line-height: 1;
+      display: flex; align-items: center; justify-content: center; padding-left: 4px;
+      box-shadow: 0 6px 18px rgba(23,53,44,.22);
+      transition: transform .3s ease;
+    }
+    .detail-hero-video:hover .hero-video-play { transform: scale(1.08); }
+    .reel-frame {
+      position: absolute; inset: 0; width: 100%; height: 100%; border: 0;
+      opacity: 0; animation: reelFadeIn .3s ease forwards;
+    }
+    @keyframes reelFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .maker-email { color: var(--moss); text-decoration: none; border-bottom: 1px dotted var(--rule); }
+    .maker-email:hover { color: var(--orange); border-color: var(--orange); }
+    .detail-cover.sig-cut { border-radius: 14px 14px 0 14px; }
+    .detail-name { font-family: var(--display); font-size: 30px; font-weight: 600; line-height: 1.1; margin-bottom: 6px; letter-spacing: -0.01em; }
+    .detail-maker { font-size: 14px; font-weight: 700; color: var(--moss); margin-bottom: 14px; }
+    .detail-maker .maker-handle { color: var(--pine); }
+    .detail-desc { margin-bottom: 24px; color: var(--pine); text-wrap: pretty; }
+    .detail-section { margin-bottom: 28px; }
+    .detail-section h3 { font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--moss); margin-bottom: 12px; }
+
+    .io-box { border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); overflow: hidden; }
+    .io-col { padding: 16px 18px; }
+    .io-col + .io-col { border-top: 1px solid var(--rule); }
+    .io-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--orange); margin-bottom: 8px; }
+    .io-box ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+    .io-box li { font-size: 14.5px; }
+    .io-box code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--canvas); padding: 1px 5px; border-radius: 5px; }
+
+    .price-tiers { display: grid; gap: 10px; grid-template-columns: 1fr; }
+    @media (min-width: 560px) { .price-tiers { grid-template-columns: repeat(2, 1fr); } }
+    .tier {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px;
+    }
+    .tier-name { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--moss); margin-bottom: 4px; }
+    .tier-price { font-size: 22px; font-weight: 700; line-height: 1.15; }
+    .tier-price small { font-size: 13px; font-weight: 500; color: var(--moss); }
+    .tier-note { font-size: 13px; color: var(--moss); margin-top: 4px; }
+
+    .use-doors { display: grid; gap: 10px; grid-template-columns: 1fr; }
+    @media (min-width: 560px) { .use-doors { grid-template-columns: repeat(2, 1fr); } }
+    .door {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px;
+    }
+    .door-emoji { font-size: 20px; margin-bottom: 6px; }
+    .door h4 { font-size: 15px; margin-bottom: 4px; }
+    .door p { margin: 0; font-size: 13.5px; color: var(--moss); }
+
+    /* ── Demo box ───────────────────────────────────────────────── */
+    .demo-box {
+      border: 1px solid var(--pine); border-radius: 14px; background: var(--surface);
+      padding: 20px;
+    }
+    .demo-box.sig-cut { border-radius: 14px 14px 0 14px; }
+    .demo-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+    .demo-head h3 { font-size: 17px; margin: 0; }
+    .demo-cap { font-size: 12.5px; font-weight: 700; color: var(--moss); background: var(--mint); padding: 3px 10px; border-radius: 999px; }
+    .demo-note { font-size: 13.5px; color: var(--moss); margin: 0 0 16px; }
+    .field-label { display: block; font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+    .demo-field { margin-bottom: 14px; }
+    .demo-input, .demo-select, .demo-textarea {
+      width: 100%; border: 1px solid var(--rule); border-radius: 12px;
+      background: var(--canvas); color: var(--pine); font-size: 15px; padding: 12px 14px;
+    }
+    .demo-textarea { min-height: 84px; resize: vertical; }
+    .demo-select { appearance: none; height: 52px; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2317352C' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 16px center; padding-right: 44px;
+    }
+    .demo-row { display: grid; gap: 12px; grid-template-columns: 1fr; }
+    @media (min-width: 480px) { .demo-row { grid-template-columns: 1fr 1fr; } }
+    .demo-run { margin-top: 6px; }
+    .demo-status { font-size: 13.5px; margin: 12px 0 0; }
+    .demo-status[data-state="error"] { color: #8c2e16; font-weight: 700; }
+    .demo-status[data-state="offline"] { color: var(--moss); font-weight: 700; }
+    .demo-result { margin-top: 16px; border-top: 1px dashed var(--rule); padding-top: 16px; }
+    .demo-result[hidden] { display: none; }
+    .demo-hook {
+      font-family: var(--display); font-size: 19px; font-weight: 600; line-height: 1.3;
+      margin-bottom: 16px; padding: 14px 16px; border-radius: 12px; background: var(--canvas);
+    }
+    .demo-shots { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 10px; counter-reset: shot; }
+    .demo-shots li {
+      counter-increment: shot; padding: 12px 14px 12px 48px; position: relative;
+      border: 1px solid var(--rule); border-radius: 12px; background: var(--surface);
+    }
+    .demo-shots li::before {
+      content: counter(shot); position: absolute; left: 14px; top: 12px;
+      width: 24px; height: 24px; border-radius: 8px; background: var(--mint);
+      color: var(--pine); font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .demo-shot { font-size: 14.5px; font-weight: 500; }
+    .demo-caption { font-size: 13px; color: var(--moss); margin-top: 4px; }
+    .demo-caption span { font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .06em; }
+    .demo-cta {
+      margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--pine); color: #F2F6F1;
+      font-size: 15px; font-weight: 700;
+    }
+    .demo-cta span { display: inline-block; margin-right: 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mint); }
+    .demo-raw { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; white-space: pre-wrap; background: var(--canvas); border-radius: 12px; padding: 14px; margin: 0; max-height: 320px; overflow: auto; }
+    .demo-group { margin-bottom: 14px; }
+    .demo-group:last-child { margin-bottom: 0; }
+    .demo-group-label { margin-bottom: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--moss); }
+    .demo-group-value { margin: 0; font-size: 14.5px; }
+    .demo-list { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+    .demo-list li { font-size: 14.5px; }
+
+    .demo-soon { text-align: center; padding: 12px 4px 4px; color: var(--moss); font-size: 14.5px; }
+    .demo-soon a { color: var(--pine); font-weight: 700; }
+
+    .detail-footer { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="wordmark" href="#top">Cognition<span class="wordmark-dot">.</span></a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="nav-link" href="#feed">Browse helpers</a>
+        <a class="nav-link" href="#library" id="library-link">Library</a>
+        <a class="button button-accent button-small" href="#waitlist">Sell yours</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ── Hero ─────────────────────────────────────────────── -->
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="shell hero-inner">
+        <p class="eyebrow">The AI helper store</p>
+        <h1 class="hero-title" id="hero-title">Find an AI helper.<br>Or <em>sell</em> your own.</h1>
+        <p class="hero-sub">Makers build useful AI helpers. They sell them on Cognition. Try one before you buy it.</p>
+        <form class="search-form" id="search-form" role="search" aria-label="Search helpers">
+          <input class="search-input" id="search-input" type="search" name="q" placeholder="Search helpers, e.g. UGC scripts, ads, photos…" aria-label="Search helpers" autocomplete="off">
+          <button class="search-submit" type="submit">Search</button>
+        </form>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#feed">Browse helpers</a>
+          <a class="button button-secondary" href="#waitlist">Sell yours</a>
+        </div>
+        <p class="hero-note">Made by people who got tired of doing it by hand.</p>
+      </div>
+    </section>
+
+    <!-- ── Feed ─────────────────────────────────────────────── -->
+    <section class="feed-section" id="feed" aria-labelledby="feed-title">
+      <div class="shell">
+        <div class="feed-head">
+          <div>
+            <h2 class="feed-title" id="feed-title">Fresh from the makers</h2>
+            <p class="feed-sub" id="feed-sub">21 real helpers. Try the demo before you buy.</p>
+          </div>
+          <div class="feed-tools">
+            <div class="filter-row" role="group" aria-label="Filter by outcome">
+              <button class="filter-chip is-active" type="button" data-filter="all" aria-pressed="true">All</button>
+              <button class="filter-chip" type="button" data-filter="content" aria-pressed="false">✂️ Content</button>
+              <button class="filter-chip" type="button" data-filter="leads" aria-pressed="false">📈 Leads</button>
+              <button class="filter-chip" type="button" data-filter="save" aria-pressed="false">💰 Save money</button>
+            </div>
+          </div>
+        </div>
+        <div class="feed-grid" id="listing-feed"></div>
+        <p class="feed-empty" id="feed-empty" hidden>No helpers match that search. Try another word — or sell the one you made.</p>
+        <div class="feed-more-wrap" id="feed-more-wrap" hidden>
+          <button class="feed-more" id="feed-more" type="button">View more helpers <span aria-hidden="true">↓</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Moat: We run it. You use it. ─────────────────────── -->
+    <section class="moat-section" aria-labelledby="moat-title">
+      <div class="shell">
+        <div class="moat-head">
+          <h2 class="moat-title" id="moat-title">We run it in the cloud. <em>You</em> choose how to use it.</h2>
+          <p class="moat-sub">Buy once, then choose one of two ways to use it: run it through our API on our cloud, or download the files. The helper does the same job either way.</p>
+        </div>
+        <div class="moat-grid">
+          <div class="moat-card">
+            <span class="moat-step">1</span>
+            <h3>Find one</h3>
+            <p>Look through the store. Pick an AI helper that does a job you need.</p>
+          </div>
+          <div class="moat-card">
+            <span class="moat-step">2</span>
+            <h3>Try it free</h3>
+            <p>Give it one job for free. See what it does before you buy.</p>
+          </div>
+          <div class="moat-card">
+            <span class="moat-step">3</span>
+            <h3>Use it your way</h3>
+            <p>Choose one of two ways: run it through our API on our cloud, or download the files and run them locally.</p>
+            <div class="use-doors">
+              <span class="door-pill">🔑 API</span>
+              <span class="door-pill">☁️ No setup</span>
+              <span class="door-pill">💻 Download</span>
+            </div>
+            <p class="moat-note">For API runs, we execute each helper in a <strong>sandboxed environment</strong> on our servers and hold the keys to services like HeyGen. You pay per use, with no installs or setup. Or download the workflow and prompts and run them on your own computer. You are never locked in.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Maker economics ──────────────────────────────────── -->
+    <section class="maker-section" aria-labelledby="maker-title">
+      <div class="shell">
+        <div class="maker-head">
+          <h2 class="maker-title" id="maker-title">From “DM me” to <em>getting paid</em>.</h2>
+          <p class="maker-sub">Made a helper with Claude Code, Codex, or Hermes? Put it on Cognition. No GitHub or payment setup needed, and the split is clear.</p>
+        </div>
+        <div class="maker-grid">
+          <article class="maker-card sig-cut">
+            <p class="maker-num">01 — SELL</p>
+            <h3>Put it on the table</h3>
+            <p>Cognition gives your helper a page, collects payment, and delivers the files or API access to the buyer. Buyers don't need technical skills to use it.</p>
+            <ul class="split-list">
+              <li><span>Store sale</span><span class="split-num highlight">You keep 85% · Cognition 15%</span></li>
+              <li><span>Sale from your own link</span><span class="split-num">You keep 95% · Cognition 5%</span></li>
+            </ul>
+            <p class="maker-quote">On a $100 license, <strong>you keep $85.</strong></p>
+          </article>
+          <article class="maker-card">
+            <p class="maker-num">02 — KEEP IT UPDATED</p>
+            <h3>Ship the new version</h3>
+            <p>Make it better and publish a new version. API runs use the latest version; buyers who downloaded the files can grab the update from their library.</p>
+            <ul class="split-list">
+              <li><span>Buyer updates</span><span class="split-num">Available in their library</span></li>
+              <li><span>API runs</span><span class="split-num">Always use the latest version</span></li>
+            </ul>
+            <p class="maker-quote">Updates should feel like <strong>care, not a setup project.</strong></p>
+          </article>
+          <article class="maker-card">
+            <p class="maker-num">03 — GET PAID</p>
+            <h3>Money in daylight</h3>
+            <p>Every split is shown before checkout. API run pricing is shown before you run it, too.</p>
+            <ul class="split-list">
+              <li><span>API runs through Cognition</span><span class="split-num highlight">You get 20% of the positive margin</span></li>
+              <li><span>Maintenance subs</span><span class="split-num">You keep 85%</span></li>
+            </ul>
+            <p class="maker-quote">Creators first — <strong>good work should earn.</strong></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing model: free lead magnets, one-time downloads to own, or per-use API runs on our cloud — Runware-style and friendly. -->
+    <section class="pricing-section" aria-labelledby="pricing-title">
+      <div class="shell">
+        <div class="pricing-head">
+          <h2 class="pricing-title" id="pricing-title">Simple prices. Nothing hidden.</h2>
+          <p class="pricing-sub">Try a helper for free, buy the files once, or run it through the API.</p>
+        </div>
+        <div class="pricing-grid">
+          <div class="pricing-card sig-cut">
+            <h3 class="pricing-name">FREE</h3>
+            <p class="pricing-price">Try it free</p>
+            <p>Some helpers are free; we give you the prompts and how-to. No card needed.</p>
+          </div>
+          <div class="pricing-card">
+            <h3 class="pricing-name">ONE-TIME</h3>
+            <p class="pricing-price">$3–$200 one-time</p>
+            <p>Own it: pay once, download the workflow + prompts, and run them on your machine forever.</p>
+          </div>
+          <div class="pricing-card">
+            <h3 class="pricing-name">PER-USE</h3>
+            <p class="pricing-price">Use the API</p>
+            <p>For API runs, everything happens on our cloud. We handle keys for tools like HeyGen. Pay per run — usually cents to a few dollars.</p>
+          </div>
+        </div>
+        <p class="pricing-note">Free prompts, one-time ownership, or simple per-run API pricing.</p>
+      </div>
+    </section>
+
+    <!-- ── CTA band ─────────────────────────────────────────── -->
+    <section class="cta-section" id="waitlist" aria-labelledby="cta-title">
+      <div class="shell">
+        <div class="cta-card sig-cut">
+          <h2 class="cta-title" id="cta-title">You made the helper. Let <em>Cognition</em> sell it.</h2>
+          <p class="cta-sub">Make it once. Sell it again. Keep it fresh.</p>
+          <div class="cta-money" id="cta-money">
+            <p><strong>85%</strong> of every store sale goes to you.</p>
+            <p><strong>95%</strong> when the buyer comes from your own link.</p>
+            <p><strong>20%</strong> of the positive margin when people run it through our API.</p>
+          </div>
+          <div class="cta-actions">
+            <a class="button button-accent" href="#library" id="cta-view-library">View Library</a>
+            <a class="button button-secondary" href="#waitlist" id="cta-sell-yours">Sell Yours</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-row">
+      <div class="footer-brand">
+        <a class="wordmark" href="#top">Cognition<span class="wordmark-dot">.</span></a>
+        <p class="footer-tagline">The store for AI helpers. Try a free demo, then download or run by API.</p>
+      </div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="#top">Terms</a>
+        <a href="#top">Privacy</a>
+        <a href="#top">Support</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- ── Detail dialog ─────────────────────────────────────── -->
+  <dialog class="listing-dialog" id="listing-dialog" aria-labelledby="detail-name">
+    <button class="dialog-close" id="dialog-close" type="button" aria-label="Close details">✕</button>
+    <div class="dialog-body" id="dialog-body"></div>
+  </dialog>
+
+    <script src="ig-workflows.js"></script>
+  <script src="ig-more.js"></script>
+  <script src="clerk.js"></script>
+  <script src="library.js"></script>
+  <script src="stripe.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      /* ── Clerk auth ─────────────────────────────────────────── */
+      // Replace this placeholder with your real Clerk publishable key
+      // (Clerk Dashboard → API Keys → Publishable key), e.g.
+      // 'pk_test_xxxxxxxxxxxxxxxx'. While the placeholder is set, clerk.js
+      // runs in demo mode: "signing in" fakes a local user in localStorage
+      // (cognition_user) so the whole auth + library flow works with zero
+      // Clerk credentials — swap the key and demo mode switches off.
+      window.CLERK_PUBLISHABLE_KEY = 'pk_test_placeholder';
+
+      /* ── Stripe payments ────────────────────────────────────── */
+      // Replace this placeholder with your real Stripe publishable key
+      // (Stripe Dashboard → Developers → API keys → Publishable key), e.g.
+      // 'pk_test_51xxxxxxxxxxxxxxxx'. Test mode is free. While the placeholder
+      // is set, stripe.js runs in simulated mode: buying records the purchase
+      // locally instead of charging a card — swap the key (and set the
+      // worker's STRIPE_SECRET_KEY) and buying goes to real Stripe Checkout.
+      window.STRIPE_PUBLISHABLE_KEY = 'pk_test_placeholder';
+
+      var ESC = function (s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      };
+
+      /* ── The three real products ─────────────────────────────── */
+      var PRODUCTS = {}; // real IG workflows merge in below
+
+      // Instagram-verified workflows (ig-workflows.js, optional)
+      var igExtra = window.COGNITION_IG_WORKFLOWS || [];
+      igExtra.forEach(function (s) {
+        if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
+      });
+      // More Instagram-verified workflows (ig-more.js, optional)
+      var igMore = window.COGNITION_IG_MORE || [];
+      igMore.forEach(function (s) {
+        if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
+      });
+
+      /* ── Feed subtitle: dynamic helper count ─────────────────── */
+      var feedSub = document.getElementById('feed-sub');
+      if (feedSub) {
+        var totalHelpers = Object.keys(PRODUCTS).length;
+        feedSub.textContent = (totalHelpers >= 100 ? '100+' : totalHelpers) + ' real helpers. Try a free demo before you buy.';
+      }
+
+      /* ── Render the feed ─────────────────────────────────────── */
+      var feed = document.getElementById('listing-feed');
+      var emptyState = document.getElementById('feed-empty');
+      var currentFilter = 'all';
+      var currentQuery = '';
+      var slugs = Object.keys(PRODUCTS);
+
+      /* ── Upvotes (localStorage, per browser) ─────────────────── */
+      var VOTE_KEY = 'cognition_votes_v1';
+      var votes = {};
+      try { votes = JSON.parse(localStorage.getItem(VOTE_KEY) || '{}'); } catch (e) { votes = {}; }
+      function saveVotes() {
+        try { localStorage.setItem(VOTE_KEY, JSON.stringify(votes)); } catch (e) {}
+      }
+      function totalVotes(p) {
+        return (p.upvotes || 0) + (votes[p.slug] ? 1 : 0);
+      }
+      function toggleVote(slug) {
+        if (votes[slug]) { delete votes[slug]; } else { votes[slug] = 1; }
+        saveVotes();
+        renderFeed();
+        // Keep an open dialog's upvote button in sync.
+        if (dialog && dialog.open) {
+          var btn = dialog.querySelector('.upvote-btn[data-upvote="' + slug + '"]');
+          if (btn) {
+            var p = PRODUCTS[slug];
+            var voted = !!votes[slug];
+            btn.classList.toggle('is-voted', voted);
+            btn.setAttribute('aria-pressed', voted ? 'true' : 'false');
+            var count = btn.querySelector('.upvote-count');
+            if (count) count.textContent = totalVotes(p);
+          }
+        }
+      }
+      function upvoteBtnHTML(p) {
+        var voted = !!votes[p.slug];
+        return '<button class="upvote-btn' + (voted ? ' is-voted' : '') + '" type="button" data-upvote="' + p.slug + '" aria-pressed="' + voted + '" title="' + (voted ? 'Remove upvote' : 'Upvote this helper') + '" aria-label="' + (voted ? 'Remove upvote from ' : 'Upvote ') + ESC(p.name) + '">' +
+          '<span class="upvote-arrow" aria-hidden="true">▲</span>' +
+          '<span class="upvote-count">' + totalVotes(p) + '</span></button>';
+      }
+
+      // Free lead magnets are explicit: free === true wins over stored price fields.
+      function isFreeListing(p) {
+        return p.free === true;
+      }
+      function runPriceLabel(p) {
+        return 'run &asymp; $' + (p.runPrice || p.priceRun);
+      }
+
+      function cardHTML(p, featured) {
+        var ownLabel = isFreeListing(p) ? 'Free' : '$' + p.priceOwn + ' one-time';
+        var visual = p.icon
+          ? '<div class="listing-cover icon-cover" aria-hidden="true"><img src="' + ESC(p.icon) + '" alt="" loading="lazy"></div>'
+          : (p.cover
+              ? '<div class="listing-cover" aria-hidden="true"><img src="' + ESC(p.cover) + '" alt="" loading="lazy"><span class="cover-emoji">' + p.emoji + '</span></div>'
+              : '<div class="listing-cover" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:52px;line-height:1">' + p.emoji + '</span></div>');
+        return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + p.slug + '" tabindex="0" role="button" aria-haspopup="dialog" aria-label="View details for ' + ESC(p.name) + '">' +
+          visual +
+          upvoteBtnHTML(p) +
+          '<div class="listing-body">' +
+          '<h3 class="listing-name">' + ESC(p.name) + '</h3>' +
+          '<p class="listing-promise">' + ESC(p.promise) + '</p>' +
+          '<p class="listing-maker">by <span class="maker-handle">' + ESC(p.maker) + '</span></p>' +
+          '<p class="listing-meta">' + ESC(p.version) + '</p>' +
+          '<div class="listing-footer">' +
+            '<p class="listing-price">' + ownLabel + ' <span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
+            '<div class="listing-actions">' +
+              '<button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Try demo</button>' +
+              '<button class="details-link" type="button" data-action="details" aria-haspopup="dialog">View details</button>' +
+            '</div>' +
+          '</div>' +
+          '</div>' +
+        '</article>';
+      }
+
+      function matches(p) {
+        var catOk = currentFilter === 'all' || p.category === currentFilter;
+        if (!catOk) return false;
+        var q = currentQuery;
+        if (!q) return true;
+        var hay = (p.name + ' ' + p.promise + ' ' + p.maker + ' ' + p.category).toLowerCase();
+        return hay.indexOf(q) !== -1;
+      }
+
+      function renderFeed() {
+        var visible = slugs.filter(function (slug) { return matches(PRODUCTS[slug]); });
+        visible = visible.slice().sort(function (a, b) {
+          return totalVotes(PRODUCTS[b]) - totalVotes(PRODUCTS[a]);
+        });
+        var shown = visible.slice(0, feedLimit);
+        feed.innerHTML = shown.map(function (slug, i) { return cardHTML(PRODUCTS[slug], i === 0); }).join('');
+        emptyState.hidden = visible.length > 0;
+        // View more button: visible only when more results are hidden behind the limit
+        if (feedMoreWrap && visible.length > feedLimit) {
+          feedMoreWrap.hidden = false;
+          feedMore.textContent = 'View more helpers (' + (visible.length - feedLimit) + ' more) ↓';
+        } else if (feedMoreWrap) {
+          feedMoreWrap.hidden = true;
+        }
+      }
+      var feedLimit = 15;
+      var feedMoreWrap = document.getElementById('feed-more-wrap');
+      var feedMore = document.getElementById('feed-more');
+      if (feedMore) {
+        feedMore.addEventListener('click', function () {
+          feedLimit += 15;
+          renderFeed();
+          if (feedLimit > 0) feedMore.scrollIntoView({ block: 'nearest' });
+        });
+      }
+      // Reset the limit whenever the user searches or filters,
+      // so those always show the top 15 again.
+      function resetFeedLimit() { feedLimit = 15; }
+      renderFeed();
+
+      /* ── Search + filter chips ───────────────────────────────── */
+      var searchForm = document.getElementById('search-form');
+      var searchInput = document.getElementById('search-input');
+      searchForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        currentQuery = searchInput.value.trim().toLowerCase();
+        resetFeedLimit();
+        renderFeed();
+      });
+      searchInput.addEventListener('input', function () {
+        currentQuery = searchInput.value.trim().toLowerCase();
+        resetFeedLimit();
+        renderFeed();
+      });
+      document.querySelectorAll('.filter-chip').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          document.querySelectorAll('.filter-chip').forEach(function (c) {
+            var on = c === chip;
+            c.classList.toggle('is-active', on);
+            c.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+          currentFilter = chip.dataset.filter;
+          resetFeedLimit();
+          renderFeed();
+        });
+      });
+
+      /* ── Ops filter chip: only when the catalog has ops skills ── */
+      (function () {
+        var hasOps = Object.keys(PRODUCTS).some(function (slug) { return PRODUCTS[slug].category === 'ops'; });
+        if (!hasOps) return;
+        var row = document.querySelector('.filter-row');
+        if (!row || row.querySelector('[data-filter="ops"]')) return;
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'filter-chip';
+        chip.dataset.filter = 'ops';
+        chip.setAttribute('aria-pressed', 'false');
+        chip.textContent = '\ud83d\udee0\ufe0f Ops';
+        row.appendChild(chip);
+        chip.addEventListener('click', function () {
+          document.querySelectorAll('.filter-chip').forEach(function (c) {
+            var on = c === chip;
+            c.classList.toggle('is-active', on);
+            c.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+          currentFilter = 'ops';
+          resetFeedLimit();
+          renderFeed();
+        });
+      })();
+      /* ── Detail dialog ───────────────────────────────────────── */
+      var dialog = document.getElementById('listing-dialog');
+      var dialogBody = document.getElementById('dialog-body');
+      var closeBtn = document.getElementById('dialog-close');
+      var lastTrigger = null;
+
+      function tierHTML(name, price, note) {
+        return '<div class="tier"><div class="tier-name">' + name + '</div>' +
+          '<div class="tier-price">' + price + '</div>' +
+          '<div class="tier-note">' + note + '</div></div>';
+      }
+
+      function doorHTML(emoji, title, text) {
+        return '<div class="door"><div class="door-emoji" aria-hidden="true">' + emoji + '</div>' +
+          '<h4>' + title + '</h4><p>' + text + '</p></div>';
+      }
+
+      function demoBoxHTML(p) {
+        if (!p.demo && !p.workflow) {
+          return '<div class="demo-box"><div class="demo-head"><h3>Try the demo</h3><span class="demo-cap">' + ESC(p.demoCap) + '</span></div>' +
+            '<p class="demo-note">The free demo for this helper launches soon.</p>' +
+            '<p class="demo-soon">Meanwhile, <a href="#" data-open-demo="ugc-script-studio">try UGC Script Studio</a> \u2014 it\u2019s live today.</p></div>';
+        }
+        var fields, note;
+        if (p.demo) {
+          note = ESC(p.demo.note);
+          fields = p.demo.fields.map(function (f) {
+            var control;
+            if (f.type === 'textarea') {
+              control = '<textarea class="demo-textarea" id="demo-field-' + f.key + '" placeholder="' + ESC(f.placeholder) + '" required></textarea>';
+            } else if (f.type === 'select') {
+              var opts = f.options.map(function (o) {
+                return '<option value="' + ESC(o.value) + '">' + ESC(o.label) + '</option>';
+              }).join('');
+              control = '<select class="demo-select" id="demo-field-' + f.key + '">' + opts + '</select>';
+            }
+            return '<div class="demo-field"><label class="field-label" for="demo-field-' + f.key + '">' + ESC(f.label) + '</label>' + control + '</div>';
+          }).join('');
+        } else {
+          note = 'This is the real helper running on Cognition\'s demo server. Give it one job for free.';
+          fields = (p.inputs || []).map(function (i) {
+            var sep = i.indexOf(':');
+            var key = sep === -1 ? i.trim() : i.slice(0, sep).trim();
+            var label = sep === -1 ? key : i.slice(sep + 1).trim();
+            return '<div class="demo-field"><label class="field-label" for="demo-field-' + key + '">' + ESC(label) + '</label>' +
+              '<textarea class="demo-textarea" id="demo-field-' + key + '" placeholder="' + ESC(label) + '" required></textarea></div>';
+          }).join('');
+        }
+
+        return '<div class="demo-box sig-cut">' +
+          '<div class="demo-head"><h3>Try the demo</h3><span class="demo-cap">' + ESC(p.demoCap) + '</span></div>' +
+          '<p class="demo-note">' + note + '</p>' +
+          '<form class="demo-form" data-demo-form data-slug="' + p.slug + '" novalidate>' +
+            '<div class="demo-row">' + fields + '</div>' +
+            '<button class="button button-primary demo-run" type="submit">Run the demo</button>' +
+            '<p class="demo-status" data-demo-status role="status" aria-live="polite"></p>' +
+          '</form>' +
+          '<div class="demo-result" data-demo-result hidden></div>' +
+        '</div>';
+      }
+
+      function detailHTML(p) {
+        var free = isFreeListing(p);
+        var ownPrice = free ? 'Free' : '$' + p.priceOwn + ' <small>one-time</small>';
+        var visual;
+        if (p.embedHtml) {
+          // The reel embed IS the hero: a clean click-to-play 9:16 player.
+          var heroBg = p.cover || p.icon || '';
+          visual = '<div class="detail-hero-video" data-reel-url="' + ESC(p.reelUrl || '') + '"' +
+            (heroBg ? ' style="background-image:url(' + ESC(heroBg) + ')"' : '') + '>' +
+            '<div class="hero-video-shade"></div>' +
+            '<span class="hero-video-badge">Reel</span>' +
+            '<span class="hero-video-play" aria-hidden="true">▶</span>' +
+            '</div>';
+        } else if (p.icon) {
+          visual = '<div class="detail-cover sig-cut" aria-hidden="true"><img src="' + ESC(p.icon) + '" alt=""></div>';
+        } else if (p.cover) {
+          visual = '<div class="detail-cover sig-cut" aria-hidden="true"><img src="' + ESC(p.cover) + '" alt=""></div>';
+        } else {
+          visual = '<div class="detail-cover sig-cut" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:44px">' + p.emoji + '</span></div>';
+        }
+        return visual +
+          '<h2 class="detail-name" id="detail-name">' + ESC(p.name) + '</h2>' +
+          '<p class="detail-maker">by <span class="maker-handle">' + ESC(p.maker) + '</span> &middot; ' + ESC(p.makerName) + ' &middot; ' + ESC(p.version) + '</p>' +
+          '<div class="detail-upvote-row">' + upvoteBtnHTML(p) + '</div>' +
+          '<p class="detail-desc">' + ESC(p.desc) + '</p>' +
+          '<p class="detail-email">Made by <span class="maker-handle">' + ESC(p.maker) + '</span>.</p>' +
+          (p.reelUrl || p.video || p.github ? '<p class="detail-links">' +
+            (p.reelUrl ? '<a class="chip-link" href="' + ESC(p.reelUrl) + '" target="_blank" rel="noopener">▶ Watch the creator\'s reel</a> ' : '') +
+            (p.video ? '<a class="chip-link" href="' + ESC(p.video) + '" target="_blank" rel="noopener">▶ Watch the reel</a> ' : '') +
+            (p.github ? '<a class="chip-link" href="' + ESC(p.github) + '" target="_blank" rel="noopener">GitHub</a>' : '') +
+            '</p>' : '') +
+
+          '<section class="detail-section">' +
+            '<h3>What it needs</h3>' +
+            '<div class="io-box"><div class="io-col">' +
+              '<p class="io-label">INPUT</p><ul>' + p.inputs.map(function (i) { return '<li>' + ESC(i) + '</li>'; }).join('') + '</ul>' +
+            '</div><div class="io-col">' +
+              '<p class="io-label">OUTPUT</p><ul>' + p.outputs.map(function (o) { return '<li>' + ESC(o) + '</li>'; }).join('') + '</ul>' +
+            '</div></div>' +
+          '</section>' +
+
+          '<section class="detail-section">' +
+            '<h3>See it work \u2014 a real example</h3>' +
+            '<div class="io-box">' +
+              '<div class="io-col"><p class="io-label">INPUT</p><p style="margin:0;font-size:14.5px">' + ESC(p.exampleIn) + '</p></div>' +
+              '<div class="io-col"><p class="io-label">OUTPUT</p><ul>' + p.exampleOut.map(function (o) { return '<li>' + ESC(o) + '</li>'; }).join('') + '</ul></div>' +
+            '</div>' +
+          '</section>' +
+
+          '<section class="detail-section">' +
+            '<h3>Price \u2014 clear and upfront</h3>' +
+            '<div class="price-tiers">' +
+              tierHTML('Own it', ownPrice, free ? 'Prompts and how-to are yours.' : 'Workflow files + prompts are yours forever.') +
+              tierHTML('Run it', runPriceLabel(p) + ' <small>per run</small>', 'We run it in our cloud and handle the API keys.') +
+            '</div>' +
+          '</section>' +
+
+          '<section class="detail-section">' +
+            '<h3>Two ways to use it</h3>' +
+            '<div class="use-doors">' +
+              doorHTML('\ud83d\udcbb', 'Download', 'Take the workflow + prompts. Run it on your machine forever.') +
+              doorHTML('\ud83d\udd0c', 'API', 'We run it on our cloud; you pay per use, and we handle the keys.') +
+            '</div>' +
+          '</section>' +
+
+          '<section class="detail-section">' +
+            demoBoxHTML(p) +
+          '</section>' +
+
+          '<div class="detail-footer">' +
+            '<button class="button button-primary" type="button" data-action="demo">Try the demo</button>' +
+            '<a class="button button-secondary" href="#waitlist" data-action="buy">' + (free ? 'Download \u2014 Free' : 'Buy \u2014 $' + p.priceOwn) + '</a>' +
+          '</div>';
+      }
+
+      var currentSlug = null;
+      function openDialog(p, focusDemo) {
+        currentSlug = p.slug;
+        lastTrigger = document.activeElement;
+        dialogBody.innerHTML = detailHTML(PRODUCTS[p.slug]);
+        dialog.showModal();
+        if (focusDemo) {
+          var demoBox = dialogBody.querySelector('.demo-box');
+          if (demoBox) {
+            demoBox.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            var first = demoBox.querySelector('input, textarea, select, button');
+            if (first) first.focus({ preventScroll: true });
+          }
+        } else {
+          closeBtn.focus({ preventScroll: true });
+        }
+      }
+
+      feed.addEventListener('click', function (e) {
+        var card = e.target.closest('[data-slug]');
+        if (!card) return;
+        var upvoteBtn = e.target.closest('[data-upvote]');
+        if (upvoteBtn) {
+          e.stopPropagation();
+          toggleVote(upvoteBtn.dataset.upvote);
+          return;
+        }
+        var p = PRODUCTS[card.dataset.slug];
+        var action = e.target.closest('[data-action]');
+        if (action && action.dataset.action === 'demo') { openDialog(p, true); return; }
+        openDialog(p, false);
+      });
+      feed.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('[data-upvote]')) return; // upvote button handles its own keys
+        var card = e.target.closest('[data-slug]');
+        if (!card) return;
+        e.preventDefault();
+        openDialog(PRODUCTS[card.dataset.slug], false);
+      });
+
+      dialogBody.addEventListener('click', function (e) {
+        var upvoteBtn = e.target.closest('[data-upvote]');
+        if (upvoteBtn) {
+          toggleVote(upvoteBtn.dataset.upvote);
+          return;
+        }
+        var buyLink = e.target.closest('[data-action="buy"]');
+        if (buyLink) {
+          if (window.ClerkAuth) e.preventDefault();
+          handleBuy(currentSlug);
+          return;
+        }
+        // Click-to-load reel: build a chrome-free iframe straight from the
+        // shortcode in reelUrl — no Instagram widget chrome. Matches the hero
+        // position (.detail-hero-video) and any legacy box (.detail-video,
+        // which still falls back to the oEmbed blockquote + embed.js).
+        var videoBox = e.target.closest('.detail-hero-video, .detail-video');
+        if (videoBox && !videoBox.dataset.loaded) {
+          e.preventDefault();
+          e.stopPropagation();
+          videoBox.dataset.loaded = '1';
+          var p = PRODUCTS[currentSlug];
+          var reelUrl = (p && p.reelUrl) || videoBox.dataset.reelUrl || '';
+          var sc = /\/reel\/([A-Za-z0-9_-]+)/.exec(reelUrl);
+          if (sc) {
+            videoBox.innerHTML = '<iframe class="reel-frame" src="https://www.instagram.com/reel/' + sc[1] + '/embed/"' +
+              ' title="Instagram reel" allow="autoplay; fullscreen; encrypted-media" allowfullscreen' +
+              ' frameborder="0" scrolling="no"></iframe>';
+          } else if (p && p.embedHtml) {
+            videoBox.innerHTML = p.embedHtml;
+          } else if (videoBox.dataset.reelUrl) {
+            videoBox.innerHTML = '<div class="video-placeholder"><p>Could not load the video right now.</p>' +
+              '<p style="margin-top:2px"><a class="chip-link" href="' + ESC(videoBox.dataset.reelUrl) + '" target="_blank" rel="noopener">Watch it on Instagram ↗</a></p></div>';
+          } else {
+            videoBox.innerHTML = '<div class="video-placeholder"><p>Could not load the video right now.</p></div>';
+          }
+          if (!sc) {
+            // Legacy oEmbed path only: the blockquote needs embed.js to render.
+            if (!window.__igEmbedLoaded) {
+              window.__igEmbedLoaded = true;
+              var s = document.createElement('script');
+              s.src = 'https://www.instagram.com/embed.js';
+              s.async = true;
+              document.body.appendChild(s);
+            } else if (window.instgrm) {
+              window.instgrm.Embeds.process();
+            }
+          }
+          return;
+        }
+        var demoLink = e.target.closest('[data-open-demo]');
+        if (demoLink) {
+          e.preventDefault();
+          openDialog(PRODUCTS[demoLink.dataset.openDemo], true);
+          return;
+        }
+        var action = e.target.closest('[data-action="demo"]');
+        if (action) {
+          var box = dialogBody.querySelector('.demo-box');
+          if (box) {
+            box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            var first = box.querySelector('input, textarea, select, button');
+            if (first) first.focus({ preventScroll: true });
+          }
+        }
+      });
+
+      closeBtn.addEventListener('click', function () { dialog.close(); });
+      dialog.addEventListener('close', function () {
+        if (lastTrigger && typeof lastTrigger.focus === 'function') lastTrigger.focus({ preventScroll: true });
+      });
+      dialog.addEventListener('click', function (e) {
+        if (e.target === dialog) dialog.close();
+      });
+
+      /* ── Buy: sign in first, then pay via Stripe (or simulate) ─ */
+      function markPurchased(slug) {
+        var buyBtn = document.querySelector('.detail-footer [data-action="buy"]');
+        if (buyBtn) {
+          var done = document.createElement('span');
+          done.className = 'button button-primary';
+          done.textContent = 'It\u2019s yours \u2014 check your library.';
+          buyBtn.parentNode.replaceChild(done, buyBtn);
+        }
+      }
+      function buyError(msg) {
+        var footer = document.querySelector('.detail-footer');
+        if (!footer) return;
+        var err = document.createElement('p');
+        err.style.cssText = 'margin:0;width:100%;color:var(--orange);font-size:14px;font-weight:700';
+        err.textContent = msg;
+        footer.appendChild(err);
+      }
+      function handleBuy(slug) {
+        // Clean CTA: sign in first — the purchase lands in their library.
+        if (window.ClerkAuth && !ClerkAuth.isSignedIn()) {
+          pendingBuySlug = slug;
+          ClerkAuth.signIn();
+          return;
+        }
+        if (!window.ClerkAuth && !window.StripePay) {
+          // Neither Clerk nor Stripe available: keep the #waitlist fallback.
+          window.location.hash = '#waitlist';
+          return;
+        }
+        var listing = PRODUCTS[slug] || null;
+        var user = window.ClerkAuth ? ClerkAuth.getUser() : null;
+        StripePay.checkout(slug, listing, user, {
+          onSuccess: function () { markPurchased(slug); },
+          onError: function (msg) { buyError(msg); }
+        });
+      }
+
+      /* ── Auth gating (clerk.js) ─────────────────────────────── */
+      // Pending actions resume automatically once the user signs in.
+      var pendingDemoForm = null;
+      var pendingBuySlug = null;
+
+      function openLibrary() {
+        if (!window.ClerkAuth) return;
+        if (ClerkAuth.isSignedIn()) {
+          LibraryView.show();
+        } else {
+          ClerkAuth.signIn();
+        }
+      }
+      var libraryLink = document.getElementById('library-link');
+      if (libraryLink) {
+        libraryLink.addEventListener('click', function (e) {
+          e.preventDefault();
+          openLibrary();
+        });
+      }
+
+      /* ── Demo runner (UGC Script Studio + catalog skills) ────── */
+      dialogBody.addEventListener('submit', function (e) {
+        var form = e.target.closest('[data-demo-form]');
+        if (!form) return;
+        e.preventDefault();
+        var p = PRODUCTS[form.dataset.slug];
+        if (!p) return;
+
+        var status = form.querySelector('[data-demo-status]');
+        // Clean CTA: the first run requires an account. Sign in (Clerk, or
+        // the demo fallback) and the demo re-submits automatically — the
+        // box itself stays identical for signed-in users.
+        if (window.ClerkAuth && !ClerkAuth.isSignedIn()) {
+          pendingDemoForm = form;
+          status.dataset.state = '';
+          status.textContent = 'Create a free account to run the demo \u2014 it\u2019s one tap, then it runs.';
+          ClerkAuth.signIn();
+          return;
+        }
+        var resultBox = form.parentElement.querySelector('[data-demo-result]');
+        var runBtn = form.querySelector('.demo-run');
+        var payload = {};
+        var missing = null;
+        var isGeneric = !p.demo && !!p.workflow;
+
+        if (p.demo) {
+          p.demo.fields.forEach(function (f) {
+            var el = document.getElementById('demo-field-' + f.key);
+            var value = el ? el.value.trim() : '';
+            if (f.type === 'select' && f.key === 'length') value = Number(value);
+            payload[f.key] = value;
+            if (!value && f.type === 'textarea') missing = f.label;
+          });
+        } else if (isGeneric) {
+          payload.slug = p.slug;
+          var sys = p.workflow && p.workflow.steps && p.workflow.steps[0] && p.workflow.steps[0].system;
+          if (sys) payload.system_prompt = sys;
+          payload.fields = {};
+          (p.inputs || []).forEach(function (i) {
+            var sep = i.indexOf(':');
+            var key = sep === -1 ? i.trim() : i.slice(0, sep).trim();
+            var el = document.getElementById('demo-field-' + key);
+            var value = el ? el.value.trim() : '';
+            payload.fields[key] = value;
+            if (!value) missing = key;
+          });
+        } else {
+          return;
+        }
+        if (missing) {
+          status.dataset.state = 'error';
+          status.textContent = 'Add a ' + missing.toLowerCase() + ' to run the demo.';
+          return;
+        }
+
+        var endpoint = p.demo ? p.demo.endpoint : 'https://cognition-demo.pages.dev/api/run';
+        runBtn.disabled = true;
+        runBtn.textContent = isGeneric ? 'Running the demo\u2026' : 'Writing your script\u2026';
+        status.dataset.state = '';
+        status.textContent = '';
+        resultBox.hidden = true;
+        resultBox.innerHTML = '';
+
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (data) { return { status: res.status, data: data }; });
+        }).then(function (res) {
+          if (res.status === 429) {
+            status.dataset.state = 'error';
+            status.textContent = 'Free demo limit reached for today. Buy the workflow or run it by API to keep going.';
+            return;
+          }
+          if (!res.data.ok) {
+            status.dataset.state = 'error';
+            status.textContent = res.data.error || 'The demo could not run. Please try again.';
+            return;
+          }
+          if (p.demo && res.data.script) {
+            resultBox.innerHTML = renderScript(res.data.script);
+          } else {
+            resultBox.innerHTML = renderDemoOutput(res.data.output !== undefined ? res.data.output : res.data);
+          }
+          resultBox.hidden = false;
+          status.textContent = 'Done \u2014 that\u2019s the real helper output.';
+        }).catch(function () {
+          status.dataset.state = 'offline';
+          status.textContent = 'Could not reach the demo server right now. Check your connection and try again \u2014 the rest of the store still works.';
+        }).finally(function () {
+          runBtn.disabled = false;
+          runBtn.textContent = 'Run the demo';
+        });
+      });
+
+      /* ── Resume gated actions once signed in ────────────────── */
+      if (window.ClerkAuth) {
+        ClerkAuth.onAuthChange(function () {
+          if (!ClerkAuth.isSignedIn()) return;
+          if (pendingDemoForm) {
+            var f = pendingDemoForm;
+            pendingDemoForm = null;
+            var ev = document.createEvent('Event');
+            ev.initEvent('submit', true, true);
+            f.dispatchEvent(ev);
+          }
+          if (pendingBuySlug) {
+            var slug = pendingBuySlug;
+            pendingBuySlug = null;
+            // Now signed in: run the real buy flow (Stripe Checkout or the
+            // simulated fallback) exactly like a direct buy click.
+            handleBuy(slug);
+          }
+        });
+      }
+
+      function renderScript(script) {
+        if (!script.hook && !script.cta && !(script.shots && script.shots.length)) {
+          return '<pre class="demo-raw">' + ESC(JSON.stringify(script, null, 2)) + '</pre>';
+        }
+        var html = '';
+        if (script.hook) html += '<p class="demo-hook">\u201c' + ESC(script.hook) + '\u201d</p>';
+        if (Array.isArray(script.shots) && script.shots.length) {
+          html += '<ol class="demo-shots">';
+          script.shots.forEach(function (shot, i) {
+            html += '<li><div class="demo-shot">' + ESC(shot) + '</div>';
+            if (script.captions && script.captions[i]) {
+              html += '<div class="demo-caption"><span>on-screen</span> ' + ESC(script.captions[i]) + '</div>';
+            }
+            html += '</li>';
+          });
+          html += '</ol>';
+        }
+        if (script.cta) html += '<p class="demo-cta"><span>CTA</span>' + ESC(script.cta) + '</p>';
+        return html;
+      }
+
+      function renderDemoOutput(out) {
+        if (out && typeof out === 'object' && !Array.isArray(out)) {
+          var keys = Object.keys(out);
+          var hasArrays = keys.some(function (k) { return Array.isArray(out[k]) && out[k].length; });
+          if (hasArrays) {
+            var html = '';
+            keys.forEach(function (k) {
+              var v = out[k];
+              if (Array.isArray(v) && v.length) {
+                html += '<div class="demo-group"><p class="demo-group-label">' + ESC(k) + '</p><ul class="demo-list">' +
+                  v.map(function (item) { return '<li>' + ESC(typeof item === 'string' ? item : JSON.stringify(item)) + '</li>'; }).join('') +
+                  '</ul></div>';
+              } else if (v !== undefined && v !== null && v !== '') {
+                html += '<div class="demo-group"><p class="demo-group-label">' + ESC(k) + '</p><p class="demo-group-value">' + ESC(typeof v === 'string' ? v : JSON.stringify(v)) + '</p></div>';
+              }
+            });
+            return html;
+          }
+        }
+        return '<pre class="demo-raw">' + ESC(typeof out === 'string' ? out : JSON.stringify(out, null, 2)) + '</pre>';
+      }
+
+      /* ── CTA band buttons ─────────────────────────────────────── */
+      // "View Library" does exactly what the nav "Library" link does:
+      // sign in if needed, then show the buyer's library.
+      var ctaLibraryBtn = document.getElementById('cta-view-library');
+      if (ctaLibraryBtn) {
+        ctaLibraryBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          openLibrary();
+        });
+      }
+      // "Sell Yours" keeps the page's established sell destination — the
+      // #waitlist section — the same anchor the nav/hero "Sell yours"
+      // buttons have always used (href="#waitlist", no JS needed).
+
+      /* ── "Try the demo" links from hero-adjacent CTAs ────────── */
+      document.querySelectorAll('.detail-footer [data-action="demo"]').forEach(function () {});
+    })();
+  </script>
+</body>
+</html>

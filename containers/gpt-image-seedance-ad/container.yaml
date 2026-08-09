@@ -1,0 +1,110 @@
+spec_version: cognition.container/v1
+name: gpt-image-seedance-ad
+slug: gpt-image-seedance-product-ad
+version: 0.1.0
+status: canary
+
+source:
+  kind: repository
+  path: site/ig-more.js
+  listing_slug: gpt-image-seedance-product-ad
+  inspiration_listing_slug: product-image-cinematic-ad-seedance-2-0
+  creator: "@artart.en"
+
+image:
+  base: debian-slim
+  python: "3.12"
+  builder: uv_pip_install
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - openai==2.36.0
+    - jsonschema==4.26.0
+  development_packages:
+    - pytest==8.4.0
+
+gpu: A10G
+resources:
+  cpu: 0.25
+  memory_mb: 1024
+  timeout_seconds: 300
+  min_containers: 0
+  max_containers: 10
+  scaledown_window_seconds: 2
+
+endpoint:
+  mode: synchronous
+  auth: modal_proxy_token
+  run_path: /v1/run
+  success_status: 200
+  invalid_input_status: 422
+
+secret_name: cognition-gpt-image-seedance-ad
+env_keys:
+  - LLM_API_KEY
+  - LLM_BASE_URL
+  - LLM_MODEL
+  - OPENAI_API_KEY # optional image API key; not used by the Modal-GPU path
+
+egress_allowlist:
+  - configured_llm_base_url_host
+
+input_schema: schemas/input.json
+
+steps:
+  - id: ad-concept
+    type: llm
+    role: plan
+    provider: openai-compatible
+    model: "${LLM_MODEL:-deepseek-v4-flash}"
+    system_prompt: prompts/concept.txt
+    params:
+      max_output_tokens: 500
+      temperature: 0.2
+    input_bindings:
+      product_description: $.input.product_description
+      style_hint: $.input.style_hint
+      aspect: $.input.aspect
+    output_binding: $.result.concept
+    output_schema_ref: schemas/output.json#/properties/concept
+
+  - id: image-gen
+    type: api
+    provider: MODAL-GPU
+    operation: in-container.image.generate
+    runtime_function: generate_images_gpu
+    gpu: A10G
+    depends_on: [ad-concept]
+    input_bindings:
+      prompt_text: $.steps.ad-concept.output.prompt_text
+      aspect: $.input.aspect
+    output_binding: $.result.images
+    output_schema_ref: schemas/output.json#/properties/images
+    canary:
+      mode: MOCK
+      external_image_api_calls: false
+      note: Placeholder URLs are computed inside the GPU Function until Day 3.
+    cost_buckets:
+      - {name: openai_image, quantity: 3}
+      - {name: modal_gpu_30s, quantity: 2}
+
+output_schema: schemas/output.json
+
+cost:
+  catalog_estimated_cost_usd: 0.2202
+  response_estimated_cost_usd: 0.22
+  buyer_run_price_usd: 1.10
+  markup_multiple: 5
+  notes:
+    - Catalog accounting includes three openai_image buckets and two modal_gpu_30s buckets.
+    - The canary performs zero external image API calls; its image step runs in an A10G Modal container and emits MOCK URLs.
+    - Day 3 replaces the MOCK body with a reviewed in-container image model and records actual GPU seconds.
+
+tests:
+  cases: tests/cases.json
+  contract: tests/test_contract.py
+
+budget:
+  max_estimated_cost_usd: 0.25
+  max_provider_retries: 0
+  max_total_steps: 2

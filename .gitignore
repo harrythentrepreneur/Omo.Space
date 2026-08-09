@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Vercel
+.vercel/
+
+# Node
+node_modules/
+
+# Env / secrets — NEVER commit real keys
+.env
+.env.*
+!.env.example
+*.pem
+
+# OS
+.DS_Store
+
+# Local server logs
+*.log

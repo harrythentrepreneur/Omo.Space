@@ -1,0 +1,4 @@
+Write short on-screen captions for a UGC video.
+Return exactly {"captions": ["one short caption per script line"]}.
+captions must be a flat string array with the same length as script.lines.
+Output JSON only; no markdown or commentary.

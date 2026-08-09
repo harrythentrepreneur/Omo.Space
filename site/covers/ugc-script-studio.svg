@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-label="UGC Script Studio cover">
+  <rect width="1200" height="675" fill="#F2F6F1"/>
+  <!-- kitchen table -->
+  <rect x="0" y="430" width="1200" height="245" fill="#FFFFFF"/>
+  <line x1="0" y1="430" x2="1200" y2="430" stroke="#D9E2DC" stroke-width="3"/>
+  <!-- window light -->
+  <rect x="70" y="60" width="300" height="260" rx="14" fill="#FFFFFF" stroke="#17352C" stroke-width="6"/>
+  <line x1="220" y1="60" x2="220" y2="320" stroke="#D9E2DC" stroke-width="5"/>
+  <line x1="70" y1="190" x2="370" y2="190" stroke="#D9E2DC" stroke-width="5"/>
+  <!-- sun -->
+  <circle cx="150" cy="130" r="34" fill="#BDEFD4"/>
+  <!-- hand + phone recording -->
+  <g transform="translate(520,240)">
+    <!-- arm -->
+    <path d="M60 260 Q 30 180 70 120" stroke="#17352C" stroke-width="26" fill="none" stroke-linecap="round"/>
+    <!-- hand -->
+    <ellipse cx="95" cy="110" rx="34" ry="26" fill="#17352C"/>
+    <!-- phone -->
+    <rect x="120" y="40" width="150" height="280" rx="24" fill="#17352C"/>
+    <rect x="132" y="52" width="126" height="220" rx="12" fill="#BDEFD4"/>
+    <!-- camera dot -->
+    <circle cx="262" cy="66" r="6" fill="#FF6B3D"/>
+    <!-- frame on screen: product bottle -->
+    <rect x="152" y="150" width="52" height="96" rx="10" fill="#FFFFFF"/>
+    <rect x="176" y="120" width="22" height="40" rx="6" fill="#FFFFFF"/>
+    <!-- small red dot = recording -->
+    <circle cx="268" cy="300" r="8" fill="#FF6B3D"/>
+  </g>
+  <!-- product bottle on table -->
+  <g transform="translate(820,300)">
+    <rect x="40" y="60" width="90" height="150" rx="18" fill="#17352C"/>
+    <rect x="70" y="30" width="30" height="44" rx="8" fill="#17352C"/>
+    <rect x="52" y="110" width="66" height="60" rx="8" fill="#BDEFD4"/>
+  </g>
+  <!-- subtle camera-frame motif -->
+  <rect x="330" y="130" width="240" height="180" rx="12" fill="none" stroke="#BDEFD4" stroke-width="5"/>
+  <rect x="345" y="145" width="210" height="150" rx="8" fill="none" stroke="#6F7E77" stroke-width="3" stroke-dasharray="10 8"/>
+  <!-- play accent -->
+  <polygon points="980,470 980,560 1060,515" fill="#FF6B3D"/>
+  <!-- negative space shapes -->
+  <circle cx="1100" cy="120" r="46" fill="#BDEFD4"/>
+  <rect x="60" y="540" width="120" height="16" rx="8" fill="#D9E2DC"/>
+  <rect x="60" y="570" width="200" height="16" rx="8" fill="#D9E2DC"/>
+</svg>

@@ -1,0 +1,218 @@
+{
+  "happy_paths": [
+    {
+      "id": "silk-pillowcase-30s",
+      "input": {
+        "product_description": "A $60 pure silk pillowcase that feels cool, is described by the brand as hypoallergenic, and includes a 30-day trial.",
+        "brand_voice": "raw",
+        "length_seconds": 30,
+        "avatar_id": "avatar_canary_01",
+        "voice_id": "voice_canary_01"
+      },
+      "script": {
+        "hook": "I thought a $60 pillowcase was ridiculous.",
+        "lines": [
+          "Then I tried this pure silk pillowcase.",
+          "It feels cool, and the brand describes it as hypoallergenic.",
+          "There is a 30-day trial, so you can judge it for yourself."
+        ],
+        "cta": "Try it for 30 days and decide for yourself."
+      },
+      "captions": {
+        "captions": [
+          "pure silk test",
+          "cool feel",
+          "30-day trial"
+        ]
+      },
+      "output": {
+        "run_id": "fixture-silk-pillowcase-30s",
+        "status": "completed",
+        "workflow_version": "ugc-heygen@0.1.0",
+        "script": {
+          "hook": "I thought a $60 pillowcase was ridiculous.",
+          "lines": [
+            "Then I tried this pure silk pillowcase.",
+            "It feels cool, and the brand describes it as hypoallergenic.",
+            "There is a 30-day trial, so you can judge it for yourself."
+          ],
+          "cta": "Try it for 30 days and decide for yourself."
+        },
+        "captions": ["pure silk test", "cool feel", "30-day trial"],
+        "video": null,
+        "usage": {
+          "estimated_cost_usd": 0.00045,
+          "buyer_run_price_usd": 0.1
+        },
+        "note": "Video rendering is disabled in the Day-1 canary (render_video=false)."
+      }
+    },
+    {
+      "id": "protein-powder-15s",
+      "input": {
+        "product_description": "A vanilla plant protein powder with 20 grams of protein per serving, made without artificial sweeteners.",
+        "brand_voice": "honest",
+        "length_seconds": 15,
+        "avatar_id": "avatar_canary_02",
+        "voice_id": "voice_canary_02"
+      },
+      "script": {
+        "hook": "Here is the honest version of my protein routine.",
+        "lines": [
+          "This vanilla plant protein has 20 grams of protein per serving.",
+          "It is made without artificial sweeteners."
+        ],
+        "cta": "Check the label and see if it fits your routine."
+      },
+      "captions": {
+        "captions": ["20g plant protein", "no artificial sweeteners"]
+      },
+      "output": {
+        "run_id": "fixture-protein-powder-15s",
+        "status": "completed",
+        "workflow_version": "ugc-heygen@0.1.0",
+        "script": {
+          "hook": "Here is the honest version of my protein routine.",
+          "lines": [
+            "This vanilla plant protein has 20 grams of protein per serving.",
+            "It is made without artificial sweeteners."
+          ],
+          "cta": "Check the label and see if it fits your routine."
+        },
+        "captions": ["20g plant protein", "no artificial sweeteners"],
+        "video": null,
+        "usage": {
+          "estimated_cost_usd": 0.00045,
+          "buyer_run_price_usd": 0.1
+        },
+        "note": "Video rendering is disabled in the Day-1 canary (render_video=false)."
+      }
+    },
+    {
+      "id": "dtc-skincare-60s",
+      "input": {
+        "product_description": "A direct-to-consumer fragrance-free face moisturizer with ceramides and squalane, packaged in a refillable glass jar.",
+        "brand_voice": "luxury",
+        "length_seconds": 60,
+        "avatar_id": "avatar_canary_03",
+        "voice_id": "voice_canary_03"
+      },
+      "script": {
+        "hook": "A quiet luxury upgrade for a simple skincare ritual.",
+        "lines": [
+          "This fragrance-free face moisturizer keeps the formula focused.",
+          "It is made with ceramides and squalane.",
+          "The texture belongs in an uncomplicated daily routine.",
+          "The refillable glass jar gives the shelf a considered look.",
+          "No dramatic promises, just the product details that matter."
+        ],
+        "cta": "Explore the formula and decide whether it belongs in your ritual."
+      },
+      "captions": {
+        "captions": [
+          "fragrance-free",
+          "ceramides + squalane",
+          "simple daily ritual",
+          "refillable glass jar",
+          "details over hype"
+        ]
+      },
+      "output": {
+        "run_id": "fixture-dtc-skincare-60s",
+        "status": "completed",
+        "workflow_version": "ugc-heygen@0.1.0",
+        "script": {
+          "hook": "A quiet luxury upgrade for a simple skincare ritual.",
+          "lines": [
+            "This fragrance-free face moisturizer keeps the formula focused.",
+            "It is made with ceramides and squalane.",
+            "The texture belongs in an uncomplicated daily routine.",
+            "The refillable glass jar gives the shelf a considered look.",
+            "No dramatic promises, just the product details that matter."
+          ],
+          "cta": "Explore the formula and decide whether it belongs in your ritual."
+        },
+        "captions": [
+          "fragrance-free",
+          "ceramides + squalane",
+          "simple daily ritual",
+          "refillable glass jar",
+          "details over hype"
+        ],
+        "video": null,
+        "usage": {
+          "estimated_cost_usd": 0.00045,
+          "buyer_run_price_usd": 0.1
+        },
+        "note": "Video rendering is disabled in the Day-1 canary (render_video=false)."
+      }
+    }
+  ],
+  "negative_cases": [
+    {
+      "id": "missing-field",
+      "reason": "voice_id is required",
+      "input": {
+        "product_description": "A compact travel mug with a locking lid.",
+        "brand_voice": "honest",
+        "length_seconds": 15,
+        "avatar_id": "avatar_canary_04"
+      }
+    },
+    {
+      "id": "bad-brand-voice-enum",
+      "reason": "brand_voice must be an approved enum value",
+      "input": {
+        "product_description": "A compact travel mug with a locking lid.",
+        "brand_voice": "corporate",
+        "length_seconds": 15,
+        "avatar_id": "avatar_canary_04",
+        "voice_id": "voice_canary_04"
+      }
+    },
+    {
+      "id": "unsupported-length",
+      "reason": "length_seconds must be one of 15, 30, or 60",
+      "input": {
+        "product_description": "A compact travel mug with a locking lid.",
+        "brand_voice": "honest",
+        "length_seconds": 45,
+        "avatar_id": "avatar_canary_04",
+        "voice_id": "voice_canary_04"
+      }
+    },
+    {
+      "id": "empty-product-description",
+      "reason": "product_description cannot be empty",
+      "input": {
+        "product_description": "",
+        "brand_voice": "honest",
+        "length_seconds": 15,
+        "avatar_id": "avatar_canary_04",
+        "voice_id": "voice_canary_04"
+      }
+    },
+    {
+      "id": "oversized-product-description",
+      "reason": "product_description cannot exceed 2000 characters",
+      "input": {
+        "product_description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "brand_voice": "honest",
+        "length_seconds": 15,
+        "avatar_id": "avatar_canary_04",
+        "voice_id": "voice_canary_04"
+      }
+    },
+    {
+      "id": "wrong-types",
+      "reason": "all fields must use their documented JSON types",
+      "input": {
+        "product_description": ["not", "a", "string"],
+        "brand_voice": 7,
+        "length_seconds": "30",
+        "avatar_id": false,
+        "voice_id": ["voice_canary_04"]
+      }
+    }
+  ]
+}
