@@ -9,7 +9,7 @@
 //                                         (cost-model run price) and 402s when short
 //   POST /api/checkout                 → Stripe Checkout session {slug, priceUsd, email?}
 //   GET/POST /api/me?user_id=…         → {balance, api_key, currency, runs} for the dashboard
-//   POST /api/topup                    → Stripe Checkout for credit top-ups {user_id, amount_usd}
+//   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $10 signup grant
 //
 // Env vars (set in Cloudflare dashboard / wrangler secret):
@@ -21,6 +21,8 @@
 //                       storefront simulates. Never logged or echoed.
 //   CLERK_WEBHOOK_SECRET — Svix signing secret from the Clerk dashboard; when
 //                       set, /api/clerk-webhook verifies the signature.
+//   STRIPE_WEBHOOK_SECRET — signing secret for checkout.session.completed
+//                       deliveries sent to /api/topup.
 //   BALANCE_KEY_SECRET — optional extra entropy for deterministic API keys;
 //                       falls back to LLM_API_KEY, then a dev constant.
 //   SIGNUP_GRANT_USD  — optional override of the $10 signup grant (tests).
@@ -148,7 +150,11 @@ export default {
     if (!methods.includes(request.method)) {
       return json({ error: 'Method not allowed', methods }, 405, cors());
     }
-    return route.handler(request, env, url);
+    try {
+      return await route.handler(request, env, url);
+    } catch (e) {
+      return json({ error: 'internal_error' }, 500, cors());
+    }
   },
 };
 
@@ -305,12 +311,16 @@ async function handleGenericRun(request, env) {
 
   // Paid path: check + reserve the run price before spending LLM budget.
   let billing = null;
+  let reservedCents = 0;
+  let balanceAfterDebit = 0;
   let costUsd = 0;
   if (userId) {
     billing = (await getUserRecord(env, userId)).record;
     costUsd = runPrice(llmWorkflow(systemPrompt, maxTokens));
-    const check = debitForRun(billing.balance_cents / 100, costUsd);
-    if (!check.ok) {
+    reservedCents = Math.round(costUsd * 100);
+    const reservation = await reserveRunCredits(env, userId, reservedCents);
+    if (!reservation.ok) {
+      const check = debitForRun(reservation.balance_cents / 100, costUsd);
       return json({
         error: 'insufficient_balance',
         balance: check.balance,
@@ -319,6 +329,7 @@ async function handleGenericRun(request, env) {
         topup_url: '/dashboard.html',
       }, 402, cors());
     }
+    balanceAfterDebit = reservation.balance_cents;
   }
 
   // Anonymous runs stay capped per IP; paid runs skip the free-demo cap.
@@ -330,22 +341,23 @@ async function handleGenericRun(request, env) {
 
   try {
     const llm = await callLLM(env, systemPrompt, userPrompt, maxTokens);
-    if (llm.error) return json({ error: llm.error }, 502, cors());
+    if (llm.error) {
+      if (billing) await refundRunCredits(env, userId, reservedCents);
+      return json({ error: llm.error }, 502, cors());
+    }
     const parsed = stripJson(llm.content);
     await capBump(env, cap.key, cap.used);
     if (billing) {
-      // Debit only on success (the buyer paid for a result, not a 502).
-      const nextCents = Math.max(0, Math.round((billing.balance_cents / 100 - costUsd) * 100));
-      await setBalanceCents(env, userId, nextCents);
-      await addRun(env, userId, slug, Math.round(costUsd * 100));
+      await addRun(env, userId, slug, reservedCents);
       return json({
         ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content,
-        cost_usd: costUsd, balance: +(nextCents / 100).toFixed(2),
+        cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
       }, 200, cors());
     }
     return json({ ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content }, 200, cors());
   } catch (e) {
-    return json({ error: String(e.message || e) }, 500, cors());
+    if (billing) await refundRunCredits(env, userId, reservedCents);
+    return json({ error: 'run_failed' }, 500, cors());
   }
 }
 
@@ -359,7 +371,7 @@ async function handleCheckout(request, env) {
   try { body = await request.json(); } catch { body = {}; }
   const slug = String(body.slug || '').trim();
   const priceUsd = Number(body.priceUsd);
-  if (!slug || !isFinite(priceUsd) || priceUsd < 0) {
+  if (!slug || !isFinite(priceUsd) || priceUsd <= 0) {
     return json({ error: 'Send slug and priceUsd.' }, 400, cors());
   }
 
@@ -440,16 +452,20 @@ async function handleMe(request, env, url) {
 // ── Route: credit top-up ───────────────────────────────────────────────────
 // Body: { user_id, amount_usd } → Stripe Checkout Session for a credits
 // top-up; returns { url } when STRIPE_SECRET_KEY is set, else 501 (the
-// dashboard then simulates the top-up in mock mode). The user is provisioned
-// first so credits land on a real account row.
+// dashboard then simulates the top-up in mock mode). Signed Stripe webhook
+// deliveries to this endpoint apply paid credits exactly once.
 
 async function handleTopup(request, env) {
+  if (request.headers.get('stripe-signature')) {
+    return handleStripeTopupWebhook(request, env);
+  }
+
   let body;
   try { body = await request.json(); } catch { body = {}; }
   const userId = String(body.user_id || '').trim();
   const amountUsd = Number(body.amount_usd);
-  if (!userId || !isFinite(amountUsd) || amountUsd <= 0 || amountUsd > 1000) {
-    return json({ error: 'Send user_id and amount_usd (positive, up to $1000).' }, 400, cors());
+  if (!userId || !topupAmounts().includes(amountUsd)) {
+    return json({ error: `Send user_id and amount_usd (${topupAmounts().join(', ')}).` }, 400, cors());
   }
 
   const secretKey = env.STRIPE_SECRET_KEY;
@@ -463,13 +479,14 @@ async function handleTopup(request, env) {
   const params = new URLSearchParams();
   params.set('mode', 'payment');
   params.set('success_url', 'https://omo.best/dashboard.html?topup=success');
-  params.set('cancel_url', 'https://omo.best/dashboard.html');
+  params.set('cancel_url', 'https://omo.best/dashboard.html?topup=cancelled');
   params.set('client_reference_id', userId);
   params.set('metadata[user_id]', userId);
   params.set('metadata[type]', 'credits_topup');
+  params.set('metadata[amount_cents]', String(cents));
   params.set('line_items[0][quantity]', '1');
   params.set('line_items[0][price_data][currency]', 'usd');
-  params.set('line_items[0][price_data][product_data][name]', `Omo credits — $${amountUsd}`);
+  params.set('line_items[0][price_data][product_data][name]', 'Omo credits');
   params.set('line_items[0][price_data][unit_amount]', String(cents));
 
   try {
@@ -492,6 +509,49 @@ async function handleTopup(request, env) {
   } catch (e) {
     return json({ error: 'stripe unavailable' }, 502, cors());
   }
+}
+
+// Stripe sends checkout.session.completed to this same endpoint. A signed,
+// paid credits session is applied exactly once, then /api/me reflects it.
+async function handleStripeTopupWebhook(request, env) {
+  if (!env.STRIPE_WEBHOOK_SECRET) {
+    return json({ error: 'stripe webhook not configured' }, 501, cors());
+  }
+
+  let raw;
+  try { raw = await request.text(); } catch { raw = ''; }
+  if (!(await verifyStripeSignature(request.headers, raw, env.STRIPE_WEBHOOK_SECRET))) {
+    return json({ error: 'invalid signature' }, 401, cors());
+  }
+
+  let event;
+  try { event = JSON.parse(raw); } catch {
+    return json({ error: 'invalid json' }, 400, cors());
+  }
+  if (event.type !== 'checkout.session.completed') {
+    return json({ ok: true, ignored: true }, 200, cors());
+  }
+
+  const session = event.data && event.data.object;
+  const metadata = session && session.metadata;
+  const userId = String((metadata && metadata.user_id) || (session && session.client_reference_id) || '').trim();
+  const amountCents = Number(session && session.amount_total);
+  if (!session || session.payment_status !== 'paid' || !session.id || !userId ||
+      !metadata || metadata.type !== 'credits_topup' || Number(metadata.amount_cents) !== amountCents ||
+      !Number.isInteger(amountCents) || amountCents <= 0) {
+    return json({ ok: true, ignored: true }, 200, cors());
+  }
+
+  await getUserRecord(env, userId);
+  const applied = await creditTopup(env, session.id, userId, amountCents);
+  const { record } = await getUserRecord(env, userId);
+  return json({
+    ok: true,
+    applied,
+    user_id: userId,
+    balance: (record.balance_cents / 100).toFixed(2),
+    balance_cents: record.balance_cents,
+  }, 200, cors());
 }
 
 // ── Route: Clerk webhook ───────────────────────────────────────────────────
@@ -538,6 +598,7 @@ async function handleClerkWebhook(request, env) {
 
 const mockUsers = new Map(); // user_id → { balance_cents, api_key, created_at }
 const mockRuns = new Map();  // user_id → [{slug, cost_cents, created_at}]
+const mockTopups = new Set(); // Stripe Checkout session ids already credited
 
 function balanceSecret(env) {
   return env.BALANCE_KEY_SECRET || env.LLM_API_KEY || 'omo-dev-secret';
@@ -560,13 +621,16 @@ async function getUserRecord(env, userId) {
       .prepare('SELECT balance_cents, api_key, created_at FROM users WHERE user_id = ?')
       .bind(userId).first();
     if (existing) return { record: existing, created: false };
-    await env.BALANCE_DB
+    const insert = await env.BALANCE_DB
       .prepare('INSERT OR IGNORE INTO users (user_id, balance_cents, api_key, created_at) VALUES (?, ?, ?, ?)')
       .bind(userId, signupGrantCents(env), apiKey, now).run();
     const row = await env.BALANCE_DB
       .prepare('SELECT balance_cents, api_key, created_at FROM users WHERE user_id = ?')
       .bind(userId).first();
-    return { record: row || { balance_cents: signupGrantCents(env), api_key: apiKey, created_at: now }, created: true };
+    return {
+      record: row || { balance_cents: signupGrantCents(env), api_key: apiKey, created_at: now },
+      created: !!(insert.meta && insert.meta.changes),
+    };
   }
 
   if (!mockUsers.has(userId)) {
@@ -576,15 +640,55 @@ async function getUserRecord(env, userId) {
   return { record: mockUsers.get(userId), created: false };
 }
 
-async function setBalanceCents(env, userId, cents) {
+async function reserveRunCredits(env, userId, costCents) {
+  if (env.BALANCE_DB) {
+    const result = await env.BALANCE_DB
+      .prepare('UPDATE users SET balance_cents = balance_cents - ? WHERE user_id = ? AND balance_cents >= ?')
+      .bind(costCents, userId, costCents).run();
+    const { record } = await getUserRecord(env, userId);
+    return { ok: !!(result.meta && result.meta.changes), balance_cents: record.balance_cents };
+  }
+  const rec = mockUsers.get(userId);
+  if (!rec || rec.balance_cents < costCents) {
+    return { ok: false, balance_cents: rec ? rec.balance_cents : 0 };
+  }
+  rec.balance_cents -= costCents;
+  return { ok: true, balance_cents: rec.balance_cents };
+}
+
+async function refundRunCredits(env, userId, costCents) {
+  if (!costCents) return;
   if (env.BALANCE_DB) {
     await env.BALANCE_DB
-      .prepare('UPDATE users SET balance_cents = ? WHERE user_id = ?')
-      .bind(cents, userId).run();
+      .prepare('UPDATE users SET balance_cents = balance_cents + ? WHERE user_id = ?')
+      .bind(costCents, userId).run();
     return;
   }
   const rec = mockUsers.get(userId);
-  if (rec) rec.balance_cents = cents;
+  if (rec) rec.balance_cents += costCents;
+}
+
+async function creditTopup(env, sessionId, userId, amountCents) {
+  if (env.BALANCE_DB) {
+    const now = new Date().toISOString();
+    const results = await env.BALANCE_DB.batch([
+      env.BALANCE_DB
+        .prepare('INSERT OR IGNORE INTO stripe_topups (session_id, user_id, amount_cents, applied, created_at) VALUES (?, ?, ?, 0, ?)')
+        .bind(sessionId, userId, amountCents, now),
+      env.BALANCE_DB
+        .prepare('UPDATE users SET balance_cents = balance_cents + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM stripe_topups WHERE session_id = ? AND user_id = ? AND amount_cents = ? AND applied = 0)')
+        .bind(amountCents, userId, sessionId, userId, amountCents),
+      env.BALANCE_DB
+        .prepare('UPDATE stripe_topups SET applied = 1 WHERE session_id = ? AND user_id = ? AND amount_cents = ? AND applied = 0')
+        .bind(sessionId, userId, amountCents),
+    ]);
+    return !!(results[1] && results[1].meta && results[1].meta.changes);
+  }
+  if (mockTopups.has(sessionId)) return false;
+  mockTopups.add(sessionId);
+  const rec = mockUsers.get(userId);
+  if (rec) rec.balance_cents += amountCents;
+  return true;
 }
 
 async function addRun(env, userId, slug, costCents) {
@@ -611,7 +715,7 @@ async function listRuns(env, userId, limit) {
 }
 
 // ── Clerk (Svix) webhook signature verification ────────────────────────────
-// Signature header: v1,<hex>,…  — verify any v1 entry over
+// Signature header: space-separated v1,<base64> entries over
 // `${svix-id}.${svix-timestamp}.${rawBody}` with HMAC-SHA256.
 
 async function verifySvix(headers, rawBody, secret) {
@@ -625,17 +729,69 @@ async function verifySvix(headers, rawBody, secret) {
     const tsNum = Number(ts);
     if (!isFinite(tsNum) || Math.abs(nowSec - tsNum) > 300) return false; // ±5 min
 
-    if (typeof crypto === 'undefined' || !crypto.subtle) return false;
-    const key = await crypto.subtle.importKey(
-      'raw', new TextEncoder().encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
-    );
-    const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${id}.${ts}.${rawBody}`));
-    const hex = Array.from(new Uint8Array(mac)).map((b) => b.toString(16).padStart(2, '0')).join('');
-    return sig.split(',').filter((p) => p.startsWith('v1,')).map((p) => p.slice(3)).includes(hex);
+    const encodedSecret = String(secret).startsWith('whsec_') ? String(secret).slice(6) : String(secret);
+    const keyBytes = base64Bytes(encodedSecret);
+    const mac = await hmacSha256(keyBytes, `${id}.${ts}.${rawBody}`);
+    const expected = bytesToBase64(mac);
+    return sig.split(/\s+/).some((part) => {
+      const comma = part.indexOf(',');
+      return comma > 0 && part.slice(0, comma) === 'v1' && timingSafeEqual(part.slice(comma + 1), expected);
+    });
   } catch (e) {
     return false;
   }
+}
+
+// Stripe signature: t=<unix>,v1=<hex> over `${t}.${rawBody}`.
+async function verifyStripeSignature(headers, rawBody, secret) {
+  try {
+    const header = headers.get('stripe-signature');
+    if (!header) return false;
+    let timestamp = '';
+    const signatures = [];
+    header.split(',').forEach((part) => {
+      const pair = part.split('=');
+      if (pair[0] === 't') timestamp = pair.slice(1).join('=');
+      if (pair[0] === 'v1') signatures.push(pair.slice(1).join('='));
+    });
+    const tsNum = Number(timestamp);
+    if (!timestamp || !isFinite(tsNum) || Math.abs(Math.floor(Date.now() / 1000) - tsNum) > 300) return false;
+    const mac = await hmacSha256(new TextEncoder().encode(secret), `${timestamp}.${rawBody}`);
+    const expected = bytesToHex(mac);
+    return signatures.some((signature) => timingSafeEqual(signature, expected));
+  } catch (e) {
+    return false;
+  }
+}
+
+async function hmacSha256(keyBytes, message) {
+  if (typeof crypto === 'undefined' || !crypto.subtle) throw new Error('crypto unavailable');
+  const key = await crypto.subtle.importKey(
+    'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message)));
+}
+
+function base64Bytes(value) {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function timingSafeEqual(left, right) {
+  if (left.length !== right.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < left.length; i++) mismatch |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return mismatch === 0;
 }
 
 // ── Shared helpers ─────────────────────────────────────────────────────────

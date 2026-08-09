@@ -857,38 +857,15 @@
     <div class="dialog-body" id="dialog-body"></div>
   </dialog>
 
-    <script src="ig-workflows.js"></script>
+  <script src="ig-workflows.js"></script>
   <script src="ig-more.js"></script>
+  <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="library.js"></script>
   <script src="stripe.js"></script>
   <script>
     (function () {
       'use strict';
-
-      /* ── Clerk auth ─────────────────────────────────────────── */
-      // Replace this placeholder with your real Clerk publishable key
-      // (Clerk Dashboard → API Keys → Publishable key), e.g.
-      // 'pk_test_xxxxxxxxxxxxxxxx'. While the placeholder is set, clerk.js
-      // runs in demo mode: "signing in" fakes a local user in localStorage
-      // (cognition_user) so the whole auth + library flow works with zero
-      // Clerk credentials — swap the key and demo mode switches off.
-      window.CLERK_PUBLISHABLE_KEY = 'pk_test_placeholder';
-
-      /* ── Stripe payments ────────────────────────────────────── */
-      // Replace this placeholder with your real Stripe publishable key
-      // (Stripe Dashboard → Developers → API keys → Publishable key), e.g.
-      // 'pk_test_51xxxxxxxxxxxxxxxx'. Test mode is free. While the placeholder
-      // is set, stripe.js runs in simulated mode: buying records the purchase
-      // locally instead of charging a card — swap the key (and set the
-      // worker's STRIPE_SECRET_KEY) and buying goes to real Stripe Checkout.
-      window.STRIPE_PUBLISHABLE_KEY = 'pk_test_placeholder';
-
-      /* ── Omo worker API base ─────────────────────────────────── */
-      // The demo worker (https://cognition-demo.pages.dev is the placeholder;
-      // swap in the real deployed worker, e.g. 'https://demo.omo.best').
-      // Empty = same-origin /api/*. The dashboard reads this too.
-      window.OMO_API_BASE = '';
 
       /* ── Rotating hero tool name ────────────────────────────── */
       var rotatingTool = document.getElementById('rotating-tool');

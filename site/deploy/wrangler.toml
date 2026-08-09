@@ -32,7 +32,6 @@ compatibility_date = "2026-08-01"
 # Optional: per-IP daily caps need a KV namespace (without it the worker runs uncapped).
 #   1. wrangler kv namespace create BENCH_KV
 #   2. paste the returned id below, then uncomment.
-# [kv_namespaces]
 # [[kv_namespaces]]
 # binding = "BENCH_KV"
 # id = "PASTE_NAMESPACE_ID_HERE"
@@ -44,7 +43,6 @@ compatibility_date = "2026-08-01"
 # Without this binding the worker runs in MOCK mode: an in-memory Map gives
 # every user $10 and a deterministic 'omo_' key, so tests and local dev work
 # with zero infra. In real mode the binding name must be BALANCE_DB.
-# [d1_databases]
 # [[d1_databases]]
 # binding = "BALANCE_DB"
 # database_name = "omo-balances"

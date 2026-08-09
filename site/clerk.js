@@ -1,76 +1,49 @@
-/* clerk.js — Clerk auth for the Omo storefront, with a demo fallback.
+/* clerk.js — Clerk auth for the Omo storefront, with a local demo fallback.
  *
- * How it works:
- *  - Reads the publishable key from window.CLERK_PUBLISHABLE_KEY (set in
- *    index.html). While the key is the placeholder, or the page is opened
- *    from file://, or Clerk fails to load, the store runs in DEMO MODE:
- *    "signing in" fakes a local user in localStorage (cognition_user) so the
- *    whole flow is testable with zero Clerk credentials.
- *  - With a real key on http(s), loads https://cdn.clerk.com/v1/clerk.browser.js
- *    and drives the real Clerk modal + session. signIn() opens the sign-in
- *    modal (which includes the sign-up path); signUp() opens sign-up directly.
- *
- * Exposes window.ClerkAuth = { isSignedIn, signIn, signOut, signUp, getUser, onAuthChange }.
+ * Exposes window.ClerkAuth =
+ *   { isSignedIn, signIn, signOut, signUp, getUser, onAuthChange }.
  */
 (function () {
   'use strict';
 
   var PLACEHOLDER = 'pk_test_placeholder';
   var USER_KEY = 'cognition_user';
-
   var realClerk = null;
-  var realReady = false;
-  var clerkFailed = false;
-  var pendingSignIn = false;
+  var loadPromise = null;
+  var pendingModal = '';
   var listeners = [];
 
   function getKey() {
     return (window.CLERK_PUBLISHABLE_KEY || '').trim() || PLACEHOLDER;
   }
 
-  function isPlaceholderKey() {
-    var k = getKey();
-    // Any key containing 'placeholder' (pk_test_placeholder, pk_live_placeholder,
-    // or a partially-pasted one) counts as "not configured yet" → demo mode.
-    return !k || k === PLACEHOLDER || k.toLowerCase().indexOf('placeholder') !== -1;
-  }
-
-  function isFileProtocol() {
-    return window.location && window.location.protocol === 'file:';
+  function isRealKey() {
+    var key = getKey();
+    return key !== PLACEHOLDER && /^pk_(test|live)_/.test(key);
   }
 
   function demoMode() {
-    return isFileProtocol() || isPlaceholderKey() || clerkFailed;
+    return (window.location && window.location.protocol === 'file:') || !isRealKey();
   }
 
   function loadUser() {
     try {
       var raw = localStorage.getItem(USER_KEY);
-      if (!raw) return null;
-      var u = JSON.parse(raw);
-      return u && u.id ? u : null;
+      var user = raw ? JSON.parse(raw) : null;
+      return user && user.id ? user : null;
     } catch (e) { return null; }
   }
 
-  function saveUser(u) {
-    try { localStorage.setItem(USER_KEY, JSON.stringify(u)); } catch (e) {}
-  }
-
-  function clearUser() {
-    try { localStorage.removeItem(USER_KEY); } catch (e) {}
-  }
-
   function fire() {
-    var cbs = listeners.slice();
-    cbs.forEach(function (cb) {
-      try { cb(); } catch (e) {}
+    listeners.slice().forEach(function (callback) {
+      try { callback(); } catch (e) {}
     });
   }
 
   function demoSignIn() {
-    var u = loadUser();
-    if (!u) {
-      u = {
+    var user = loadUser();
+    if (!user) {
+      user = {
         id: 'demo-' + Math.random().toString(36).slice(2, 10),
         email: 'demo@cognition.cv',
         firstName: 'Demo',
@@ -78,126 +51,108 @@
         username: 'demo-shopper',
         demo: true
       };
-      saveUser(u);
+      try { localStorage.setItem(USER_KEY, JSON.stringify(user)); } catch (e) {}
     }
     fire();
-    return u;
+    return user;
   }
 
   function demoSignOut() {
-    clearUser();
+    try { localStorage.removeItem(USER_KEY); } catch (e) {}
     fire();
   }
 
-  function loadRealClerk() {
-    var s = document.createElement('script');
-    s.src = 'https://cdn.clerk.com/v1/clerk.browser.js';
-    s.async = true;
-    s.onload = function () {
-      try {
-        if (!window.Clerk) throw new Error('Clerk global missing');
-        window.Clerk.load({ publishableKey: getKey() }).then(function () {
-          realClerk = window.Clerk;
-          realReady = true;
-          window.Clerk.addListener(function () { fire(); });
-          if (pendingSignIn) {
-            pendingSignIn = false;
-            realClerk.openSignIn();
-          }
-          fire();
-        }).catch(function () {
-          clerkFailed = true;
-          if (pendingSignIn) { pendingSignIn = false; demoSignIn(); }
-          fire();
-        });
-      } catch (e) {
-        clerkFailed = true;
-        if (pendingSignIn) { pendingSignIn = false; demoSignIn(); }
-        fire();
-      }
-    };
-    s.onerror = function () {
-      clerkFailed = true;
-      if (pendingSignIn) { pendingSignIn = false; demoSignIn(); }
+  function openPendingModal() {
+    if (!realClerk || !pendingModal) return;
+    var kind = pendingModal;
+    pendingModal = '';
+    if (kind === 'signup' && realClerk.openSignUp) realClerk.openSignUp();
+    else realClerk.openSignIn();
+  }
+
+  function initClerk(resolve, reject) {
+    if (!window.Clerk) { reject(new Error('Clerk SDK did not load.')); return; }
+    window.Clerk.load({ publishableKey: getKey() }).then(function () {
+      realClerk = window.Clerk;
+      realClerk.addListener(function () { fire(); });
+      openPendingModal();
       fire();
-    };
-    document.head.appendChild(s);
+      resolve(realClerk);
+    }).catch(reject);
   }
 
-  function shouldLoadReal() {
-    return !isFileProtocol() && !isPlaceholderKey();
-  }
+  function loadRealClerk() {
+    if (demoMode()) return null;
+    if (loadPromise) return loadPromise;
+    loadPromise = new Promise(function (resolve, reject) {
+      if (window.Clerk) { initClerk(resolve, reject); return; }
 
-  // The publishable key lives in index.html's inline script, which runs
-  // AFTER this file. Re-check once the parser finishes so a real key
-  // still activates Clerk; the placeholder keeps everything in demo mode.
-  if (shouldLoadReal()) {
-    loadRealClerk();
-  } else if (typeof setTimeout === 'function') {
-    setTimeout(function () {
-      if (shouldLoadReal() && !realClerk) loadRealClerk();
-    }, 0);
+      var script = document.getElementById('clerk-js');
+      if (!script) {
+        script = document.createElement('script');
+        script.id = 'clerk-js';
+        script.src = 'https://cdn.clerk.com/v1/clerk.browser.js';
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        script.setAttribute('data-clerk-publishable-key', getKey());
+      }
+      script.addEventListener('load', function () { initClerk(resolve, reject); }, { once: true });
+      script.addEventListener('error', function () { reject(new Error('Clerk SDK could not load.')); }, { once: true });
+      if (!script.parentNode) document.head.appendChild(script);
+    }).catch(function () {
+      var failedScript = document.getElementById('clerk-js');
+      if (failedScript && !window.Clerk && failedScript.parentNode) {
+        failedScript.parentNode.removeChild(failedScript);
+      }
+      loadPromise = null;
+      pendingModal = '';
+      fire();
+      return null;
+    });
+    return loadPromise;
   }
 
   function openRealModal(kind) {
-    if (realClerk && realReady) {
-      if (kind === 'signup' && realClerk.openSignUp) realClerk.openSignUp();
-      else realClerk.openSignIn();
-      return true;
-    }
-    pendingSignIn = true; // Clerk still loading: open the modal when ready
-    return false;
+    pendingModal = kind;
+    if (realClerk) { openPendingModal(); return null; }
+    return loadRealClerk();
   }
+
+  if (!demoMode()) loadRealClerk();
 
   window.ClerkAuth = {
     isSignedIn: function () {
-      if (demoMode()) return !!loadUser();
-      if (realClerk && realReady) return !!realClerk.user;
-      return false;
+      return demoMode() ? !!loadUser() : !!(realClerk && realClerk.user);
     },
     signIn: function () {
-      if (demoMode()) return demoSignIn();
-      if (realClerk && realReady) {
-        realClerk.openSignIn(); // sign-in modal, with the sign-up path inside
-        return null;
-      }
-      pendingSignIn = true; // Clerk still loading: open the modal when ready
-      return null;
+      return demoMode() ? demoSignIn() : openRealModal('signin');
     },
     signUp: function () {
-      if (demoMode()) return demoSignIn();
-      if (realClerk && realReady && realClerk.openSignUp) {
-        realClerk.openSignUp(); // straight to the create-account modal
-        return null;
-      }
-      return openRealModal('signup');
+      return demoMode() ? demoSignIn() : openRealModal('signup');
     },
     signOut: function () {
       if (demoMode()) return demoSignOut();
-      if (realClerk && realReady && realClerk.signOut) {
-        realClerk.signOut().then(function () { fire(); }).catch(function () { fire(); });
-        return;
-      }
-      demoSignOut();
+      if (realClerk) return realClerk.signOut();
+      var ready = loadRealClerk();
+      return ready && ready.then(function (clerk) { if (clerk) return clerk.signOut(); });
     },
     getUser: function () {
       if (demoMode()) return loadUser();
-      if (realClerk && realReady && realClerk.user) {
-        var u = realClerk.user;
-        return {
-          id: u.id,
-          email: u.primaryEmailAddress ? u.primaryEmailAddress.emailAddress : '',
-          firstName: u.firstName || '',
-          lastName: u.lastName || '',
-          username: u.username || '',
-          demo: false
-        };
-      }
-      return null;
+      if (!realClerk || !realClerk.user) return null;
+      var user = realClerk.user;
+      var primaryEmail = user.primaryEmailAddress || (user.emailAddresses && user.emailAddresses[0]);
+      return {
+        id: user.id,
+        email: primaryEmail ? primaryEmail.emailAddress : '',
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        username: user.username || '',
+        demo: false
+      };
     },
-    onAuthChange: function (cb) {
-      if (typeof cb === 'function') listeners.push(cb);
-      return cb;
+    onAuthChange: function (callback) {
+      if (typeof callback === 'function') listeners.push(callback);
+      return callback;
     }
   };
 })();

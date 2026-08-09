@@ -537,15 +537,12 @@
 
   <script src="ig-workflows.js"></script>
   <script src="ig-more.js"></script>
+  <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="stripe.js"></script>
   <script>
     (function () {
       'use strict';
-
-      window.CLERK_PUBLISHABLE_KEY = window.CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder';
-      window.STRIPE_PUBLISHABLE_KEY = window.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder';
-      window.OMO_API_BASE = window.OMO_API_BASE || '';
 
       var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
       var BAL_KEY = 'omo_balance_v1';
@@ -813,6 +810,7 @@
       var account = { mode: 'mock', userId: '', balanceUsd: 10, apiKey: '', runs: [] };
       var chosenAmount = 10;
       var revealed = false;
+      var refreshAfterTopup = window.location.search && window.location.search.indexOf('topup=success') !== -1;
       function fnv1a(str) {
         var h = 0x811c9dc5;
         for (var j = 0; j < str.length; j++) { h ^= str.charCodeAt(j); h = (h * 0x01000193) >>> 0; }
@@ -879,6 +877,10 @@
             account.runs = data.runs || [];
             lsSet(BAL_KEY, String(account.balanceUsd)); lsSet(KEY_KEY, account.apiKey); lsSet(USE_KEY, JSON.stringify(account.runs));
             renderAccount();
+            if (refreshAfterTopup) {
+              refreshAfterTopup = false;
+              setTimeout(function () { loadAccount(user); }, 1500);
+            }
           }).catch(function () { loadMock(user); });
       }
       function showGate() {
@@ -913,13 +915,13 @@
           if (button) button.disabled = false;
         }
         function simulate(reason) { mockTopup(amount); done(reason + ' Simulated +' + fmtUsd(amount) + ' in mock mode.', false); }
-        if (account.mode !== 'server') { simulate('Live checkout is not configured yet.'); return; }
-        fetch(API_BASE + '/api/topup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: account.userId, amount_usd: amount }) })
-          .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { status: response.status, data: data }; }); })
-          .then(function (result) {
-            if (result.status === 200 && result.data && result.data.url) { window.location.href = result.data.url; return; }
-            simulate(result.status === 501 ? 'Stripe is not configured on the worker yet.' : 'Checkout could not start right now.');
-          }).catch(function () { simulate('Could not reach the checkout server.'); });
+        if (window.StripePay && StripePay.isConfigured && StripePay.isConfigured()) {
+          StripePay.topup(amount, {
+            onError: function (message) { done(message || 'Checkout could not start right now.', false); }
+          });
+          return;
+        }
+        simulate('Live checkout is not configured yet.');
       }
       function copyKey() {
         var label = el('api-key-label');
@@ -1027,7 +1029,10 @@
         if (el('gate-signin-btn')) el('gate-signin-btn').addEventListener('click', signIn);
         if (el('top-signin-btn')) el('top-signin-btn').addEventListener('click', signIn);
         if (window.ClerkAuth && ClerkAuth.onAuthChange) ClerkAuth.onAuthChange(refreshAuth);
-        try { if (window.location.search && window.location.search.indexOf('topup=success') !== -1) showNote('Payment complete — your credits were added.', false); } catch (e) {}
+        try {
+          if (window.location.search && window.location.search.indexOf('topup=success') !== -1) showNote('Payment complete — refreshing your balance.', false);
+          if (window.location.search && window.location.search.indexOf('topup=cancelled') !== -1) showNote('Top-up cancelled — your balance was not changed.', true);
+        } catch (e) {}
       }
 
       renderSidebar();

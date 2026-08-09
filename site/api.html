@@ -184,13 +184,17 @@
     <p class="foot"><a href="dashboard.html">← Back to the catalogue</a> · <a href="index.html">Omo store</a></p>
   </main>
 
+  <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script>
     (function () {
       var BAL_KEY = 'omo_balance_v1';
       var KEY_KEY = 'omo_apikey_v1';
+      var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
       var el = function (id) { return document.getElementById(id); };
       var fmtUsd = function (n) { return '$' + Number(n || 0).toFixed(2); };
+      var accountKey = '';
+      var accountBalance = 10;
 
       function getKey() {
         var k = localStorage.getItem(KEY_KEY);
@@ -200,16 +204,14 @@
         return k;
       }
 
-      function render() {
-        var signedIn = window.ClerkAuth && window.ClerkAuth.isSignedIn();
-        var key = signedIn ? getKey() : '';
-        var balance = localStorage.getItem(BAL_KEY);
-        if (balance === null) { balance = 10; localStorage.setItem(BAL_KEY, '10'); } else { balance = Number(balance); }
-        el('balance-pill').textContent = 'Balance ' + fmtUsd(balance);
+      function currentKey() { return accountKey || getKey(); }
+
+      function paint(signedIn) {
+        el('balance-pill').textContent = 'Balance ' + fmtUsd(accountBalance);
         if (signedIn) {
           el('api-key-value').textContent = '••••••••••••••••';
-          el('curl-key').textContent = getKey();
-          el('curl-key2').textContent = getKey();
+          el('curl-key').textContent = currentKey();
+          el('curl-key2').textContent = currentKey();
           el('auth-notice').hidden = true;
           el('sign-out-btn').hidden = false;
         } else {
@@ -219,13 +221,35 @@
         }
       }
 
+      function render() {
+        var signedIn = window.ClerkAuth && window.ClerkAuth.isSignedIn();
+        var savedBalance = Number(localStorage.getItem(BAL_KEY));
+        if (isFinite(savedBalance)) accountBalance = savedBalance;
+        if (!signedIn) { paint(false); return; }
+
+        accountKey = getKey();
+        paint(true);
+        var user = window.ClerkAuth.getUser && window.ClerkAuth.getUser();
+        if (!user || !user.id || typeof fetch !== 'function' || window.location.protocol === 'file:') return;
+        fetch(API_BASE + '/api/me?user_id=' + encodeURIComponent(user.id))
+          .then(function (response) { return response.json().catch(function () { return {}; }); })
+          .then(function (data) {
+            if (!data || !data.ok) return;
+            accountBalance = Number(data.balance_usd != null ? data.balance_usd : data.balance);
+            accountKey = data.api_key || accountKey;
+            localStorage.setItem(BAL_KEY, String(accountBalance));
+            localStorage.setItem(KEY_KEY, accountKey);
+            paint(true);
+          }).catch(function () {});
+      }
+
       var revealed = false;
       el('reveal-btn').addEventListener('click', function () {
         if (!window.ClerkAuth || !window.ClerkAuth.isSignedIn()) { window.ClerkAuth && window.ClerkAuth.signIn(); return; }
         if (!revealed) {
-          el('api-key-value').textContent = getKey();
-          el('curl-key').textContent = getKey();
-          el('curl-key2').textContent = getKey();
+          el('api-key-value').textContent = currentKey();
+          el('curl-key').textContent = currentKey();
+          el('curl-key2').textContent = currentKey();
           this.textContent = 'Hide';
           revealed = true;
         } else {
@@ -236,7 +260,7 @@
       });
       el('copy-btn').addEventListener('click', function () {
         if (!window.ClerkAuth || !window.ClerkAuth.isSignedIn()) { window.ClerkAuth && window.ClerkAuth.signIn(); return; }
-        var key = getKey();
+        var key = currentKey();
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(key).then(function () {
             var old = el('copy-btn').textContent;

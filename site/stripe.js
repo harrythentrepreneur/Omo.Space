@@ -1,146 +1,146 @@
-/* stripe.js — Stripe Checkout payments for the Omo storefront, with a
- * simulated fallback so the whole flow works with zero Stripe credentials.
+/* stripe.js — Stripe Checkout for purchases and credit top-ups, with a
+ * local simulated fallback while the shared publishable key is a placeholder.
  *
- * How it works:
- *  - Reads the publishable key from window.STRIPE_PUBLISHABLE_KEY (set in
- *    index.html). While the key is the placeholder ('pk_test_placeholder'),
- *    the store runs in SIMULATED mode: buying records the purchase to
- *    localStorage (cognition_purchases_v1) and calls onSuccess, so the
- *    library + buy flow is fully testable with zero Stripe setup.
- *  - With a real key, creates a Stripe Checkout session via the Omo
- *    worker (POST https://cognition-demo.pages.dev/api/checkout, which
- *    returns a Checkout URL when the worker has STRIPE_SECRET_KEY set) and
- *    redirects the buyer to Stripe's hosted Checkout page. If the worker is
- *    unreachable or not configured, it falls back to the simulated flow with
- *    a friendly notice.
- *
- * Exposes window.StripePay = { getKey, isConfigured, checkout }.
+ * Exposes window.StripePay = { getKey, isConfigured, checkout, topup }.
  */
 (function () {
   'use strict';
 
   var PLACEHOLDER = 'pk_test_placeholder';
   var PURCHASE_KEY = 'cognition_purchases_v1';
-  var CHECKOUT_URL = 'https://cognition-demo.pages.dev/api/checkout';
+  var BALANCE_KEY = 'omo_balance_v1';
 
   function getKey() {
     return (window.STRIPE_PUBLISHABLE_KEY || '').trim() || PLACEHOLDER;
   }
 
   function isConfigured() {
-    var k = getKey();
-    // Any key containing 'placeholder' counts as "not configured yet".
-    return !!k && k !== PLACEHOLDER && k.toLowerCase().indexOf('placeholder') === -1;
+    var key = getKey();
+    return key !== PLACEHOLDER && /^pk_(test|live)_/.test(key);
   }
 
-  // Load the Stripe.js SDK so redirectToCheckout-style features (and any
-  // future Payment Element work) are available once real keys are set.
-  // Harmless in demo mode: nothing calls into it.
-  function loadStripeJS() {
-    if (typeof document === 'undefined' || !document.createElement || !document.head) return;
-    if (document.getElementById('stripe-js')) return;
-    var s = document.createElement('script');
-    s.id = 'stripe-js';
-    s.src = 'https://js.stripe.com/v3/';
-    s.async = true;
-    document.head.appendChild(s);
+  function apiUrl(path) {
+    return (window.OMO_API_BASE || '').replace(/\/+$/, '') + path;
   }
 
-  // Tiny transient banner for fallback notices — self-contained, no redesign.
-  function notice(msg) {
+  function notice(message) {
     if (typeof document === 'undefined' || !document.body) return;
-    var el = document.createElement('div');
-    el.setAttribute('role', 'status');
-    el.style.cssText =
+    var element = document.createElement('div');
+    element.setAttribute('role', 'status');
+    element.style.cssText =
       'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:400;' +
       'max-width:min(92vw,480px);padding:12px 18px;border-radius:12px;' +
       'background:#17352C;color:#fff;font:700 14px/1.45 "DM Sans",system-ui,sans-serif;' +
       'box-shadow:0 8px 24px rgba(23,53,44,.25)';
-    el.textContent = msg;
-    document.body.appendChild(el);
+    element.textContent = message;
+    document.body.appendChild(element);
     if (typeof setTimeout === 'function') {
       setTimeout(function () {
-        if (el.parentNode) el.parentNode.removeChild(el);
+        if (element.parentNode) element.parentNode.removeChild(element);
       }, 6000);
     }
   }
 
+  function fail(callbacks, message) {
+    notice(message);
+    if (callbacks && typeof callbacks.onError === 'function') callbacks.onError(message);
+  }
+
   function recordPurchase(slug, listing) {
-    var list = [];
-    try { list = JSON.parse(localStorage.getItem(PURCHASE_KEY) || '[]'); } catch (e) { list = []; }
-    if (!Array.isArray(list)) list = [];
-    var exists = list.some(function (it) { return it && it.slug === slug; });
-    if (!exists) {
-      list.push({
+    var purchases = [];
+    try { purchases = JSON.parse(localStorage.getItem(PURCHASE_KEY) || '[]'); } catch (e) { purchases = []; }
+    if (!Array.isArray(purchases)) purchases = [];
+    if (!purchases.some(function (purchase) { return purchase && purchase.slug === slug; })) {
+      purchases.push({
         slug: slug,
         priceOwn: listing && listing.priceOwn != null ? listing.priceOwn : null,
         date: new Date().toISOString()
       });
-      try { localStorage.setItem(PURCHASE_KEY, JSON.stringify(list)); } catch (e) {}
+      try { localStorage.setItem(PURCHASE_KEY, JSON.stringify(purchases)); } catch (e) {}
     }
   }
 
-  // Simulated purchase: record it locally and confirm. Used when no real
-  // Stripe key is present, or when the checkout worker is unavailable.
-  function simulateCheckout(slug, listing, user, callbacks) {
+  function simulateCheckout(slug, listing, callbacks) {
     recordPurchase(slug, listing);
     if (callbacks && typeof callbacks.onSuccess === 'function') {
       callbacks.onSuccess({ slug: slug, simulated: true });
     }
   }
 
-  // Real path: ask the Omo worker for a Checkout session, then send the
-  // buyer to Stripe's hosted page. Falls back to simulateCheckout (with a
-  // notice) if the worker is unreachable or not configured.
-  function realCheckout(slug, listing, user, callbacks) {
-    var priceUsd = listing && listing.priceOwn != null ? listing.priceOwn : 0;
-    var payload = { slug: slug, priceUsd: priceUsd, mode: 'payment' };
-    if (user && user.email) payload.email = user.email;
+  function simulateTopup(amountUsd, callbacks) {
+    var balance = Number(localStorage.getItem(BALANCE_KEY));
+    if (!isFinite(balance)) balance = 10;
+    balance = Math.round((balance + amountUsd) * 100) / 100;
+    try { localStorage.setItem(BALANCE_KEY, String(balance)); } catch (e) {}
+    notice('Demo mode: added $' + amountUsd.toFixed(2) + ' to your local balance.');
+    if (callbacks && typeof callbacks.onSuccess === 'function') {
+      callbacks.onSuccess({ amountUsd: amountUsd, balance: balance, simulated: true });
+    }
+  }
 
-    return fetch(CHECKOUT_URL, {
+  function post(path, payload, callbacks) {
+    return fetch(apiUrl(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).then(function (res) {
-      return res.json().catch(function () { return {}; }).then(function (data) {
-        return { status: res.status, data: data };
-      });
-    }).then(function (res) {
-      if (res.status === 501 || !res.data || !res.data.url) {
-        // Worker alive but Stripe not configured on it yet → simulate locally.
-        notice('Live checkout is not configured yet — recorded as a simulated purchase.');
-        simulateCheckout(slug, listing, user, callbacks);
-        return;
-      }
-      if (res.status !== 200) {
-        if (callbacks && typeof callbacks.onError === 'function') {
-          callbacks.onError((res.data && res.data.error) || 'Checkout could not start. Please try again.');
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (response.status !== 200 || !data.url) {
+          throw new Error(data.error || 'Checkout could not start. Please try again.');
         }
-        return;
-      }
-      window.location.href = res.data.url;
-    }).catch(function () {
-      notice('Could not reach the checkout server — recorded as a simulated purchase.');
-      simulateCheckout(slug, listing, user, callbacks);
+        window.location.href = data.url;
+        return data;
+      });
+    }).catch(function (error) {
+      fail(callbacks, error && error.message ? error.message : 'Checkout could not start. Please try again.');
+      return null;
     });
   }
 
-  // Public entry: buy a listing. callbacks = { onSuccess(purchase), onError(msg) }.
-  // Returns a Promise in the real-checkout path (awaitable in tests); the
-  // simulated path completes synchronously.
   function checkout(slug, listing, user, callbacks) {
-    if (!isConfigured()) {
-      simulateCheckout(slug, listing, user, callbacks);
+    var priceUsd = Number(listing && listing.priceOwn);
+    if (!isConfigured() || !isFinite(priceUsd) || priceUsd <= 0) {
+      simulateCheckout(slug, listing, callbacks);
       return;
     }
-    return realCheckout(slug, listing, user, callbacks);
+    return post('/api/checkout', {
+      slug: slug,
+      priceUsd: priceUsd,
+      email: user && user.email ? user.email : '',
+      mode: 'payment'
+    }, callbacks);
   }
 
-  loadStripeJS();
+  function topup(amountUsd, callbacks) {
+    var amount = Number(amountUsd);
+    if (!isFinite(amount) || amount <= 0) {
+      fail(callbacks, 'Choose a valid top-up amount.');
+      return;
+    }
+    if (!isConfigured()) {
+      simulateTopup(amount, callbacks);
+      return;
+    }
+    var user = window.ClerkAuth && window.ClerkAuth.getUser ? window.ClerkAuth.getUser() : null;
+    if (!user || !user.id) {
+      fail(callbacks, 'Sign in before topping up your balance.');
+      return;
+    }
+    return post('/api/topup', { user_id: user.id, amount_usd: amount }, callbacks);
+  }
+
+  if (isConfigured() && typeof document !== 'undefined' && document.createElement && document.head && !document.getElementById('stripe-js')) {
+    var script = document.createElement('script');
+    script.id = 'stripe-js';
+    script.src = 'https://js.stripe.com/v3/';
+    script.async = true;
+    document.head.appendChild(script);
+  }
 
   window.StripePay = {
     getKey: getKey,
     isConfigured: isConfigured,
-    checkout: checkout
+    checkout: checkout,
+    topup: topup
   };
 })();
