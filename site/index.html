@@ -662,6 +662,7 @@
               <button class="filter-chip" type="button" data-filter="content" aria-pressed="false">✂️ Content</button>
               <button class="filter-chip" type="button" data-filter="leads" aria-pressed="false">📈 Leads</button>
               <button class="filter-chip" type="button" data-filter="save" aria-pressed="false">💰 Save money</button>
+              <button class="filter-chip" type="button" data-filter="Education" aria-pressed="false">🎓 Education</button>
             </div>
           </div>
         </div>
@@ -859,6 +860,7 @@
 
   <script src="ig-workflows.js"></script>
   <script src="ig-more.js"></script>
+  <script src="education.js"></script>
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="library.js"></script>
@@ -900,6 +902,11 @@
       // More Instagram-verified workflows (ig-more.js, optional)
       var igMore = window.COGNITION_IG_MORE || [];
       igMore.forEach(function (s) {
+        if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
+      });
+      // OMO Education workflows (education.js, optional)
+      var education = window.COGNITION_EDUCATION || [];
+      education.forEach(function (s) {
         if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
       });
 

@@ -132,6 +132,9 @@
     }
     .niche-item:hover { background: rgba(255,255,255,.7); border-color: var(--rule); }
     .niche-item.is-active { background: var(--pine); color: #fff; }
+    .niche-item.is-subcategory { min-height: 36px; padding-left: 31px; font-size: 13px; font-weight: 600; }
+    .niche-item.is-subcategory .niche-icon { width: 10px; flex-basis: 10px; color: var(--moss); font-size: 10px; }
+    .niche-item.is-subcategory.is-active .niche-icon { color: var(--mint); }
     .niche-icon { width: 18px; flex: 0 0 18px; text-align: center; font-size: 14px; }
     .niche-name { flex: 1; white-space: nowrap; }
     .niche-count {
@@ -457,14 +460,14 @@
     <div class="dash-shell dashboard-layout">
       <aside class="catalog-sidebar" aria-label="Helper categories">
         <p class="sidebar-kicker">Browse the catalogue</p>
-        <nav class="niche-nav" id="niche-nav" aria-label="Filter helpers by outcome or niche"></nav>
+        <nav class="niche-nav" id="niche-nav" aria-label="Filter helpers by category, outcome, or niche"></nav>
       </aside>
 
       <section class="catalog-main" aria-labelledby="catalog-title">
         <header class="catalog-head">
           <p class="eyebrow">Your helper catalogue</p>
           <h1 class="catalog-title" id="catalog-title">Everything useful, <em>one place.</em></h1>
-          <p class="catalog-sub">Browse all 21 helpers, narrow by niche, and try the real workflow before you buy.</p>
+          <p class="catalog-sub">Browse every helper, narrow by category or niche, and try the real workflow before you buy.</p>
           <div class="catalog-tools">
             <form class="search-form" id="search-form" role="search" aria-label="Search helpers">
               <input class="search-input" id="search-input" type="search" name="q" placeholder="Search UGC, Shopify, SEO, video…" aria-label="Search helpers" autocomplete="off">
@@ -537,6 +540,7 @@
 
   <script src="ig-workflows.js"></script>
   <script src="ig-more.js"></script>
+  <script src="education.js"></script>
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="stripe.js"></script>
@@ -554,12 +558,16 @@
       var PRODUCTS = {};
       var igWorkflows = window.COGNITION_IG_WORKFLOWS || [];
       var igMore = window.COGNITION_IG_MORE || [];
+      var education = window.COGNITION_EDUCATION || [];
       var i;
       for (i = 0; i < igWorkflows.length; i++) {
         if (igWorkflows[i] && igWorkflows[i].slug && !PRODUCTS[igWorkflows[i].slug]) PRODUCTS[igWorkflows[i].slug] = igWorkflows[i];
       }
       for (i = 0; i < igMore.length; i++) {
         if (igMore[i] && igMore[i].slug && !PRODUCTS[igMore[i].slug]) PRODUCTS[igMore[i].slug] = igMore[i];
+      }
+      for (i = 0; i < education.length; i++) {
+        if (education[i] && education[i].slug && !PRODUCTS[education[i].slug]) PRODUCTS[education[i].slug] = education[i];
       }
       var slugs = Object.keys(PRODUCTS);
 
@@ -573,12 +581,17 @@
       }
       function fmtUsd(v) { return '$' + Number(v).toFixed(2); }
       function listingText(p) {
-        return [p.name, p.promise, p.category, (p.tags || []).join(' ')].join(' ').toLowerCase();
+        return [p.name, p.promise, p.category, p.niche, (p.tags || []).join(' ')].join(' ').toLowerCase();
       }
 
-      /* Counts and matches come from name, promise, category, and tags. */
+      /* Category rows use explicit fields; legacy niche rows keep their text-derived matches. */
       var FILTERS = [
         { key: 'all', group: 'all', label: 'All helpers', icon: '✦', match: function () { return true; } },
+        { key: 'education', group: 'category', label: 'Education', icon: '🎓', match: function (p) { return p.category === 'Education'; } },
+        { key: 'phonics', group: 'category', label: 'Phonics', icon: '└', subcategory: true, match: function (p) { return p.niche === 'Phonics'; } },
+        { key: 'grammar', group: 'category', label: 'Grammar', icon: '└', subcategory: true, match: function (p) { return p.niche === 'Grammar'; } },
+        { key: 'live-speech-practice', group: 'category', label: 'Live speech practice', icon: '└', subcategory: true, match: function (p) { return p.niche === 'Live speech practice'; } },
+        { key: 'marketing', group: 'category', label: 'Marketing', icon: '↗', match: function (p) { return p.category !== 'Education'; } },
         { key: 'content', group: 'outcome', label: 'Content', icon: '✂', match: function (p) { return p.category === 'content'; } },
         { key: 'leads', group: 'outcome', label: 'Leads', icon: '↗', match: function (p) { return p.category === 'leads'; } },
         { key: 'save', group: 'outcome', label: 'Save money', icon: '$', match: function (p) { return p.category === 'save'; } },
@@ -604,7 +617,7 @@
       }
       function nicheButtonHTML(filter) {
         var active = filter.key === currentScope;
-        return '<button class="niche-item' + (active ? ' is-active' : '') + '" type="button" data-niche="' + filter.key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
+        return '<button class="niche-item' + (filter.subcategory ? ' is-subcategory' : '') + (active ? ' is-active' : '') + '" type="button" data-niche="' + filter.key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
           '<span class="niche-icon" aria-hidden="true">' + filter.icon + '</span>' +
           '<span class="niche-name">' + esc(filter.label) + '</span>' +
           '<span class="niche-count">' + filterCount(filter) + '</span></button>';
@@ -618,6 +631,8 @@
         var nav = el('niche-nav');
         if (!nav) return;
         var html = '<p class="niche-group-label">Everything</p>' + nicheButtonHTML(FILTERS[0]);
+        html += '<p class="niche-group-label">Categories</p>';
+        for (var i = 1; i < FILTERS.length; i++) if (FILTERS[i].group === 'category') html += nicheButtonHTML(FILTERS[i]);
         html += '<p class="niche-group-label">Outcomes</p>';
         for (var j = 1; j < FILTERS.length; j++) if (FILTERS[j].group === 'outcome') html += nicheButtonHTML(FILTERS[j]);
         html += '<p class="niche-group-label">Niches</p>';
