@@ -21,16 +21,13 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // Same merge the storefront does: Instagram workflows + OMO Education.
+  // Same merge the storefront does: ig-workflows.js + ig-more.js.
   function productMap() {
     var PRODUCTS = {};
     (window.COGNITION_IG_WORKFLOWS || []).forEach(function (s) {
       if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
     });
     (window.COGNITION_IG_MORE || []).forEach(function (s) {
-      if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
-    });
-    (window.COGNITION_EDUCATION || []).forEach(function (s) {
       if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
     });
     return PRODUCTS;
