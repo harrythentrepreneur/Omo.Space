@@ -1344,6 +1344,12 @@
       }
 
       var currentSlug = null;
+      function redirectToSignup(slug) {
+        var target = 'signup.html';
+        if (slug) target += '?open=' + encodeURIComponent(slug);
+        window.location.assign(target);
+      }
+
       function openDialog(p, focusDemo) {
         currentSlug = p.slug;
         lastTrigger = document.activeElement;
@@ -1372,7 +1378,14 @@
         }
         var p = PRODUCTS[card.dataset.slug];
         var action = e.target.closest('[data-action]');
-        if (action && action.dataset.action === 'demo') { openDialog(p, true); return; }
+        if (action && action.dataset.action === 'demo') {
+          if (!window.ClerkAuth || !ClerkAuth.isSignedIn()) {
+            redirectToSignup(p.slug);
+            return;
+          }
+          openDialog(p, true);
+          return;
+        }
         openDialog(p, false);
       });
       feed.addEventListener('keydown', function (e) {
@@ -1392,7 +1405,7 @@
         }
         var buyLink = e.target.closest('[data-action="buy"]');
         if (buyLink) {
-          if (window.ClerkAuth) e.preventDefault();
+          e.preventDefault();
           handleBuy(currentSlug);
           return;
         }
@@ -1442,6 +1455,10 @@
         }
         var action = e.target.closest('[data-action="demo"]');
         if (action) {
+          if (!window.ClerkAuth || !ClerkAuth.isSignedIn()) {
+            redirectToSignup(currentSlug);
+            return;
+          }
           var box = dialogBody.querySelector('.demo-box');
           if (box) {
             box.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -1478,14 +1495,11 @@
         footer.appendChild(err);
       }
       function handleBuy(slug) {
-        // Clean CTA: sign in first — the purchase lands in their library.
-        if (window.ClerkAuth && !ClerkAuth.isSignedIn()) {
-          pendingBuySlug = slug;
-          ClerkAuth.signIn();
+        if (!window.ClerkAuth || !ClerkAuth.isSignedIn()) {
+          redirectToSignup(slug);
           return;
         }
-        if (!window.ClerkAuth && !window.StripePay) {
-          // Neither Clerk nor Stripe available: keep the #waitlist fallback.
+        if (!window.StripePay) {
           window.location.hash = '#waitlist';
           return;
         }
@@ -1498,16 +1512,11 @@
       }
 
       /* ── Auth gating (clerk.js) ─────────────────────────────── */
-      // Pending actions resume automatically once the user signs in.
-      var pendingDemoForm = null;
-      var pendingBuySlug = null;
-
       function openLibrary() {
-        if (!window.ClerkAuth) return;
-        if (ClerkAuth.isSignedIn()) {
+        if (window.ClerkAuth && ClerkAuth.isSignedIn()) {
           LibraryView.show();
         } else {
-          ClerkAuth.signIn();
+          redirectToSignup('');
         }
       }
       var libraryLink = document.getElementById('library-link');
@@ -1527,14 +1536,8 @@
         if (!p) return;
 
         var status = form.querySelector('[data-demo-status]');
-        // Clean CTA: the first run requires an account. Sign in (Clerk, or
-        // the demo fallback) and the demo re-submits automatically — the
-        // box itself stays identical for signed-in users.
-        if (window.ClerkAuth && !ClerkAuth.isSignedIn()) {
-          pendingDemoForm = form;
-          status.dataset.state = '';
-          status.textContent = 'Create a free account to run the demo \u2014 it\u2019s one tap, then it runs.';
-          ClerkAuth.signIn();
+        if (!window.ClerkAuth || !ClerkAuth.isSignedIn()) {
+          redirectToSignup(p.slug);
           return;
         }
         var resultBox = form.parentElement.querySelector('[data-demo-result]');
@@ -1625,37 +1628,6 @@
           runBtn.textContent = 'Run the demo';
         });
       });
-
-      /* ── Resume gated actions once signed in ────────────────── */
-      if (window.ClerkAuth) {
-        ClerkAuth.onAuthChange(function () {
-          if (!ClerkAuth.isSignedIn()) return;
-          // Post-signup dashboard redirect: after the first-ever sign-in in
-          // this browser, send the user to dashboard.html (balance + API key)
-          // exactly once. Returning visitors (flag already set) stay put.
-          try {
-            if (!localStorage.getItem('omo_seen_dashboard')) {
-              localStorage.setItem('omo_seen_dashboard', '1');
-              window.location.href = 'dashboard.html';
-              return;
-            }
-          } catch (e) {}
-          if (pendingDemoForm) {
-            var f = pendingDemoForm;
-            pendingDemoForm = null;
-            var ev = document.createEvent('Event');
-            ev.initEvent('submit', true, true);
-            f.dispatchEvent(ev);
-          }
-          if (pendingBuySlug) {
-            var slug = pendingBuySlug;
-            pendingBuySlug = null;
-            // Now signed in: run the real buy flow (Stripe Checkout or the
-            // simulated fallback) exactly like a direct buy click.
-            handleBuy(slug);
-          }
-        });
-      }
 
       function renderScript(script) {
         if (!script.hook && !script.cta && !(script.shots && script.shots.length)) {

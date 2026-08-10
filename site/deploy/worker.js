@@ -10,7 +10,7 @@
 //   POST /api/checkout                 → Stripe Checkout session {slug, priceUsd, email?}
 //   GET/POST /api/me?user_id=…         → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
-//   POST /api/clerk-webhook            → Clerk webhook: user.created → $10 signup grant
+//   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
 //
 // Env vars (set in Cloudflare dashboard / wrangler secret):
 //   LLM_API_KEY  — key for the OpenAI-compatible endpoint below (SECRET)
@@ -25,11 +25,12 @@
 //                       deliveries sent to /api/topup.
 //   BALANCE_KEY_SECRET — optional extra entropy for deterministic API keys;
 //                       falls back to LLM_API_KEY, then a dev constant.
-//   SIGNUP_GRANT_USD  — optional override of the $10 signup grant (tests).
+//   SIGNUP_GRANT_USD  — optional override of the $5 signup grant (tests).
+//   NEON_DATABASE_URL — pooled Neon Postgres connection string (recommended).
 //
 // Bindings:
-//   BALANCE_DB (D1) — users + runs tables (schema.sql). Without it the worker
-//                       runs in MOCK mode: an in-memory Map grants $10 + a
+//   BALANCE_DB (D1) — optional fallback after Neon. Without either database the
+//                       worker runs in MOCK mode: an in-memory Map grants $5 + a
 //                       deterministic 'omo_' key per user, so tests and local
 //                       dev work with zero infra.
 //   BENCH_KV — optional per-IP daily demo caps (skipped without it).
@@ -42,7 +43,8 @@
 
 // Pure credit math lives in ./balance.mjs (bundled at deploy time); the cost
 // model in ./cost-model.mjs sets the per-run price (5x markup, $0.10 floor).
-import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts } from './balance.mjs';
+import { Pool } from '@neondatabase/serverless';
+import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts, MIN_TOPUP_USD } from './balance.mjs';
 import { runPrice, llmWorkflow } from './cost-model.mjs';
 
 // ── System prompts (hardened: exact JSON shape, flat string arrays, no fences) ──
@@ -132,7 +134,7 @@ const ROUTES = {
   '/api/checkout': { handler: handleCheckout }, // Stripe Checkout session: {slug, priceUsd, email?}
   '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
   '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
-  '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $10 grant
+  '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $5 grant
 };
 
 export default {
@@ -314,19 +316,24 @@ async function handleGenericRun(request, env) {
   let reservedCents = 0;
   let balanceAfterDebit = 0;
   let costUsd = 0;
+  let runId = '';
   if (userId) {
     billing = (await getUserRecord(env, userId)).record;
     costUsd = runPrice(llmWorkflow(systemPrompt, maxTokens));
     reservedCents = Math.round(costUsd * 100);
-    const reservation = await reserveRunCredits(env, userId, reservedCents);
+    runId = makeId('run');
+    const reservation = await reserveRunCredits(env, userId, reservedCents, runId);
     if (!reservation.ok) {
       const check = debitForRun(reservation.balance_cents / 100, costUsd);
       return json({
         error: 'insufficient_balance',
+        message: 'You need a little more Omo credit for this run. Top up from $5 and keep going.',
         balance: check.balance,
         cost_usd: check.costUsd,
         shortfall_usd: check.shortfallUsd,
-        topup_url: '/dashboard.html',
+        minimum_topup_usd: MIN_TOPUP_USD,
+        suggested_amounts_usd: topupAmounts(),
+        topup_url: '/dashboard.html?topup=needed',
       }, 402, cors());
     }
     balanceAfterDebit = reservation.balance_cents;
@@ -342,21 +349,28 @@ async function handleGenericRun(request, env) {
   try {
     const llm = await callLLM(env, systemPrompt, userPrompt, maxTokens);
     if (llm.error) {
-      if (billing) await refundRunCredits(env, userId, reservedCents);
+      if (billing) await refundRunCredits(env, userId, reservedCents, runId);
       return json({ error: llm.error }, 502, cors());
     }
     const parsed = stripJson(llm.content);
     await capBump(env, cap.key, cap.used);
     if (billing) {
-      await addRun(env, userId, slug, reservedCents);
-      return json({
+      await addRun(env, userId, slug, reservedCents, runId);
+      const result = {
         ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content,
-        cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
-      }, 200, cors());
+        run_id: runId, cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
+      };
+      if (balanceAfterDebit === 0) {
+        result.message = 'That used your remaining credits. Top up from $5 whenever you are ready to run another helper.';
+        result.minimum_topup_usd = MIN_TOPUP_USD;
+        result.suggested_amounts_usd = topupAmounts();
+        result.topup_url = '/dashboard.html?topup=needed';
+      }
+      return json(result, 200, cors());
     }
     return json({ ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content }, 200, cors());
   } catch (e) {
-    if (billing) await refundRunCredits(env, userId, reservedCents);
+    if (billing) await refundRunCredits(env, userId, reservedCents, runId);
     return json({ error: 'run_failed' }, 500, cors());
   }
 }
@@ -418,8 +432,8 @@ async function handleCheckout(request, env) {
 //   { ok, balance: "10.00", balance_usd, balance_cents, currency: "usd",
 //     api_key: "omo_…", mock: true|false, runs: [{slug, cost_usd, created_at}] }
 // The record is self-provisioned: the first time a user_id appears they get
-// the $10 signup grant + a deterministic API key (no double grant on repeat
-// visits). With no D1 binding this runs off the in-memory mock store.
+// the $5 signup grant + a deterministic API key (no double grant on repeat
+// visits). Neon is preferred, then D1, then the in-memory mock store.
 
 async function handleMe(request, env, url) {
   let userId = (url.searchParams && url.searchParams.get('user_id')) || '';
@@ -440,7 +454,7 @@ async function handleMe(request, env, url) {
     balance_cents: record.balance_cents,
     currency: 'usd',
     api_key: record.api_key,
-    mock: !env.BALANCE_DB,
+    mock: databaseKind(env) === 'mock',
     runs: runs.map((r) => ({
       slug: r.slug,
       cost_usd: +(r.cost_cents / 100).toFixed(2),
@@ -464,8 +478,15 @@ async function handleTopup(request, env) {
   try { body = await request.json(); } catch { body = {}; }
   const userId = String(body.user_id || '').trim();
   const amountUsd = Number(body.amount_usd);
-  if (!userId || !topupAmounts().includes(amountUsd)) {
-    return json({ error: `Send user_id and amount_usd (${topupAmounts().join(', ')}).` }, 400, cors());
+  const cents = Math.round(amountUsd * 100);
+  const validAmount = isFinite(amountUsd) && Number.isInteger(cents) &&
+    Math.abs(amountUsd * 100 - cents) < 0.000001 && cents >= MIN_TOPUP_USD * 100;
+  if (!userId || !validAmount) {
+    return json({
+      error: `Send user_id and amount_usd of at least $${MIN_TOPUP_USD.toFixed(2)} (up to two decimals).`,
+      minimum_topup_usd: MIN_TOPUP_USD,
+      suggested_amounts_usd: topupAmounts(),
+    }, 400, cors());
   }
 
   const secretKey = env.STRIPE_SECRET_KEY;
@@ -475,7 +496,6 @@ async function handleTopup(request, env) {
 
   await getUserRecord(env, userId); // ensure the account exists for the credits
 
-  const cents = Math.round(amountUsd * 100);
   const params = new URLSearchParams();
   params.set('mode', 'payment');
   params.set('success_url', 'https://omo.best/dashboard.html?topup=success');
@@ -542,8 +562,10 @@ async function handleStripeTopupWebhook(request, env) {
     return json({ ok: true, ignored: true }, 200, cors());
   }
 
+  if (!event.id) return json({ error: 'missing event id' }, 400, cors());
+
   await getUserRecord(env, userId);
-  const applied = await creditTopup(env, session.id, userId, amountCents);
+  const applied = await creditTopup(env, event.id, session.id, userId, amountCents);
   const { record } = await getUserRecord(env, userId);
   return json({
     ok: true,
@@ -556,7 +578,7 @@ async function handleStripeTopupWebhook(request, env) {
 
 // ── Route: Clerk webhook ───────────────────────────────────────────────────
 // Clerk dashboard → Webhooks → Endpoint URL https://<worker>/api/clerk-webhook,
-// event: user.created. On that event we grant the $10 signup credits (INSERT
+// event: user.created. On that event we grant the $5 signup credits (INSERT
 // OR IGNORE — an existing row keeps its balance, so no double grants, and a
 // lazy /api/me provision doesn't get reset by the webhook).
 // When CLERK_WEBHOOK_SECRET is set the Svix signature is verified (svix-id /
@@ -591,14 +613,54 @@ async function handleClerkWebhook(request, env) {
   }, 200, cors());
 }
 
-// ── Balance store (D1 when bound, in-memory mock otherwise) ────────────────
-// MOCK MODE: with no BALANCE_DB binding every user gets $10 + a deterministic
-// 'omo_' key from an in-memory Map, so tests and local dev run with zero
-// infra. REAL MODE: D1 (schema.sql) — users (balance_cents, api_key) and runs.
+// ── Balance store (Neon → D1 → in-memory mock) ─────────────────────────────
+// Neon uses a small, process-wide serverless pool and named prepared queries.
+// D1 remains supported for existing deployments. With neither configured,
+// tests and local demos use an in-memory $5 account and the same transitions.
 
-const mockUsers = new Map(); // user_id → { balance_cents, api_key, created_at }
-const mockRuns = new Map();  // user_id → [{slug, cost_cents, created_at}]
-const mockTopups = new Set(); // Stripe Checkout session ids already credited
+let neonPool = null;
+let neonPoolUrl = '';
+const mockUsers = new Map();
+const mockRuns = new Map();
+const mockLedger = new Map();
+const mockTopups = new Set();
+const mockStripeEvents = new Set();
+
+function neonDatabaseUrl(env) {
+  if (env && env.NEON_DATABASE_URL) return String(env.NEON_DATABASE_URL).trim();
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env.NEON_DATABASE_URL) {
+      return String(process.env.NEON_DATABASE_URL).trim();
+    }
+  } catch (e) { /* edge runtimes may not expose process */ }
+  return '';
+}
+
+function databaseKind(env) {
+  if (neonDatabaseUrl(env)) return 'neon';
+  if (env && env.BALANCE_DB) return 'd1';
+  return 'mock';
+}
+
+function getNeonPool(env) {
+  const url = neonDatabaseUrl(env);
+  if (!url) return null;
+  if (!neonPool || neonPoolUrl !== url) {
+    neonPool = new Pool({
+      connectionString: url,
+      max: 4,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+      allowExitOnIdle: true,
+    });
+    neonPoolUrl = url;
+  }
+  return neonPool;
+}
+
+function prepared(name, text, values) {
+  return { name, text, values: values || [] };
+}
 
 function balanceSecret(env) {
   return env.BALANCE_KEY_SECRET || env.LLM_API_KEY || 'omo-dev-secret';
@@ -610,67 +672,272 @@ function signupGrantCents(env) {
   return Math.round(amountUsd * 100);
 }
 
-// Fetch (and lazily provision) a user's balance record. Returns
-// { record: {balance_cents, api_key, created_at}, created: boolean }.
+function makeId(prefix) {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
+    }
+  } catch (e) { /* deterministic uniqueness is not required in mock tests */ }
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function mockLedgerEntry(eventId, userId, kind, amountCents, balanceCents, referenceId, now) {
+  if (mockLedger.has(eventId)) return false;
+  mockLedger.set(eventId, {
+    event_id: eventId, user_id: userId, kind, amount_cents: amountCents,
+    balance_cents: balanceCents, reference_id: referenceId, created_at: now,
+  });
+  return true;
+}
+
+async function insertD1Ledger(env, values) {
+  try {
+    await env.BALANCE_DB
+      .prepare('INSERT OR IGNORE INTO credits_ledger (event_id, user_id, kind, amount_cents, balance_cents, reference_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(...values).run();
+  } catch (e) { /* legacy D1 schemas keep working until schema.sql is reapplied */ }
+}
+
+// Fetch (and lazily provision) a user's balance record. The unique user row
+// and signup ledger event make the $5 grant safe under concurrent requests.
 async function getUserRecord(env, userId) {
   const now = new Date().toISOString();
   const apiKey = apiKeyFor(userId, balanceSecret(env));
+  const grantCents = signupGrantCents(env);
 
-  if (env.BALANCE_DB) {
+  if (databaseKind(env) === 'neon') {
+    const client = await getNeonPool(env).connect();
+    try {
+      await client.query('BEGIN');
+      const inserted = await client.query(prepared(
+        'omo-user-create-v1',
+        'INSERT INTO users (user_id, balance_cents, api_key, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING RETURNING balance_cents, api_key, created_at',
+        [userId, grantCents, apiKey, now]
+      ));
+      const created = inserted.rowCount === 1;
+      if (created) {
+        await client.query(prepared(
+          'omo-ledger-insert-v1',
+          'INSERT INTO credits_ledger (event_id, user_id, kind, amount_cents, balance_cents, reference_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (event_id) DO NOTHING',
+          [`signup:${userId}`, userId, 'signup_grant', grantCents, grantCents, userId, now]
+        ));
+      }
+      const selected = created ? inserted : await client.query(prepared(
+        'omo-user-select-v1',
+        'SELECT balance_cents, api_key, created_at FROM users WHERE user_id = $1',
+        [userId]
+      ));
+      await client.query('COMMIT');
+      return { record: selected.rows[0], created };
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) {}
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  if (databaseKind(env) === 'd1') {
     const existing = await env.BALANCE_DB
       .prepare('SELECT balance_cents, api_key, created_at FROM users WHERE user_id = ?')
       .bind(userId).first();
     if (existing) return { record: existing, created: false };
     const insert = await env.BALANCE_DB
       .prepare('INSERT OR IGNORE INTO users (user_id, balance_cents, api_key, created_at) VALUES (?, ?, ?, ?)')
-      .bind(userId, signupGrantCents(env), apiKey, now).run();
+      .bind(userId, grantCents, apiKey, now).run();
+    const created = !!(insert.meta && insert.meta.changes);
+    if (created) {
+      await insertD1Ledger(env, [`signup:${userId}`, userId, 'signup_grant', grantCents, grantCents, userId, now]);
+    }
     const row = await env.BALANCE_DB
       .prepare('SELECT balance_cents, api_key, created_at FROM users WHERE user_id = ?')
       .bind(userId).first();
-    return {
-      record: row || { balance_cents: signupGrantCents(env), api_key: apiKey, created_at: now },
-      created: !!(insert.meta && insert.meta.changes),
-    };
+    return { record: row || { balance_cents: grantCents, api_key: apiKey, created_at: now }, created };
   }
 
   if (!mockUsers.has(userId)) {
-    mockUsers.set(userId, { balance_cents: signupGrantCents(env), api_key: apiKey, created_at: now });
-    return { record: mockUsers.get(userId), created: true };
+    const record = { balance_cents: grantCents, api_key: apiKey, created_at: now };
+    mockUsers.set(userId, record);
+    mockLedgerEntry(`signup:${userId}`, userId, 'signup_grant', grantCents, grantCents, userId, now);
+    return { record, created: true };
   }
   return { record: mockUsers.get(userId), created: false };
 }
 
-async function reserveRunCredits(env, userId, costCents) {
-  if (env.BALANCE_DB) {
+async function reserveRunCredits(env, userId, costCents, runId) {
+  const ledgerId = `run:${runId}:debit`;
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    const client = await getNeonPool(env).connect();
+    try {
+      await client.query('BEGIN');
+      const claim = await client.query(prepared(
+        'omo-ledger-debit-claim-v1',
+        'INSERT INTO credits_ledger (event_id, user_id, kind, amount_cents, balance_cents, reference_id, created_at) VALUES ($1, $2, $3, $4, 0, $5, $6) ON CONFLICT (event_id) DO NOTHING RETURNING event_id',
+        [ledgerId, userId, 'run_debit', -costCents, runId, now]
+      ));
+      if (!claim.rowCount) {
+        const duplicate = await client.query(prepared(
+          'omo-ledger-select-v1', 'SELECT balance_cents FROM credits_ledger WHERE event_id = $1', [ledgerId]
+        ));
+        await client.query('COMMIT');
+        return { ok: true, balance_cents: duplicate.rows[0] ? duplicate.rows[0].balance_cents : 0 };
+      }
+      const updated = await client.query(prepared(
+        'omo-user-reserve-v1',
+        'UPDATE users SET balance_cents = balance_cents - $1 WHERE user_id = $2 AND balance_cents >= $1 RETURNING balance_cents',
+        [costCents, userId]
+      ));
+      if (!updated.rowCount) {
+        await client.query(prepared(
+          'omo-ledger-delete-v1', 'DELETE FROM credits_ledger WHERE event_id = $1', [ledgerId]
+        ));
+        const current = await client.query(prepared(
+          'omo-user-balance-v1', 'SELECT balance_cents FROM users WHERE user_id = $1', [userId]
+        ));
+        await client.query('COMMIT');
+        return { ok: false, balance_cents: current.rows[0] ? current.rows[0].balance_cents : 0 };
+      }
+      const balanceCents = updated.rows[0].balance_cents;
+      await client.query(prepared(
+        'omo-ledger-balance-v1', 'UPDATE credits_ledger SET balance_cents = $1 WHERE event_id = $2',
+        [balanceCents, ledgerId]
+      ));
+      await client.query('COMMIT');
+      return { ok: true, balance_cents: balanceCents };
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) {}
+      throw e;
+    } finally { client.release(); }
+  }
+  if (databaseKind(env) === 'd1') {
+    try {
+      const duplicate = await env.BALANCE_DB.prepare('SELECT balance_cents FROM credits_ledger WHERE event_id = ?').bind(ledgerId).first();
+      if (duplicate) return { ok: true, balance_cents: duplicate.balance_cents };
+    } catch (e) { /* legacy D1 schema */ }
     const result = await env.BALANCE_DB
       .prepare('UPDATE users SET balance_cents = balance_cents - ? WHERE user_id = ? AND balance_cents >= ?')
       .bind(costCents, userId, costCents).run();
     const { record } = await getUserRecord(env, userId);
-    return { ok: !!(result.meta && result.meta.changes), balance_cents: record.balance_cents };
+    const ok = !!(result.meta && result.meta.changes);
+    if (ok) await insertD1Ledger(env, [ledgerId, userId, 'run_debit', -costCents, record.balance_cents, runId, now]);
+    return { ok, balance_cents: record.balance_cents };
   }
   const rec = mockUsers.get(userId);
-  if (!rec || rec.balance_cents < costCents) {
-    return { ok: false, balance_cents: rec ? rec.balance_cents : 0 };
-  }
+  if (mockLedger.has(ledgerId)) return { ok: true, balance_cents: rec ? rec.balance_cents : 0 };
+  if (!rec || rec.balance_cents < costCents) return { ok: false, balance_cents: rec ? rec.balance_cents : 0 };
   rec.balance_cents -= costCents;
+  mockLedgerEntry(ledgerId, userId, 'run_debit', -costCents, rec.balance_cents, runId, now);
   return { ok: true, balance_cents: rec.balance_cents };
 }
 
-async function refundRunCredits(env, userId, costCents) {
+async function refundRunCredits(env, userId, costCents, runId) {
   if (!costCents) return;
-  if (env.BALANCE_DB) {
-    await env.BALANCE_DB
-      .prepare('UPDATE users SET balance_cents = balance_cents + ? WHERE user_id = ?')
-      .bind(costCents, userId).run();
+  const ledgerId = `run:${runId}:refund`;
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    const client = await getNeonPool(env).connect();
+    try {
+      await client.query('BEGIN');
+      const inserted = await client.query(prepared(
+        'omo-ledger-refund-claim-v1',
+        'INSERT INTO credits_ledger (event_id, user_id, kind, amount_cents, balance_cents, reference_id, created_at) VALUES ($1, $2, $3, $4, 0, $5, $6) ON CONFLICT (event_id) DO NOTHING RETURNING event_id',
+        [ledgerId, userId, 'run_refund', costCents, runId, now]
+      ));
+      if (!inserted.rowCount) { await client.query('COMMIT'); return; }
+      const updated = await client.query(prepared(
+        'omo-user-refund-v1',
+        'UPDATE users SET balance_cents = balance_cents + $1 WHERE user_id = $2 RETURNING balance_cents',
+        [costCents, userId]
+      ));
+      await client.query(prepared(
+        'omo-ledger-balance-v1', 'UPDATE credits_ledger SET balance_cents = $1 WHERE event_id = $2',
+        [updated.rows[0].balance_cents, ledgerId]
+      ));
+      await client.query('COMMIT');
+      return;
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) {}
+      throw e;
+    } finally { client.release(); }
+  }
+  if (databaseKind(env) === 'd1') {
+    try {
+      const duplicate = await env.BALANCE_DB.prepare('SELECT event_id FROM credits_ledger WHERE event_id = ?').bind(ledgerId).first();
+      if (duplicate) return;
+    } catch (e) { /* legacy D1 schema */ }
+    await env.BALANCE_DB.prepare('UPDATE users SET balance_cents = balance_cents + ? WHERE user_id = ?').bind(costCents, userId).run();
+    const { record } = await getUserRecord(env, userId);
+    await insertD1Ledger(env, [ledgerId, userId, 'run_refund', costCents, record.balance_cents, runId, now]);
     return;
   }
+  if (mockLedger.has(ledgerId)) return;
   const rec = mockUsers.get(userId);
-  if (rec) rec.balance_cents += costCents;
+  if (rec) {
+    rec.balance_cents += costCents;
+    mockLedgerEntry(ledgerId, userId, 'run_refund', costCents, rec.balance_cents, runId, now);
+  }
 }
 
-async function creditTopup(env, sessionId, userId, amountCents) {
-  if (env.BALANCE_DB) {
-    const now = new Date().toISOString();
+async function creditTopup(env, stripeEventId, sessionId, userId, amountCents) {
+  const now = new Date().toISOString();
+  const ledgerId = `stripe:${stripeEventId}`;
+  if (databaseKind(env) === 'neon') {
+    const client = await getNeonPool(env).connect();
+    try {
+      await client.query('BEGIN');
+      const event = await client.query(prepared(
+        'omo-stripe-event-create-v1',
+        'INSERT INTO stripe_events (event_id, session_id, user_id, amount_cents, applied, created_at) VALUES ($1, $2, $3, $4, 0, $5) ON CONFLICT (event_id) DO NOTHING RETURNING event_id',
+        [stripeEventId, sessionId, userId, amountCents, now]
+      ));
+      if (!event.rowCount) { await client.query('COMMIT'); return false; }
+      const topup = await client.query(prepared(
+        'omo-stripe-topup-create-v1',
+        'INSERT INTO stripe_topups (session_id, user_id, amount_cents, applied, created_at) VALUES ($1, $2, $3, 0, $4) ON CONFLICT (session_id) DO NOTHING RETURNING session_id',
+        [sessionId, userId, amountCents, now]
+      ));
+      if (!topup.rowCount) {
+        await client.query(prepared(
+          'omo-stripe-event-applied-v1', 'UPDATE stripe_events SET applied = 1 WHERE event_id = $1', [stripeEventId]
+        ));
+        await client.query('COMMIT');
+        return false;
+      }
+      const updated = await client.query(prepared(
+        'omo-user-topup-v1',
+        'UPDATE users SET balance_cents = balance_cents + $1 WHERE user_id = $2 RETURNING balance_cents',
+        [amountCents, userId]
+      ));
+      const balanceCents = updated.rows[0].balance_cents;
+      await client.query(prepared(
+        'omo-ledger-insert-v1',
+        'INSERT INTO credits_ledger (event_id, user_id, kind, amount_cents, balance_cents, reference_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (event_id) DO NOTHING',
+        [ledgerId, userId, 'topup', amountCents, balanceCents, sessionId, now]
+      ));
+      await client.query(prepared(
+        'omo-stripe-topup-applied-v1', 'UPDATE stripe_topups SET applied = 1 WHERE session_id = $1', [sessionId]
+      ));
+      await client.query(prepared(
+        'omo-stripe-event-applied-v1', 'UPDATE stripe_events SET applied = 1 WHERE event_id = $1', [stripeEventId]
+      ));
+      await client.query('COMMIT');
+      return true;
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) {}
+      throw e;
+    } finally { client.release(); }
+  }
+  if (databaseKind(env) === 'd1') {
+    let tracksEvents = false;
+    try {
+      const event = await env.BALANCE_DB
+        .prepare('INSERT OR IGNORE INTO stripe_events (event_id, session_id, user_id, amount_cents, applied, created_at) VALUES (?, ?, ?, ?, 0, ?)')
+        .bind(stripeEventId, sessionId, userId, amountCents, now).run();
+      const row = await env.BALANCE_DB.prepare('SELECT applied FROM stripe_events WHERE event_id = ?').bind(stripeEventId).first();
+      tracksEvents = true;
+      if ((!event.meta || !event.meta.changes) && row && row.applied) return false;
+    } catch (e) { /* old D1 schemas remain idempotent by Checkout session id */ }
     const results = await env.BALANCE_DB.batch([
       env.BALANCE_DB
         .prepare('INSERT OR IGNORE INTO stripe_topups (session_id, user_id, amount_cents, applied, created_at) VALUES (?, ?, ?, 0, ?)')
@@ -682,33 +949,57 @@ async function creditTopup(env, sessionId, userId, amountCents) {
         .prepare('UPDATE stripe_topups SET applied = 1 WHERE session_id = ? AND user_id = ? AND amount_cents = ? AND applied = 0')
         .bind(sessionId, userId, amountCents),
     ]);
-    return !!(results[1] && results[1].meta && results[1].meta.changes);
+    const applied = !!(results[1] && results[1].meta && results[1].meta.changes);
+    if (tracksEvents) {
+      await env.BALANCE_DB.prepare('UPDATE stripe_events SET applied = 1 WHERE event_id = ?').bind(stripeEventId).run();
+    }
+    if (applied) {
+      const { record } = await getUserRecord(env, userId);
+      await insertD1Ledger(env, [ledgerId, userId, 'topup', amountCents, record.balance_cents, sessionId, now]);
+    }
+    return applied;
   }
-  if (mockTopups.has(sessionId)) return false;
+  if (mockStripeEvents.has(stripeEventId) || mockTopups.has(sessionId)) return false;
+  mockStripeEvents.add(stripeEventId);
   mockTopups.add(sessionId);
   const rec = mockUsers.get(userId);
-  if (rec) rec.balance_cents += amountCents;
+  if (rec) {
+    rec.balance_cents += amountCents;
+    mockLedgerEntry(ledgerId, userId, 'topup', amountCents, rec.balance_cents, sessionId, now);
+  }
   return true;
 }
 
-async function addRun(env, userId, slug, costCents) {
+async function addRun(env, userId, slug, costCents, runId) {
   const now = new Date().toISOString();
-  if (env.BALANCE_DB) {
-    await env.BALANCE_DB
-      .prepare('INSERT INTO runs (user_id, slug, cost_cents, created_at) VALUES (?, ?, ?, ?)')
-      .bind(userId, slug, costCents, now).run();
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-run-insert-v1',
+      'INSERT INTO runs (user_id, slug, cost_cents, created_at) VALUES ($1, $2, $3, $4)',
+      [userId, slug, costCents, now]
+    ));
+    return;
+  }
+  if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare('INSERT INTO runs (user_id, slug, cost_cents, created_at) VALUES (?, ?, ?, ?)').bind(userId, slug, costCents, now).run();
     return;
   }
   const list = mockRuns.get(userId) || [];
-  list.unshift({ slug, cost_cents: costCents, created_at: now });
+  list.unshift({ run_id: runId, slug, cost_cents: costCents, created_at: now });
   mockRuns.set(userId, list);
 }
 
 async function listRuns(env, userId, limit) {
-  if (env.BALANCE_DB) {
-    const res = await env.BALANCE_DB
-      .prepare('SELECT slug, cost_cents, created_at FROM runs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
-      .bind(userId, limit || 50).all();
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-runs-list-v1',
+      'SELECT slug, cost_cents, created_at FROM runs WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+      [userId, limit || 50]
+    ));
+    return result.rows || [];
+  }
+  if (databaseKind(env) === 'd1') {
+    const res = await env.BALANCE_DB.prepare('SELECT slug, cost_cents, created_at FROM runs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?').bind(userId, limit || 50).all();
     return res.results || [];
   }
   return (mockRuns.get(userId) || []).slice(0, limit || 50);

@@ -14,7 +14,7 @@
 #   /api/checkout          (Stripe Checkout for license purchases)
 #   /api/me                (balance + api key + usage for the dashboard)
 #   /api/topup             (Stripe Checkout for credit top-ups)
-#   /api/clerk-webhook     (user.created → $10 signup grant)
+#   /api/clerk-webhook     (user.created → $5 signup grant)
 #
 # To attach a custom domain instead of the workers.dev URL, either:
 #   a) Dashboard: Workers & Pages → cognition-demos → Settings → Domains & Routes
@@ -24,6 +24,7 @@
 name = "cognition-demos"
 main = "worker.js"
 compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
 
 # [[routes]]
 # pattern = "demo.cognition.cv/api/*"
@@ -36,12 +37,18 @@ compatibility_date = "2026-08-01"
 # binding = "BENCH_KV"
 # id = "PASTE_NAMESPACE_ID_HERE"
 
-# Credits backend — balances + usage in D1. To go live (see site/SETUP.md):
+# Credits backend — pooled Neon Postgres is preferred. Install dependencies,
+# apply schema.sql to Neon, then store NEON_DATABASE_URL as a Worker secret:
+#   npm install
+#   psql "$NEON_DATABASE_URL" -f schema.sql
+#   npx wrangler secret put NEON_DATABASE_URL
+#
+# D1 remains an optional fallback. To enable it:
 #   1. npx wrangler d1 create omo-balances
 #   2. paste the returned database_id below, then uncomment
 #   3. npx wrangler d1 execute omo-balances --file=schema.sql
 # Without this binding the worker runs in MOCK mode: an in-memory Map gives
-# every user $10 and a deterministic 'omo_' key, so tests and local dev work
+# every user $5 and a deterministic 'omo_' key, so tests and local dev work
 # with zero infra. In real mode the binding name must be BALANCE_DB.
 # [[d1_databases]]
 # binding = "BALANCE_DB"
@@ -51,6 +58,10 @@ compatibility_date = "2026-08-01"
 [vars]
 LLM_BASE_URL = "https://opencode.ai/zen/go/v1"
 LLM_MODEL = "deepseek-v4-flash"
+
+# Stripe test and production use the identical worker code. Set the matching
+# STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET with `wrangler secret put`; swap
+# test secrets for live secrets only when promoting the deployment.
 
 # Demo caps per route (per IP per day) — mirror each SKILL.md demo_caps.
 # UGC Script Studio

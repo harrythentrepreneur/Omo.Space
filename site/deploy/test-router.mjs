@@ -177,13 +177,13 @@ check('caps: first call allowed, second returns 429', r1.status === 200 && r2.st
 // ── /api/me (dashboard: balance + api key + usage, mock store) ────────────
 
 const me1 = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_111', {}), env)).json();
-check('me: creates a user with the $10 signup grant', me1.ok === true && me1.balance === '10.00' && me1.balance_usd === 10 && me1.balance_cents === 1000);
+check('me: creates a user with the $5 signup grant', me1.ok === true && me1.balance === '5.00' && me1.balance_usd === 5 && me1.balance_cents === 500);
 check('me: currency is usd + mock flag set without D1', me1.currency === 'usd' && me1.mock === true);
 check('me: api key is a deterministic omo_ key', /^omo_[0-9a-f]{32}$/.test(me1.api_key));
 check('me: usage list starts empty', Array.isArray(me1.runs) && me1.runs.length === 0);
 
 const me2 = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_111', {}), env)).json();
-check('me: repeat visit does NOT double-grant (still $10)', me2.balance_usd === 10);
+check('me: repeat visit does NOT double-grant (still $5)', me2.balance_usd === 5);
 check('me: api key is stable across visits', me2.api_key === me1.api_key);
 
 const meBad = await worker.fetch(mkReq('GET', '/api/me', {}), env);
@@ -197,10 +197,10 @@ const runPaid = await (await worker.fetch(mkReq('POST', '/api/run', {
   fields: { description: 'ceramic mug' },
   user_id: 'user_111',
 }), env)).json();
-check('run: paid run succeeds and reports cost + new balance', runPaid.ok === true && runPaid.cost_usd === 0.1 && runPaid.balance === 9.9);
+check('run: paid run succeeds and reports cost + new balance', runPaid.ok === true && runPaid.cost_usd === 0.1 && runPaid.balance === 4.9);
 
 const me3 = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_111', {}), env)).json();
-check('run: balance debited after run ($9.90)', me3.balance_usd === 9.9);
+check('run: balance debited after run ($4.90)', me3.balance_usd === 4.9);
 check('run: usage list records the run', me3.runs.length === 1 && me3.runs[0].slug === 'listing-copy-engine' && me3.runs[0].cost_usd === 0.1);
 
 // ── /api/run → 402 insufficient balance ───────────────────────────────────
@@ -217,37 +217,37 @@ const poor = await worker.fetch(mkReq('POST', '/api/run', {
 }), lowEnv);
 const poorBody = await poor.json();
 check('run: insufficient balance returns 402', poor.status === 402 && poorBody.error === 'insufficient_balance');
-check('run: 402 carries balance + cost + shortfall', poorBody.balance === 0.05 && poorBody.cost_usd === 0.1 && poorBody.shortfall_usd === 0.05);
+check('run: 402 carries balance, friendly top-up guidance, and suggestions', poorBody.balance === 0.05 && poorBody.cost_usd === 0.1 && poorBody.shortfall_usd === 0.05 && /top up/i.test(poorBody.message) && JSON.stringify(poorBody.suggested_amounts_usd) === JSON.stringify([20, 50, 100, 200]));
 
 const lowMe2 = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_low', {}), lowEnv)).json();
 check('run: 402 leaves the balance untouched (still $0.05)', lowMe2.balance_usd === 0.05 && lowMe2.runs.length === 0);
 
 // ── /api/topup (Stripe Checkout for credits) ──────────────────────────────
 
-const tp501 = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 25 }), env);
+const tp501 = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 20 }), env);
 check('topup: no secret key returns 501', tp501.status === 501);
 
-const badTopup = await worker.fetch(mkReq('POST', '/api/topup', { user_id: '', amount_usd: 25 }), stripeEnv);
+const badTopup = await worker.fetch(mkReq('POST', '/api/topup', { user_id: '', amount_usd: 20 }), stripeEnv);
 check('topup: missing user_id returns 400', badTopup.status === 400);
-const badTopup2 = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: -5 }), stripeEnv);
-check('topup: negative amount returns 400', badTopup2.status === 400);
+const badTopup2 = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 4 }), stripeEnv);
+check('topup: custom amount below $5 returns 400', badTopup2.status === 400);
 
-const tp = await (await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 25 }), stripeEnv)).json();
+const tp = await (await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 7 }), stripeEnv)).json();
 check('topup: returns Stripe Checkout url', tp.url === 'https://checkout.stripe.com/c/pay/test_123');
 
 const tpc = stripeCalls[stripeCalls.length - 1];
 const tpcParams = new URLSearchParams(tpc.body);
-check('topup: unit_amount is amount_usd * 100', tpcParams.get('line_items[0][price_data][unit_amount]') === '2500');
+check('topup: custom $7 becomes a 700-cent unit_amount', tpcParams.get('line_items[0][price_data][unit_amount]') === '700');
 check('topup: success_url goes to dashboard', (tpcParams.get('success_url') || '').includes('dashboard.html?topup=success'));
 check('topup: user carried as client_reference_id + metadata', tpcParams.get('client_reference_id') === 'user_111' && tpcParams.get('metadata[user_id]') === 'user_111');
 
-// ── /api/clerk-webhook (user.created → $10 grant) ─────────────────────────
+// ── /api/clerk-webhook (user.created → $5 grant) ──────────────────────────
 
 const wh1 = await (await worker.fetch(mkReq('POST', '/api/clerk-webhook', { type: 'user.created', data: { id: 'user_clerk1', email_addresses: [{ email_address: 'a@b.co' }] } }), env)).json();
-check('webhook: user.created grants $10', wh1.ok === true && wh1.granted === true && wh1.balance === '10.00' && wh1.balance_cents === 1000);
+check('webhook: user.created grants $5', wh1.ok === true && wh1.granted === true && wh1.balance === '5.00' && wh1.balance_cents === 500);
 
 const wh2 = await (await worker.fetch(mkReq('POST', '/api/clerk-webhook', { type: 'user.created', data: { id: 'user_clerk1' } }), env)).json();
-check('webhook: second user.created does NOT double-grant', wh2.ok === true && wh2.granted === false && wh2.balance === '10.00');
+check('webhook: second user.created does NOT double-grant', wh2.ok === true && wh2.granted === false && wh2.balance === '5.00');
 
 const wh3 = await (await worker.fetch(mkReq('POST', '/api/clerk-webhook', { type: 'user.updated', data: { id: 'user_clerk1' } }), env)).json();
 check('webhook: non user.created events are ignored', wh3.ok === true && wh3.ignored === true);

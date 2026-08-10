@@ -52,6 +52,40 @@ wrangler deploy
 
 Caps enforced per route: UGC 5/day, Meta 3/day, Photo 5/day (per IP per day), plus input/token caps from `wrangler.toml` vars.
 
+## 4a. Enable credits with Neon (recommended)
+
+The worker uses `NEON_DATABASE_URL` when present, then D1 when bound, then an
+in-memory zero-config demo store. Neon queries use the lightweight serverless
+driver, a small connection pool, named prepared statements, and no ORM.
+
+```bash
+cd /Users/yifan/marketplace/site/deploy
+npm install
+psql "$NEON_DATABASE_URL" -f schema.sql
+npx wrangler secret put NEON_DATABASE_URL
+npx wrangler secret put BALANCE_KEY_SECRET
+```
+
+`schema.sql` is idempotent and also remains D1-compatible. It creates users,
+runs, an immutable credits ledger, and Stripe event/session idempotency tables.
+Without either database, each mock account starts with $5 locally.
+
+## 4b. Connect Stripe test, then production
+
+Point a Stripe webhook at `https://<worker>/api/topup` for
+`checkout.session.completed`, then set its secret alongside the API secret:
+
+```bash
+npx wrangler secret put STRIPE_SECRET_KEY
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+```
+
+The same checkout code handles test and production. Use Stripe test secrets
+while validating, then replace both Worker secrets with their live equivalents
+and change `STRIPE_PUBLISHABLE_KEY` in `site/key-config.js` from a test to a live
+publishable key. Never commit any real secret. Checkout credits the account
+only after a signed paid webhook, idempotently by Stripe event and session.
+
 ## 5. Deploy
 
 ```bash

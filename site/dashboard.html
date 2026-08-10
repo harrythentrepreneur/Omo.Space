@@ -287,6 +287,14 @@
     }
     .amount-chip:hover { border-color: var(--pine); }
     .amount-chip.is-active { background: var(--pine); color: #fff; border-color: var(--pine); }
+    .custom-amount-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; margin: 0 0 12px; }
+    .custom-amount-label { font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .custom-amount {
+      width: 100%; min-height: 42px; padding: 8px 12px; border: 1px solid var(--rule);
+      border-radius: 10px; background: var(--surface); color: var(--pine);
+    }
+    .custom-amount:focus { border-color: var(--pine); }
+    .empty-credit-note { margin: -4px 0 14px; padding: 10px 12px; border-radius: 10px; background: #FFE8E0; color: var(--pine); font-size: 13px; font-weight: 700; }
     .form-note { min-height: 1.2em; margin: 10px 0 0; color: var(--moss); font-size: 12.5px; }
     .form-note.is-ok { color: var(--pine); font-weight: 700; }
     .form-note.is-err { color: var(--orange); font-weight: 700; }
@@ -533,20 +541,22 @@
           <summary class="credits-summary">
             <span class="credits-summary-icon" aria-hidden="true">◒</span>
             <span class="credits-summary-copy"><strong>Credits &amp; usage</strong><span>Top up and see recent runs</span></span>
-            <span class="credits-summary-balance" id="credits-summary-balance">$10.00 available</span>
+            <span class="credits-summary-balance" id="credits-summary-balance">$5.00 available</span>
           </summary>
           <div class="credits-body">
             <section class="credit-card sig-cut" id="topup-card" aria-labelledby="topup-title">
               <h2 id="topup-title">Credits</h2>
-              <p class="card-intro">Your balance pays for cloud runs. New accounts start with $10.</p>
-              <p class="credit-balance" id="credit-balance">$10.00</p>
+              <p class="card-intro">Your balance pays for cloud runs. Every new account gets $5 free.</p>
+              <p class="credit-balance" id="credit-balance">$5.00</p>
+              <p class="empty-credit-note" id="empty-credit-note" hidden>You’re out of credits, but you can keep going in seconds — top up from $5 below.</p>
               <form id="topup-form" novalidate>
                 <div class="amount-row" role="group" aria-label="Top-up amount">
-                  <button class="amount-chip" type="button" data-amount="5" aria-pressed="false">$5</button>
-                  <button class="amount-chip is-active" type="button" data-amount="10" aria-pressed="true">$10</button>
-                  <button class="amount-chip" type="button" data-amount="25" aria-pressed="false">$25</button>
+                  <button class="amount-chip is-active" type="button" data-amount="20" aria-pressed="true">$20</button>
                   <button class="amount-chip" type="button" data-amount="50" aria-pressed="false">$50</button>
+                  <button class="amount-chip" type="button" data-amount="100" aria-pressed="false">$100</button>
+                  <button class="amount-chip" type="button" data-amount="200" aria-pressed="false">$200</button>
                 </div>
+                <label class="custom-amount-row" for="custom-amount"><span class="custom-amount-label">Custom $</span><input class="custom-amount" id="custom-amount" type="number" min="5" step="0.01" inputmode="decimal" placeholder="Minimum $5" aria-describedby="topup-note"></label>
                 <button class="button button-primary button-block" id="topup-btn" type="submit">Top up with Stripe</button>
                 <p class="form-note" id="topup-note" role="status" aria-live="polite"></p>
               </form>
@@ -567,7 +577,7 @@
   <main class="gate dash-shell" id="signin-gate" hidden>
     <div class="gate-mark" aria-hidden="true">✦</div>
     <h1>Your catalogue is one tap away.</h1>
-    <p>Sign in to browse every helper, run demos, and manage your $10 starter credits.</p>
+    <p>Sign in to browse every helper, run demos, and manage your $5 starter credits.</p>
     <button class="button button-accent" id="gate-signin-btn" type="button">Sign in</button>
   </main>
 
@@ -603,6 +613,8 @@
         if (igMore[i] && igMore[i].slug && !PRODUCTS[igMore[i].slug]) PRODUCTS[igMore[i].slug] = igMore[i];
       }
       var slugs = Object.keys(PRODUCTS);
+      var pendingOpenSlug = '';
+      try { pendingOpenSlug = new URLSearchParams(window.location.search || '').get('open') || ''; } catch (e) {}
 
       function el(id) { return document.getElementById(id); }
       function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
@@ -818,6 +830,13 @@
           if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
         } else if (closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus({ preventScroll: true });
       }
+      var openedRequestedListing = false;
+      function openRequestedListing() {
+        if (openedRequestedListing || !pendingOpenSlug) return;
+        openedRequestedListing = true;
+        if (PRODUCTS[pendingOpenSlug]) openDialog(PRODUCTS[pendingOpenSlug], false);
+        else showNote('That helper is no longer in the catalogue. Here are all available helpers.', true);
+      }
       function toggleVote(slug) {
         if (votes[slug]) delete votes[slug]; else votes[slug] = 1;
         saveVotes(); renderFeed();
@@ -848,8 +867,8 @@
       }
 
       /* Credits and API key logic retained from the previous dashboard. */
-      var account = { mode: 'mock', userId: '', balanceUsd: 10, apiKey: '', runs: [] };
-      var chosenAmount = 10;
+      var account = { mode: 'mock', userId: '', balanceUsd: 5, apiKey: '', runs: [] };
+      var chosenAmount = 20;
       var revealed = false;
       var refreshAfterTopup = window.location.search && window.location.search.indexOf('topup=success') !== -1;
       function fnv1a(str) {
@@ -874,6 +893,8 @@
         if (el('balance-pill')) el('balance-pill').textContent = 'Balance ' + fmtUsd(account.balanceUsd);
         if (el('credit-balance')) el('credit-balance').textContent = fmtUsd(account.balanceUsd);
         if (el('credits-summary-balance')) el('credits-summary-balance').textContent = fmtUsd(account.balanceUsd) + ' available';
+        if (el('empty-credit-note')) el('empty-credit-note').hidden = account.balanceUsd > 0;
+        if (account.balanceUsd <= 0 && el('credits-panel')) el('credits-panel').open = true;
         revealed = false;
         if (el('api-key-value')) el('api-key-value').textContent = maskKey();
         if (el('api-key-label')) el('api-key-label').textContent = 'API key';
@@ -898,7 +919,7 @@
       function loadMock(user) {
         account.mode = 'mock';
         var balance = parseFloat(lsGet(BAL_KEY));
-        account.balanceUsd = isFinite(balance) ? balance : 10;
+        account.balanceUsd = isFinite(balance) ? balance : 5;
         account.apiKey = lsGet(KEY_KEY) || defaultKey(user.id);
         account.runs = [];
         try { var raw = lsGet(USE_KEY); if (raw) { var runs = JSON.parse(raw); if (Array.isArray(runs)) account.runs = runs; } } catch (e) {}
@@ -938,6 +959,7 @@
         var authOnly = document.querySelectorAll('.auth-only');
         for (var j = 0; j < authOnly.length; j++) authOnly[j].hidden = false;
         loadAccount(user);
+        openRequestedListing();
       }
       function refreshAuth() {
         var user = currentUser();
@@ -949,20 +971,36 @@
       }
       function submitTopup(event) {
         if (event && event.preventDefault) event.preventDefault();
-        var amount = chosenAmount || 10; var button = el('topup-btn'); var note = el('topup-note');
-        if (button) button.disabled = true;
+        var custom = el('custom-amount');
+        var hasCustom = custom && String(custom.value || '').trim() !== '';
+        var amount = hasCustom ? Number(custom.value) : chosenAmount;
+        var cents = Math.round(amount * 100);
+        var button = el('topup-btn'); var note = el('topup-note');
         function done(message, ok) {
           if (note) { note.textContent = message; note.className = 'form-note' + (ok ? ' is-ok' : ' is-err'); }
           if (button) button.disabled = false;
         }
-        function simulate(reason) { mockTopup(amount); done(reason + ' Simulated +' + fmtUsd(amount) + ' in mock mode.', false); }
-        if (window.StripePay && StripePay.isConfigured && StripePay.isConfigured()) {
+        if (!isFinite(amount) || Math.abs(amount * 100 - cents) > 0.000001 || cents < 500) {
+          done('Enter at least $5.00, with up to two decimal places.', false);
+          return;
+        }
+        amount = cents / 100;
+        if (button) button.disabled = true;
+        if (window.StripePay && typeof StripePay.topup === 'function') {
           StripePay.topup(amount, {
+            onSuccess: function (result) {
+              if (result && result.simulated) {
+                account.balanceUsd = Number(result.balance);
+                renderAccount();
+                done('Demo top-up added ' + fmtUsd(amount) + ' to your local balance.', true);
+              }
+            },
             onError: function (message) { done(message || 'Checkout could not start right now.', false); }
           });
           return;
         }
-        simulate('Live checkout is not configured yet.');
+        mockTopup(amount);
+        done('Demo top-up added ' + fmtUsd(amount) + ' to your local balance.', true);
       }
       function copyKey() {
         var label = el('api-key-label');
@@ -1037,7 +1075,7 @@
             fetch((API_BASE || 'https://cognition-demo.pages.dev') + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
               .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { status: response.status, data: data }; }); })
               .then(function (result) {
-                if (!result.data.ok) { status.setAttribute('data-state', 'error'); status.textContent = result.data.error || (result.status === 402 ? 'Not enough credits — top up below.' : 'The demo could not run.'); return; }
+                if (!result.data.ok) { status.setAttribute('data-state', 'error'); status.textContent = result.data.message || (result.status === 402 ? 'Not enough credits — top up below.' : result.data.error || 'The demo could not run.'); return; }
                 resultBox.innerHTML = renderDemoOutput(result.data.output !== undefined ? result.data.output : result.data); resultBox.hidden = false; status.textContent = 'Done — that’s the real helper output.';
               }).catch(function () { status.setAttribute('data-state', 'error'); status.textContent = 'Could not reach the demo server right now.'; })
               .finally(function () { runButton.disabled = false; runButton.textContent = 'Run the demo'; });
@@ -1053,7 +1091,8 @@
         for (var j = 0; j < amountChips.length; j++) {
           (function (chip) {
             chip.addEventListener('click', function () {
-              chosenAmount = Number(chip.getAttribute('data-amount')) || 10;
+              chosenAmount = Number(chip.getAttribute('data-amount')) || 20;
+              if (el('custom-amount')) el('custom-amount').value = '';
               for (var k = 0; k < amountChips.length; k++) {
                 var active = amountChips[k] === chip; amountChips[k].classList.toggle('is-active', active);
                 amountChips[k].setAttribute('aria-pressed', active ? 'true' : 'false');
@@ -1061,6 +1100,15 @@
             });
           })(amountChips[j]);
         }
+        if (el('custom-amount')) el('custom-amount').addEventListener('input', function () {
+          var hasValue = !!String(this.value || '').trim();
+          chosenAmount = hasValue ? null : 20;
+          for (var j = 0; j < amountChips.length; j++) {
+            var active = !hasValue && Number(amountChips[j].getAttribute('data-amount')) === 20;
+            amountChips[j].classList.toggle('is-active', active);
+            amountChips[j].setAttribute('aria-pressed', active ? 'true' : 'false');
+          }
+        });
         if (el('topup-form')) el('topup-form').addEventListener('submit', submitTopup);
         if (el('sign-out-btn')) el('sign-out-btn').addEventListener('click', function () {
           if (window.ClerkAuth && ClerkAuth.signOut) ClerkAuth.signOut();
@@ -1073,6 +1121,10 @@
         try {
           if (window.location.search && window.location.search.indexOf('topup=success') !== -1) showNote('Payment complete — refreshing your balance.', false);
           if (window.location.search && window.location.search.indexOf('topup=cancelled') !== -1) showNote('Top-up cancelled — your balance was not changed.', true);
+          if (window.location.search && window.location.search.indexOf('topup=needed') !== -1) {
+            showNote('You’re out of credits. Choose a suggested amount or top up any amount from $5.', false);
+            if (el('credits-panel')) el('credits-panel').open = true;
+          }
         } catch (e) {}
       }
 
@@ -1090,7 +1142,13 @@
         selectNiche: selectScope,
         clearFilters: clearFilters,
         refresh: refreshAuth,
-        topup: function (amount) { if (typeof amount === 'number') chosenAmount = amount; submitTopup(null); }
+        topup: function (amount) {
+          if (typeof amount === 'number') {
+            chosenAmount = amount;
+            if (el('custom-amount')) el('custom-amount').value = '';
+          }
+          submitTopup(null);
+        }
       };
     })();
   </script>

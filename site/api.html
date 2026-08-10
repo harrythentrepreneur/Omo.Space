@@ -225,7 +225,7 @@
 
     <section class="card" aria-labelledby="billing-title">
       <h2 id="billing-title">Billing</h2>
-      <p>Every new account starts with <strong>$10 of free credits</strong>. Each run debits your balance at the helper's per-use price (shown on its card, e.g. <em>run ≈ $1.4</em>). When your balance runs low, top up from the dashboard.</p>
+      <p>Every new account starts with <strong>$5 of free credits</strong>. Each run debits your balance at the helper's per-use price (shown on its card, e.g. <em>run ≈ $1.4</em>). When your balance runs low, top up from $5 or choose $20, $50, $100, or $200 on the dashboard.</p>
       <p class="hint">You only pay for runs that start. Failed validations cost nothing.</p>
     </section>
 
@@ -242,7 +242,7 @@
       var el = function (id) { return document.getElementById(id); };
       var fmtUsd = function (n) { return '$' + Number(n || 0).toFixed(2); };
       var accountKey = '';
-      var accountBalance = 10;
+      var accountBalance = 5;
 
       function getKey() {
         var k = localStorage.getItem(KEY_KEY);

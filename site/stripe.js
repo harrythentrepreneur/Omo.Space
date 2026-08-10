@@ -9,6 +9,7 @@
   var PLACEHOLDER = 'pk_test_placeholder';
   var PURCHASE_KEY = 'cognition_purchases_v1';
   var BALANCE_KEY = 'omo_balance_v1';
+  var MIN_TOPUP_USD = 5;
 
   function getKey() {
     return (window.STRIPE_PUBLISHABLE_KEY || '').trim() || PLACEHOLDER;
@@ -68,8 +69,9 @@
   }
 
   function simulateTopup(amountUsd, callbacks) {
-    var balance = Number(localStorage.getItem(BALANCE_KEY));
-    if (!isFinite(balance)) balance = 10;
+    var savedBalance = localStorage.getItem(BALANCE_KEY);
+    var balance = savedBalance == null ? 5 : Number(savedBalance);
+    if (!isFinite(balance)) balance = 5;
     balance = Math.round((balance + amountUsd) * 100) / 100;
     try { localStorage.setItem(BALANCE_KEY, String(balance)); } catch (e) {}
     notice('Demo mode: added $' + amountUsd.toFixed(2) + ' to your local balance.');
@@ -113,10 +115,12 @@
 
   function topup(amountUsd, callbacks) {
     var amount = Number(amountUsd);
-    if (!isFinite(amount) || amount <= 0) {
-      fail(callbacks, 'Choose a valid top-up amount.');
+    var cents = Math.round(amount * 100);
+    if (!isFinite(amount) || Math.abs(amount * 100 - cents) > 0.000001 || cents < MIN_TOPUP_USD * 100) {
+      fail(callbacks, 'Top-ups start at $5.00 and support up to two decimal places.');
       return;
     }
+    amount = cents / 100;
     if (!isConfigured()) {
       simulateTopup(amount, callbacks);
       return;
@@ -141,6 +145,7 @@
     getKey: getKey,
     isConfigured: isConfigured,
     checkout: checkout,
-    topup: topup
+    topup: topup,
+    minimumTopupUsd: MIN_TOPUP_USD
   };
 })();

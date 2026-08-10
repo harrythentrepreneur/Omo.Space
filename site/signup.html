@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#1E3A34">
+  <meta name="description" content="Create your free Omo account and run the helper you picked.">
+  <title>Make an account — Omo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --cream: #F4F1E8;
+      --pine: #17352C;
+      --deep-pine: #1E3A34;
+      --mint: #BDEFD4;
+      --orange: #FF6B3D;
+      --moss: #6F7E77;
+      --rule: #C9D8CF;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--canvas); }
+    body {
+      min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0;
+      background:
+        radial-gradient(circle at 8% 16%, rgba(189, 239, 212, .58) 0 8%, transparent 8.2%),
+        radial-gradient(circle at 93% 86%, rgba(255, 107, 61, .12) 0 10%, transparent 10.2%),
+        var(--canvas);
+      color: var(--pine); font-family: var(--body); line-height: 1.5;
+      text-rendering: optimizeLegibility;
+    }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { font: inherit; cursor: pointer; }
+    a { color: inherit; }
+    :where(a, button):focus-visible {
+      outline: 3px solid var(--mint); outline-offset: 4px;
+    }
+
+    .page-shell {
+      width: min(1040px, calc(100% - 40px)); min-height: 100vh; min-height: 100dvh;
+      margin-inline: auto; padding: 30px 0; display: grid;
+      grid-template-rows: auto 1fr auto; gap: 28px;
+    }
+    .wordmark {
+      width: max-content; font-family: var(--display); font-size: 30px; font-weight: 600;
+      line-height: 1; letter-spacing: -.02em; text-decoration: none;
+    }
+    .wordmark-dot { color: var(--orange); }
+    .sig-cut {
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%);
+    }
+
+    .signup-card {
+      align-self: center; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+      min-height: 500px; overflow: hidden; border: 1px solid var(--pine);
+      border-radius: 26px 26px 0 26px; background: var(--cream);
+      box-shadow: 0 24px 70px rgba(23, 53, 44, .12);
+    }
+    .intro {
+      position: relative; overflow: hidden; padding: clamp(40px, 7vw, 76px);
+      display: flex; flex-direction: column; justify-content: center;
+      background: var(--mint);
+    }
+    .intro::after {
+      content: ""; position: absolute; right: -44px; bottom: -52px; width: 190px; height: 190px;
+      border: 28px solid rgba(23, 53, 44, .09); border-radius: 50%;
+    }
+    .eyebrow {
+      width: max-content; margin-bottom: 24px; padding: 7px 12px; border: 1px solid var(--pine);
+      border-radius: 999px; background: var(--canvas); font-size: 12px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase; transform: rotate(-2deg);
+    }
+    h1 {
+      position: relative; z-index: 1; max-width: 580px; margin: 0 0 22px;
+      font-family: var(--display); font-size: clamp(44px, 7vw, 72px); font-weight: 600;
+      line-height: .98; letter-spacing: -.035em; text-wrap: balance;
+    }
+    h1 em { color: var(--orange); font-style: italic; }
+    .intro-copy {
+      position: relative; z-index: 1; max-width: 470px; margin: 0;
+      font-size: clamp(17px, 2vw, 19px); color: var(--deep-pine); text-wrap: pretty;
+    }
+
+    .action-panel {
+      position: relative; padding: clamp(36px, 5vw, 58px); display: flex; flex-direction: column;
+      justify-content: center; background: var(--deep-pine); color: #fff;
+    }
+    .sketch-arrow {
+      position: absolute; top: 42px; right: 44px; color: var(--orange);
+      font-family: var(--display); font-size: 42px; line-height: 1; transform: rotate(12deg);
+    }
+    .step-label {
+      margin: 0 0 10px; color: var(--mint); font-size: 13px; font-weight: 700;
+      letter-spacing: .09em; text-transform: uppercase;
+    }
+    .action-title {
+      margin: 0 0 10px; font-family: var(--display); font-size: 31px; line-height: 1.1;
+    }
+    .action-copy { margin: 0 0 28px; color: rgba(255, 255, 255, .72); font-size: 15px; }
+    .create-button {
+      width: 100%; min-height: 58px; padding: 0 20px; display: inline-flex; align-items: center;
+      justify-content: space-between; gap: 16px; border: 1px solid var(--orange); border-radius: 13px 13px 3px 13px;
+      background: var(--orange); color: var(--pine); font-weight: 700; font-size: 16px;
+      transition: transform .14s ease, box-shadow .14s ease;
+    }
+    .create-button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0, 0, 0, .18); }
+    .create-button span { font-size: 23px; line-height: 1; }
+    .credit-note { margin: 16px 0 0; color: rgba(255, 255, 255, .72); font-size: 13.5px; }
+    .credit-note strong { color: #fff; }
+    .signup-status { min-height: 1.5em; margin: 12px 0 0; color: var(--mint); font-size: 13px; }
+
+    .back-link {
+      width: max-content; min-height: 44px; display: inline-flex; align-items: center; gap: 8px;
+      color: var(--pine); font-size: 14px; font-weight: 700; text-underline-offset: 4px;
+    }
+    .back-link:hover { color: var(--orange); }
+
+    @media (max-width: 760px) {
+      .page-shell { width: min(100% - 28px, 620px); padding: 22px 0; gap: 20px; }
+      .signup-card { grid-template-columns: 1fr; min-height: 0; }
+      .intro { padding: 42px 28px 38px; }
+      h1 { font-size: clamp(40px, 12vw, 58px); }
+      .action-panel { padding: 34px 28px 38px; }
+      .sketch-arrow { top: 26px; right: 28px; font-size: 34px; }
+    }
+
+    @media (max-width: 420px) {
+      .page-shell { width: calc(100% - 20px); }
+      .intro, .action-panel { padding-inline: 22px; }
+      .signup-card { border-radius: 20px 20px 0 20px; }
+      .eyebrow { margin-bottom: 18px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <a class="wordmark" href="index.html" aria-label="Omo home">Omo<span class="wordmark-dot">.</span></a>
+
+    <section class="signup-card sig-cut" aria-labelledby="signup-title">
+      <div class="intro">
+        <span class="eyebrow">Almost there</span>
+        <h1 id="signup-title">Make an account.<br><em>Run the helper.</em></h1>
+        <p class="intro-copy">We’ll take you straight back to the helper you picked.</p>
+      </div>
+
+      <div class="action-panel">
+        <span class="sketch-arrow" aria-hidden="true">↘</span>
+        <p class="step-label">One quick step</p>
+        <h2 class="action-title">Your helper is waiting.</h2>
+        <p class="action-copy">Create your account, then carry on where you left off.</p>
+        <button class="create-button" id="create-account" type="button">
+          Create my free account <span aria-hidden="true">→</span>
+        </button>
+        <p class="credit-note">No card needed. <strong>$5 in free credits</strong> when you join.</p>
+        <p class="signup-status" id="signup-status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <a class="back-link" href="index.html#feed">← Back to the store</a>
+  </main>
+
+  <script src="key-config.js"></script>
+  <script src="clerk.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      var button = document.getElementById('create-account');
+      var status = document.getElementById('signup-status');
+
+      if (window.ClerkAuth && ClerkAuth.isSignedIn()) {
+        button.firstChild.nodeValue = 'Go to my dashboard ';
+      }
+
+      button.addEventListener('click', function () {
+        if (!window.ClerkAuth || typeof ClerkAuth.signUpAndRedirect !== 'function') {
+          status.textContent = 'Signup could not open. Please refresh and try again.';
+          return;
+        }
+        status.textContent = ClerkAuth.isSignedIn() ? 'Taking you to your dashboard…' : 'Opening signup…';
+        var result = ClerkAuth.signUpAndRedirect();
+        if (result && typeof result.catch === 'function') {
+          result.catch(function () {
+            status.textContent = 'Signup could not open. Please try again.';
+          });
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

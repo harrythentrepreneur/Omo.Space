@@ -1,6 +1,6 @@
 // Omo — credits core (pure, testable, zero runtime dependencies).
 //
-// Every Omo account starts with $10 of free credits (granted on first signup
+// Every Omo account starts with $5 of free credits (granted on first signup
 // via the Clerk webhook, or lazily by /api/me). API runs debit the balance at
 // the cost-model run price (5x markup, $0.10 floor); top-ups add credits via
 // Stripe Checkout. API keys are deterministic per user: 'omo_' + a hash of
@@ -11,8 +11,9 @@
 // site/deploy/test-balance.mjs. It must stay dependency-free so the worker
 // bundles it and the vm-based router tests can concatenate it.
 
-export const SIGNUP_GRANT_USD = 10; // $10 free credits on first signup
-export const TOPUP_AMOUNTS_USD = [5, 10, 25, 50]; // dashboard chips
+export const SIGNUP_GRANT_USD = 5; // $5 free credits on first signup
+export const TOPUP_AMOUNTS_USD = [20, 50, 100, 200]; // suggested dashboard chips
+export const MIN_TOPUP_USD = 5; // custom top-ups may be any cent amount at/above this
 export const API_KEY_PREFIX = 'omo_';
 export const API_KEY_HEX_CHARS = 32; // 16 + 16 from two hash passes
 

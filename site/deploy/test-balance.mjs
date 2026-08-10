@@ -13,9 +13,9 @@ import {
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) { pass++; console.log(`PASS  ${name}`); } else { fail++; console.log(`FAIL  ${name}`); } };
 
-// 1. Signup grant = $10
-check('grant: signup grant is $10', SIGNUP_GRANT_USD === 10);
-check('grant: grantSignupCredits returns $10', grantSignupCredits().amountUsd === 10);
+// 1. Signup grant = $5
+check('grant: signup grant is $5', SIGNUP_GRANT_USD === 5);
+check('grant: grantSignupCredits returns $5', grantSignupCredits().amountUsd === 5);
 
 // 2. debitForRun — happy path
 const d1 = debitForRun(10, 0.10);
@@ -53,7 +53,7 @@ check('hash: differs across inputs', hashHex('a') !== hashHex('b'));
 
 // 6. topup amounts
 const t = topupAmounts();
-check('topup: presets are [5,10,25,50]', JSON.stringify(t) === JSON.stringify([5, 10, 25, 50]));
+check('topup: suggestions are [20,50,100,200]', JSON.stringify(t) === JSON.stringify([20, 50, 100, 200]));
 t.push(999);
 check('topup: returns a copy (caller cannot mutate presets)', topupAmounts().length === 4);
 
