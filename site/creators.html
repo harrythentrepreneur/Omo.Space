@@ -212,8 +212,32 @@
     .footer-links a:hover { color: var(--pine); text-decoration: underline; }
 
     @media (max-width: 639px) {
-      .hero { padding: 56px 0 48px; }
-      .hero-sub { margin-bottom: 24px; font-size: 17px; }
+      .shell { width: min(var(--shell), calc(100% - 32px)); }
+      .nav-row {
+        min-height: auto; align-items: flex-start; flex-direction: column;
+        gap: 10px; padding: 14px 0 10px;
+      }
+      .nav-actions { width: 100%; gap: 12px; justify-content: space-between; }
+      .nav-actions > * { flex: 0 0 auto; }
+      .button-small { min-height: 44px; }
+      .hero { padding: 48px 0 44px; }
+      .hero-title { font-size: clamp(36px, 10.5vw, 46px); }
+      .hero-sub { margin-bottom: 24px; font-size: clamp(16px, 4.5vw, 17px); }
+      .why-section { padding: 52px 0 68px; }
+      .ways-section, .paid-section { padding: 68px 0; }
+      .why-head, .ways-head, .paid-head { margin-bottom: 30px; }
+      .why-card { padding: 21px; }
+      .way-row { padding: 21px 2px; }
+      .paid-step { padding: 20px; }
+      .paid-affiliate { padding: 18px 20px; }
+      .site-footer { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+    }
+    @media (max-width: 420px) {
+      .hero-actions { flex-direction: column; }
+      .hero-actions .button { width: 100%; }
+      .nav-actions { align-items: stretch; }
+      .paid-cta .button { width: 100%; }
+      .footer-links { width: 100%; flex-direction: column; align-items: flex-start; gap: 0; }
     }
   </style>
 </head>

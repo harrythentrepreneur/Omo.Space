@@ -113,6 +113,54 @@
     .notice { background: var(--mint); border: 1px solid var(--pine); border-radius: 10px; padding: 12px 16px; font-size: 14px; margin: 14px 0 0; }
     .foot { margin-top: 40px; text-align: center; color: var(--moss); font-size: 14px; }
     .foot a { color: var(--pine); font-weight: 700; }
+
+    /* Mobile API docs: roomy touch controls, contained code, and wrapping endpoints. */
+    @media (max-width: 640px) {
+      html, body { overflow-x: hidden; }
+      body { min-width: 320px; }
+      .dash-shell, .api-shell { width: calc(100% - 32px); }
+      .nav-row {
+        min-height: auto; align-items: flex-start; flex-direction: column;
+        gap: 10px; padding: 13px 0 11px;
+      }
+      .nav-actions {
+        width: calc(100% + 32px); margin-inline: -16px; padding: 0 16px 3px;
+        gap: 8px; overflow-x: auto; overscroll-behavior-inline: contain;
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+      }
+      .nav-actions::-webkit-scrollbar { display: none; }
+      .nav-actions > * { flex: 0 0 auto; }
+      .balance-pill, .button-small { min-height: 44px; }
+      .balance-pill { padding-inline: 12px; font-size: 13.5px; }
+
+      .api-shell { margin: 38px auto calc(48px + env(safe-area-inset-bottom)); }
+      h1 { font-size: clamp(34px, 10vw, 44px); }
+      .sub { margin-bottom: 28px; font-size: 16px; }
+      .card { padding: 22px 18px; margin-bottom: 16px; }
+      .card h2 { font-size: clamp(21px, 6vw, 24px); }
+      .key-row { display: grid; grid-template-columns: minmax(0, 1fr); }
+      .key-box { width: 100%; min-width: 0; }
+      .key-box code {
+        display: block; min-width: 0; max-width: 100%; overflow-x: auto;
+        text-overflow: clip; scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+      }
+      .key-actions { width: 100%; }
+      .mini-btn { min-height: 44px; flex: 1; }
+      pre {
+        max-width: 100%; padding: 16px; border-radius: 12px;
+        font-size: 12.5px; line-height: 1.65; overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+      }
+      .card p code { overflow-wrap: anywhere; }
+      .ep {
+        display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center;
+        gap: 7px 10px; padding: 14px 0;
+      }
+      .ep .path { min-width: 0; overflow-wrap: anywhere; font-size: 13.5px; }
+      .ep .desc { grid-column: 1 / -1; margin-left: 0; text-align: left; line-height: 1.4; }
+      .notice { padding: 13px 14px; }
+      .foot { line-height: 2; }
+    }
   </style>
 </head>
 <body>
