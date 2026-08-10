@@ -683,18 +683,34 @@ async function handleStripeTopupWebhook(request, env) {
 
   const session = event.data && event.data.object;
   const metadata = session && session.metadata;
-  const userId = String((metadata && metadata.user_id) || (session && session.client_reference_id) || '').trim();
   const amountCents = Number(session && session.amount_total);
-  if (!session || session.payment_status !== 'paid' || !session.id || !userId ||
-      !metadata || metadata.type !== 'credits_topup' || Number(metadata.amount_cents) !== amountCents ||
-      !Number.isInteger(amountCents) || amountCents <= 0) {
+  const currency = String((session && session.currency) || '').toLowerCase();
+  if (!session || session.payment_status !== 'paid' || !session.id || currency !== 'usd' ||
+      !Number.isSafeInteger(amountCents) || amountCents <= 0) {
     return json({ ok: true, ignored: true }, 200, cors());
   }
 
   if (!event.id) return json({ error: 'missing event id' }, 400, cors());
 
+  let userId = '';
+  if (isRealMode(env)) {
+    const pending = await getPendingTopup(env, session.id);
+    if (!pending || pending.state === 'applied' || pending.amount_cents !== amountCents ||
+        pending.currency !== 'usd' || !validUserId(pending.user_id)) {
+      return json({ ok: true, ignored: true }, 200, cors());
+    }
+    userId = pending.user_id;
+  } else {
+    userId = String((metadata && metadata.user_id) || session.client_reference_id || '').trim();
+    if (!validUserId(userId) || !metadata || metadata.type !== 'credits_topup' ||
+        Number(metadata.amount_cents) !== amountCents || String(metadata.currency || 'usd') !== 'usd') {
+      return json({ ok: true, ignored: true }, 200, cors());
+    }
+  }
+
   await getUserRecord(env, userId);
   const applied = await creditTopup(env, event.id, session.id, userId, amountCents);
+  if (isRealMode(env)) await markPendingTopupApplied(env, session.id);
   const { record } = await getUserRecord(env, userId);
   return json({
     ok: true,
@@ -710,9 +726,8 @@ async function handleStripeTopupWebhook(request, env) {
 // event: user.created. On that event we grant the $5 signup credits (INSERT
 // OR IGNORE — an existing row keeps its balance, so no double grants, and a
 // lazy /api/me provision doesn't get reset by the webhook).
-// When CLERK_WEBHOOK_SECRET is set the Svix signature is verified (svix-id /
-// svix-timestamp / svix-signature headers, HMAC-SHA256). Without the secret
-// (mock/local) validation is skipped.
+// Svix verification is mandatory in real mode. Mock/local mode keeps the
+// unsigned grant path used by the zero-key demo and offline router tests.
 
 async function handleClerkWebhook(request, env) {
   let raw;
@@ -723,6 +738,9 @@ async function handleClerkWebhook(request, env) {
   }
 
   const secret = env.CLERK_WEBHOOK_SECRET;
+  if (isRealMode(env) && !secret) {
+    return json({ error: 'clerk webhook not configured' }, 503, cors());
+  }
   if (secret && !(await verifySvix(request.headers, raw, secret))) {
     return json({ error: 'invalid signature' }, 401, cors());
   }
@@ -732,6 +750,7 @@ async function handleClerkWebhook(request, env) {
   }
 
   const userId = String(body.data.id);
+  if (!validUserId(userId)) return json({ error: 'invalid user id' }, 400, cors());
   const { record, created } = await getUserRecord(env, userId);
   return json({
     ok: true,
@@ -754,6 +773,10 @@ const mockRuns = new Map();
 const mockLedger = new Map();
 const mockTopups = new Set();
 const mockStripeEvents = new Set();
+const mockApiKeys = new Map();
+const mockRunRequests = new Map();
+const mockPendingTopups = new Map();
+const clerkJwksCache = new Map();
 
 function neonDatabaseUrl(env) {
   if (env && env.NEON_DATABASE_URL) return String(env.NEON_DATABASE_URL).trim();
@@ -769,6 +792,24 @@ function databaseKind(env) {
   if (neonDatabaseUrl(env)) return 'neon';
   if (env && env.BALANCE_DB) return 'd1';
   return 'mock';
+}
+
+function isRealMode(env) {
+  return databaseKind(env) !== 'mock' || /^pk_(?:test|live)_/.test(String(env.CLERK_PUBLISHABLE_KEY || ''));
+}
+
+function validUserId(value) {
+  return USER_ID_RE.test(String(value || '').trim());
+}
+
+function boundedInt(value, min, max, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= min && number <= max ? number : fallback;
+}
+
+function boundedNumber(value, min, max, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max ? number : fallback;
 }
 
 function getNeonPool(env) {
@@ -799,6 +840,155 @@ function signupGrantCents(env) {
   const override = Number(env.SIGNUP_GRANT_USD);
   const amountUsd = isFinite(override) && override > 0 ? override : grantSignupCredits().amountUsd;
   return Math.round(amountUsd * 100);
+}
+
+async function authenticateAccount(request, env, allowApiKey) {
+  const authorization = String(request.headers.get('authorization') || '').trim();
+  const bearer = /^Bearer\s+(.+)$/i.exec(authorization);
+  const explicitApiKey = String(request.headers.get('x-api-key') || '').trim();
+  const credential = explicitApiKey || (bearer && bearer[1]) || '';
+
+  if (allowApiKey && credential.startsWith('omo_')) {
+    const userId = await userIdForApiKey(env, credential);
+    return userId
+      ? { ok: true, userId, method: 'api_key' }
+      : { ok: false, status: 401, error: 'invalid_api_key' };
+  }
+  if (!bearer || !bearer[1]) return { ok: false, status: 401, error: 'authentication_required' };
+  if (!env.CLERK_PUBLISHABLE_KEY) return { ok: false, status: 503, error: 'clerk_not_configured' };
+
+  try {
+    const claims = await verifyClerkSessionToken(bearer[1], env);
+    return { ok: true, userId: claims.sub, method: 'clerk' };
+  } catch (e) {
+    return { ok: false, status: 401, error: 'invalid_session_token' };
+  }
+}
+
+async function userIdForApiKey(env, apiKey) {
+  if (!/^omo_[0-9a-f]{32}$/.test(apiKey)) return '';
+  const keyHash = await sha256Hex(apiKey);
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-api-key-owner-v1', 'SELECT user_id FROM api_keys WHERE key_hash = $1', [keyHash]
+    ));
+    if (result.rows[0] && validUserId(result.rows[0].user_id)) return result.rows[0].user_id;
+    const legacy = await getNeonPool(env).query(prepared(
+      'omo-api-key-legacy-owner-v1', 'SELECT user_id FROM users WHERE api_key = $1', [apiKey]
+    ));
+    if (legacy.rows[0] && validUserId(legacy.rows[0].user_id)) {
+      await ensureApiKeyRecord(env, legacy.rows[0].user_id, apiKey);
+      return legacy.rows[0].user_id;
+    }
+    return '';
+  }
+  if (databaseKind(env) === 'd1') {
+    const row = await env.BALANCE_DB.prepare('SELECT user_id FROM api_keys WHERE key_hash = ?').bind(keyHash).first();
+    if (row && validUserId(row.user_id)) return row.user_id;
+    const legacy = await env.BALANCE_DB.prepare('SELECT user_id FROM users WHERE api_key = ?').bind(apiKey).first();
+    if (legacy && validUserId(legacy.user_id)) {
+      await ensureApiKeyRecord(env, legacy.user_id, apiKey);
+      return legacy.user_id;
+    }
+    return '';
+  }
+  return mockApiKeys.get(keyHash) || '';
+}
+
+async function ensureApiKeyRecord(env, userId, apiKey) {
+  const keyHash = await sha256Hex(apiKey);
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-api-key-upsert-v1',
+      'INSERT INTO api_keys (key_hash, user_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET key_hash = EXCLUDED.key_hash',
+      [keyHash, userId, now]
+    ));
+  } else if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare('INSERT INTO api_keys (key_hash, user_id, created_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET key_hash = excluded.key_hash').bind(keyHash, userId, now).run();
+  } else {
+    mockApiKeys.set(keyHash, userId);
+  }
+}
+
+function clerkFrontendApi(publishableKey) {
+  const match = /^pk_(?:test|live)_(.+)$/.exec(String(publishableKey || '').trim());
+  if (!match) throw new Error('invalid Clerk publishable key');
+  const decoded = new TextDecoder().decode(base64UrlBytes(match[1])).replace(/\$$/, '');
+  if (!/^[A-Za-z0-9.-]{3,253}$/.test(decoded) || decoded.startsWith('.') || decoded.endsWith('.')) {
+    throw new Error('invalid Clerk Frontend API');
+  }
+  return decoded.toLowerCase();
+}
+
+async function getClerkJwks(env, forceRefresh) {
+  const frontendApi = clerkFrontendApi(env.CLERK_PUBLISHABLE_KEY);
+  const cached = clerkJwksCache.get(frontendApi);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.keys;
+  const response = await fetch(`https://${frontendApi}/.well-known/jwks.json`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error('Clerk JWKS unavailable');
+  const body = await response.json();
+  const keys = Array.isArray(body.keys) ? body.keys.filter((key) => key && key.kty === 'RSA') : [];
+  if (!keys.length) throw new Error('Clerk JWKS empty');
+  clerkJwksCache.set(frontendApi, { keys, expiresAt: Date.now() + 10 * 60 * 1000 });
+  return keys;
+}
+
+async function verifyClerkSessionToken(token, env) {
+  if (typeof token !== 'string' || token.length < 32 || token.length > 8192) throw new Error('invalid JWT');
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('invalid JWT');
+  const header = JSON.parse(new TextDecoder().decode(base64UrlBytes(parts[0])));
+  const claims = JSON.parse(new TextDecoder().decode(base64UrlBytes(parts[1])));
+  if (!header || header.alg !== 'RS256' || typeof header.kid !== 'string') throw new Error('invalid JWT header');
+
+  let keys = await getClerkJwks(env, false);
+  let jwk = keys.find((key) => key.kid === header.kid && key.alg !== 'RS256' ? false : key.kid === header.kid);
+  if (!jwk) {
+    keys = await getClerkJwks(env, true);
+    jwk = keys.find((key) => key.kid === header.kid && (!key.alg || key.alg === 'RS256'));
+  }
+  if (!jwk) throw new Error('unknown JWT key');
+  const publicKey = await crypto.subtle.importKey(
+    'jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
+  );
+  const verified = await crypto.subtle.verify(
+    'RSASSA-PKCS1-v1_5', publicKey, base64UrlBytes(parts[2]),
+    new TextEncoder().encode(`${parts[0]}.${parts[1]}`)
+  );
+  if (!verified) throw new Error('invalid JWT signature');
+
+  const now = Math.floor(Date.now() / 1000);
+  const skew = boundedInt(env.CLERK_CLOCK_SKEW_SECONDS, 0, 30, 5);
+  const issuer = `https://${clerkFrontendApi(env.CLERK_PUBLISHABLE_KEY)}`;
+  if (!Number.isFinite(claims.exp) || now - skew >= claims.exp) throw new Error('expired JWT');
+  if (Number.isFinite(claims.nbf) && now + skew < claims.nbf) throw new Error('early JWT');
+  if (Number.isFinite(claims.iat) && now + skew < claims.iat) throw new Error('future JWT');
+  if (String(claims.iss || '').replace(/\/$/, '') !== issuer) throw new Error('invalid JWT issuer');
+  if (!validUserId(claims.sub)) throw new Error('invalid JWT subject');
+  if (claims.azp && !isAllowedStorefrontOrigin(String(claims.azp))) throw new Error('invalid authorized party');
+  return claims;
+}
+
+function base64UrlBytes(value) {
+  const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+  return base64Bytes(padded);
+}
+
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value)));
+  return bytesToHex(new Uint8Array(digest));
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function makeId(prefix) {
@@ -832,6 +1022,7 @@ async function insertD1Ledger(env, values) {
 async function getUserRecord(env, userId) {
   const now = new Date().toISOString();
   const apiKey = apiKeyFor(userId, balanceSecret(env));
+  const apiKeyHash = await sha256Hex(apiKey);
   const grantCents = signupGrantCents(env);
 
   if (databaseKind(env) === 'neon') {
@@ -841,7 +1032,7 @@ async function getUserRecord(env, userId) {
       const inserted = await client.query(prepared(
         'omo-user-create-v1',
         'INSERT INTO users (user_id, balance_cents, api_key, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING RETURNING balance_cents, api_key, created_at',
-        [userId, grantCents, apiKey, now]
+        [userId, grantCents, apiKeyHash, now]
       ));
       const created = inserted.rowCount === 1;
       if (created) {
@@ -856,8 +1047,13 @@ async function getUserRecord(env, userId) {
         'SELECT balance_cents, api_key, created_at FROM users WHERE user_id = $1',
         [userId]
       ));
+      await client.query(prepared(
+        'omo-api-key-upsert-v1',
+        'INSERT INTO api_keys (key_hash, user_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET key_hash = EXCLUDED.key_hash',
+        [apiKeyHash, userId, now]
+      ));
       await client.query('COMMIT');
-      return { record: selected.rows[0], created };
+      return { record: { ...selected.rows[0], api_key: apiKey }, created };
     } catch (e) {
       try { await client.query('ROLLBACK'); } catch (rollbackError) {}
       throw e;
@@ -870,10 +1066,13 @@ async function getUserRecord(env, userId) {
     const existing = await env.BALANCE_DB
       .prepare('SELECT balance_cents, api_key, created_at FROM users WHERE user_id = ?')
       .bind(userId).first();
-    if (existing) return { record: existing, created: false };
+    if (existing) {
+      await ensureApiKeyRecord(env, userId, apiKey);
+      return { record: { ...existing, api_key: apiKey }, created: false };
+    }
     const insert = await env.BALANCE_DB
       .prepare('INSERT OR IGNORE INTO users (user_id, balance_cents, api_key, created_at) VALUES (?, ?, ?, ?)')
-      .bind(userId, grantCents, apiKey, now).run();
+      .bind(userId, grantCents, apiKeyHash, now).run();
     const created = !!(insert.meta && insert.meta.changes);
     if (created) {
       await insertD1Ledger(env, [`signup:${userId}`, userId, 'signup_grant', grantCents, grantCents, userId, now]);
@@ -881,15 +1080,18 @@ async function getUserRecord(env, userId) {
     const row = await env.BALANCE_DB
       .prepare('SELECT balance_cents, api_key, created_at FROM users WHERE user_id = ?')
       .bind(userId).first();
-    return { record: row || { balance_cents: grantCents, api_key: apiKey, created_at: now }, created };
+    await ensureApiKeyRecord(env, userId, apiKey);
+    return { record: { ...(row || { balance_cents: grantCents, created_at: now }), api_key: apiKey }, created };
   }
 
   if (!mockUsers.has(userId)) {
     const record = { balance_cents: grantCents, api_key: apiKey, created_at: now };
     mockUsers.set(userId, record);
+    mockApiKeys.set(apiKeyHash, userId);
     mockLedgerEntry(`signup:${userId}`, userId, 'signup_grant', grantCents, grantCents, userId, now);
     return { record, created: true };
   }
+  mockApiKeys.set(apiKeyHash, userId);
   return { record: mockUsers.get(userId), created: false };
 }
 
