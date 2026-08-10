@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" href="favicon.svg">
   <meta name="description" content="One Omo API key for every proven workflow. Send one request, pay per use, and get the result with no extra setup.">
   <meta property="og:title" content="Omo — API">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://omo.best/api.html">
+  <meta name="theme-color" content="#1E3A34">
   <title>Omo — API</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,14 +27,15 @@
       --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --shell: 1160px;
     }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; overflow-x: clip; scroll-behavior: smooth; }
     body {
       margin: 0; background: var(--canvas); color: var(--pine);
       font-family: var(--body); font-size: 16px; line-height: 1.58;
     }
     body, button, input, select, textarea { font-family: var(--body); }
-    a { color: var(--pine); }
+    a { color: var(--pine); -webkit-tap-highlight-color: transparent; }
+    :where(a, button):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
     .skip-link { position: absolute; left: 16px; top: -160%; background: var(--pine); color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 50; transition: transform .18s ease; }
     .skip-link:focus { transform: translateY(160%); }
 
@@ -41,7 +43,10 @@
     .site-header { background: var(--surface); border-bottom: 1px solid var(--rule); position: sticky; top: 0; z-index: 40; }
     .dash-shell { width: min(100% - 48px, var(--shell)); margin: 0 auto; }
     .nav-row { display: flex; align-items: center; justify-content: space-between; min-height: 68px; gap: 16px; }
-    .wordmark { font-family: var(--display); font-size: 24px; font-weight: 600; text-decoration: none; color: var(--pine); }
+    .wordmark {
+      min-height: 44px; display: inline-flex; align-items: center;
+      font-family: var(--display); font-size: 24px; font-weight: 600; text-decoration: none; color: var(--pine);
+    }
     .wordmark-dot { color: var(--orange); }
     .nav-actions { display: flex; align-items: center; gap: 10px; }
     .balance-pill {
@@ -94,8 +99,12 @@
     pre {
       background: var(--pine); color: #E8F2EC; border-radius: 10px; padding: 18px 20px;
       overflow-x: auto; font-size: 13.5px; line-height: 1.6; margin: 12px 0 4px;
+      overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch;
     }
-    pre code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    pre code {
+      display: block; width: max-content; min-width: 100%;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
     pre .c { color: #8FB3A3; }
     pre .k { color: #FFD9C9; font-weight: 700; }
     pre .s { color: #BDEFD4; }
@@ -116,15 +125,17 @@
 
     /* Mobile API docs: roomy touch controls, contained code, and wrapping endpoints. */
     @media (max-width: 640px) {
-      html, body { overflow-x: hidden; }
-      body { min-width: 320px; }
-      .dash-shell, .api-shell { width: calc(100% - 32px); }
+      body { min-width: 320px; overflow-x: clip; }
+      .dash-shell, .api-shell {
+        width: 100%; padding-right: max(16px, env(safe-area-inset-right));
+        padding-left: max(16px, env(safe-area-inset-left));
+      }
       .nav-row {
         min-height: auto; align-items: flex-start; flex-direction: column;
         gap: 10px; padding: 13px 0 11px;
       }
       .nav-actions {
-        width: calc(100% + 32px); margin-inline: -16px; padding: 0 16px 3px;
+        width: 100%; margin: 0; padding: 0 0 3px;
         gap: 8px; overflow-x: auto; overscroll-behavior-inline: contain;
         scrollbar-width: none; -webkit-overflow-scrolling: touch;
       }
@@ -134,8 +145,8 @@
       .balance-pill { padding-inline: 12px; font-size: 13.5px; }
 
       .api-shell { margin: 38px auto calc(48px + env(safe-area-inset-bottom)); }
-      h1 { font-size: clamp(34px, 10vw, 44px); }
-      .sub { margin-bottom: 28px; font-size: 16px; }
+      h1 { font-size: clamp(34px, 10vw, 44px); text-wrap: balance; }
+      .sub { margin-bottom: 28px; font-size: clamp(15.5px, 4.3vw, 17px); text-wrap: pretty; }
       .card { padding: 22px 18px; margin-bottom: 16px; }
       .card h2 { font-size: clamp(21px, 6vw, 24px); }
       .key-row { display: grid; grid-template-columns: minmax(0, 1fr); }
@@ -148,8 +159,7 @@
       .mini-btn { min-height: 44px; flex: 1; }
       pre {
         max-width: 100%; padding: 16px; border-radius: 12px;
-        font-size: 12.5px; line-height: 1.65; overscroll-behavior-inline: contain;
-        -webkit-overflow-scrolling: touch;
+        font-size: 12.5px; line-height: 1.65; scrollbar-width: thin;
       }
       .card p code { overflow-wrap: anywhere; }
       .ep {
@@ -159,7 +169,8 @@
       .ep .path { min-width: 0; overflow-wrap: anywhere; font-size: 13.5px; }
       .ep .desc { grid-column: 1 / -1; margin-left: 0; text-align: left; line-height: 1.4; }
       .notice { padding: 13px 14px; }
-      .foot { line-height: 2; }
+      .foot { line-height: 1.5; }
+      .foot a { min-height: 44px; display: inline-flex; align-items: center; }
     }
   </style>
 </head>

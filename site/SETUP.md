@@ -1,109 +1,112 @@
 # Omo storefront — Clerk, Stripe, and credits
 
-The storefront ships safely in demo mode. With the placeholder keys, Clerk
-uses `cognition_user`, purchases use `cognition_purchases_v1`, and credit
-top-ups update `omo_balance_v1` in localStorage. No card is charged.
+Omo has two deliberate modes:
 
-## Go live
+- **Demo/mock:** no Clerk key, payment secret, or durable database. The browser
+  keeps its local balance and the worker preserves the legacy `user_id` demo
+  requests. `LLM_API_KEY` may still be set to power demos.
+- **Real:** enabled by Clerk, Stripe/payment secrets, `BALANCE_KEY_SECRET`,
+  Neon, or D1. Account routes fail closed and never trust body/query
+  `user_id`. A payment-only partial setup therefore cannot expose mock credit
+  accounts.
 
-### 1. Configure the browser once
+## 1. Configure the browser
 
-Create a Clerk app, then copy its publishable key from **Clerk Dashboard → API
-Keys**. In Stripe test mode, copy the publishable key from **Developers → API
-keys**. Put both keys and the deployed worker URL in `site/key-config.js`:
+Create Clerk and Stripe applications, then put their publishable keys and the
+deployed Worker URL in `site/key-config.js` as described by that file. The
+storefront obtains a Clerk session token and sends it as:
 
-```js
-window.CLERK_PUBLISHABLE_KEY = 'pk_test_...';
-window.STRIPE_PUBLISHABLE_KEY = 'pk_test_...';
-window.OMO_API_BASE = 'https://<worker-url>';
+```http
+Authorization: Bearer <Clerk session JWT>
 ```
 
-`index.html`, `dashboard.html`, and `api.html` all load this file before Clerk
-or Stripe, so this single edit activates the real flow everywhere. A real
-Clerk key starts with `pk_test_` or `pk_live_`; a real Stripe key starts with
-`pk_test_` or `pk_live_`.
+## 2. Create the credits database
 
-### 2. Create D1 and apply the schema
+Neon is recommended:
 
 ```bash
 cd site/deploy
-npx wrangler login
-npx wrangler d1 create omo-balances
+psql "$NEON_DATABASE_URL" -f schema.sql
+npx wrangler secret put NEON_DATABASE_URL
 ```
 
-Paste the returned `database_id` into the `[[d1_databases]]` block in
-`wrangler.toml`, uncomment that block, then run:
+For D1, create the database, uncomment `[[d1_databases]]` in
+`wrangler.toml`, and apply the same schema:
 
 ```bash
+npx wrangler d1 create omo-balances
 npx wrangler d1 execute omo-balances --remote --file=schema.sql
 ```
 
-The schema creates `users`, `runs`, and the idempotent `stripe_topups` ledger.
-The D1 binding name must remain `BALANCE_DB`.
+The schema includes hashed API-key ownership, the credit ledger, pending
+Stripe top-ups, and the `run_requests` state machine. Reapply it before
+deploying this worker version.
 
-### 3. Set worker secrets and deploy
+## 3. Set Worker configuration
 
 ```bash
-npx wrangler secret put STRIPE_SECRET_KEY
+npx wrangler secret put CLERK_PUBLISHABLE_KEY
 npx wrangler secret put CLERK_WEBHOOK_SECRET
+npx wrangler secret put STRIPE_SECRET_KEY
 npx wrangler secret put STRIPE_WEBHOOK_SECRET
 npx wrangler secret put BALANCE_KEY_SECRET
 npx wrangler secret put LLM_API_KEY
 npx wrangler deploy
 ```
 
-Use the Stripe test secret key (`sk_test_...`) while the browser uses a test
-publishable key. Secrets live only in Cloudflare.
+`CLERK_PUBLISHABLE_KEY` must be the same Clerk instance used by the browser.
+The Worker decodes its Frontend API hostname, fetches
+`/.well-known/jwks.json`, caches the JWKS, and verifies RS256 signature,
+issuer, subject, time claims, and authorized party. The default clock skew is
+5 seconds.
 
-### 4. Connect the webhooks
+`wrangler.toml` sets a $5 minimum, $1,000 maximum top-up, and a five-minute
+stale run-reservation timeout. Override those vars only with deliberate
+values.
 
-In **Clerk Dashboard → Webhooks**, add:
+## 4. Connect webhooks
 
-- Endpoint: `https://<worker-url>/api/clerk-webhook`
-- Event: `user.created`
-- Copy its signing secret into `wrangler secret put CLERK_WEBHOOK_SECRET`
+In Clerk, subscribe `user.created` to:
 
-The signed `user.created` delivery provisions the user with 1000 cents
-($10.00) of free credits. Repeat deliveries do not grant twice.
+```text
+https://<worker>/api/clerk-webhook
+```
 
-In **Stripe Dashboard → Developers → Webhooks**, add:
+In Stripe, subscribe `checkout.session.completed` to:
 
-- Endpoint: `https://<worker-url>/api/topup`
-- Event: `checkout.session.completed`
-- Copy its signing secret into `wrangler secret put STRIPE_WEBHOOK_SECRET`
+```text
+https://<worker>/api/topup
+```
 
-Stripe Checkout carries the Clerk user id in session metadata. After a paid
-top-up, the signed webhook credits D1 exactly once; the return URL
-`dashboard.html?topup=success` refreshes `/api/me`. Cancellation returns to
-`dashboard.html?topup=cancelled` without changing the balance.
+Real-mode Clerk deliveries require a valid Svix signature; a missing signing
+secret returns 503. Stripe top-ups are credited only when the signed, paid USD
+session matches the server-created pending record's session, user, and amount.
+Repeat deliveries do not credit twice.
 
-## Live behavior
+## Real API behavior
 
-- Clerk loads `https://cdn.clerk.com/v1/clerk.browser.js`, opens real sign-in
-  and sign-up modals, and exposes the current `{ id, email, username }`.
-- `/api/me` returns the D1 balance, deterministic `omo_` key, and recent runs.
-- `/api/run` reserves and debits the run price; insufficient credit returns
-  JSON with status `402` and `error: "insufficient_balance"`.
-- `/api/checkout` creates one-time Stripe Checkout sessions for store items.
-- `/api/topup` accepts only the dashboard presets: $5, $10, $25, or $50.
+- `/api/me` and `/api/topup` require a verified Clerk session token.
+- `/api/run` accepts either a Clerk token or the owning `omo_` API key via
+  `Authorization: Bearer` (also `X-API-Key`).
+- Real `/api/run` requires `Idempotency-Key` (8–128 safe characters). Replays
+  return the stored result/state and do not charge or call the LLM again.
+- Run prompt, model, token cap, workflow metadata, and price are resolved by
+  slug from the Worker catalog. Unknown real-mode slugs are rejected.
+- `/api/checkout` ignores client prices and uses catalog slug/name/price.
+- Real CORS allows `https://omo.best` and `http://localhost:<port>` only.
 
 ## Verify before launch
 
-Use Stripe's test card `4242 4242 4242 4242`, then verify this sequence:
-
-1. Sign up with Clerk → dashboard shows `$10.00` and an `omo_` API key.
-2. Run a helper → balance decreases and the usage row appears.
-3. Top up → Stripe Checkout → dashboard returns with `?topup=success` and the
-   balance increases once.
-4. Re-send the same Stripe webhook → the balance does not increase again.
+Use Stripe test mode and confirm: sign up → $5 balance; run with one
+idempotency key → one debit; replay → same run and balance; top up → one
+credit; replay webhook → no second credit.
 
 Run the offline checks from the repository root:
 
 ```bash
-node --check site/clerk.js
-node --check site/stripe.js
 node --check site/deploy/worker.js
 node site/deploy/test-balance.mjs
 node site/deploy/test-router.mjs
 node site/deploy/test-cost.mjs
+git diff --check
 ```

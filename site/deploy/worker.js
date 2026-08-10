@@ -197,7 +197,7 @@ const ROUTES = {
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: cors(request, env) });
+      return new Response(null, { headers: cors(request, env) });
     }
 
     const url = new URL(request.url);
@@ -212,7 +212,9 @@ export default {
     try {
       return applyCors(await route.handler(request, env, url), request, env);
     } catch (e) {
-      return json({ error: 'internal_error' }, 500, cors(request, env));
+      const body = { error: 'internal_error' };
+      if (env.DEBUG_ERRORS === 'true') body.detail = String(e && e.message || e).slice(0, 200);
+      return json(body, 500, cors(request, env));
     }
   },
 };
@@ -445,9 +447,9 @@ async function handleGenericRun(request, env) {
   try {
     const llm = await callLLM(env, systemPrompt, userPrompt, maxTokens, model);
     if (llm.error) {
-      if (billing) await refundRunCredits(env, userId, reservedCents, runId);
       const response = { error: llm.error, run_id: runId || undefined, state: runRequest ? 'refunded' : undefined };
-      if (runRequest) await finishRunRequest(env, runId, 'refunded', response, 502);
+      const ownsRefund = runRequest ? await finishRunRequest(env, runId, 'refunded', response, 502) : true;
+      if (billing && ownsRefund) await refundRunCredits(env, userId, reservedCents, runId);
       settled = true;
       return json(response, 502, cors());
     }
@@ -467,14 +469,16 @@ async function handleGenericRun(request, env) {
       }
       if (runRequest) await finishRunRequest(env, runId, 'succeeded', result, 200);
       settled = true;
-      await addRun(env, userId, slug, reservedCents, runId);
+      if (!runRequest) await addRun(env, userId, slug, reservedCents, runId);
       return json(result, 200, cors());
     }
     return json({ ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content }, 200, cors());
   } catch (e) {
-    if (billing && !settled) await refundRunCredits(env, userId, reservedCents, runId);
     const response = { error: 'run_failed', run_id: runId || undefined, state: runRequest ? 'refunded' : undefined };
-    if (runRequest && !settled) await finishRunRequest(env, runId, 'refunded', response, 500);
+    if (!settled) {
+      const ownsRefund = runRequest ? await finishRunRequest(env, runId, 'refunded', response, 500) : true;
+      if (billing && ownsRefund) await refundRunCredits(env, userId, reservedCents, runId);
+    }
     return json(response, 500, cors());
   }
 }
@@ -795,7 +799,10 @@ function databaseKind(env) {
 }
 
 function isRealMode(env) {
-  return databaseKind(env) !== 'mock' || /^pk_(?:test|live)_/.test(String(env.CLERK_PUBLISHABLE_KEY || ''));
+  if (databaseKind(env) !== 'mock') return true;
+  if (!env) return false;
+  return /^pk_(?:test|live)_/.test(String(env.CLERK_PUBLISHABLE_KEY || '')) ||
+    !!(env.STRIPE_SECRET_KEY || env.CLERK_WEBHOOK_SECRET || env.STRIPE_WEBHOOK_SECRET || env.BALANCE_KEY_SECRET);
 }
 
 function validUserId(value) {
@@ -945,7 +952,7 @@ async function verifyClerkSessionToken(token, env) {
   if (!header || header.alg !== 'RS256' || typeof header.kid !== 'string') throw new Error('invalid JWT header');
 
   let keys = await getClerkJwks(env, false);
-  let jwk = keys.find((key) => key.kid === header.kid && key.alg !== 'RS256' ? false : key.kid === header.kid);
+  let jwk = keys.find((key) => key.kid === header.kid && (!key.alg || key.alg === 'RS256'));
   if (!jwk) {
     keys = await getClerkJwks(env, true);
     jwk = keys.find((key) => key.kid === header.kid && (!key.alg || key.alg === 'RS256'));
@@ -1095,6 +1102,223 @@ async function getUserRecord(env, userId) {
   return { record: mockUsers.get(userId), created: false };
 }
 
+function mockRunRequestKey(userId, idempotencyKey) {
+  return `${userId}\u0000${idempotencyKey}`;
+}
+
+async function claimRunRequest(env, userId, idempotencyKey, requestHash, slug, costCents, runId) {
+  const now = new Date().toISOString();
+  const values = [runId, userId, idempotencyKey, requestHash, slug, costCents, 'reserved', now, now];
+  if (databaseKind(env) === 'neon') {
+    const client = await getNeonPool(env).connect();
+    try {
+      await client.query('BEGIN');
+      const inserted = await client.query(prepared(
+        'omo-run-request-claim-v1',
+        'INSERT INTO run_requests (run_id, user_id, idempotency_key, request_hash, slug, cost_cents, state, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (user_id, idempotency_key) DO NOTHING RETURNING *',
+        values
+      ));
+      const selected = inserted.rowCount ? inserted : await client.query(prepared(
+        'omo-run-request-by-key-v1',
+        'SELECT * FROM run_requests WHERE user_id = $1 AND idempotency_key = $2',
+        [userId, idempotencyKey]
+      ));
+      await client.query('COMMIT');
+      return { created: inserted.rowCount === 1, row: selected.rows[0] };
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) {}
+      throw e;
+    } finally { client.release(); }
+  }
+  if (databaseKind(env) === 'd1') {
+    const inserted = await env.BALANCE_DB.prepare('INSERT OR IGNORE INTO run_requests (run_id, user_id, idempotency_key, request_hash, slug, cost_cents, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(...values).run();
+    const row = await env.BALANCE_DB.prepare('SELECT * FROM run_requests WHERE user_id = ? AND idempotency_key = ?').bind(userId, idempotencyKey).first();
+    return { created: !!(inserted.meta && inserted.meta.changes), row };
+  }
+  const key = mockRunRequestKey(userId, idempotencyKey);
+  if (mockRunRequests.has(key)) return { created: false, row: mockRunRequests.get(key) };
+  const row = {
+    run_id: runId, user_id: userId, idempotency_key: idempotencyKey,
+    request_hash: requestHash, slug, cost_cents: costCents, state: 'reserved',
+    response_json: null, http_status: null, created_at: now, updated_at: now,
+  };
+  mockRunRequests.set(key, row);
+  return { created: true, row };
+}
+
+function replayRunResponse(row, requestHash) {
+  if (!row || row.request_hash !== requestHash) {
+    return json({ error: 'idempotency_key_conflict' }, 409, cors());
+  }
+  if (row.state === 'succeeded' || row.state === 'refunded') {
+    let body = {};
+    try { body = JSON.parse(row.response_json || '{}'); } catch { body = {}; }
+    body.idempotent_replay = true;
+    body.state = row.state;
+    body.run_id = row.run_id;
+    return json(body, Number(row.http_status) || (row.state === 'succeeded' ? 200 : 500), cors());
+  }
+  return json({
+    ok: true, idempotent_replay: true, run_id: row.run_id, state: row.state,
+  }, 202, cors());
+}
+
+async function setRunRunning(env, runId) {
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-run-request-running-v1',
+      "UPDATE run_requests SET state = 'running', updated_at = $1 WHERE run_id = $2 AND state = 'reserved'",
+      [now, runId]
+    ));
+  } else if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare("UPDATE run_requests SET state = 'running', updated_at = ? WHERE run_id = ? AND state = 'reserved'").bind(now, runId).run();
+  } else {
+    for (const row of mockRunRequests.values()) {
+      if (row.run_id === runId && row.state === 'reserved') {
+        row.state = 'running';
+        row.updated_at = now;
+        break;
+      }
+    }
+  }
+}
+
+async function finishRunRequest(env, runId, state, response, httpStatus) {
+  const now = new Date().toISOString();
+  const responseJson = JSON.stringify(response);
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-run-request-finish-v1',
+      "UPDATE run_requests SET state = $1, response_json = $2, http_status = $3, updated_at = $4 WHERE run_id = $5 AND state IN ('reserved','running')",
+      [state, responseJson, httpStatus, now, runId]
+    ));
+    return result.rowCount === 1;
+  } else if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare("UPDATE run_requests SET state = ?, response_json = ?, http_status = ?, updated_at = ? WHERE run_id = ? AND state IN ('reserved','running')").bind(state, responseJson, httpStatus, now, runId).run();
+    return !!(result.meta && result.meta.changes);
+  } else {
+    for (const row of mockRunRequests.values()) {
+      if (row.run_id === runId && (row.state === 'reserved' || row.state === 'running')) {
+        row.state = state;
+        row.response_json = responseJson;
+        row.http_status = httpStatus;
+        row.updated_at = now;
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+async function reconcileStaleReservations(env, userId) {
+  const ttlSeconds = boundedInt(env.RUN_RESERVATION_TTL_SECONDS, 60, 3600, 300);
+  const cutoff = new Date(Date.now() - ttlSeconds * 1000).toISOString();
+  let rows = [];
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-run-request-stale-v1',
+      "SELECT run_id, cost_cents FROM run_requests WHERE user_id = $1 AND state IN ('reserved','running') AND updated_at < $2 ORDER BY updated_at LIMIT 20",
+      [userId, cutoff]
+    ));
+    rows = result.rows || [];
+  } else if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare("SELECT run_id, cost_cents FROM run_requests WHERE user_id = ? AND state IN ('reserved','running') AND updated_at < ? ORDER BY updated_at LIMIT 20").bind(userId, cutoff).all();
+    rows = result.results || [];
+  } else {
+    rows = Array.from(mockRunRequests.values()).filter((row) =>
+      row.user_id === userId && (row.state === 'reserved' || row.state === 'running') && row.updated_at < cutoff
+    ).slice(0, 20);
+  }
+  for (const row of rows) {
+    const response = { error: 'stale_reservation_refunded', run_id: row.run_id, state: 'refunded' };
+    const claimed = await claimStaleRunRefund(env, row.run_id, cutoff, response);
+    if (claimed && await runDebitExists(env, row.run_id)) {
+      await refundRunCredits(env, userId, Number(row.cost_cents), row.run_id);
+    }
+  }
+  await reconcileMissingRefunds(env, userId);
+}
+
+async function reconcileMissingRefunds(env, userId) {
+  let rows = [];
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-run-request-unreconciled-refunds-v1',
+      "SELECT run_id, cost_cents FROM run_requests WHERE user_id = $1 AND state = 'refunded' ORDER BY updated_at DESC LIMIT 20",
+      [userId]
+    ));
+    rows = result.rows || [];
+  } else if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare("SELECT run_id, cost_cents FROM run_requests WHERE user_id = ? AND state = 'refunded' ORDER BY updated_at DESC LIMIT 20").bind(userId).all();
+    rows = result.results || [];
+  } else {
+    rows = Array.from(mockRunRequests.values()).filter((row) =>
+      row.user_id === userId && row.state === 'refunded'
+    ).slice(-20);
+  }
+  for (const row of rows) {
+    if (await runDebitExists(env, row.run_id) && !(await runRefundExists(env, row.run_id))) {
+      await refundRunCredits(env, userId, Number(row.cost_cents), row.run_id);
+    }
+  }
+}
+
+async function claimStaleRunRefund(env, runId, cutoff, response) {
+  const now = new Date().toISOString();
+  const responseJson = JSON.stringify(response);
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-run-request-claim-stale-v1',
+      "UPDATE run_requests SET state = 'refunded', response_json = $1, http_status = 409, updated_at = $2 WHERE run_id = $3 AND state IN ('reserved','running') AND updated_at < $4 RETURNING run_id",
+      [responseJson, now, runId, cutoff]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare("UPDATE run_requests SET state = 'refunded', response_json = ?, http_status = 409, updated_at = ? WHERE run_id = ? AND state IN ('reserved','running') AND updated_at < ?").bind(responseJson, now, runId, cutoff).run();
+    return !!(result.meta && result.meta.changes);
+  }
+  for (const row of mockRunRequests.values()) {
+    if (row.run_id === runId && (row.state === 'reserved' || row.state === 'running') && row.updated_at < cutoff) {
+      row.state = 'refunded';
+      row.response_json = responseJson;
+      row.http_status = 409;
+      row.updated_at = now;
+      return true;
+    }
+  }
+  return false;
+}
+
+async function runDebitExists(env, runId) {
+  const ledgerId = `run:${runId}:debit`;
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-run-debit-exists-v1', 'SELECT event_id FROM credits_ledger WHERE event_id = $1', [ledgerId]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    return !!(await env.BALANCE_DB.prepare('SELECT event_id FROM credits_ledger WHERE event_id = ?').bind(ledgerId).first());
+  }
+  return mockLedger.has(ledgerId);
+}
+
+async function runRefundExists(env, runId) {
+  const ledgerId = `run:${runId}:refund`;
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-run-refund-exists-v1', 'SELECT event_id FROM credits_ledger WHERE event_id = $1', [ledgerId]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    return !!(await env.BALANCE_DB.prepare('SELECT event_id FROM credits_ledger WHERE event_id = ?').bind(ledgerId).first());
+  }
+  return mockLedger.has(ledgerId);
+}
+
 async function reserveRunCredits(env, userId, costCents, runId) {
   const ledgerId = `run:${runId}:debit`;
   const now = new Date().toISOString();
@@ -1193,13 +1417,13 @@ async function refundRunCredits(env, userId, costCents, runId) {
     } finally { client.release(); }
   }
   if (databaseKind(env) === 'd1') {
-    try {
-      const duplicate = await env.BALANCE_DB.prepare('SELECT event_id FROM credits_ledger WHERE event_id = ?').bind(ledgerId).first();
-      if (duplicate) return;
-    } catch (e) { /* legacy D1 schema */ }
-    await env.BALANCE_DB.prepare('UPDATE users SET balance_cents = balance_cents + ? WHERE user_id = ?').bind(costCents, userId).run();
-    const { record } = await getUserRecord(env, userId);
-    await insertD1Ledger(env, [ledgerId, userId, 'run_refund', costCents, record.balance_cents, runId, now]);
+    // D1 batch() is transactional. balance_cents=-1 is a private claim marker:
+    // only the batch that inserted it can satisfy the guarded credit update.
+    await env.BALANCE_DB.batch([
+      env.BALANCE_DB.prepare('INSERT OR IGNORE INTO credits_ledger (event_id, user_id, kind, amount_cents, balance_cents, reference_id, created_at) VALUES (?, ?, ?, ?, -1, ?, ?)').bind(ledgerId, userId, 'run_refund', costCents, runId, now),
+      env.BALANCE_DB.prepare('UPDATE users SET balance_cents = balance_cents + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM credits_ledger WHERE event_id = ? AND balance_cents = -1)').bind(costCents, userId, ledgerId),
+      env.BALANCE_DB.prepare('UPDATE credits_ledger SET balance_cents = (SELECT balance_cents FROM users WHERE user_id = ?) WHERE event_id = ? AND balance_cents = -1').bind(userId, ledgerId),
+    ]);
     return;
   }
   if (mockLedger.has(ledgerId)) return;
@@ -1207,6 +1431,58 @@ async function refundRunCredits(env, userId, costCents, runId) {
   if (rec) {
     rec.balance_cents += costCents;
     mockLedgerEntry(ledgerId, userId, 'run_refund', costCents, rec.balance_cents, runId, now);
+  }
+}
+
+async function recordPendingTopup(env, sessionId, userId, amountCents, currency) {
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-pending-topup-create-v1',
+      'INSERT INTO topup_sessions (session_id, user_id, amount_cents, currency, state, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (session_id) DO NOTHING',
+      [sessionId, userId, amountCents, currency, 'pending', now, now]
+    ));
+  } else if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare('INSERT OR IGNORE INTO topup_sessions (session_id, user_id, amount_cents, currency, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(sessionId, userId, amountCents, currency, 'pending', now, now).run();
+  } else {
+    if (!mockPendingTopups.has(sessionId)) {
+      mockPendingTopups.set(sessionId, {
+        session_id: sessionId, user_id: userId, amount_cents: amountCents,
+        currency, state: 'pending', created_at: now, updated_at: now,
+      });
+    }
+  }
+}
+
+async function getPendingTopup(env, sessionId) {
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-pending-topup-get-v1', 'SELECT * FROM topup_sessions WHERE session_id = $1', [sessionId]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return env.BALANCE_DB.prepare('SELECT * FROM topup_sessions WHERE session_id = ?').bind(sessionId).first();
+  }
+  return mockPendingTopups.get(sessionId) || null;
+}
+
+async function markPendingTopupApplied(env, sessionId) {
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-pending-topup-apply-v1',
+      "UPDATE topup_sessions SET state = 'applied', updated_at = $1 WHERE session_id = $2 AND state = 'pending'",
+      [now, sessionId]
+    ));
+  } else if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare("UPDATE topup_sessions SET state = 'applied', updated_at = ? WHERE session_id = ? AND state = 'pending'").bind(now, sessionId).run();
+  } else {
+    const pending = mockPendingTopups.get(sessionId);
+    if (pending && pending.state === 'pending') {
+      pending.state = 'applied';
+      pending.updated_at = now;
+    }
   }
 }
 
@@ -1323,17 +1599,24 @@ async function addRun(env, userId, slug, costCents, runId) {
 async function listRuns(env, userId, limit) {
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
-      'omo-runs-list-v1',
-      'SELECT slug, cost_cents, created_at FROM runs WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+      'omo-runs-list-v2',
+      "SELECT slug, cost_cents, created_at FROM (SELECT slug, cost_cents, created_at FROM run_requests WHERE user_id = $1 AND state = 'succeeded' UNION ALL SELECT slug, cost_cents, created_at FROM runs WHERE user_id = $1) AS history ORDER BY created_at DESC LIMIT $2",
       [userId, limit || 50]
     ));
     return result.rows || [];
   }
   if (databaseKind(env) === 'd1') {
-    const res = await env.BALANCE_DB.prepare('SELECT slug, cost_cents, created_at FROM runs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?').bind(userId, limit || 50).all();
+    const res = await env.BALANCE_DB.prepare("SELECT slug, cost_cents, created_at FROM (SELECT slug, cost_cents, created_at FROM run_requests WHERE user_id = ? AND state = 'succeeded' UNION ALL SELECT slug, cost_cents, created_at FROM runs WHERE user_id = ?) AS history ORDER BY created_at DESC LIMIT ?").bind(userId, userId, limit || 50).all();
     return res.results || [];
   }
-  return (mockRuns.get(userId) || []).slice(0, limit || 50);
+  const stateRuns = Array.from(mockRunRequests.values()).filter((row) =>
+    row.user_id === userId && row.state === 'succeeded'
+  ).map((row) => ({
+    run_id: row.run_id, slug: row.slug, cost_cents: row.cost_cents, created_at: row.created_at,
+  }));
+  return [...stateRuns, ...(mockRuns.get(userId) || [])]
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, limit || 50);
 }
 
 // ── Clerk (Svix) webhook signature verification ────────────────────────────
@@ -1418,7 +1701,7 @@ function timingSafeEqual(left, right) {
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
 
-async function callLLM(env, systemPrompt, userPrompt, maxTokens) {
+async function callLLM(env, systemPrompt, userPrompt, maxTokens, model) {
   const res = await fetch(`${env.LLM_BASE_URL || 'https://opencode.ai/zen/go/v1'}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -1426,7 +1709,7 @@ async function callLLM(env, systemPrompt, userPrompt, maxTokens) {
       Authorization: `Bearer ${env.LLM_API_KEY}`,
     },
     body: JSON.stringify({
-      model: env.LLM_MODEL || 'deepseek-v4-flash',
+      model: model || env.LLM_MODEL || 'deepseek-v4-flash',
       max_tokens: maxTokens,
       temperature: 0.8,
       messages: [
@@ -1518,13 +1801,31 @@ function toStrArray(v) {
   return v.map((x) => (typeof x === 'string' ? x : JSON.stringify(x)));
 }
 
-function cors() {
-  return {
-    'Access-Control-Allow-Origin': '*',
+function isAllowedStorefrontOrigin(origin) {
+  return origin === 'https://omo.best' || /^http:\/\/localhost(?::\d{1,5})?$/.test(origin);
+}
+
+function cors(request, env) {
+  const origin = request && request.headers ? String(request.headers.get('origin') || '') : '';
+  const headers = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, Idempotency-Key, X-API-Key',
     'Content-Type': 'application/json',
   };
+  if (!isRealMode(env)) headers['Access-Control-Allow-Origin'] = '*';
+  else if (isAllowedStorefrontOrigin(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers.Vary = 'Origin';
+  }
+  return headers;
+}
+
+function applyCors(response, request, env) {
+  const headers = cors(request, env);
+  response.headers.delete('Access-Control-Allow-Origin');
+  response.headers.delete('Vary');
+  Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value));
+  return response;
 }
 
 function json(obj, status, headers) {

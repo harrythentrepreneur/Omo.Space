@@ -9,8 +9,14 @@
 CREATE TABLE IF NOT EXISTS users (
   user_id       TEXT PRIMARY KEY,             -- Clerk user id (user_…)
   balance_cents INTEGER NOT NULL DEFAULT 500, -- $5 signup grant, in cents
-  api_key       TEXT NOT NULL,                -- 'omo_' + hash(user_id, secret)
+  api_key       TEXT NOT NULL,                -- SHA-256 hash material; raw omo_ key is derived only for display
   created_at    TEXT NOT NULL                 -- ISO timestamp
+);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+  key_hash   TEXT PRIMARY KEY,                 -- SHA-256(raw omo_ key)
+  user_id    TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -22,6 +28,29 @@ CREATE TABLE IF NOT EXISTS runs (
 
 CREATE INDEX IF NOT EXISTS idx_runs_user_created
   ON runs (user_id, created_at DESC);
+
+-- Durable idempotency + billing state machine. A unique account/key pair is
+-- claimed before credits are reserved, preventing concurrent retry charges.
+CREATE TABLE IF NOT EXISTS run_requests (
+  run_id          TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  request_hash    TEXT NOT NULL,
+  slug            TEXT NOT NULL,
+  cost_cents      INTEGER NOT NULL,
+  state           TEXT NOT NULL CHECK (state IN ('reserved', 'running', 'succeeded', 'refunded')),
+  response_json   TEXT,
+  http_status     INTEGER,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  UNIQUE (user_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_run_requests_user_updated
+  ON run_requests (user_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_run_requests_stale
+  ON run_requests (state, updated_at);
 
 CREATE TABLE IF NOT EXISTS credits_ledger (
   event_id      TEXT PRIMARY KEY,             -- signup:…, run:…, stripe:…
@@ -51,4 +80,16 @@ CREATE TABLE IF NOT EXISTS stripe_topups (
   amount_cents INTEGER NOT NULL,
   applied      INTEGER NOT NULL DEFAULT 0,    -- 1 once credited
   created_at   TEXT NOT NULL
+);
+
+-- Created by /api/topup before returning the Stripe URL. The signed webhook
+-- must match this server-owned user, amount, and currency before crediting.
+CREATE TABLE IF NOT EXISTS topup_sessions (
+  session_id   TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL,
+  amount_cents INTEGER NOT NULL,
+  currency     TEXT NOT NULL CHECK (currency = 'usd'),
+  state        TEXT NOT NULL CHECK (state IN ('pending', 'applied')),
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
 );

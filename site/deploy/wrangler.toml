@@ -10,7 +10,7 @@
 #   /api/ugc-script-studio
 #   /api/meta-ads-analyser
 #   /api/product-photo-generator
-#   /api/run               (generic helper runner — debits balance when user_id sent)
+#   /api/run               (catalog runner — Clerk/API-key auth + idempotent debit in real mode)
 #   /api/checkout          (Stripe Checkout for license purchases)
 #   /api/me                (balance + api key + usage for the dashboard)
 #   /api/topup             (Stripe Checkout for credit top-ups)
@@ -27,7 +27,7 @@ compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
 # [[routes]]
-# pattern = "demo.cognition.cv/api/*"
+# pattern = "omo.best/api/*"
 # custom_domain = true
 
 # Optional: per-IP daily caps need a KV namespace (without it the worker runs uncapped).
@@ -58,6 +58,10 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 LLM_BASE_URL = "https://opencode.ai/zen/go/v1"
 LLM_MODEL = "deepseek-v4-flash"
+MIN_TOPUP_USD = "5"
+MAX_TOPUP_USD = "1000"
+CLERK_CLOCK_SKEW_SECONDS = "5"
+RUN_RESERVATION_TTL_SECONDS = "300"
 
 # Stripe test and production use the identical worker code. Set the matching
 # STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET with `wrangler secret put`; swap
@@ -76,6 +80,10 @@ DEMO_DAILY_CAP_META = "3"
 DEMO_MAX_TOKENS_PHOTO = "4000"
 DEMO_MAX_INPUT_PHOTO = "2000"
 DEMO_DAILY_CAP_PHOTO = "5"
+# Generic mock/demo runner (real mode uses each server-catalog token cap)
+DEMO_MAX_TOKENS_RUN = "4000"
+DEMO_MAX_INPUT_RUN = "3000"
+DEMO_DAILY_CAP_RUN = "20"
 
 [observability]
 enabled = true

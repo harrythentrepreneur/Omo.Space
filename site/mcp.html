@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
+  <meta name="description" content="Connect your AI assistant to Omo over MCP. Search, inspect, and run proven ecommerce helpers with one Omo API key.">
+  <meta property="og:title" content="Omo MCP — let your AI assistant run the store">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://omo.best/mcp.html">
+  <title>Omo — MCP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--canvas); color: var(--pine);
+      font-family: var(--body); font-size: 16px; line-height: 1.58;
+    }
+    body, button { font-family: var(--body); }
+    a { color: var(--pine); }
+    .skip-link {
+      position: absolute; left: 16px; top: -160%; z-index: 80;
+      background: var(--pine); color: #fff; padding: 10px 16px; border-radius: 8px;
+    }
+    .skip-link:focus { top: 12px; }
+
+    .site-header {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(255, 255, 255, .96); border-bottom: 1px solid var(--rule);
+      backdrop-filter: blur(10px);
+    }
+    .shell { width: min(100% - 48px, var(--shell)); margin-inline: auto; }
+    .nav-row { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .wordmark { font-family: var(--display); font-size: 24px; font-weight: 600; color: var(--pine); text-decoration: none; }
+    .wordmark-dot { color: var(--orange); }
+    .nav-actions { display: flex; align-items: center; gap: 8px; }
+    .nav-link {
+      min-height: 40px; display: inline-flex; align-items: center; padding: 0 14px;
+      border: 1px solid transparent; border-radius: 9px; color: var(--pine);
+      font-size: 14px; font-weight: 700; text-decoration: none;
+    }
+    .nav-link:hover { background: var(--canvas); }
+    .nav-link[aria-current="page"] { background: var(--mint); border-color: #A3D8BA; }
+    .nav-cta { background: var(--orange); color: #fff; }
+    .nav-cta:hover { background: #EF5E32; }
+
+    .hero { padding: 76px 0 58px; }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(310px, .75fr); gap: 64px; align-items: center; }
+    .eyebrow { margin: 0 0 12px; color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+    h1, h2 { font-family: var(--display); font-weight: 600; }
+    h1 { max-width: 800px; margin: 0; font-size: clamp(44px, 7vw, 76px); line-height: .99; letter-spacing: -.025em; }
+    .hero-copy { max-width: 650px; margin: 24px 0 30px; color: var(--moss); font-size: 18px; }
+    .button-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .button {
+      min-height: 48px; display: inline-flex; align-items: center; justify-content: center;
+      padding: 0 21px; border: 1px solid transparent; border-radius: 10px;
+      font-size: 15px; font-weight: 700; line-height: 1.2; text-decoration: none;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .button:hover { transform: translateY(-1px); }
+    .button-accent { background: var(--orange); color: #fff; box-shadow: 0 8px 22px rgba(255, 107, 61, .18); }
+    .button-secondary { background: var(--surface); border-color: var(--rule); }
+
+    .sig-cut {
+      position: relative; overflow: hidden; background: var(--pine); color: #fff;
+      border-radius: 18px; padding: 30px; box-shadow: 14px 14px 0 var(--mint);
+      clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 34px, 100% 100%, 0 100%);
+    }
+    .sig-cut::after {
+      content: ""; position: absolute; top: 0; right: 0; width: 34px; height: 34px;
+      background: var(--orange); clip-path: polygon(0 0, 100% 100%, 0 100%);
+    }
+    .bench-label { margin: 0 0 18px; color: var(--mint); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .bench-line { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .bench-line:last-child { border-bottom: 0; }
+    .bench-number { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--mint); color: var(--pine); font-size: 12px; font-weight: 700; }
+    .bench-line strong { display: block; font-size: 15px; }
+    .bench-line span:last-child { color: #BDD0C8; font-size: 13px; }
+
+    .section { padding: 34px 0 54px; }
+    .section-rule { border-top: 1px solid var(--rule); }
+    .section-head { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 24px; align-items: end; }
+    h2 { margin: 0; font-size: clamp(30px, 4vw, 42px); line-height: 1.08; }
+    .section-lede { margin: 0; color: var(--moss); }
+    .plain-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 15px; padding: 28px; }
+    .plain-card p { margin: 0; }
+    .friendly { max-width: 850px; font-size: 19px; line-height: 1.7; }
+    .friendly strong { color: var(--orange); }
+
+    .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 15px; }
+    table { width: 100%; border-collapse: collapse; min-width: 690px; }
+    th, td { padding: 17px 20px; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    tr:last-child td { border-bottom: 0; }
+    th { background: #E7F3EB; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+    td:first-child { width: 38%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13.5px; font-weight: 700; color: var(--pine); }
+    td:last-child { color: var(--moss); }
+
+    .connect-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, .55fr); gap: 20px; }
+    .code-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 15px; overflow: hidden; }
+    .code-top { min-height: 56px; padding: 0 18px 0 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--rule); }
+    .code-top strong { font-size: 14px; }
+    .copy-button { min-height: 34px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--canvas); color: var(--pine); font-size: 13px; font-weight: 700; cursor: pointer; }
+    .copy-button:hover { border-color: var(--pine); }
+    pre { margin: 0; padding: 22px; overflow-x: auto; background: var(--pine); color: #E8F2EC; font-size: 13.5px; line-height: 1.65; }
+    pre code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .code-key { color: #FFD9C9; }
+    .code-value { color: var(--mint); }
+    .notes { display: grid; gap: 12px; }
+    .note { background: var(--surface); border: 1px solid var(--rule); border-radius: 13px; padding: 18px; }
+    .note-kicker { display: block; margin-bottom: 4px; color: var(--orange); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .note p { margin: 0; color: var(--moss); font-size: 14px; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: setup; }
+    .step { position: relative; min-height: 176px; background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 24px; counter-increment: setup; }
+    .step::before { content: "0" counter(setup); display: block; margin-bottom: 28px; color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+    .step h3 { margin: 0 0 7px; font-size: 17px; }
+    .step p { margin: 0; color: var(--moss); font-size: 14px; }
+    .step a { font-weight: 700; }
+
+    .pricing {
+      display: flex; justify-content: space-between; gap: 30px; align-items: center;
+      background: var(--mint); border: 1px solid #A3D8BA; border-radius: 15px; padding: 28px;
+    }
+    .pricing h2 { font-size: 28px; }
+    .pricing p { max-width: 690px; margin: 7px 0 0; color: #35584A; }
+    footer { padding: 24px 0 46px; color: var(--moss); font-size: 14px; }
+    .footer-row { display: flex; justify-content: space-between; gap: 20px; border-top: 1px solid var(--rule); padding-top: 22px; }
+    footer p { margin: 0; }
+    footer a { font-weight: 700; }
+
+    @media (max-width: 820px) {
+      .hero { padding-top: 54px; }
+      .hero-grid, .section-head, .connect-grid { grid-template-columns: 1fr; gap: 28px; }
+      .hero-grid { gap: 42px; }
+      .sig-cut { max-width: 520px; }
+      .steps { grid-template-columns: 1fr; }
+      .step { min-height: auto; }
+      .pricing { align-items: flex-start; flex-direction: column; }
+    }
+    @media (max-width: 640px) {
+      html, body { overflow-x: hidden; }
+      .shell { width: calc(100% - 32px); }
+      .nav-row { min-height: auto; padding: 12px 0; align-items: flex-start; flex-direction: column; gap: 8px; }
+      .nav-actions { width: calc(100% + 32px); margin-inline: -16px; padding-inline: 16px; overflow-x: auto; scrollbar-width: none; }
+      .nav-actions::-webkit-scrollbar { display: none; }
+      .nav-link { min-height: 44px; flex: 0 0 auto; }
+      h1 { font-size: clamp(42px, 13vw, 58px); }
+      .hero-copy { font-size: 17px; }
+      .button-row, .button { width: 100%; }
+      .sig-cut { padding: 24px; margin-right: 9px; box-shadow: 9px 9px 0 var(--mint); }
+      .section { padding-bottom: 44px; }
+      .plain-card { padding: 22px; }
+      .friendly { font-size: 17px; }
+      pre { font-size: 12px; padding: 18px; }
+      .footer-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="wordmark" href="dashboard.html">Omo<span class="wordmark-dot">.</span></a>
+      <nav class="nav-actions" aria-label="Primary navigation">
+        <a class="nav-link" href="dashboard.html">Dashboard</a>
+        <a class="nav-link" href="api.html">API</a>
+        <a class="nav-link" href="mcp.html" aria-current="page">MCP</a>
+        <a class="nav-link nav-cta" href="api.html">Get API key</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div>
+          <p class="eyebrow">Omo MCP</p>
+          <h1>Let your AI assistant run the store.</h1>
+          <p class="hero-copy">Connect once. Then your assistant can find the right Omo helper, understand its inputs, run it, and keep an eye on your credits — right inside the conversation.</p>
+          <div class="button-row">
+            <a class="button button-accent" href="#connect">Connect Omo MCP</a>
+            <a class="button button-secondary" href="api.html">Get your API key</a>
+          </div>
+        </div>
+        <aside class="sig-cut" aria-label="How an assistant uses Omo MCP">
+          <p class="bench-label">On the workbench</p>
+          <div class="bench-line"><span class="bench-number">1</span><span><strong>Find</strong><span>“Show me a helper for Shopify product copy.”</span></span></div>
+          <div class="bench-line"><span class="bench-number">2</span><span><strong>Check</strong><span>See the exact inputs, outputs, and run price.</span></span></div>
+          <div class="bench-line"><span class="bench-number">3</span><span><strong>Run</strong><span>Get the result without leaving your AI chat.</span></span></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section section-rule">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">No protocol degree required</p><h2>What is MCP?</h2></div>
+        </div>
+        <div class="plain-card friendly">
+          <p><strong>MCP is a simple bridge between your AI assistant and useful tools.</strong> It lets Claude, Codex, Cursor, and other compatible assistants ask Omo what helpers are available and run them for you. You stay in the conversation; Omo handles the catalogue, workflow, and clear per-run billing behind the scenes.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">Five useful tools</p><h2>What your assistant can do</h2></div>
+          <p class="section-lede">The names are plain on purpose. Your assistant chooses them automatically, or you can ask for one directly.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Tool</th><th scope="col">What it does</th></tr></thead>
+            <tbody>
+              <tr><td>omo_search_helpers</td><td>Search the catalogue by job, category, or niche and compare own and per-run prices.</td></tr>
+              <tr><td>omo_get_helper</td><td>Show one helper’s full description, required inputs, outputs, and workflow summary.</td></tr>
+              <tr><td>omo_run_helper</td><td>Run a helper with your inputs and optional Omo API key, then return the result and credit cost.</td></tr>
+              <tr><td>omo_get_balance</td><td>Check your current Omo credits and recent helper usage.</td></tr>
+              <tr><td>omo_topup_options</td><td>Show top-up choices and point you to secure Stripe checkout on the Omo dashboard.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-rule" id="connect">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">Two-minute setup</p><h2>Connect your assistant</h2></div>
+          <p class="section-lede">Omo speaks Streamable HTTP at <strong>https://omo.best/mcp</strong>. No local server or package install is needed.</p>
+        </div>
+        <div class="connect-grid">
+          <div class="code-card">
+            <div class="code-top">
+              <strong>Claude Desktop · claude_desktop_config.json</strong>
+              <button class="copy-button" type="button" data-copy-target="claude-config">Copy</button>
+            </div>
+            <pre id="claude-config"><code>{
+  <span class="code-key">"mcpServers"</span>: {
+    <span class="code-key">"omo"</span>: {
+      <span class="code-key">"type"</span>: <span class="code-value">"http"</span>,
+      <span class="code-key">"url"</span>: <span class="code-value">"https://omo.best/mcp"</span>
+    }
+  }
+}</code></pre>
+          </div>
+          <div class="notes">
+            <div class="note"><span class="note-kicker">Codex</span><p>Add a remote MCP server named <strong>omo</strong> with the URL <strong>https://omo.best/mcp</strong>, then ask it to list Omo helpers.</p></div>
+            <div class="note"><span class="note-kicker">Cursor</span><p>Open MCP settings, choose a remote HTTP server, and use the same name and URL. Tool discovery happens automatically.</p></div>
+            <div class="note"><span class="note-kicker">Any MCP client</span><p>Use Streamable HTTP, send JSON-RPC 2.0, and start with <strong>initialize</strong> followed by <strong>tools/list</strong>.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">Before the first real run</p><h2>Get an API key</h2></div>
+          <p class="section-lede">Browsing the catalogue is open. An API key connects paid runs and balance checks to your Omo credits.</p>
+        </div>
+        <div class="steps">
+          <div class="step"><h3>Open the API page</h3><p>Sign in at <a href="api.html">omo.best/api.html</a> to reveal your personal <strong>omo_</strong> key.</p></div>
+          <div class="step"><h3>Keep it private</h3><p>Give it only to the <strong>api_key</strong> field when your assistant calls <strong>omo_run_helper</strong>.</p></div>
+          <div class="step"><h3>Ask naturally</h3><p>Try: “Find a product-video helper, show me the price, then ask before you run it.”</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="shell pricing">
+        <div>
+          <h2>Clear per-run pricing</h2>
+          <p>Each helper shows its run price before work starts. Successful keyed runs debit that amount from your Omo credits. Top-ups happen securely through Stripe on the dashboard; MCP never takes payments in v1.</p>
+        </div>
+        <a class="button button-secondary" href="dashboard.html">See helpers &amp; credits</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-row">
+      <p>Omo MCP · tools for the work, not more busywork.</p>
+      <p><a href="dashboard.html">Catalogue</a> · <a href="api.html">REST API</a> · <a href="index.html">Omo store</a></p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var buttons = document.querySelectorAll('[data-copy-target]');
+      for (var i = 0; i < buttons.length; i += 1) {
+        buttons[i].addEventListener('click', function () {
+          var button = this;
+          var target = document.getElementById(button.getAttribute('data-copy-target'));
+          var text = target ? target.innerText : '';
+          if (!text || !navigator.clipboard || !navigator.clipboard.writeText) return;
+          navigator.clipboard.writeText(text).then(function () {
+            var old = button.textContent;
+            button.textContent = 'Copied ✓';
+            window.setTimeout(function () { button.textContent = old; }, 1400);
+          });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

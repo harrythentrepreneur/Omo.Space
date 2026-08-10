@@ -1,0 +1,354 @@
+/*
+ * APPLY AFTER demo-redesign lands — append inside the page <style> before </style>
+ * Exact insertion: copy this entire CSS block into BOTH site/index.html and
+ * site/dashboard.html, immediately before each page's existing closing </style>
+ * tag in <head>. Do not add another <style> wrapper. Keep this source file as
+ * the shared reference until both inline copies have landed.
+ */
+
+/* Mobile-only finishing layer shared by the storefront and dashboard. */
+@media (max-width: 700px) {
+  html,
+  body {
+    min-width: 320px;
+    overflow-x: clip;
+  }
+
+  .shell,
+  .dash-shell {
+    width: 100%;
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+
+  .wordmark {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .nav-row {
+    gap: 8px;
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+
+  .nav-actions {
+    width: calc(100% + max(16px, env(safe-area-inset-left)) + max(16px, env(safe-area-inset-right)));
+    max-width: none;
+    margin-left: calc(-1 * max(16px, env(safe-area-inset-left)));
+    margin-right: calc(-1 * max(16px, env(safe-area-inset-right)));
+    padding: 0 max(16px, env(safe-area-inset-right)) 6px max(16px, env(safe-area-inset-left));
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-actions::-webkit-scrollbar,
+  .filter-row::-webkit-scrollbar,
+  .niche-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .nav-actions .balance-pill,
+  .nav-actions .api-link,
+  .nav-actions .mcp-link,
+  .nav-actions a[href*="mcp"],
+  .nav-actions .button-small {
+    min-height: 44px;
+    padding-inline: 11px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .nav-actions .balance-pill {
+    border: 0;
+    cursor: pointer;
+  }
+
+  body:has(.dashboard-layout) .site-header {
+    position: sticky;
+    top: 0;
+  }
+
+  .hero-title,
+  .catalog-title {
+    font-size: clamp(36px, 10vw, 44px);
+    line-height: 1.04;
+    text-wrap: balance;
+  }
+
+  .hero-sub,
+  .catalog-sub {
+    font-size: clamp(15.5px, 4.25vw, 17px);
+    text-wrap: pretty;
+  }
+
+  .rotating-tool {
+    width: auto;
+    min-width: 5.7ch;
+  }
+
+  .feed-head,
+  .catalog-head,
+  .catalog-main,
+  .catalog-tools,
+  .feed-grid,
+  .listing-card,
+  .listing-body,
+  .listing-footer,
+  .credits-panel,
+  .credits-body,
+  .credit-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .feed-grid {
+    gap: 16px;
+  }
+
+  .filter-row,
+  .niche-nav {
+    width: calc(100% + max(16px, env(safe-area-inset-left)) + max(16px, env(safe-area-inset-right)));
+    margin-left: calc(-1 * max(16px, env(safe-area-inset-left)));
+    margin-right: calc(-1 * max(16px, env(safe-area-inset-right)));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: 10px;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-padding-inline: max(16px, env(safe-area-inset-left));
+    scroll-snap-type: x proximity;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .filter-chip,
+  .niche-item,
+  .demo-link,
+  .details-link,
+  .chip-link,
+  .clear-filters {
+    min-height: 44px;
+  }
+
+  .niche-nav [data-niche="content"],
+  .niche-nav [data-niche="leads"],
+  .niche-nav [data-niche="save"],
+  .niche-nav [data-niche="ops"] {
+    display: none;
+  }
+
+  .filter-chip,
+  .niche-item {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .listing-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-left: 0;
+  }
+
+  .listing-actions > * {
+    width: 100%;
+  }
+
+  .listing-card .upvote-btn,
+  .listing-card > .upvote-btn,
+  .detail-upvote-row .upvote-btn {
+    min-height: 44px;
+  }
+
+  .catalog-sidebar {
+    max-width: 100%;
+    margin-bottom: 24px;
+  }
+
+  .listing-dialog {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - max(16px, env(safe-area-inset-top)));
+    margin: auto 0 0;
+    overflow: hidden;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -18px 60px rgba(23, 53, 44, .2);
+  }
+
+  .listing-dialog::backdrop {
+    background: rgba(23, 53, 44, .68);
+  }
+
+  .dialog-body {
+    width: 100%;
+    max-height: calc(100dvh - max(16px, env(safe-area-inset-top)));
+    padding-top: 20px;
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(28px, calc(18px + env(safe-area-inset-bottom)));
+    padding-left: max(16px, env(safe-area-inset-left));
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scroll-padding-top: 68px;
+    scroll-padding-bottom: max(80px, calc(64px + env(safe-area-inset-bottom)));
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dialog-close {
+    position: sticky;
+    top: 0;
+    float: right;
+    z-index: 10;
+    width: 44px;
+    height: 44px;
+    margin-bottom: -44px;
+    background: rgba(255, 255, 255, .96);
+    box-shadow: 0 4px 14px rgba(23, 53, 44, .1);
+  }
+
+  .detail-name {
+    padding-right: 52px;
+    font-size: clamp(26px, 7.5vw, 30px);
+  }
+
+  .detail-hero-video {
+    width: min(100%, clamp(288px, 70vw, 300px));
+    height: auto;
+    max-width: 100%;
+    max-height: none;
+    aspect-ratio: 9 / 16;
+  }
+
+  .price-tiers,
+  .use-doors,
+  .demo-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .demo-box,
+  .run-handoff {
+    max-width: 100%;
+    padding: 18px;
+    scroll-margin-top: 64px;
+  }
+
+  .demo-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+  }
+
+  .run-price {
+    justify-self: end;
+  }
+
+  .demo-input,
+  .demo-select,
+  .demo-textarea,
+  .search-input,
+  .waitlist-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  .demo-textarea {
+    min-height: 104px;
+  }
+
+  .demo-run,
+  .run-handoff .button,
+  .detail-footer .button {
+    width: 100%;
+    min-height: 52px;
+  }
+
+  .demo-status,
+  .demo-result,
+  .demo-raw,
+  .api-foot,
+  .api-foot code {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .detail-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .credits-summary,
+  .amount-chip,
+  .custom-amount {
+    min-height: 44px;
+  }
+
+  #credits-panel {
+    scroll-margin-top: 128px;
+  }
+
+  .usage-row {
+    min-width: 0;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .site-footer {
+    padding-bottom: max(40px, calc(24px + env(safe-area-inset-bottom)));
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-actions,
+  .waitlist-row,
+  .cta-actions {
+    flex-direction: column;
+  }
+
+  .hero-actions .button,
+  .waitlist-row .button,
+  .cta-actions .button {
+    width: 100%;
+  }
+
+  .waitlist-row .waitlist-input {
+    flex: none;
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+  }
+
+  .footer-row {
+    gap: 18px;
+  }
+
+  .footer-links {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .footer-links a {
+    width: 100%;
+    min-height: 44px;
+    padding-inline: 0;
+  }
+}

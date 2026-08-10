@@ -10,9 +10,28 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
+import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const clerkFrontendApi = 'example.clerk.accounts.dev';
+const clerkPublishableKey = `pk_test_${Buffer.from(`${clerkFrontendApi}$`).toString('base64url')}`;
+const clerkKeyPair = await webcrypto.subtle.generateKey(
+  { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+  true,
+  ['sign', 'verify'],
+);
+const clerkJwk = { ...(await webcrypto.subtle.exportKey('jwk', clerkKeyPair.publicKey)), kid: 'test-kid', alg: 'RS256', use: 'sig' };
+
+async function clerkToken(userId) {
+  const now = Math.floor(Date.now() / 1000);
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const header = encode({ alg: 'RS256', typ: 'JWT', kid: 'test-kid' });
+  const payload = encode({ sub: userId, iss: `https://${clerkFrontendApi}`, azp: 'https://omo.best', iat: now, nbf: now - 1, exp: now + 60 });
+  const input = `${header}.${payload}`;
+  const signature = await webcrypto.subtle.sign('RSASSA-PKCS1-v1_5', clerkKeyPair.privateKey, new TextEncoder().encode(input));
+  return `${input}.${Buffer.from(signature).toString('base64url')}`;
+}
 
 // worker.js imports balance.mjs + cost-model.mjs (bundled at deploy time).
 // The vm sandbox can't resolve imports, so concatenate them first with the
@@ -40,18 +59,23 @@ const canned = {
 
 // Calls made to the real Stripe API (captured by the fetch stub below).
 const stripeCalls = [];
+const llmCalls = [];
 
 const sandbox = {
   fetch: async (url, opts) => {
+    if (String(url).includes('/.well-known/jwks.json')) {
+      return { ok: true, status: 200, json: async () => ({ keys: [clerkJwk] }) };
+    }
     if (String(url).includes('api.stripe.com')) {
       stripeCalls.push({ url: String(url), body: String(opts.body), headers: opts.headers });
       return {
         ok: true,
         status: 200,
-        json: async () => ({ url: 'https://checkout.stripe.com/c/pay/test_123' }),
+        json: async () => ({ id: 'cs_test_123', url: 'https://checkout.stripe.com/c/pay/test_123' }),
       };
     }
     const body = JSON.parse(opts.body);
+    llmCalls.push(body);
     const user = body.messages.find((m) => m.role === 'user').content;
     let route = '/api/ugc-script-studio';
     if (user.includes('Ads export')) route = '/api/meta-ads-analyser';
@@ -65,12 +89,18 @@ const sandbox = {
   URL,
   URLSearchParams,
   Response,
+  Headers,
   JSON,
   Date,
   String,
   Number,
   Array,
   Object,
+  TextEncoder,
+  TextDecoder,
+  atob,
+  btoa,
+  crypto: webcrypto,
   console,
 };
 vm.createContext(sandbox);
@@ -78,6 +108,8 @@ vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;`, sandbox,
 const worker = sandbox.__workerExport;
 
 const env = { LLM_API_KEY: 'test-key', LLM_BASE_URL: 'https://llm.invalid/v1', LLM_MODEL: 'test-model' };
+// Encodes example.clerk.accounts.dev$; API-key tests do not need a JWKS fetch.
+const realEnv = { ...env, CLERK_PUBLISHABLE_KEY: clerkPublishableKey };
 
 let pass = 0;
 let fail = 0;
@@ -86,10 +118,14 @@ function check(name, cond) {
   else { fail += 1; console.log(`FAIL  ${name}`); }
 }
 
-const mkReq = (method, pathname, body) => ({
+const mkReq = (method, pathname, body, extraHeaders = {}) => ({
   method,
   url: `https://demo.cognition.cv${pathname}`,
-  headers: new Map([['CF-Connecting-IP', '203.0.113.9'], ['Content-Type', 'application/json']]),
+  headers: new Headers({
+    'CF-Connecting-IP': '203.0.113.9',
+    'Content-Type': 'application/json',
+    ...extraHeaders,
+  }),
   json: async () => body,
   text: async () => JSON.stringify(body),
 });
@@ -110,12 +146,13 @@ check('router: unknown route returns 404 + routes list', nf.status === 404 && Ar
 // Generic /api/run route
 const run = await (await worker.fetch(mkReq('POST', '/api/run', {
   slug: 'listing-copy-engine',
-  system_prompt: 'You write marketplace listing copy. Output JSON with title, bullets, description.',
+  system_prompt: 'MALICIOUS CLIENT PROMPT',
+  max_tokens: 999999,
   fields: { description: 'ceramic mug', marketplace: 'etsy' },
 }), env)).json();
-check('run: generic route returns ok + output', run.ok === true && run.slug === 'listing-copy-engine' && run.output.hook === 'stop scrolling');
+check('run: catalog route ignores client prompt/token controls', run.ok === true && run.slug === 'listing-copy-engine' && run.output.hook === 'stop scrolling' && llmCalls.at(-1).max_tokens === 600 && !llmCalls.at(-1).messages[0].content.includes('MALICIOUS'));
 const badRun = await worker.fetch(mkReq('POST', '/api/run', { slug: '', system_prompt: '' }), env);
-check('run: missing slug/prompt returns 400', badRun.status === 400);
+check('run: missing slug returns 400', badRun.status === 400);
 
 // Three successful dispatches (KV-less env → caps skipped)
 const ugc = await (await worker.fetch(mkReq('POST', '/api/ugc-script-studio', { product: 'silk pillowcase', voice: 'raw', length: 30 }), env)).json();
@@ -137,7 +174,9 @@ check('router: bad photo style returns 400', badStyle.status === 400);
 
 // ── /api/checkout (Stripe Checkout session) ───────────────────────────────
 
-const stripeEnv = { ...env, STRIPE_SECRET_KEY: 'sk_test_fake_secret' };
+const stripeEnv = { ...realEnv, STRIPE_SECRET_KEY: 'sk_test_fake_secret' };
+const user111Token = await clerkToken('user_111');
+const user111Headers = { Authorization: `Bearer ${user111Token}`, Origin: 'https://omo.best' };
 
 const co = await worker.fetch(mkReq('POST', '/api/checkout', { slug: 'ugc-script-studio', priceUsd: 25, email: 'buyer@example.com' }), env);
 check('checkout: no secret key returns 501', co.status === 501);
@@ -153,7 +192,7 @@ check('checkout: returns Stripe Checkout url', cs.url === 'https://checkout.stri
 const sc = stripeCalls[stripeCalls.length - 1];
 const scParams = new URLSearchParams(sc.body);
 check('checkout: posts form-encoded to Stripe sessions API', sc.url === 'https://api.stripe.com/v1/checkout/sessions');
-check('checkout: unit_amount is priceUsd * 100', scParams.get('line_items[0][price_data][unit_amount]') === '2500');
+check('checkout: unit_amount is server catalog price (client price ignored)', scParams.get('line_items[0][price_data][unit_amount]') === '3900');
 check('checkout: currency + mode + quantity set', scParams.get('line_items[0][price_data][currency]') === 'usd' && scParams.get('mode') === 'payment' && scParams.get('line_items[0][quantity]') === '1');
 check('checkout: success_url carries the slug', (scParams.get('success_url') || '').includes('purchased=ugc-script-studio'));
 check('checkout: cancel_url set', (scParams.get('cancel_url') || '').includes('purchased=cancelled'));
@@ -183,11 +222,10 @@ check('me: api key is a deterministic omo_ key', /^omo_[0-9a-f]{32}$/.test(me1.a
 check('me: usage list starts empty', Array.isArray(me1.runs) && me1.runs.length === 0);
 
 const me2 = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_111', {}), env)).json();
-check('me: repeat visit does NOT double-grant (still $5)', me2.balance_usd === 5);
-check('me: api key is stable across visits', me2.api_key === me1.api_key);
+check('me: repeat visit neither double-grants nor rotates the key', me2.balance_usd === 5 && me2.api_key === me1.api_key);
 
-const meBad = await worker.fetch(mkReq('GET', '/api/me', {}), env);
-check('me: missing user_id returns 400', meBad.status === 400);
+const meBad = await worker.fetch(mkReq('GET', '/api/me?user_id=user_attacker', {}, { Origin: 'https://evil.example' }), realEnv);
+check('auth: real /api/me rejects missing token and evil CORS origin', meBad.status === 401 && !meBad.headers.get('Access-Control-Allow-Origin'));
 
 // ── /api/run with user_id → debits the balance ────────────────────────────
 
@@ -222,24 +260,40 @@ check('run: 402 carries balance, friendly top-up guidance, and suggestions', poo
 const lowMe2 = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_low', {}), lowEnv)).json();
 check('run: 402 leaves the balance untouched (still $0.05)', lowMe2.balance_usd === 0.05 && lowMe2.runs.length === 0);
 
+// Real /api/run accepts the owning omo_ key and charges exactly once when a
+// request is replayed with the same Idempotency-Key.
+const idemMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_idem', {}), env)).json();
+const callsBeforeIdem = llmCalls.length;
+const idemHeaders = { Authorization: `Bearer ${idemMe.api_key}`, 'Idempotency-Key': 'router-idem-0001' };
+const idemBody = {
+  slug: 'listing-copy-engine', fields: { description: 'idempotent mug' }, user_id: 'user_attacker',
+  system_prompt: 'client prompt must be ignored', max_tokens: 999999,
+};
+const idem1 = await (await worker.fetch(mkReq('POST', '/api/run', idemBody, idemHeaders), realEnv)).json();
+const idem2 = await (await worker.fetch(mkReq('POST', '/api/run', idemBody, idemHeaders), realEnv)).json();
+const idemAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_idem', {}), env)).json();
+check('run: idempotency replay returns prior run and charges owner once', idem1.ok === true && idem2.idempotent_replay === true && idem2.run_id === idem1.run_id && idemAfter.balance_usd === 4.9 && llmCalls.length === callsBeforeIdem + 1);
+
 // ── /api/topup (Stripe Checkout for credits) ──────────────────────────────
 
 const tp501 = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 20 }), env);
 check('topup: no secret key returns 501', tp501.status === 501);
 
-const badTopup = await worker.fetch(mkReq('POST', '/api/topup', { user_id: '', amount_usd: 20 }), stripeEnv);
-check('topup: missing user_id returns 400', badTopup.status === 400);
-const badTopup2 = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 4 }), stripeEnv);
-check('topup: custom amount below $5 returns 400', badTopup2.status === 400);
+const badTopup = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 20 }), stripeEnv);
+check('topup: real mode requires a Clerk token', badTopup.status === 401);
+const badTopup2 = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 4 }, user111Headers), stripeEnv);
+const badTopupType = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: '7' }, user111Headers), stripeEnv);
+const badTopupMax = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 1000.01 }, user111Headers), stripeEnv);
+check('topup: rejects below-min, string, and over-max amounts', badTopup2.status === 400 && badTopupType.status === 400 && badTopupMax.status === 400);
 
-const tp = await (await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 7 }), stripeEnv)).json();
+const tp = await (await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_attacker', amount_usd: 7 }, user111Headers), stripeEnv)).json();
 check('topup: returns Stripe Checkout url', tp.url === 'https://checkout.stripe.com/c/pay/test_123');
 
 const tpc = stripeCalls[stripeCalls.length - 1];
 const tpcParams = new URLSearchParams(tpc.body);
 check('topup: custom $7 becomes a 700-cent unit_amount', tpcParams.get('line_items[0][price_data][unit_amount]') === '700');
 check('topup: success_url goes to dashboard', (tpcParams.get('success_url') || '').includes('dashboard.html?topup=success'));
-check('topup: user carried as client_reference_id + metadata', tpcParams.get('client_reference_id') === 'user_111' && tpcParams.get('metadata[user_id]') === 'user_111');
+check('topup: verified user overrides body user in reference + metadata', tpcParams.get('client_reference_id') === 'user_111' && tpcParams.get('metadata[user_id]') === 'user_111');
 
 // ── /api/clerk-webhook (user.created → $5 grant) ──────────────────────────
 
@@ -257,9 +311,10 @@ const whBad = await worker.fetch(Object.assign(mkReq('POST', '/api/clerk-webhook
 }), env);
 check('webhook: invalid json returns 400', whBad.status === 400);
 
-// Without CLERK_WEBHOOK_SECRET the signature check is skipped (mock mode).
+// Without CLERK_WEBHOOK_SECRET demo grants, while real mode fails closed.
 const whNoSig = await worker.fetch(mkReq('POST', '/api/clerk-webhook', { type: 'user.created', data: { id: 'user_clerk2' } }), env);
-check('webhook: no secret → signature skipped, grant works', whNoSig.status === 200);
+const whRealNoSecret = await worker.fetch(mkReq('POST', '/api/clerk-webhook', { type: 'user.created', data: { id: 'user_clerk3' } }), realEnv);
+check('webhook: unsigned demo works; real mode without secret fails closed', whNoSig.status === 200 && whRealNoSecret.status === 503);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

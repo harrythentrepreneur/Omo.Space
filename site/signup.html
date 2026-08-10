@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <meta name="theme-color" content="#1E3A34">
@@ -26,7 +26,7 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; }
-    html { min-width: 320px; background: var(--canvas); }
+    html { min-width: 320px; overflow-x: clip; background: var(--canvas); }
     body {
       min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0;
       background:
@@ -49,7 +49,8 @@
       grid-template-rows: auto 1fr auto; gap: 28px;
     }
     .wordmark {
-      width: max-content; font-family: var(--display); font-size: 30px; font-weight: 600;
+      width: max-content; min-height: 44px; display: inline-flex; align-items: center;
+      font-family: var(--display); font-size: 30px; font-weight: 600;
       line-height: 1; letter-spacing: -.02em; text-decoration: none;
     }
     .wordmark-dot { color: var(--orange); }
@@ -121,10 +122,13 @@
     .signup-error p { margin: 0 0 14px; color: #fff; font-size: 14px; }
     .error-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
     .retry-button {
-      min-height: 42px; padding: 0 18px; border: 1px solid var(--mint); border-radius: 9px 9px 2px 9px;
+      min-height: 44px; padding: 0 18px; border: 1px solid var(--mint); border-radius: 9px 9px 2px 9px;
       background: var(--mint); color: var(--pine); font-weight: 700;
     }
-    .error-back-link { color: #fff; font-size: 14px; font-weight: 700; text-underline-offset: 4px; }
+    .error-back-link {
+      min-height: 44px; display: inline-flex; align-items: center;
+      color: #fff; font-size: 14px; font-weight: 700; text-underline-offset: 4px;
+    }
 
     .back-link {
       width: max-content; min-height: 44px; display: inline-flex; align-items: center; gap: 8px;
@@ -133,17 +137,24 @@
     .back-link:hover { color: var(--orange); }
 
     @media (max-width: 760px) {
-      .page-shell { width: min(100% - 28px, 620px); padding: 22px 0; gap: 20px; }
+      .page-shell {
+        width: min(100%, 620px); padding-top: max(18px, env(safe-area-inset-top));
+        padding-right: max(16px, env(safe-area-inset-right));
+        padding-bottom: max(18px, env(safe-area-inset-bottom));
+        padding-left: max(16px, env(safe-area-inset-left)); gap: 18px;
+      }
       .signup-card { grid-template-columns: 1fr; min-height: 0; }
-      .intro { padding: 42px 28px 38px; }
-      h1 { font-size: clamp(40px, 12vw, 58px); }
-      .action-panel { padding: 34px 28px 38px; }
-      .sketch-arrow { top: 26px; right: 28px; font-size: 34px; }
+      .intro { padding: clamp(30px, 8vw, 42px) clamp(22px, 6.5vw, 30px); }
+      h1 { font-size: clamp(38px, 11.5vw, 54px); }
+      .intro-copy { font-size: clamp(16px, 4.6vw, 18px); }
+      .action-panel { padding: 28px clamp(22px, 6.5vw, 30px) 30px; }
+      .sketch-arrow { top: 24px; right: 24px; font-size: 32px; }
+      .action-title { padding-right: 34px; font-size: clamp(27px, 8vw, 31px); }
+      .create-button { min-height: 56px; }
+      .credit-note { max-width: 31ch; line-height: 1.5; text-wrap: pretty; }
     }
 
     @media (max-width: 420px) {
-      .page-shell { width: calc(100% - 20px); }
-      .intro, .action-panel { padding-inline: 22px; }
       .signup-card { border-radius: 20px 20px 0 20px; }
       .eyebrow { margin-bottom: 18px; }
     }

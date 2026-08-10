@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
@@ -79,6 +79,7 @@
     }
     .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
     .wordmark {
+      min-height: 44px; display: inline-flex; align-items: center;
       font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1;
       text-decoration: none; letter-spacing: -0.01em;
     }
@@ -212,7 +213,11 @@
     .footer-links a:hover { color: var(--pine); text-decoration: underline; }
 
     @media (max-width: 639px) {
-      .shell { width: min(var(--shell), calc(100% - 32px)); }
+      .shell {
+        width: min(var(--shell), 100%);
+        padding-right: max(16px, env(safe-area-inset-right));
+        padding-left: max(16px, env(safe-area-inset-left));
+      }
       .nav-row {
         min-height: auto; align-items: flex-start; flex-direction: column;
         gap: 10px; padding: 14px 0 10px;
@@ -230,9 +235,9 @@
       .way-row { padding: 21px 2px; }
       .paid-step { padding: 20px; }
       .paid-affiliate { padding: 18px 20px; }
-      .site-footer { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+      .site-footer { padding-bottom: max(40px, calc(24px + env(safe-area-inset-bottom))); }
     }
-    @media (max-width: 420px) {
+    @media (max-width: 480px) {
       .hero-actions { flex-direction: column; }
       .hero-actions .button { width: 100%; }
       .nav-actions { align-items: stretch; }
