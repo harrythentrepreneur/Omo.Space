@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#1E3A34">
+  <meta name="description" content="Upload any skill.md or workflow markdown to Omo. We prepare and host it in about 30 minutes, then you pay per run or list it on the marketplace.">
+  <meta property="og:title" content="Omo Host — Upload a skill.md. Get it hosted.">
+  <meta property="og:description" content="Upload any workflow, choose public or private, and get a hosted API in about 30 minutes.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://omo.best/host.html">
+  <title>Omo Host — Upload a skill.md. Get it hosted.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --deep-pine: #1E3A34;
+      --mint: #BDEFD4;
+      --orange: #FF6B3D;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --cream: #F7F3E8;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    body {
+      min-width: 320px; margin: 0; overflow-x: hidden;
+      background: var(--canvas); color: var(--pine);
+      font-family: var(--body); font-size: 16px; line-height: 1.58;
+      text-rendering: optimizeLegibility;
+    }
+    body, button, input, textarea { font-family: var(--body); }
+    button, input, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    p, h1, h2, h3 { overflow-wrap: break-word; }
+    h1, h2, h3, p { margin-top: 0; }
+    [hidden] { display: none !important; }
+
+    .skip-link {
+      position: fixed; top: 8px; left: 8px; z-index: 100;
+      padding: 10px 14px; border-radius: 8px; background: var(--surface); color: var(--pine);
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+    :where(a, button, input, textarea, summary):focus-visible {
+      outline: 3px solid var(--mint); outline-offset: 3px;
+      box-shadow: 0 0 0 1px var(--pine) inset;
+    }
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+    .sig-cut { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%); }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px; width: max-content;
+      margin-bottom: 18px; padding: 7px 13px; border: 1px solid currentColor; border-radius: 999px;
+      font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    }
+    .eyebrow-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
+    .section-title {
+      margin-bottom: 14px; font-family: var(--display); font-size: clamp(32px, 5vw, 48px);
+      font-weight: 600; line-height: 1.06; letter-spacing: -.02em; text-wrap: balance;
+    }
+    .section-copy { max-width: 650px; margin-bottom: 0; color: var(--moss); font-size: 17px; text-wrap: pretty; }
+
+    /* Header */
+    .site-header {
+      position: relative; z-index: 10; border-bottom: 1px solid var(--rule); background: var(--canvas);
+    }
+    .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .wordmark {
+      min-height: 44px; display: inline-flex; align-items: center; flex: 0 0 auto;
+      font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1;
+      letter-spacing: -.01em; text-decoration: none;
+    }
+    .wordmark-dot { color: var(--orange); }
+    .nav-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
+    .nav-link {
+      min-height: 44px; display: inline-flex; align-items: center; flex: 0 0 auto;
+      font-size: 14px; font-weight: 700; text-decoration: none; text-underline-offset: 4px;
+    }
+    .nav-link:hover { text-decoration: underline; }
+
+    /* Buttons */
+    .button {
+      min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 0 22px; border: 1px solid transparent; border-radius: 11px;
+      font-size: 15px; font-weight: 700; line-height: 1.2; text-decoration: none;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .button:hover { transform: translateY(-1px); }
+    .button-primary { background: var(--pine); color: #fff; }
+    .button-primary:hover { box-shadow: 0 8px 22px rgba(23,53,44,.2); }
+    .button-accent { background: var(--orange); color: var(--pine); }
+    .button-accent:hover { box-shadow: 0 8px 22px rgba(255,107,61,.26); }
+    .button-secondary { background: transparent; color: var(--pine); border-color: var(--pine); }
+    .button-small { min-height: 40px; padding: 0 16px; font-size: 14px; }
+
+    /* Hero */
+    .hero {
+      position: relative; overflow: hidden; padding: 80px 0 88px;
+      background:
+        radial-gradient(circle at 90% 16%, rgba(189,239,212,.72) 0 11%, transparent 11.2%),
+        radial-gradient(circle at 7% 88%, rgba(255,107,61,.1) 0 9%, transparent 9.2%);
+    }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); gap: 70px; align-items: center; }
+    .hero-title {
+      max-width: 780px; margin-bottom: 20px; font-family: var(--display); font-size: clamp(48px, 7vw, 76px);
+      font-weight: 600; line-height: .98; letter-spacing: -.035em; text-wrap: balance;
+    }
+    .hero-title em { color: var(--orange); font-style: italic; }
+    .hero-sub { max-width: 680px; margin-bottom: 30px; color: var(--moss); font-size: clamp(17px, 2vw, 19px); text-wrap: pretty; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 11px; }
+    .recipe-wrap { position: relative; padding: 18px 0 0 18px; transform: rotate(1.5deg); }
+    .recipe-shadow { position: absolute; inset: 0 18px 18px 0; border-radius: 18px 18px 3px 18px; background: var(--orange); transform: rotate(-4deg); }
+    .recipe-card {
+      position: relative; min-height: 390px; padding: 28px; border: 1px solid var(--pine);
+      border-radius: 18px 18px 3px 18px; background: var(--cream); box-shadow: 0 18px 45px rgba(23,53,44,.13);
+    }
+    .recipe-top { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 30px; }
+    .recipe-file { font: 700 14px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .recipe-live { padding: 5px 9px; border-radius: 999px; background: var(--mint); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+    .recipe-card h2 { margin-bottom: 22px; font-family: var(--display); font-size: 30px; line-height: 1.05; }
+    .recipe-line { display: flex; align-items: center; gap: 11px; margin: 13px 0; color: var(--moss); font-size: 14px; }
+    .recipe-line::before { content: ""; width: 28px; height: 3px; border-radius: 3px; background: var(--orange); }
+    .recipe-output { margin-top: 30px; padding: 17px; border: 1px dashed var(--pine); border-radius: 12px; background: rgba(189,239,212,.55); }
+    .recipe-output strong { display: block; margin-bottom: 2px; }
+    .recipe-output span { color: var(--moss); font-size: 13px; }
+
+    /* How it works */
+    .how-section { padding: 96px 0; }
+    .section-head { margin-bottom: 42px; }
+    .step-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .step-card {
+      position: relative; min-height: 255px; padding: 26px; border: 1px solid var(--rule);
+      border-radius: 16px; background: var(--surface);
+    }
+    .step-card.sig-cut { border-radius: 16px 16px 0 16px; }
+    .step-number {
+      width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 30px;
+      border-radius: 50%; background: var(--mint); font-family: var(--display); font-size: 20px; font-weight: 600;
+    }
+    .step-card:nth-child(2) .step-number { background: var(--orange); }
+    .step-card h3 { margin-bottom: 9px; font-size: 19px; line-height: 1.25; }
+    .step-card p { margin-bottom: 0; color: var(--moss); font-size: 15px; }
+
+    /* Pricing */
+    .pricing-section { padding: 0 0 96px; }
+    .pricing-card {
+      display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 60px; align-items: center;
+      padding: clamp(34px, 6vw, 66px); border-radius: 22px 22px 0 22px; background: var(--deep-pine); color: var(--canvas);
+    }
+    .pricing-card .eyebrow { color: var(--mint); }
+    .pricing-card .section-copy { color: rgba(242,246,241,.72); }
+    .pricing-points { display: grid; gap: 13px; }
+    .pricing-point { display: flex; align-items: flex-start; gap: 13px; margin: 0; color: rgba(242,246,241,.85); }
+    .pricing-check {
+      width: 25px; height: 25px; display: grid; place-items: center; flex: 0 0 auto;
+      border-radius: 50%; background: var(--mint); color: var(--pine); font-size: 13px; font-weight: 700;
+    }
+    .earn-note { margin-top: 24px; padding: 17px 19px; border: 1px solid rgba(189,239,212,.35); border-radius: 12px; background: rgba(189,239,212,.1); color: var(--mint); }
+
+    /* Upload workshop */
+    .upload-section { scroll-margin-top: 24px; padding: 96px 0; background: var(--mint); }
+    .upload-intro { max-width: 720px; margin-bottom: 38px; }
+    .workbench { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(290px, .65fr); gap: 22px; align-items: start; }
+    .upload-card, .hosted-card {
+      border: 1px solid var(--pine); border-radius: 18px; background: var(--surface); box-shadow: 0 14px 0 rgba(23,53,44,.08);
+    }
+    .upload-card { padding: clamp(24px, 4vw, 38px); }
+    .upload-card.sig-cut { border-radius: 18px 18px 0 18px; }
+    .form-kicker { margin-bottom: 5px; color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .form-title { margin-bottom: 25px; font-family: var(--display); font-size: 30px; line-height: 1.1; }
+    .drop-zone {
+      position: relative; min-height: 174px; display: grid; place-items: center; padding: 24px;
+      border: 2px dashed #9BBBAA; border-radius: 15px; background: var(--canvas); text-align: center;
+      transition: border-color .12s ease, background .12s ease, transform .12s ease;
+    }
+    .drop-zone:hover, .drop-zone.is-dragging { border-color: var(--orange); background: #FFF4EF; transform: translateY(-1px); }
+    .file-input {
+      position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+      white-space: nowrap; clip-path: inset(50%);
+    }
+    .file-trigger { display: grid; justify-items: center; cursor: pointer; }
+    .upload-mark {
+      width: 46px; height: 46px; display: grid; place-items: center; margin-bottom: 10px;
+      border-radius: 13px 13px 4px 13px; background: var(--orange); font-size: 22px; font-weight: 700;
+    }
+    .drop-title { display: block; font-weight: 700; }
+    .drop-copy { display: block; margin-top: 4px; color: var(--moss); font-size: 13.5px; }
+    .file-name { display: block; margin-top: 9px; color: var(--pine); font-size: 13px; font-weight: 700; }
+    .form-error { min-height: 1.4em; margin: 8px 0 0; color: #9B3216; font-size: 13px; font-weight: 700; }
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px; }
+    .field { display: grid; gap: 7px; }
+    .field-wide { grid-column: 1 / -1; }
+    .field-label { font-size: 13px; font-weight: 700; }
+    .text-input, .text-area {
+      width: 100%; border: 1px solid var(--rule); border-radius: 11px; background: var(--canvas); color: var(--pine);
+    }
+    .text-input { min-height: 49px; padding: 0 14px; }
+    .text-area { min-height: 110px; padding: 12px 14px; resize: vertical; }
+    .text-input:focus, .text-area:focus { border-color: var(--pine); outline: 3px solid rgba(189,239,212,.8); outline-offset: 2px; }
+    .visibility-label { margin: 24px 0 9px; font-size: 13px; font-weight: 700; }
+    .visibility-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .visibility-option { position: relative; display: block; }
+    .visibility-option input { position: absolute; opacity: 0; pointer-events: none; }
+    .visibility-choice {
+      min-height: 112px; display: block; padding: 16px; border: 1px solid var(--rule); border-radius: 12px;
+      background: var(--canvas); cursor: pointer; transition: border-color .12s ease, background .12s ease;
+    }
+    .visibility-choice strong { display: block; margin-bottom: 4px; font-size: 15px; }
+    .visibility-choice span { display: block; color: var(--moss); font-size: 13px; line-height: 1.45; }
+    .visibility-option input:checked + .visibility-choice { border-color: var(--pine); background: var(--mint); box-shadow: 0 0 0 1px var(--pine); }
+    .visibility-option input:focus-visible + .visibility-choice { outline: 3px solid var(--orange); outline-offset: 3px; }
+    .submit-row { display: flex; align-items: center; gap: 14px; margin-top: 24px; }
+    .submit-note { margin: 0; color: var(--moss); font-size: 12.5px; }
+
+    .progress-panel { margin-top: 24px; padding: 22px; border-radius: 14px; background: var(--deep-pine); color: var(--canvas); }
+    .progress-title { margin-bottom: 16px; font-family: var(--display); font-size: 22px; }
+    .progress-steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .progress-step { display: flex; align-items: center; gap: 10px; color: rgba(242,246,241,.45); font-size: 14px; }
+    .progress-dot { width: 20px; height: 20px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; }
+    .progress-step.is-done { color: var(--mint); }
+    .progress-step.is-current { color: #fff; font-weight: 700; }
+    .progress-step.is-current .progress-dot { border-color: var(--orange); background: var(--orange); color: var(--pine); }
+    .progress-demo { margin: 16px 0 0; color: rgba(242,246,241,.62); font-size: 12.5px; }
+
+    .hosted-card { position: sticky; top: 20px; overflow: hidden; }
+    .hosted-head { padding: 22px; border-bottom: 1px solid var(--rule); background: var(--cream); }
+    .hosted-head h3 { margin-bottom: 5px; font-family: var(--display); font-size: 23px; }
+    .hosted-head p { margin: 0; color: var(--moss); font-size: 13px; }
+    .hosted-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+    .hosted-empty { padding: 28px 22px; color: var(--moss); font-size: 14px; }
+    .hosted-item { padding: 18px 22px; border-top: 1px solid var(--rule); }
+    .hosted-item:first-child { border-top: 0; }
+    .hosted-name { margin: 0 0 5px; font-weight: 700; line-height: 1.3; }
+    .hosted-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--moss); font-size: 12px; }
+    .status-badge { padding: 3px 8px; border-radius: 999px; background: var(--mint); color: var(--pine); font-weight: 700; }
+    .visibility-badge { text-transform: capitalize; }
+
+    /* FAQ */
+    .faq-section { padding: 96px 0; }
+    .faq-grid { display: grid; grid-template-columns: minmax(260px, .65fr) minmax(0, 1.35fr); gap: 70px; align-items: start; }
+    .faq-list { border-top: 1px solid var(--rule); }
+    .faq-item { border-bottom: 1px solid var(--rule); }
+    .faq-item summary {
+      min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px;
+      padding: 14px 4px; cursor: pointer; font-weight: 700; list-style: none;
+    }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: "+"; color: var(--orange); font-family: var(--display); font-size: 26px; font-weight: 600; }
+    .faq-item[open] summary::after { content: "−"; }
+    .faq-item p { margin: -2px 0 20px; padding-right: 40px; color: var(--moss); font-size: 15px; }
+
+    /* Footer */
+    .site-footer { border-top: 1px solid var(--rule); padding: 40px 0 56px; }
+    .footer-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+    .footer-brand .wordmark { font-size: 24px; }
+    .footer-tagline { margin: 8px 0 0; color: var(--moss); font-size: 14px; }
+    .footer-links { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .footer-links a {
+      min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px;
+      color: var(--moss); font-size: 14px; font-weight: 700; text-decoration: none; text-underline-offset: 4px;
+    }
+    .footer-links a:hover { color: var(--pine); text-decoration: underline; }
+
+    @media (max-width: 900px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 46px; }
+      .hero-copy { max-width: 780px; }
+      .recipe-wrap { width: min(100%, 480px); margin-inline: auto; }
+      .pricing-card, .workbench, .faq-grid { grid-template-columns: 1fr; }
+      .hosted-card { position: static; }
+      .faq-grid { gap: 32px; }
+    }
+    @media (max-width: 700px) {
+      .shell {
+        width: min(var(--shell), 100%); padding-right: max(16px, env(safe-area-inset-right));
+        padding-left: max(16px, env(safe-area-inset-left));
+      }
+      .nav-row { min-height: auto; align-items: flex-start; flex-direction: column; gap: 8px; padding-block: 12px; }
+      .nav-actions {
+        width: calc(100% + 16px); justify-content: flex-start; gap: 12px; overflow-x: auto;
+        padding: 0 16px 4px 0; scrollbar-width: none; overscroll-behavior-inline: contain;
+      }
+      .nav-actions::-webkit-scrollbar { display: none; }
+      .hero { padding: 54px 0 62px; }
+      .hero-title { font-size: clamp(44px, 13vw, 61px); }
+      .how-section, .upload-section, .faq-section { padding: 72px 0; }
+      .pricing-section { padding-bottom: 72px; }
+      .step-grid { grid-template-columns: 1fr; }
+      .step-card { min-height: 0; }
+      .step-number { margin-bottom: 18px; }
+      .pricing-card { gap: 34px; }
+      .field-grid, .visibility-options { grid-template-columns: 1fr; }
+      .field-wide { grid-column: auto; }
+      .visibility-choice { min-height: 0; }
+    }
+    @media (max-width: 460px) {
+      .hero-actions, .submit-row { align-items: stretch; flex-direction: column; }
+      .hero-actions .button, .submit-row .button { width: 100%; }
+      .recipe-wrap { padding-left: 8px; }
+      .recipe-card { min-height: 350px; padding: 23px; }
+      .upload-card { padding: 20px; }
+      .drop-zone { min-height: 158px; padding: 18px; }
+      .footer-links { width: 100%; flex-direction: column; align-items: flex-start; gap: 0; }
+      .site-footer { padding-bottom: max(40px, calc(24px + env(safe-area-inset-bottom))); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="wordmark" href="index.html" aria-label="Omo home">Omo<span class="wordmark-dot">.</span></a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="nav-link" href="index.html#feed">Store</a>
+        <a class="nav-link" href="creators.html">For creators</a>
+        <a class="nav-link" href="dashboard.html">Dashboard</a>
+        <a class="button button-accent button-small" href="#upload">Upload</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="shell hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> Omo Host · live in ~30 min</p>
+          <h1 class="hero-title" id="hero-title">Upload your skill.md. <em>We host it.</em> You charge per run.</h1>
+          <p class="hero-sub">Any workflow, any skill.md — from a simple LLM skill to a multi-step workflow. Upload it, we prepare it, and in about 30 minutes you have a hosted API you can call (or keep private for yourself).</p>
+          <div class="hero-actions">
+            <a class="button button-accent" href="#upload">Upload your workflow <span aria-hidden="true">↓</span></a>
+            <a class="button button-secondary" href="index.html#feed">See the store</a>
+          </div>
+        </div>
+        <div class="recipe-wrap" aria-hidden="true">
+          <div class="recipe-shadow"></div>
+          <div class="recipe-card sig-cut">
+            <div class="recipe-top">
+              <span class="recipe-file">skill.md</span>
+              <span class="recipe-live">READY</span>
+            </div>
+            <h2>Your workflow,<br>now callable.</h2>
+            <div class="recipe-line">Read the brief</div>
+            <div class="recipe-line">Run the tools</div>
+            <div class="recipe-line">Return the result</div>
+            <div class="recipe-output">
+              <strong>POST /v1/run/your-skill</strong>
+              <span>Hosted keys · metered billing · one call</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="how-section" aria-labelledby="how-title">
+      <div class="shell">
+        <header class="section-head">
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> From file to API</p>
+          <h2 class="section-title" id="how-title">Three steps. We handle the fiddly parts.</h2>
+          <p class="section-copy">Bring the workflow you already use. Omo turns it into something reliable, callable, and ready to earn.</p>
+        </header>
+        <div class="step-grid">
+          <article class="step-card sig-cut">
+            <span class="step-number">1</span>
+            <h3>Upload your skill.md / workflow code.md</h3>
+            <p>Any workflow markdown works. We parse the prompts, steps, and tool calls from the file you already have.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-number">2</span>
+            <h3>We build + test it</h3>
+            <p>Containers, API keys, and pricing are set automatically, then we test the workflow from end to end.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-number">3</span>
+            <h3>Live in ~30 minutes</h3>
+            <p>Pay per run from your credits, or list it publicly on the Omo marketplace and earn whenever others run it.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing-section" aria-labelledby="pricing-title">
+      <div class="shell">
+        <div class="pricing-card sig-cut">
+          <div>
+            <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> Simple usage pricing</p>
+            <h2 class="section-title" id="pricing-title">Pay per run, not per month.</h2>
+            <p class="section-copy">You pay only when the workflow runs — usually cents to a few dollars per run, auto-priced from real costs. Hosting, keys, and infrastructure are included.</p>
+          </div>
+          <div>
+            <div class="pricing-points">
+              <p class="pricing-point"><span class="pricing-check" aria-hidden="true">✓</span><span>No hosting subscription or idle bill.</span></p>
+              <p class="pricing-point"><span class="pricing-check" aria-hidden="true">✓</span><span>Costs and run price are visible up front.</span></p>
+              <p class="pricing-point"><span class="pricing-check" aria-hidden="true">✓</span><span>Keys, containers, and infrastructure included.</span></p>
+            </div>
+            <p class="earn-note"><strong>Or list it on the marketplace and keep 85% of every run.</strong></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="upload-section" id="upload" aria-labelledby="upload-title">
+      <div class="shell">
+        <div class="upload-intro">
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> The upload bench</p>
+          <h2 class="section-title" id="upload-title">Hand us the markdown. We’ll take it from here.</h2>
+          <p class="section-copy">Choose whether your workflow belongs in the store or stays yours alone. You can change that choice later.</p>
+        </div>
+
+        <div class="workbench">
+          <div class="upload-card sig-cut">
+            <p class="form-kicker">New hosted workflow</p>
+            <h3 class="form-title">Start with your file</h3>
+            <form id="upload-form" novalidate>
+              <div class="drop-zone" id="drop-zone">
+                <input class="file-input" id="skill-file" name="skillFile" type="file" accept=".md,text/markdown,text/plain" aria-describedby="file-help file-error" aria-required="true">
+                <label class="file-trigger" for="skill-file">
+                  <span class="upload-mark" aria-hidden="true">↑</span>
+                  <span class="drop-title">Choose a skill.md or drop it here</span>
+                  <span class="drop-copy" id="file-help">skill.md, code.md, or any Markdown workflow file</span>
+                  <span class="file-name" id="file-name">No file chosen yet</span>
+                </label>
+              </div>
+              <p class="form-error" id="file-error" role="alert"></p>
+
+              <div class="field-grid">
+                <label class="field" for="workflow-name">
+                  <span class="field-label">Workflow name</span>
+                  <input class="text-input" id="workflow-name" name="name" type="text" maxlength="80" placeholder="e.g. Product photo maker" autocomplete="off" required>
+                </label>
+                <label class="field field-wide" for="workflow-description">
+                  <span class="field-label">Description <span aria-hidden="true">·</span> optional</span>
+                  <textarea class="text-area" id="workflow-description" name="description" maxlength="500" placeholder="What does it make, and who is it for?"></textarea>
+                </label>
+              </div>
+
+              <p class="visibility-label" id="visibility-label">Who can run it?</p>
+              <div class="visibility-options" role="radiogroup" aria-labelledby="visibility-label">
+                <label class="visibility-option">
+                  <input type="radio" name="visibility" value="public" checked>
+                  <span class="visibility-choice">
+                    <strong>List on the marketplace</strong>
+                    <span>Public — others can use it, and you earn per run.</span>
+                  </span>
+                </label>
+                <label class="visibility-option">
+                  <input type="radio" name="visibility" value="private">
+                  <span class="visibility-choice">
+                    <strong>Keep it private</strong>
+                    <span>Only you can run it. It won’t appear in the store.</span>
+                  </span>
+                </label>
+              </div>
+
+              <div class="submit-row">
+                <button class="button button-primary" id="upload-submit" type="submit">Start hosting <span aria-hidden="true">→</span></button>
+                <p class="submit-note">Free credits to start. No monthly hosting fee.</p>
+              </div>
+            </form>
+
+            <div class="progress-panel" id="upload-progress" role="status" aria-live="polite" hidden>
+              <h3 class="progress-title">Your workflow is on the bench.</h3>
+              <ol class="progress-steps">
+                <li class="progress-step" data-progress-step="0"><span class="progress-dot">✓</span><span>Uploaded</span></li>
+                <li class="progress-step" data-progress-step="1"><span class="progress-dot">2</span><span>Parsing your skill.md</span></li>
+                <li class="progress-step" data-progress-step="2"><span class="progress-dot">3</span><span>Building the container</span></li>
+                <li class="progress-step" data-progress-step="3"><span class="progress-dot">4</span><span>Testing…</span></li>
+                <li class="progress-step" data-progress-step="4"><span class="progress-dot">5</span><span>Live in ~30 minutes</span></li>
+              </ol>
+              <p class="progress-demo">This is the demo flow for now — the real builder pipeline is being wired. We’ve saved this submission in your browser.</p>
+            </div>
+          </div>
+
+          <aside class="hosted-card" aria-labelledby="hosted-title">
+            <div class="hosted-head">
+              <h3 id="hosted-title">Your hosted workflows</h3>
+              <p>Submissions from this browser appear here.</p>
+            </div>
+            <p class="hosted-empty" id="hosted-empty">Nothing on the bench yet. Your first upload will show up here.</p>
+            <ul class="hosted-list" id="hosted-list"></ul>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq-section" aria-labelledby="faq-title">
+      <div class="shell faq-grid">
+        <div>
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> Quick answers</p>
+          <h2 class="section-title" id="faq-title">Before you upload.</h2>
+          <p class="section-copy">If your workflow can be described in markdown, it has a home here.</p>
+        </div>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>What formats work?</summary>
+            <p>Any skill.md or workflow markdown. We parse the prompts, steps, and tool calls, whether it is a simple skill or a multi-step workflow.</p>
+          </details>
+          <details class="faq-item">
+            <summary>How much does it cost?</summary>
+            <p>You pay per run — usually cents to a few dollars, auto-priced from real costs. Every new account gets free credits to start.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I keep it private?</summary>
+            <p>Yes. Private workflows run only for you and never appear in the public marketplace.</p>
+          </details>
+          <details class="faq-item">
+            <summary>What about listing publicly?</summary>
+            <p>List your workflow in the Omo marketplace and keep 85% of every run.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-row">
+      <div class="footer-brand">
+        <a class="wordmark" href="index.html">Omo<span class="wordmark-dot">.</span></a>
+        <p class="footer-tagline">Upload a workflow. Get a hosted API. Pay only when it runs.</p>
+      </div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="index.html#feed">Back to the store</a>
+        <a href="#upload">Host yours</a>
+        <a href="creators.html">For creators</a>
+        <a href="dashboard.html">Dashboard</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="key-config.js"></script>
+  <script src="clerk.js"></script>
+  <script src="upload.js"></script>
+</body>
+</html>
