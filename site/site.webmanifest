@@ -1,12 +1,14 @@
 {
-  "name": "Omo — The AI helper store",
+  "name": "Omo",
   "short_name": "Omo",
   "description": "The AI helper store. Try it. Buy it. Use it your way.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F4F1E8",
+  "background_color": "#F2F6F1",
   "theme_color": "#1E3A34",
   "icons": [
+    { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
     { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
     { "src": "/favicon-32.png", "sizes": "32x32", "type": "image/png" },
     { "src": "/favicon-16.png", "sizes": "16x16", "type": "image/png" },
