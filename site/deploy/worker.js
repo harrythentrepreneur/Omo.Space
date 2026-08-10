@@ -4,11 +4,10 @@
 //   POST /api/ugc-script-studio        → UGC ad script from a product link
 //   POST /api/meta-ads-analyser        → Meta Ads read/judge/advise (winners, losers, next move)
 //   POST /api/product-photo-generator  → listing image shot plan + copy
-//   POST /api/run                      → generic helper runner {slug, system_prompt, fields};
-//                                         with body.user_id it DEBITS the user's credits
-//                                         (cost-model run price) and 402s when short
-//   POST /api/checkout                 → Stripe Checkout session {slug, priceUsd, email?}
-//   GET/POST /api/me?user_id=…         → {balance, api_key, currency, runs} for the dashboard
+//   POST /api/run                      → catalog helper runner {slug, fields}; real mode
+//                                         authenticates, requires idempotency, and debits credits
+//   POST /api/checkout                 → Stripe Checkout session {slug, email?}
+//   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
 //
@@ -19,8 +18,9 @@
 //   STRIPE_SECRET_KEY — Stripe secret key (sk_test_…/sk_live_…); without it
 //                       /api/checkout and /api/topup return 501 and the
 //                       storefront simulates. Never logged or echoed.
-//   CLERK_WEBHOOK_SECRET — Svix signing secret from the Clerk dashboard; when
-//                       set, /api/clerk-webhook verifies the signature.
+//   CLERK_PUBLISHABLE_KEY — Clerk pk_test_/pk_live_ key; its encoded Frontend
+//                       API host is used to fetch and cache Clerk JWKS.
+//   CLERK_WEBHOOK_SECRET — Svix signing secret from the Clerk dashboard.
 //   STRIPE_WEBHOOK_SECRET — signing secret for checkout.session.completed
 //                       deliveries sent to /api/topup.
 //   BALANCE_KEY_SECRET — optional extra entropy for deterministic API keys;
@@ -39,7 +39,9 @@
 //   UGC:   DEMO_MAX_TOKENS_UGC=4000, DEMO_MAX_INPUT_UGC=2000, DEMO_DAILY_CAP_UGC=5
 //   META:  DEMO_MAX_TOKENS_META=5000, DEMO_MAX_INPUT_META=20000, DEMO_DAILY_CAP_META=3
 //   PHOTO: DEMO_MAX_TOKENS_PHOTO=4000, DEMO_MAX_INPUT_PHOTO=2000, DEMO_DAILY_CAP_PHOTO=5
-// Signed-in /api/run calls (body.user_id) are PAID runs — no free-demo cap.
+// Real mode starts when Clerk or a durable database is configured. It requires
+// Clerk JWT auth for account routes (or an omo_ API key for /api/run). With
+// neither configured, mock mode preserves the localStorage-backed demo flow.
 
 // Pure credit math lives in ./balance.mjs (bundled at deploy time); the cost
 // model in ./cost-model.mjs sets the per-run price (5x markup, $0.10 floor).
@@ -122,6 +124,61 @@ Rules:
 - Never invent product features; only use what the description supports.
 - Output ONLY the JSON object, no markdown fences, no commentary.`;
 
+const LISTING_COPY_SYSTEM_PROMPT = `You write marketplace listing copy from buyer-supplied product facts.
+Return EXACTLY this JSON shape: {"title":"SEO-aware title","bullets":["benefit 1","benefit 2","benefit 3"],"description":"2-3 sentence description"}.
+HARD RULES: bullets is a flat array of STRINGS; never invent claims; output ONLY the JSON object.`;
+
+// Server-owned catalog. The Instagram tuples mirror site/ig-workflows.js and
+// site/ig-more.js, but intentionally include only runtime-safe fields. Client
+// system_prompt, model, max_tokens, workflow, and price values are ignored in
+// real mode. Checkout also resolves its one-time price from this same map.
+const CATALOG_ROWS = [
+  ['ugc-script-studio', 'UGC Script Studio', 39, 0.10, 'deepseek-v4-flash', 4000, UGC_SYSTEM_PROMPT],
+  ['meta-ads-analyser', 'Meta Ads Analyser', 49, 0.10, 'deepseek-v4-flash', 5000, META_SYSTEM_PROMPT],
+  ['product-photo-generator', 'Product Photo Generator', 29, 0.10, 'deepseek-v4-flash', 4000, PHOTO_SYSTEM_PROMPT],
+  ['listing-copy-engine', 'Listing Copy Engine', 19, 0.10, 'deepseek-v4-flash', 600, LISTING_COPY_SYSTEM_PROMPT],
+  ['ugc-actor-maker', 'UGC Actor Maker', 49, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
+  ['ugc-heygen-editor', 'UGC HeyGen Editor', 39, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
+  ['tiktok-ad-script-writer', 'TikTok Ad Script Writer', 29, 0.10, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
+  ['youtube-ads-video-editor', 'YouTube Ads Video Editor', 49, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
+  ['shopify-product-story', 'Shopify Product Story', 39, 0.10, 'deepseek-v4-flash', 700, LISTING_COPY_SYSTEM_PROMPT],
+  ['email-flow-copilot', 'Email Flow Copilot', 49, 0.10, 'deepseek-v4-flash', 800, 'You write ecommerce lifecycle email sequences using only supplied product and offer facts. Return JSON with subject_lines, emails, and next_steps. Output JSON only.'],
+  ['arcads-node-ugc-builder', 'Arcads Node UGC Builder', 49, 1.40, 'deepseek-v4-flash', 400, 'You turn a product brief into scene prompts for UGC video generation. Return EXACTLY this JSON shape: {"scene_prompts":["prompt 1","prompt 2","prompt 3"],"hook":"first 2 seconds","cta":"one call to action"} HARD RULES: scene_prompts is a flat array of STRINGS, never nest objects, never invent claims, output ONLY the JSON object.'],
+  ['product-link-to-meta-ugc-ad', 'Product Link → Meta UGC Ad', 49, 0.60, 'deepseek-v4-flash', 300, 'You summarize an ecommerce product page for ad creation. Return EXACTLY this JSON shape: {"product":"what it is","claims":["supported claims only"],"audience":"who buys it"} HARD RULES: claims is a flat array of STRINGS, never nest objects, only use what the description supports, output ONLY the JSON object.'],
+  ['one-photo-ecom-creative-factory', 'One-Photo Creative Factory', 39, 1.10, 'deepseek-v4-flash', 400, 'You turn a product photo description into a creative variant matrix. Return EXACTLY this JSON shape: {"variants":[{"angle":"shot angle","background":"background","usage":"PDP or paid social"}]} HARD RULES: variants is a flat array of objects with STRING fields only, never nest deeper, output ONLY the JSON object.'],
+  ['shopify-pics-to-description-bulk', 'Shopify Pics → Descriptions (Bulk)', 49, 0.30, 'deepseek-v4-flash', 500, 'You generate SEO product listings from image descriptions. Return EXACTLY this JSON shape: {"title":"SEO-aware, under 150 chars","description":"2-3 sentences that sell","meta_title":"under 60 chars","meta_description":"under 160 chars"} HARD RULES: all fields are plain STRINGS, never nest objects, output ONLY the JSON object.'],
+  ['gpt-image-seedance-product-ad', 'Cinematic Product Ad (GPT Image + Seedance)', 49, 1.10, 'deepseek-v4-flash', 400, 'You plan cinematic product ad shots. Return EXACTLY this JSON shape: {"shotlist":["shot 1: angle, props, motion note"],"style":"visual style","transitions":["transition notes"]} HARD RULES: shotlist and transitions are flat arrays of STRINGS, never nest objects, output ONLY the JSON object.'],
+  ['consistent-character-ugc', 'Consistent Character UGC System', 49, 0.90, 'deepseek-v4-flash', 400, 'You build a character sheet and product talking points for AI UGC ads. Return JSON with character_sheet, talking_points as a flat string array, and cta. Never invent claims. Output JSON only.'],
+  ['realistic-ugc-character-4step', 'Realistic AI UGC Character (4-Step)', 49, 0.90, 'deepseek-v4-flash', 400, 'You write talking-character UGC scripts. Return JSON with hook, lines as a flat array of 3-5 strings, and cta. Never invent claims. Output JSON only.'],
+  ['prompt-to-ugc-ad-maxfusion-seedance-2-0', 'Prompt-to-UGC Ad (Maxfusion + Seedance 2.0)', 29, 0.60, 'deepseek-v4-flash', 500, 'You turn supplied product facts into a realistic UGC video-ad plan. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['cinematic-ai-ugc-scene-builder', 'Cinematic AI UGC Scene Builder', 29, 0.60, 'deepseek-v4-flash', 500, 'You turn a supplied product or promotion into a cinematic UGC scene plan. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['ai-ugc-ad-prompt-guide', 'AI UGC Ad Prompt + Guide', 29, 0.60, 'deepseek-v4-flash', 500, 'You create a ready-to-use AI UGC ad prompt and concise production guide from supplied facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['product-image-cinematic-ad-seedance-2-0', 'Product Image → Cinematic Ad (Seedance 2.0)', 49, 1.00, 'deepseek-v4-flash', 500, 'You turn a supplied product-image description into a 15-second cinematic ad plan. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['claude-seo-skill-replaces-2k-mo-agency', 'Claude SEO Skill', 29, 0.10, 'deepseek-v4-flash', 500, 'You produce a practical SEO audit and action plan from supplied site facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['shopify-agentic-storefronts-ai-seo-playbook', 'Shopify Agentic Storefronts + AI SEO Playbook', 29, 0.30, 'deepseek-v4-flash', 500, 'You produce a Shopify AI-discovery and product-page optimization playbook from supplied store facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['shopify-ai-stack-rebuy-klaviyo-ai-tidio', 'Shopify AI Stack', 49, 1.05, 'deepseek-v4-flash', 500, 'You design a Shopify automation plan for Rebuy, Klaviyo, and Tidio from supplied store facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['shopify-agentic-plan-sellers-setup', 'Shopify Agentic Plan Sellers Setup', 29, 0.30, 'deepseek-v4-flash', 500, 'You create a Shopify Agentic Plan seller setup from supplied merchant facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['ai-brand-commercial-production-seedance-2-0-k', 'AI Brand Commercial Production', 29, 0.60, 'deepseek-v4-flash', 500, 'You create an AI brand-commercial storyboard and production plan from supplied campaign facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['ai-ugc-tutorial-german-comment-to-get', 'AI UGC Tutorial (German)', 29, 0.10, 'deepseek-v4-flash', 500, 'You create a German-language AI UGC tutorial from supplied product facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['ai-ugc-creator-guide-fully-ai-generated-ads', 'AI UGC Creator Guide', 29, 0.60, 'deepseek-v4-flash', 500, 'You create an AI UGC creator guide and ad plan from supplied brand facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['batch-content-repurposing-system-transcripts-', 'Batch Content Repurposing System', 39, 0.75, 'deepseek-v4-flash', 500, 'You turn supplied transcripts into a batch content-repurposing plan and platform captions. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['kling-ai-higgsfield-viral-video-workflow', 'Kling AI + Higgsfield Viral Video Workflow', 29, 0.60, 'deepseek-v4-flash', 500, 'You create a cinematic short-video workflow from supplied campaign facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ['ai-readable-product-page-optimization', 'AI-Readable Product Page Optimization', 39, 0.90, 'deepseek-v4-flash', 500, 'You optimize supplied product-page facts for accurate AI discovery and recommendation. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+];
+
+const SERVER_CATALOG = new Map(CATALOG_ROWS.map((row) => {
+  const [slug, name, licensePriceUsd, runPriceUsd, model, maxTokens, systemPrompt] = row;
+  return [slug, {
+    slug, name, licensePriceCents: Math.round(licensePriceUsd * 100),
+    runPriceCents: Math.round(runPriceUsd * 100), model, maxTokens, systemPrompt,
+    workflow: { steps: [{ type: 'llm', role: 'main', model, max_output: maxTokens, system: systemPrompt }] },
+  }];
+}));
+
+const MAX_TOPUP_USD_DEFAULT = 1000;
+const USER_ID_RE = /^user_[A-Za-z0-9_-]{1,80}$/;
+const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
+
 // ── Router ─────────────────────────────────────────────────────────────────
 // Each route maps to { handler } (POST-only by default) or { handler, methods }
 // for routes that accept other verbs (/api/me takes GET for the dashboard).
@@ -140,22 +197,22 @@ const ROUTES = {
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: cors() });
+      return new Response(null, { status: 204, headers: cors(request, env) });
     }
 
     const url = new URL(request.url);
     const route = ROUTES[url.pathname];
     if (!route) {
-      return json({ error: `Unknown route: ${url.pathname}`, routes: Object.keys(ROUTES) }, 404, cors());
+      return json({ error: `Unknown route: ${url.pathname}`, routes: Object.keys(ROUTES) }, 404, cors(request, env));
     }
     const methods = route.methods || ['POST'];
     if (!methods.includes(request.method)) {
-      return json({ error: 'Method not allowed', methods }, 405, cors());
+      return json({ error: 'Method not allowed', methods }, 405, cors(request, env));
     }
     try {
-      return await route.handler(request, env, url);
+      return applyCors(await route.handler(request, env, url), request, env);
     } catch (e) {
-      return json({ error: 'internal_error' }, 500, cors());
+      return json({ error: 'internal_error' }, 500, cors(request, env));
     }
   },
 };
@@ -275,31 +332,42 @@ async function handlePhoto(request, env) {
 }
 
 // ── Route: Generic skill runner (catalog skills) ───────────────────────────
-// Body: { slug, system_prompt, fields: { key: value, ... }, max_tokens?, user_id? }
-// The storefront sends the skill's prompt + the buyer's input values; the
-// worker runs it through the LLM and returns the raw + parsed output. This is
-// what lets every catalog skill (100+) be tested in-browser with zero per-skill code.
-//
-// CREDITS: when body.user_id is present this becomes a PAID run — the balance
-// is checked BEFORE the LLM call (402 {error:'insufficient_balance'} when the
-// user is short) and debited at the cost-model run price (5x markup, $0.10
-// floor) AFTER a successful run. Anonymous runs stay on the free demo caps.
+// Real mode accepts {slug, fields, idempotency_key?}; prompt, model, token cap,
+// workflow, and price come only from SERVER_CATALOG. Mock mode keeps the old
+// client-prompt fallback so the zero-key storefront demo remains functional.
 
 async function handleGenericRun(request, env) {
   let body;
   try { body = await request.json(); } catch { body = {}; }
   const slug = String(body.slug || '').trim();
-  const systemPrompt = String(body.system_prompt || '').trim();
-  const fields = body.fields && typeof body.fields === 'object' ? body.fields : {};
-  const maxTokens = Number(body.max_tokens || env.DEMO_MAX_TOKENS_RUN || 4000);
-  const userId = String(body.user_id || '').trim();
+  const fields = body.fields && typeof body.fields === 'object' && !Array.isArray(body.fields) ? body.fields : {};
+  const real = isRealMode(env);
+  const listing = SERVER_CATALOG.get(slug);
+  if (!slug) return json({ error: 'Send slug.' }, 400, cors());
+  if (real && !listing) return json({ error: 'unknown_catalog_slug' }, 404, cors());
 
-  if (!slug || !systemPrompt) {
-    return json({ error: 'Send slug and system_prompt.' }, 400, cors());
+  let userId = '';
+  let authMethod = 'demo';
+  if (real) {
+    const auth = await authenticateAccount(request, env, true);
+    if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
+    userId = auth.userId;
+    authMethod = auth.method;
+  } else {
+    userId = validUserId(body.user_id) ? String(body.user_id).trim() : '';
   }
+
+  const systemPrompt = listing ? listing.systemPrompt : String(body.system_prompt || '').trim();
+  const maxTokens = listing
+    ? listing.maxTokens
+    : boundedInt(body.max_tokens, 1, 8000, Number(env.DEMO_MAX_TOKENS_RUN || 4000));
+  const model = listing ? listing.model : (env.LLM_MODEL || 'deepseek-v4-flash');
+  if (!systemPrompt) return json({ error: 'Send slug and system_prompt.' }, 400, cors());
+
   // Flatten fields into the user prompt, rejecting oversized payloads.
   let userPrompt = '';
   for (const [k, v] of Object.entries(fields)) {
+    if (!/^[A-Za-z0-9 _.-]{1,80}$/.test(k)) return json({ error: 'Invalid field name.' }, 400, cors());
     const s = String(v == null ? '' : v).trim();
     if (s.length > Number(env.DEMO_MAX_INPUT_RUN || 3000)) {
       return json({ error: `"${k}" is too long for the free demo.` }, 400, cors());
@@ -311,21 +379,43 @@ async function handleGenericRun(request, env) {
   }
   userPrompt += '\nRun the skill now and return your output.';
 
-  // Paid path: check + reserve the run price before spending LLM budget.
+  // Real calls must have a durable, account-scoped idempotency key. A row is
+  // claimed before debit, so concurrent retries cannot both spend credits.
+  let idempotencyKey = '';
+  let requestHash = '';
+  let runRequest = null;
+  if (real) {
+    idempotencyKey = String(request.headers.get('idempotency-key') || body.idempotency_key || '').trim();
+    if (!IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {
+      return json({ error: 'invalid_idempotency_key' }, 400, cors());
+    }
+    requestHash = await sha256Hex(stableStringify({ slug, fields }));
+    await getUserRecord(env, userId);
+    await reconcileStaleReservations(env, userId);
+    runRequest = await claimRunRequest(
+      env, userId, idempotencyKey, requestHash, slug,
+      listing.runPriceCents, makeId('run')
+    );
+    if (!runRequest.created) return replayRunResponse(runRequest.row, requestHash);
+  }
+
+  // Paid path: reserve the catalog price before spending LLM budget.
   let billing = null;
   let reservedCents = 0;
   let balanceAfterDebit = 0;
   let costUsd = 0;
-  let runId = '';
+  let runId = runRequest ? runRequest.row.run_id : '';
   if (userId) {
     billing = (await getUserRecord(env, userId)).record;
-    costUsd = runPrice(llmWorkflow(systemPrompt, maxTokens));
-    reservedCents = Math.round(costUsd * 100);
-    runId = makeId('run');
+    reservedCents = listing
+      ? listing.runPriceCents
+      : Math.round(runPrice(llmWorkflow(systemPrompt, maxTokens, model)) * 100);
+    costUsd = reservedCents / 100;
+    if (!runId) runId = makeId('run');
     const reservation = await reserveRunCredits(env, userId, reservedCents, runId);
     if (!reservation.ok) {
       const check = debitForRun(reservation.balance_cents / 100, costUsd);
-      return json({
+      const response = {
         error: 'insufficient_balance',
         message: 'You need a little more Omo credit for this run. Top up from $5 and keep going.',
         balance: check.balance,
@@ -334,9 +424,14 @@ async function handleGenericRun(request, env) {
         minimum_topup_usd: MIN_TOPUP_USD,
         suggested_amounts_usd: topupAmounts(),
         topup_url: '/dashboard.html?topup=needed',
-      }, 402, cors());
+        run_id: runId,
+        state: 'refunded',
+      };
+      if (runRequest) await finishRunRequest(env, runId, 'refunded', response, 402);
+      return json(response, 402, cors());
     }
     balanceAfterDebit = reservation.balance_cents;
+    if (runRequest) await setRunRunning(env, runId);
   }
 
   // Anonymous runs stay capped per IP; paid runs skip the free-demo cap.
@@ -346,19 +441,23 @@ async function handleGenericRun(request, env) {
     return json({ error: 'Free demo limit reached for today. Buy the license to keep going.' }, 429, cors());
   }
 
+  let settled = false;
   try {
-    const llm = await callLLM(env, systemPrompt, userPrompt, maxTokens);
+    const llm = await callLLM(env, systemPrompt, userPrompt, maxTokens, model);
     if (llm.error) {
       if (billing) await refundRunCredits(env, userId, reservedCents, runId);
-      return json({ error: llm.error }, 502, cors());
+      const response = { error: llm.error, run_id: runId || undefined, state: runRequest ? 'refunded' : undefined };
+      if (runRequest) await finishRunRequest(env, runId, 'refunded', response, 502);
+      settled = true;
+      return json(response, 502, cors());
     }
     const parsed = stripJson(llm.content);
     await capBump(env, cap.key, cap.used);
     if (billing) {
-      await addRun(env, userId, slug, reservedCents, runId);
       const result = {
         ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content,
-        run_id: runId, cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
+        run_id: runId, state: 'succeeded', auth: authMethod,
+        cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
       };
       if (balanceAfterDebit === 0) {
         result.message = 'That used your remaining credits. Top up from $5 whenever you are ready to run another helper.';
@@ -366,28 +465,32 @@ async function handleGenericRun(request, env) {
         result.suggested_amounts_usd = topupAmounts();
         result.topup_url = '/dashboard.html?topup=needed';
       }
+      if (runRequest) await finishRunRequest(env, runId, 'succeeded', result, 200);
+      settled = true;
+      await addRun(env, userId, slug, reservedCents, runId);
       return json(result, 200, cors());
     }
     return json({ ok: true, slug, output: parsed || { raw: llm.content }, raw: llm.content }, 200, cors());
   } catch (e) {
-    if (billing) await refundRunCredits(env, userId, reservedCents, runId);
-    return json({ error: 'run_failed' }, 500, cors());
+    if (billing && !settled) await refundRunCredits(env, userId, reservedCents, runId);
+    const response = { error: 'run_failed', run_id: runId || undefined, state: runRequest ? 'refunded' : undefined };
+    if (runRequest && !settled) await finishRunRequest(env, runId, 'refunded', response, 500);
+    return json(response, 500, cors());
   }
 }
 
 // ── Route: Stripe Checkout session ────────────────────────────────────────
-// Body: { slug, priceUsd, email?, mode? } → creates a Stripe Checkout Session
+// Body: { slug, email? } → creates a Stripe Checkout Session
 // and returns { url } when the worker has STRIPE_SECRET_KEY set; 501 when not
-// configured. The secret key is read from env and NEVER logged or echoed.
+// configured. Slug, product name, and price are server-catalog values.
 
 async function handleCheckout(request, env) {
   let body;
   try { body = await request.json(); } catch { body = {}; }
   const slug = String(body.slug || '').trim();
-  const priceUsd = Number(body.priceUsd);
-  if (!slug || !isFinite(priceUsd) || priceUsd <= 0) {
-    return json({ error: 'Send slug and priceUsd.' }, 400, cors());
-  }
+  const listing = SERVER_CATALOG.get(slug);
+  if (!slug) return json({ error: 'Send slug.' }, 400, cors());
+  if (!listing) return json({ error: 'unknown_catalog_slug' }, 404, cors());
 
   const secretKey = env.STRIPE_SECRET_KEY;
   if (!secretKey) {
@@ -395,14 +498,17 @@ async function handleCheckout(request, env) {
   }
 
   const email = String(body.email || '').trim();
+  if (email.length > 254) return json({ error: 'invalid email' }, 400, cors());
   const params = new URLSearchParams();
   params.set('mode', 'payment');
-  params.set('success_url', `https://cognition.cv/?purchased=${encodeURIComponent(slug)}`);
-  params.set('cancel_url', 'https://cognition.cv/?purchased=cancelled');
+  params.set('success_url', `https://omo.best/?purchased=${encodeURIComponent(slug)}`);
+  params.set('cancel_url', 'https://omo.best/?purchased=cancelled');
   params.set('line_items[0][quantity]', '1');
   params.set('line_items[0][price_data][currency]', 'usd');
-  params.set('line_items[0][price_data][product_data][name]', slug);
-  params.set('line_items[0][price_data][unit_amount]', String(Math.round(priceUsd * 100)));
+  params.set('line_items[0][price_data][product_data][name]', listing.name);
+  params.set('line_items[0][price_data][unit_amount]', String(listing.licensePriceCents));
+  params.set('metadata[type]', 'catalog_license');
+  params.set('metadata[slug]', slug);
   if (email) params.set('customer_email', email);
 
   try {
@@ -428,7 +534,8 @@ async function handleCheckout(request, env) {
 }
 
 // ── Route: dashboard /api/me ───────────────────────────────────────────────
-// GET /api/me?user_id=…  (POST /api/me {user_id} also works) →
+// Real: GET/POST /api/me with a Clerk bearer token. Mock: the legacy
+// ?user_id=… / {user_id} form remains available for the local demo. →
 //   { ok, balance: "10.00", balance_usd, balance_cents, currency: "usd",
 //     api_key: "omo_…", mock: true|false, runs: [{slug, cost_usd, created_at}] }
 // The record is self-provisioned: the first time a user_id appears they get
@@ -436,14 +543,22 @@ async function handleCheckout(request, env) {
 // visits). Neon is preferred, then D1, then the in-memory mock store.
 
 async function handleMe(request, env, url) {
-  let userId = (url.searchParams && url.searchParams.get('user_id')) || '';
-  if (!userId && request.method === 'POST') {
-    try {
-      const body = await request.json();
-      userId = String(body.user_id || '').trim();
-    } catch (e) { /* fall through */ }
+  let userId = '';
+  if (isRealMode(env)) {
+    const auth = await authenticateAccount(request, env, false);
+    if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
+    userId = auth.userId;
+  } else {
+    userId = (url.searchParams && url.searchParams.get('user_id')) || '';
+    if (!userId && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        userId = String(body.user_id || '').trim();
+      } catch (e) { /* fall through */ }
+    }
   }
   if (!userId) return json({ error: 'Send user_id.' }, 400, cors());
+  if (!validUserId(userId)) return json({ error: 'invalid user_id' }, 400, cors());
 
   const { record } = await getUserRecord(env, userId);
   const runs = await listRuns(env, userId, 50);
@@ -476,15 +591,27 @@ async function handleTopup(request, env) {
 
   let body;
   try { body = await request.json(); } catch { body = {}; }
-  const userId = String(body.user_id || '').trim();
-  const amountUsd = Number(body.amount_usd);
-  const cents = Math.round(amountUsd * 100);
-  const validAmount = isFinite(amountUsd) && Number.isInteger(cents) &&
-    Math.abs(amountUsd * 100 - cents) < 0.000001 && cents >= MIN_TOPUP_USD * 100;
-  if (!userId || !validAmount) {
+  const real = isRealMode(env);
+  let userId = '';
+  if (real) {
+    const auth = await authenticateAccount(request, env, false);
+    if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
+    userId = auth.userId;
+  } else {
+    userId = String(body.user_id || '').trim();
+  }
+
+  const minTopupUsd = boundedNumber(env.MIN_TOPUP_USD, 1, MAX_TOPUP_USD_DEFAULT, MIN_TOPUP_USD);
+  const maxTopupUsd = boundedNumber(env.MAX_TOPUP_USD, minTopupUsd, 100000, MAX_TOPUP_USD_DEFAULT);
+  const amountUsd = body.amount_usd;
+  const amountInCents = typeof amountUsd === 'number' ? amountUsd * 100 : NaN;
+  const cents = Number.isSafeInteger(amountInCents) ? amountInCents : 0;
+  const validAmount = cents >= minTopupUsd * 100 && cents <= maxTopupUsd * 100;
+  if (!validUserId(userId) || !validAmount) {
     return json({
-      error: `Send user_id and amount_usd of at least $${MIN_TOPUP_USD.toFixed(2)} (up to two decimals).`,
-      minimum_topup_usd: MIN_TOPUP_USD,
+      error: `Send a numeric amount_usd from $${minTopupUsd.toFixed(2)} to $${maxTopupUsd.toFixed(2)} (up to two decimals).`,
+      minimum_topup_usd: minTopupUsd,
+      maximum_topup_usd: maxTopupUsd,
       suggested_amounts_usd: topupAmounts(),
     }, 400, cors());
   }
@@ -504,6 +631,7 @@ async function handleTopup(request, env) {
   params.set('metadata[user_id]', userId);
   params.set('metadata[type]', 'credits_topup');
   params.set('metadata[amount_cents]', String(cents));
+  params.set('metadata[currency]', 'usd');
   params.set('line_items[0][quantity]', '1');
   params.set('line_items[0][price_data][currency]', 'usd');
   params.set('line_items[0][price_data][product_data][name]', 'Omo credits');
@@ -522,10 +650,11 @@ async function handleTopup(request, env) {
       return json({ error: `stripe error ${res.status}` }, 502, cors());
     }
     const data = await res.json();
-    if (!data || !data.url) {
+    if (!data || !data.url || (real && !data.id)) {
       return json({ error: 'stripe returned no checkout url' }, 502, cors());
     }
-    return json({ url: data.url }, 200, cors());
+    if (real) await recordPendingTopup(env, data.id, userId, cents, 'usd');
+    return json({ url: data.url, session_id: data.id || undefined }, 200, cors());
   } catch (e) {
     return json({ error: 'stripe unavailable' }, 502, cors());
   }

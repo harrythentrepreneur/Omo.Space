@@ -8,9 +8,12 @@
   'use strict';
 
   var PLACEHOLDER = 'pk_test_placeholder';
+  var CLERK_JS_MAJOR = '6';
+  var LOAD_TIMEOUT_MS = 15000;
   var USER_KEY = 'cognition_user';
   var realClerk = null;
   var loadPromise = null;
+  var loadError = null;
   var pendingModal = '';
   var signUpRedirect = '';
   var listeners = [];
@@ -26,6 +29,36 @@
 
   function demoMode() {
     return (window.location && window.location.protocol === 'file:') || !isRealKey();
+  }
+
+  // Clerk publishable keys encode the instance's Frontend API hostname and a
+  // trailing "$". Clerk serves its browser bundle from that same hostname:
+  // https://<frontend-api>/npm/@clerk/clerk-js@6/dist/clerk.browser.js
+  function clerkFrontendApi() {
+    var match = getKey().match(/^pk_(?:test|live)_(.+)$/);
+    if (!match) throw new Error('The Clerk publishable key is invalid.');
+
+    var encoded = match[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (encoded.length % 4) encoded += '=';
+
+    var decoded = '';
+    try { decoded = window.atob(encoded); }
+    catch (e) { throw new Error('The Clerk publishable key could not be decoded.'); }
+
+    if (decoded.slice(-1) !== '$' || decoded.slice(0, -1).indexOf('$') !== -1) {
+      throw new Error('The Clerk publishable key has an invalid Frontend API value.');
+    }
+    var frontendApi = decoded.slice(0, -1);
+    if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(frontendApi) ||
+        frontendApi.indexOf('.') === -1 || frontendApi.indexOf('..') !== -1) {
+      throw new Error('The Clerk publishable key has an invalid Frontend API hostname.');
+    }
+    return frontendApi;
+  }
+
+  function clerkSdkUrl() {
+    return 'https://' + clerkFrontendApi() +
+      '/npm/@clerk/clerk-js@' + CLERK_JS_MAJOR + '/dist/clerk.browser.js';
   }
 
   function loadUser() {
@@ -106,8 +139,12 @@
 
   function initClerk(resolve, reject) {
     if (!window.Clerk) { reject(new Error('Clerk SDK did not load.')); return; }
-    window.Clerk.load({ publishableKey: getKey() }).then(function () {
+    var ready;
+    try { ready = window.Clerk.load({ publishableKey: getKey() }); }
+    catch (error) { reject(error); return; }
+    Promise.resolve(ready).then(function () {
       realClerk = window.Clerk;
+      loadError = null;
       realClerk.addListener(function () {
         fire();
         finishSignUpRedirect();
@@ -122,30 +159,65 @@
   function loadRealClerk() {
     if (demoMode()) return null;
     if (loadPromise) return loadPromise;
+    loadError = null;
     loadPromise = new Promise(function (resolve, reject) {
-      if (window.Clerk) { initClerk(resolve, reject); return; }
+      var script = null;
+      var settled = false;
+      var timeout = window.setTimeout(function () {
+        fail(new Error('Clerk SDK loading timed out.'));
+      }, LOAD_TIMEOUT_MS);
 
-      var script = document.getElementById('clerk-js');
+      function cleanupListeners() {
+        if (!script) return;
+        script.removeEventListener('load', onLoad);
+        script.removeEventListener('error', onError);
+      }
+
+      function succeed(clerk) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        cleanupListeners();
+        resolve(clerk);
+      }
+
+      function fail(error) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        cleanupListeners();
+        reject(error instanceof Error ? error : new Error('Clerk SDK could not load.'));
+      }
+
+      function onLoad() { initClerk(succeed, fail); }
+      function onError() { fail(new Error('Clerk SDK could not load.')); }
+
+      if (window.Clerk) { initClerk(succeed, fail); return; }
+
+      script = document.getElementById('clerk-js');
       if (!script) {
         script = document.createElement('script');
         script.id = 'clerk-js';
-        script.src = 'https://cdn.clerk.com/v1/clerk.browser.js';
+        try { script.src = clerkSdkUrl(); }
+        catch (error) { fail(error); return; }
         script.async = true;
         script.crossOrigin = 'anonymous';
         script.setAttribute('data-clerk-publishable-key', getKey());
+        script.setAttribute('data-clerk-js-script', 'true');
       }
-      script.addEventListener('load', function () { initClerk(resolve, reject); }, { once: true });
-      script.addEventListener('error', function () { reject(new Error('Clerk SDK could not load.')); }, { once: true });
+      script.addEventListener('load', onLoad, { once: true });
+      script.addEventListener('error', onError, { once: true });
       if (!script.parentNode) document.head.appendChild(script);
-    }).catch(function () {
+    }).catch(function (error) {
       var failedScript = document.getElementById('clerk-js');
       if (failedScript && !window.Clerk && failedScript.parentNode) {
         failedScript.parentNode.removeChild(failedScript);
       }
       loadPromise = null;
       pendingModal = '';
+      loadError = error instanceof Error ? error : new Error('Clerk SDK could not load.');
       fire();
-      return null;
+      throw loadError;
     });
     return loadPromise;
   }
@@ -186,7 +258,11 @@
     };
   }
 
-  if (!demoMode()) loadRealClerk();
+  if (!demoMode()) {
+    // Preload for a fast modal. The UI observes errors through getLoadError(),
+    // and a later explicit sign-in starts a fresh attempt.
+    loadRealClerk().catch(function () {});
+  }
 
   window.ClerkAuth = {
     isSignedIn: function () {
@@ -207,6 +283,7 @@
     },
     getUser: currentUser,
     currentUser: currentUser,
+    getLoadError: function () { return loadError; },
     onAuthChange: function (callback) {
       if (typeof callback === 'function') listeners.push(callback);
       return callback;

@@ -377,11 +377,12 @@
     .door-emoji { margin-bottom: 6px; font-size: 20px; }
     .door h4 { margin-bottom: 4px; font-size: 15px; }
     .door p { margin: 0; }
-    .demo-box { padding: 20px; border: 1px solid var(--pine); border-radius: 14px; background: var(--surface); }
-    .demo-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
-    .demo-head h3 { margin: 0; color: var(--pine); font-size: 17px; letter-spacing: 0; text-transform: none; }
-    .demo-cap { padding: 3px 10px; border-radius: 999px; background: var(--mint); color: var(--moss); font-size: 12px; font-weight: 700; }
-    .demo-note { margin: 0 0 16px; color: var(--moss); font-size: 13.5px; }
+    .demo-box { padding: 22px; border: 1px solid var(--pine); border-radius: 14px; background: var(--surface); }
+    .demo-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 7px; }
+    .demo-head h3 { margin: 0; color: var(--pine); font-family: var(--display); font-size: 23px; letter-spacing: -.01em; text-transform: none; }
+    .run-eyebrow { margin: 0 0 2px; color: var(--orange); font-size: 10.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+    .run-price { padding: 6px 11px; border-radius: 999px; background: var(--mint); color: var(--pine); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+    .demo-note { margin: 0 0 18px; color: var(--moss); font-size: 13.5px; }
     .demo-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .demo-field { margin-bottom: 2px; }
     .field-label { display: block; margin: 0 0 6px; font-size: 12.5px; font-weight: 700; }
@@ -390,9 +391,17 @@
       border: 1px solid var(--rule); border-radius: 12px; background: var(--canvas); color: var(--pine); font-size: 14px;
     }
     .demo-select { min-height: 48px; resize: none; }
-    .demo-run { margin-top: 14px; }
+    .demo-run { width: 100%; margin-top: 18px; min-height: 50px; }
+    .run-usage { margin: 9px 0 0; color: var(--moss); font-size: 12.5px; text-align: center; }
     .demo-status { margin: 10px 0 0; font-size: 13px; }
     .demo-status[data-state="error"] { color: #8c2e16; font-weight: 700; }
+    .credit-empty {
+      margin-top: 14px; padding: 15px; border: 1px solid #F2B8A6; border-radius: 12px;
+      background: #FFF1EC;
+    }
+    .credit-empty strong { display: block; margin-bottom: 3px; font-size: 15px; }
+    .credit-empty p { margin: 0 0 11px; color: var(--moss); font-size: 13px; }
+    .credit-empty .button { min-height: 42px; }
     .demo-result { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--rule); }
     .demo-raw { max-height: 320px; margin: 0; overflow: auto; white-space: pre-wrap; padding: 14px; border-radius: 12px; background: var(--canvas); font: 12.5px/1.5 ui-monospace, monospace; }
     .detail-footer { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
@@ -703,7 +712,7 @@
           '<p class="listing-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +
           '<p class="listing-meta">' + esc(p.version) + '</p>' +
           '<div class="listing-footer"><p class="listing-price">' + ownLabel + '<span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
-          '<div class="listing-actions"><button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Try demo</button>' +
+          '<div class="listing-actions"><button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Run it</button>' +
           '<button class="details-link" type="button" data-action="details" aria-haspopup="dialog">View details</button></div></div></div></article>';
       }
       function matches(p) {
@@ -771,6 +780,19 @@
       function doorHTML(emoji, title, text) {
         return '<div class="door"><div class="door-emoji" aria-hidden="true">' + emoji + '</div><h4>' + title + '</h4><p>' + text + '</p></div>';
       }
+      function inputPlaceholder(key, label) {
+        var hint = (key + ' ' + label).toLowerCase();
+        if (/length|duration|seconds|runtime|time/.test(hint)) return '30 seconds';
+        if (/style|mood|creative direction|visual/.test(hint)) return 'A playful, cinematic product demo';
+        if (/scene|frame|shot|count|number|quantity/.test(hint)) return '3 scenes';
+        if (/url|link|page/.test(hint)) return 'https://example.com/products/travel-mug';
+        if (/tone|voice|vibe/.test(hint)) return 'Playful, clear, and confident';
+        if (/audience|customer|persona/.test(hint)) return 'Busy commuters who love good coffee';
+        if (/character|avatar|person/.test(hint)) return 'A warm, energetic creator in their 30s';
+        if (/image|photo|picture/.test(hint)) return 'A bright studio product photo on a clean background';
+        if (/brief|product|topic|claim|offer|script|copy/.test(hint)) return 'A portable espresso maker for busy commuters';
+        return 'Describe what you want this helper to use';
+      }
       function demoBoxHTML(p) {
         var inputs = p.inputs || [];
         var fields = [];
@@ -778,13 +800,21 @@
           var sep = inputs[j].indexOf(':');
           var key = sep === -1 ? inputs[j].trim() : inputs[j].slice(0, sep).trim();
           var label = sep === -1 ? key : inputs[j].slice(sep + 1).trim();
-          fields.push('<div class="demo-field"><label class="field-label" for="demo-field-' + j + '">' + esc(label) + '</label>' +
-            '<textarea class="demo-textarea" id="demo-field-' + j + '" data-demo-field data-key="' + esc(key) + '" placeholder="' + esc(label) + '" required></textarea></div>');
+          var clearLabel = key.replace(/[_-]+/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); });
+          if (label.toLowerCase() !== key.toLowerCase()) clearLabel += ' — ' + label;
+          fields.push('<div class="demo-field"><label class="field-label" for="demo-field-' + j + '">' + esc(clearLabel) + '</label>' +
+            '<textarea class="demo-textarea" id="demo-field-' + j + '" data-demo-field data-key="' + esc(key) + '" data-label="' + esc(clearLabel) + '" placeholder="' + esc(inputPlaceholder(key, label)) + '" required></textarea></div>');
         }
-        return '<div class="demo-box sig-cut"><div class="demo-head"><h3>Try the demo</h3><span class="demo-cap">' + esc(p.demoCap || 'Free demo') + '</span></div>' +
-          '<p class="demo-note">This is the real helper running on Omo. Give it one job for free.</p>' +
+        var price = '$' + (p.runPrice || p.priceRun);
+        return '<div class="demo-box sig-cut"><div class="demo-head"><div><p class="run-eyebrow">Cloud workflow</p><h3>Run it now</h3></div><span class="run-price">&asymp; ' + esc(price) + ' / run</span></div>' +
+          '<p class="demo-note">You pay per run from your credits. Omo handles the hosting, service keys, and setup.</p>' +
           '<form data-demo-form data-slug="' + esc(p.slug) + '" novalidate><div class="demo-row">' + fields.join('') + '</div>' +
-          '<button class="button button-primary demo-run" type="submit">Run the demo</button><p class="demo-status" data-demo-status role="status" aria-live="polite"></p></form>' +
+          '<button class="button button-primary demo-run" type="submit">Run on our cloud — &asymp; ' + esc(price) + '</button>' +
+          '<p class="run-usage">Runs from your balance &middot; $5 free when you join</p>' +
+          '<p class="demo-status" data-demo-status role="status" aria-live="polite"></p>' +
+          '<div class="credit-empty" data-credit-empty hidden><strong>You\'re out of credits</strong>' +
+          '<p>Top up $20, $50, $100, or a custom amount (minimum $5).</p>' +
+          '<button class="button button-secondary button-block" type="button" data-action="topup-credits">Top up credits</button></div></form>' +
           '<div class="demo-result" data-demo-result hidden></div></div>';
       }
       function detailHTML(p) {
@@ -816,7 +846,7 @@
           doorHTML('💻', 'Download', 'Take the workflow and prompts. Run it on your machine.') +
           doorHTML('🔌', 'API', 'We run it in our cloud and handle the service keys.') + '</div></section>' +
           '<section class="detail-section">' + demoBoxHTML(p) + '</section>' +
-          '<div class="detail-footer"><button class="button button-primary" type="button" data-action="demo">Try the demo</button>' +
+          '<div class="detail-footer"><button class="button button-primary" type="button" data-action="demo">Run it now</button>' +
           '<a class="button button-secondary" href="#" data-action="buy">' + (isFreeListing(p) ? 'Download — Free' : 'Buy — $' + p.priceOwn) + '</a></div>';
       }
       function openDialog(p, focusDemo) {
@@ -827,14 +857,18 @@
         else dialog.setAttribute('open', '');
         if (focusDemo) {
           var box = dialogBody.querySelector('.demo-box');
-          if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          if (box) {
+            box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            var firstField = box.querySelector('[data-demo-field]');
+            if (firstField) firstField.focus({ preventScroll: true });
+          }
         } else if (closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus({ preventScroll: true });
       }
       var openedRequestedListing = false;
       function openRequestedListing() {
         if (openedRequestedListing || !pendingOpenSlug) return;
         openedRequestedListing = true;
-        if (PRODUCTS[pendingOpenSlug]) openDialog(PRODUCTS[pendingOpenSlug], false);
+        if (PRODUCTS[pendingOpenSlug]) openDialog(PRODUCTS[pendingOpenSlug], true);
         else showNote('That helper is no longer in the catalogue. Here are all available helpers.', true);
       }
       function toggleVote(slug) {
@@ -1008,6 +1042,20 @@
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(account.apiKey).then(done, done);
         else { try { window.prompt('Your Omo API key', account.apiKey); } catch (e) {} done(); }
       }
+      function goToTopup() {
+        if (dialog && (dialog.open || dialog.hasAttribute('open'))) {
+          if (typeof dialog.close === 'function') dialog.close();
+          else dialog.removeAttribute('open');
+        }
+        var panel = el('credits-panel');
+        if (panel) panel.open = true;
+        window.setTimeout(function () {
+          var card = el('topup-card');
+          if (card) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          var custom = el('custom-amount');
+          if (custom && typeof custom.focus === 'function') custom.focus({ preventScroll: true });
+        }, 0);
+      }
 
       function wire() {
         var nav = el('niche-nav');
@@ -1047,6 +1095,8 @@
           dialogBody.addEventListener('click', function (event) {
             var vote = event.target.closest('[data-upvote]');
             if (vote) { toggleVote(vote.getAttribute('data-upvote')); return; }
+            var topup = event.target.closest('[data-action="topup-credits"]');
+            if (topup) { goToTopup(); return; }
             var buy = event.target.closest('[data-action="buy"]');
             if (buy) { event.preventDefault(); handleBuy(currentSlug); return; }
             var reel = event.target.closest('.detail-hero-video');
@@ -1066,19 +1116,31 @@
             event.preventDefault();
             var product = PRODUCTS[form.getAttribute('data-slug')]; var status = form.querySelector('[data-demo-status]');
             var resultBox = form.parentElement.querySelector('[data-demo-result]'); var runButton = form.querySelector('.demo-run');
+            var creditEmpty = form.querySelector('[data-credit-empty]');
             var fields = form.querySelectorAll('[data-demo-field]'); var payload = { slug: product.slug, fields: {} }; var missing = '';
-            for (var j = 0; j < fields.length; j++) { var value = fields[j].value.trim(); payload.fields[fields[j].getAttribute('data-key')] = value; if (!value) missing = fields[j].getAttribute('data-key'); }
-            if (missing) { status.setAttribute('data-state', 'error'); status.textContent = 'Add ' + missing + ' to run the demo.'; return; }
+            for (var j = 0; j < fields.length; j++) {
+              var value = fields[j].value.trim();
+              payload.fields[fields[j].getAttribute('data-key')] = value;
+              if (!value) missing = fields[j].getAttribute('data-label') || fields[j].getAttribute('data-key');
+            }
+            if (missing) { status.setAttribute('data-state', 'error'); status.textContent = 'Add ' + missing.toLowerCase() + ' to run it.'; return; }
             if (product.workflow && product.workflow.steps && product.workflow.steps[0] && product.workflow.steps[0].system) payload.system_prompt = product.workflow.steps[0].system;
             var user = currentUser(); if (user) payload.user_id = user.id;
-            runButton.disabled = true; runButton.textContent = 'Running the demo…'; status.textContent = ''; resultBox.hidden = true;
+            runButton.disabled = true; runButton.textContent = 'Running on our cloud…';
+            status.removeAttribute('data-state'); status.textContent = ''; resultBox.hidden = true;
+            if (creditEmpty) creditEmpty.hidden = true;
             fetch((API_BASE || 'https://cognition-demo.pages.dev') + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
               .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { status: response.status, data: data }; }); })
               .then(function (result) {
-                if (!result.data.ok) { status.setAttribute('data-state', 'error'); status.textContent = result.data.message || (result.status === 402 ? 'Not enough credits — top up below.' : result.data.error || 'The demo could not run.'); return; }
+                if (result.status === 402 || result.data.error === 'insufficient_balance') {
+                  status.textContent = '';
+                  if (creditEmpty) creditEmpty.hidden = false;
+                  return;
+                }
+                if (!result.data.ok) { status.setAttribute('data-state', 'error'); status.textContent = result.data.message || result.data.error || 'The workflow could not run.'; return; }
                 resultBox.innerHTML = renderDemoOutput(result.data.output !== undefined ? result.data.output : result.data); resultBox.hidden = false; status.textContent = 'Done — that’s the real helper output.';
-              }).catch(function () { status.setAttribute('data-state', 'error'); status.textContent = 'Could not reach the demo server right now.'; })
-              .finally(function () { runButton.disabled = false; runButton.textContent = 'Run the demo'; });
+              }).catch(function () { status.setAttribute('data-state', 'error'); status.textContent = 'Could not reach the cloud runner right now.'; })
+              .finally(function () { runButton.disabled = false; runButton.textContent = 'Run on our cloud — ≈ $' + (product.runPrice || product.priceRun); });
           });
         }
         if (closeBtn) closeBtn.addEventListener('click', function () { if (dialog.close) dialog.close(); else dialog.removeAttribute('open'); });

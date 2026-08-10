@@ -599,6 +599,18 @@
     .demo-soon { text-align: center; padding: 12px 4px 4px; color: var(--moss); font-size: 14.5px; }
     .demo-soon a { color: var(--pine); font-weight: 700; }
 
+    /* Homepage hands cloud runs off to the signed-in dashboard. */
+    .run-handoff {
+      padding: 20px; border: 1px solid var(--pine); border-radius: 14px 14px 0 14px;
+      background: var(--surface);
+    }
+    .run-handoff h3 {
+      margin: 0 0 7px; color: var(--pine); font-size: 17px;
+      letter-spacing: 0; text-transform: none;
+    }
+    .run-handoff p { margin: 0 0 16px; color: var(--moss); font-size: 14px; }
+    .run-handoff strong { color: var(--pine); }
+
     .detail-footer { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
 
     /* ── Mobile storefront pass ── */
@@ -737,7 +749,7 @@
         <div class="feed-head">
           <div>
             <h2 class="feed-title" id="feed-title">Fresh from the makers</h2>
-            <p class="feed-sub" id="feed-sub">21 real helpers. Try the demo before you buy.</p>
+            <p class="feed-sub" id="feed-sub">21 real helpers. Choose one to own or run in your dashboard.</p>
           </div>
           <div class="feed-tools">
             <div class="filter-row" role="group" aria-label="Filter by outcome">
@@ -990,7 +1002,7 @@
       var feedSub = document.getElementById('feed-sub');
       if (feedSub) {
         var totalHelpers = Object.keys(PRODUCTS).length;
-        feedSub.textContent = (totalHelpers >= 100 ? '100+' : totalHelpers) + ' real helpers. Try a free demo before you buy.';
+        feedSub.textContent = (totalHelpers >= 100 ? '100+' : totalHelpers) + ' real helpers. Choose one to own or run in your dashboard.';
       }
 
       /* ── Render the feed ─────────────────────────────────────── */
@@ -1060,7 +1072,7 @@
           '<div class="listing-footer">' +
             '<p class="listing-price">' + ownLabel + ' <span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
             '<div class="listing-actions">' +
-              '<button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Try demo</button>' +
+              '<button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Run it</button>' +
               '<button class="details-link" type="button" data-action="details" aria-haspopup="dialog">View details</button>' +
             '</div>' +
           '</div>' +
@@ -1224,47 +1236,16 @@
           '<h4>' + title + '</h4><p>' + text + '</p></div>';
       }
 
-      function demoBoxHTML(p) {
-        if (!p.demo && !p.workflow) {
-          return '<div class="demo-box"><div class="demo-head"><h3>Try the demo</h3><span class="demo-cap">' + ESC(p.demoCap) + '</span></div>' +
-            '<p class="demo-note">The free demo for this helper launches soon.</p>' +
-            '<p class="demo-soon">Meanwhile, <a href="#" data-open-demo="ugc-script-studio">try UGC Script Studio</a> \u2014 it\u2019s live today.</p></div>';
-        }
-        var fields, note;
-        if (p.demo) {
-          note = ESC(p.demo.note);
-          fields = p.demo.fields.map(function (f) {
-            var control;
-            if (f.type === 'textarea') {
-              control = '<textarea class="demo-textarea" id="demo-field-' + f.key + '" placeholder="' + ESC(f.placeholder) + '" required></textarea>';
-            } else if (f.type === 'select') {
-              var opts = f.options.map(function (o) {
-                return '<option value="' + ESC(o.value) + '">' + ESC(o.label) + '</option>';
-              }).join('');
-              control = '<select class="demo-select" id="demo-field-' + f.key + '">' + opts + '</select>';
-            }
-            return '<div class="demo-field"><label class="field-label" for="demo-field-' + f.key + '">' + ESC(f.label) + '</label>' + control + '</div>';
-          }).join('');
-        } else {
-          note = 'This is the real helper running on Omo\'s demo server. Give it one job for free.';
-          fields = (p.inputs || []).map(function (i) {
-            var sep = i.indexOf(':');
-            var key = sep === -1 ? i.trim() : i.slice(0, sep).trim();
-            var label = sep === -1 ? key : i.slice(sep + 1).trim();
-            return '<div class="demo-field"><label class="field-label" for="demo-field-' + key + '">' + ESC(label) + '</label>' +
-              '<textarea class="demo-textarea" id="demo-field-' + key + '" placeholder="' + ESC(label) + '" required></textarea></div>';
-          }).join('');
-        }
-
-        return '<div class="demo-box sig-cut">' +
-          '<div class="demo-head"><h3>Try the demo</h3><span class="demo-cap">' + ESC(p.demoCap) + '</span></div>' +
-          '<p class="demo-note">' + note + '</p>' +
-          '<form class="demo-form" data-demo-form data-slug="' + p.slug + '" novalidate>' +
-            '<div class="demo-row">' + fields + '</div>' +
-            '<button class="button button-primary demo-run" type="submit">Run the demo</button>' +
-            '<p class="demo-status" data-demo-status role="status" aria-live="polite"></p>' +
-          '</form>' +
-          '<div class="demo-result" data-demo-result hidden></div>' +
+      function runHandoffHTML(p) {
+        var signedIn = !!(window.ClerkAuth && ClerkAuth.isSignedIn());
+        var target = signedIn
+          ? 'dashboard.html?open=' + encodeURIComponent(p.slug)
+          : 'signup.html?open=' + encodeURIComponent(p.slug);
+        var label = signedIn ? 'Open in dashboard' : 'Create a free account';
+        return '<div class="run-handoff">' +
+          '<h3>How to run it</h3>' +
+          '<p>Buy once, or run it in your dashboard for <strong>&asymp; $' + ESC(p.runPrice || p.priceRun) + ' per run</strong> \u2014 one API call, no setup.</p>' +
+          '<a class="button button-primary" href="' + target + '">' + label + '</a>' +
         '</div>';
       }
 
@@ -1334,11 +1315,11 @@
           '</section>' +
 
           '<section class="detail-section">' +
-            demoBoxHTML(p) +
+            runHandoffHTML(p) +
           '</section>' +
 
           '<div class="detail-footer">' +
-            '<button class="button button-primary" type="button" data-action="demo">Try the demo</button>' +
+            '<button class="button button-primary" type="button" data-action="demo">Run it</button>' +
             '<a class="button button-secondary" href="#waitlist" data-action="buy">' + (free ? 'Download \u2014 Free' : 'Buy \u2014 $' + p.priceOwn) + '</a>' +
           '</div>';
       }
@@ -1356,10 +1337,10 @@
         dialogBody.innerHTML = detailHTML(PRODUCTS[p.slug]);
         dialog.showModal();
         if (focusDemo) {
-          var demoBox = dialogBody.querySelector('.demo-box');
-          if (demoBox) {
-            demoBox.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            var first = demoBox.querySelector('input, textarea, select, button');
+          var runHandoff = dialogBody.querySelector('.run-handoff');
+          if (runHandoff) {
+            runHandoff.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            var first = runHandoff.querySelector('a, button');
             if (first) first.focus({ preventScroll: true });
           }
         } else {
@@ -1459,10 +1440,10 @@
             redirectToSignup(currentSlug);
             return;
           }
-          var box = dialogBody.querySelector('.demo-box');
+          var box = dialogBody.querySelector('.run-handoff');
           if (box) {
             box.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            var first = box.querySelector('input, textarea, select, button');
+            var first = box.querySelector('a, button');
             if (first) first.focus({ preventScroll: true });
           }
         }
@@ -1527,151 +1508,6 @@
         });
       }
 
-      /* ── Demo runner (UGC Script Studio + catalog skills) ────── */
-      dialogBody.addEventListener('submit', function (e) {
-        var form = e.target.closest('[data-demo-form]');
-        if (!form) return;
-        e.preventDefault();
-        var p = PRODUCTS[form.dataset.slug];
-        if (!p) return;
-
-        var status = form.querySelector('[data-demo-status]');
-        if (!window.ClerkAuth || !ClerkAuth.isSignedIn()) {
-          redirectToSignup(p.slug);
-          return;
-        }
-        var resultBox = form.parentElement.querySelector('[data-demo-result]');
-        var runBtn = form.querySelector('.demo-run');
-        var payload = {};
-        var missing = null;
-        var isGeneric = !p.demo && !!p.workflow;
-
-        if (p.demo) {
-          p.demo.fields.forEach(function (f) {
-            var el = document.getElementById('demo-field-' + f.key);
-            var value = el ? el.value.trim() : '';
-            if (f.type === 'select' && f.key === 'length') value = Number(value);
-            payload[f.key] = value;
-            if (!value && f.type === 'textarea') missing = f.label;
-          });
-        } else if (isGeneric) {
-          payload.slug = p.slug;
-          var sys = p.workflow && p.workflow.steps && p.workflow.steps[0] && p.workflow.steps[0].system;
-          if (sys) payload.system_prompt = sys;
-          payload.fields = {};
-          (p.inputs || []).forEach(function (i) {
-            var sep = i.indexOf(':');
-            var key = sep === -1 ? i.trim() : i.slice(0, sep).trim();
-            var el = document.getElementById('demo-field-' + key);
-            var value = el ? el.value.trim() : '';
-            payload.fields[key] = value;
-            if (!value) missing = key;
-          });
-        } else {
-          return;
-        }
-        if (missing) {
-          status.dataset.state = 'error';
-          status.textContent = 'Add a ' + missing.toLowerCase() + ' to run the demo.';
-          return;
-        }
-
-        // Signed-in runs carry the user id so the worker can debit credits.
-        if (window.ClerkAuth && ClerkAuth.isSignedIn()) {
-          var curUser = ClerkAuth.getUser();
-          if (curUser && curUser.id) payload.user_id = curUser.id;
-        }
-
-        var apiBase = (window.OMO_API_BASE || '').replace(/\/+$/, '');
-        var endpoint = p.demo ? p.demo.endpoint : (apiBase || 'https://cognition-demo.pages.dev') + '/api/run';
-        runBtn.disabled = true;
-        runBtn.textContent = isGeneric ? 'Running the demo\u2026' : 'Writing your script\u2026';
-        status.dataset.state = '';
-        status.textContent = '';
-        resultBox.hidden = true;
-        resultBox.innerHTML = '';
-
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).then(function (res) {
-          return res.json().catch(function () { return {}; }).then(function (data) { return { status: res.status, data: data }; });
-        }).then(function (res) {
-          if (res.status === 429) {
-            status.dataset.state = 'error';
-            status.textContent = 'Free demo limit reached for today. Buy the workflow or run it by API to keep going.';
-            return;
-          }
-          if (res.status === 402) {
-            status.dataset.state = 'error';
-            status.textContent = 'Not enough credits \u2014 top up on your dashboard to keep running.';
-            return;
-          }
-          if (!res.data.ok) {
-            status.dataset.state = 'error';
-            status.textContent = res.data.error || 'The demo could not run. Please try again.';
-            return;
-          }
-          if (p.demo && res.data.script) {
-            resultBox.innerHTML = renderScript(res.data.script);
-          } else {
-            resultBox.innerHTML = renderDemoOutput(res.data.output !== undefined ? res.data.output : res.data);
-          }
-          resultBox.hidden = false;
-          status.textContent = 'Done \u2014 that\u2019s the real helper output.';
-        }).catch(function () {
-          status.dataset.state = 'offline';
-          status.textContent = 'Could not reach the demo server right now. Check your connection and try again \u2014 the rest of the store still works.';
-        }).finally(function () {
-          runBtn.disabled = false;
-          runBtn.textContent = 'Run the demo';
-        });
-      });
-
-      function renderScript(script) {
-        if (!script.hook && !script.cta && !(script.shots && script.shots.length)) {
-          return '<pre class="demo-raw">' + ESC(JSON.stringify(script, null, 2)) + '</pre>';
-        }
-        var html = '';
-        if (script.hook) html += '<p class="demo-hook">\u201c' + ESC(script.hook) + '\u201d</p>';
-        if (Array.isArray(script.shots) && script.shots.length) {
-          html += '<ol class="demo-shots">';
-          script.shots.forEach(function (shot, i) {
-            html += '<li><div class="demo-shot">' + ESC(shot) + '</div>';
-            if (script.captions && script.captions[i]) {
-              html += '<div class="demo-caption"><span>on-screen</span> ' + ESC(script.captions[i]) + '</div>';
-            }
-            html += '</li>';
-          });
-          html += '</ol>';
-        }
-        if (script.cta) html += '<p class="demo-cta"><span>CTA</span>' + ESC(script.cta) + '</p>';
-        return html;
-      }
-
-      function renderDemoOutput(out) {
-        if (out && typeof out === 'object' && !Array.isArray(out)) {
-          var keys = Object.keys(out);
-          var hasArrays = keys.some(function (k) { return Array.isArray(out[k]) && out[k].length; });
-          if (hasArrays) {
-            var html = '';
-            keys.forEach(function (k) {
-              var v = out[k];
-              if (Array.isArray(v) && v.length) {
-                html += '<div class="demo-group"><p class="demo-group-label">' + ESC(k) + '</p><ul class="demo-list">' +
-                  v.map(function (item) { return '<li>' + ESC(typeof item === 'string' ? item : JSON.stringify(item)) + '</li>'; }).join('') +
-                  '</ul></div>';
-              } else if (v !== undefined && v !== null && v !== '') {
-                html += '<div class="demo-group"><p class="demo-group-label">' + ESC(k) + '</p><p class="demo-group-value">' + ESC(typeof v === 'string' ? v : JSON.stringify(v)) + '</p></div>';
-              }
-            });
-            return html;
-          }
-        }
-        return '<pre class="demo-raw">' + ESC(typeof out === 'string' ? out : JSON.stringify(out, null, 2)) + '</pre>';
-      }
-
       /* ── CTA band buttons ─────────────────────────────────────── */
       // "View Library" does exactly what the nav "Library" link does:
       // sign in if needed, then show the buyer's library.
@@ -1686,8 +1522,6 @@
       // #waitlist section — the same anchor the nav/hero "Sell yours"
       // buttons have always used (href="#waitlist", no JS needed).
 
-      /* ── "Try the demo" links from hero-adjacent CTAs ────────── */
-      document.querySelectorAll('.detail-footer [data-action="demo"]').forEach(function () {});
     })();
   </script>
 </body>

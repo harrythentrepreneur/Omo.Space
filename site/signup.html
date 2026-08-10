@@ -111,10 +111,20 @@
       transition: transform .14s ease, box-shadow .14s ease;
     }
     .create-button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0, 0, 0, .18); }
+    .create-button[hidden] { display: none; }
     .create-button span { font-size: 23px; line-height: 1; }
     .credit-note { margin: 16px 0 0; color: rgba(255, 255, 255, .72); font-size: 13.5px; }
     .credit-note strong { color: #fff; }
     .signup-status { min-height: 1.5em; margin: 12px 0 0; color: var(--mint); font-size: 13px; }
+    .signup-error { margin-top: 16px; padding: 16px; border: 1px solid rgba(255, 255, 255, .28); border-radius: 12px; }
+    .signup-error[hidden] { display: none; }
+    .signup-error p { margin: 0 0 14px; color: #fff; font-size: 14px; }
+    .error-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+    .retry-button {
+      min-height: 42px; padding: 0 18px; border: 1px solid var(--mint); border-radius: 9px 9px 2px 9px;
+      background: var(--mint); color: var(--pine); font-weight: 700;
+    }
+    .error-back-link { color: #fff; font-size: 14px; font-weight: 700; text-underline-offset: 4px; }
 
     .back-link {
       width: max-content; min-height: 44px; display: inline-flex; align-items: center; gap: 8px;
@@ -164,6 +174,13 @@
         </button>
         <p class="credit-note">No card needed. <strong>$5 in free credits</strong> when you join.</p>
         <p class="signup-status" id="signup-status" role="status" aria-live="polite"></p>
+        <div class="signup-error" id="signup-error" role="alert" hidden>
+          <p>Couldn't load the sign-in provider — check your connection.</p>
+          <div class="error-actions">
+            <button class="retry-button" id="retry-signup" type="button">Retry</button>
+            <a class="error-back-link" href="index.html#feed">Back to the store</a>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -178,24 +195,56 @@
 
       var button = document.getElementById('create-account');
       var status = document.getElementById('signup-status');
+      var errorPanel = document.getElementById('signup-error');
+      var retryButton = document.getElementById('retry-signup');
+
+      function showLoadError() {
+        button.hidden = true;
+        button.disabled = false;
+        status.textContent = '';
+        errorPanel.hidden = false;
+      }
+
+      function startSignup() {
+        errorPanel.hidden = true;
+        button.hidden = false;
+        button.disabled = true;
+
+        if (!window.ClerkAuth || typeof ClerkAuth.signUpAndRedirect !== 'function') {
+          showLoadError();
+          return;
+        }
+
+        status.textContent = ClerkAuth.isSignedIn() ? 'Taking you to your dashboard…' : 'Opening signup…';
+        var result;
+        try { result = ClerkAuth.signUpAndRedirect(); }
+        catch (error) { showLoadError(); return; }
+
+        if (result && typeof result.then === 'function') {
+          result.then(function () {
+            button.disabled = false;
+            if (!ClerkAuth.isSignedIn()) status.textContent = 'Finish creating your account in the signup form.';
+          }).catch(showLoadError);
+        } else {
+          button.disabled = false;
+        }
+      }
 
       if (window.ClerkAuth && ClerkAuth.isSignedIn()) {
         button.firstChild.nodeValue = 'Go to my dashboard ';
       }
 
-      button.addEventListener('click', function () {
-        if (!window.ClerkAuth || typeof ClerkAuth.signUpAndRedirect !== 'function') {
-          status.textContent = 'Signup could not open. Please refresh and try again.';
-          return;
-        }
-        status.textContent = ClerkAuth.isSignedIn() ? 'Taking you to your dashboard…' : 'Opening signup…';
-        var result = ClerkAuth.signUpAndRedirect();
-        if (result && typeof result.catch === 'function') {
-          result.catch(function () {
-            status.textContent = 'Signup could not open. Please try again.';
-          });
-        }
-      });
+      button.addEventListener('click', startSignup);
+      retryButton.addEventListener('click', startSignup);
+
+      if (window.ClerkAuth && typeof ClerkAuth.onAuthChange === 'function') {
+        ClerkAuth.onAuthChange(function () {
+          if (typeof ClerkAuth.getLoadError === 'function' && ClerkAuth.getLoadError()) showLoadError();
+        });
+      }
+      if (window.ClerkAuth && typeof ClerkAuth.getLoadError === 'function' && ClerkAuth.getLoadError()) {
+        showLoadError();
+      }
     })();
   </script>
 </body>
