@@ -122,6 +122,7 @@ window.COGNITION_IG_WORKFLOWS = [
     name: 'Shopify Pics → Descriptions (Bulk)',
     emoji: '🏷️',
     category: 'ops',
+    free: true,
     promise: 'Generate SEO titles, descriptions, and meta tags for 1 or 100+ Shopify products from images.',
     maker: '@gelo.ai.company',
     makerName: 'Gelo.ai',
