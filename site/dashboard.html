@@ -387,11 +387,15 @@
     .demo-field { margin-bottom: 2px; }
     .field-label { display: block; margin: 0 0 6px; font-size: 12.5px; font-weight: 700; }
     .demo-textarea, .demo-select {
-      width: 100%; min-height: 82px; padding: 11px 12px; resize: vertical;
+      width: 100%; min-height: 82px; padding: 11px 12px; resize: none;
       border: 1px solid var(--rule); border-radius: 12px; background: var(--canvas); color: var(--pine); font-size: 14px;
+    }
+    .demo-textarea:focus, .demo-select:focus {
+      outline: 3px solid var(--mint); outline-offset: 3px; box-shadow: 0 0 0 1px var(--pine) inset;
     }
     .demo-select { min-height: 48px; resize: none; }
     .demo-run { width: 100%; margin-top: 18px; min-height: 50px; }
+    .demo-buy { width: 100%; margin-top: 10px; }
     .run-usage { margin: 9px 0 0; color: var(--moss); font-size: 12.5px; text-align: center; }
     .demo-status { margin: 10px 0 0; font-size: 13px; }
     .demo-status[data-state="error"] { color: #8c2e16; font-weight: 700; }
@@ -404,8 +408,6 @@
     .credit-empty .button { min-height: 42px; }
     .demo-result { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--rule); }
     .demo-raw { max-height: 320px; margin: 0; overflow: auto; white-space: pre-wrap; padding: 14px; border-radius: 12px; background: var(--canvas); font: 12.5px/1.5 ui-monospace, monospace; }
-    .detail-footer { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
-
     /* Sign-in gate. */
     .gate { padding: 110px 0 140px; text-align: center; }
     .gate-mark { width: 52px; height: 52px; margin: 0 auto 18px; display: grid; place-items: center; border-radius: 14px; background: var(--mint); font-size: 24px; }
@@ -454,8 +456,6 @@
       .dialog-close { position: sticky; float: right; top: 0; margin-bottom: -44px; }
       .detail-hero-video { width: min(100%, 320px); height: auto; max-height: none; aspect-ratio: 9 / 16; }
       .detail-upvote-row .upvote-btn { min-height: 44px; }
-      .detail-footer { flex-direction: column; }
-      .detail-footer .button { width: 100%; }
       .chip-link { min-height: 44px; }
     }
     @media (max-width: 720px) {
@@ -780,18 +780,30 @@
       function doorHTML(emoji, title, text) {
         return '<div class="door"><div class="door-emoji" aria-hidden="true">' + emoji + '</div><h4>' + title + '</h4><p>' + text + '</p></div>';
       }
+      function inputLabel(key) {
+        var labels = {
+          brief: 'Brief', scenes: 'Scenes', style: 'Style', product_url: 'Product URL', claim: 'Claim',
+          photo_desc: 'Photo', usages: 'Use cases', image_descs: 'Images', store: 'Store', product: 'Product',
+          mood: 'Mood', character: 'Character', tone: 'Tone', length: 'Length'
+        };
+        return labels[key] || key.replace(/[_-]+/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); });
+      }
       function inputPlaceholder(key, label) {
         var hint = (key + ' ' + label).toLowerCase();
-        if (/length|duration|seconds|runtime|time/.test(hint)) return '30 seconds';
-        if (/style|mood|creative direction|visual/.test(hint)) return 'A playful, cinematic product demo';
-        if (/scene|frame|shot|count|number|quantity/.test(hint)) return '3 scenes';
-        if (/url|link|page/.test(hint)) return 'https://example.com/products/travel-mug';
-        if (/tone|voice|vibe/.test(hint)) return 'Playful, clear, and confident';
-        if (/audience|customer|persona/.test(hint)) return 'Busy commuters who love good coffee';
-        if (/character|avatar|person/.test(hint)) return 'A warm, energetic creator in their 30s';
-        if (/image|photo|picture/.test(hint)) return 'A bright studio product photo on a clean background';
-        if (/brief|product|topic|claim|offer|script|copy/.test(hint)) return 'A portable espresso maker for busy commuters';
-        return 'Describe what you want this helper to use';
+        if (key === 'brief') return 'e.g. product + hook + audience';
+        if (key === 'scenes') return 'e.g. 3';
+        if (key === 'style') return 'e.g. playful, cinematic';
+        if (/length|duration|seconds|runtime|time/.test(hint)) return 'e.g. 30 seconds';
+        if (/style|mood|creative direction|visual/.test(hint)) return 'e.g. playful, cinematic';
+        if (/scene|frame|shot|count|number|quantity/.test(hint)) return 'e.g. 3';
+        if (/url|link|page/.test(hint)) return 'e.g. https://example.com/products/travel-mug';
+        if (/usage|placement|channel/.test(hint)) return 'e.g. product page, paid social, organic';
+        if (/tone|voice|vibe/.test(hint)) return 'e.g. playful, clear, confident';
+        if (/audience|customer|persona/.test(hint)) return 'e.g. busy commuters who love good coffee';
+        if (/character|avatar|person/.test(hint)) return 'e.g. a warm, energetic creator in their 30s';
+        if (/image|photo|picture/.test(hint)) return 'e.g. a bright studio product photo';
+        if (/brief|product|topic|claim|offer|script|copy/.test(hint)) return 'e.g. a portable espresso maker for commuters';
+        return 'e.g. describe what you want this helper to use';
       }
       function demoBoxHTML(p) {
         var inputs = p.inputs || [];
@@ -800,8 +812,7 @@
           var sep = inputs[j].indexOf(':');
           var key = sep === -1 ? inputs[j].trim() : inputs[j].slice(0, sep).trim();
           var label = sep === -1 ? key : inputs[j].slice(sep + 1).trim();
-          var clearLabel = key.replace(/[_-]+/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); });
-          if (label.toLowerCase() !== key.toLowerCase()) clearLabel += ' — ' + label;
+          var clearLabel = inputLabel(key);
           fields.push('<div class="demo-field"><label class="field-label" for="demo-field-' + j + '">' + esc(clearLabel) + '</label>' +
             '<textarea class="demo-textarea" id="demo-field-' + j + '" data-demo-field data-key="' + esc(key) + '" data-label="' + esc(clearLabel) + '" placeholder="' + esc(inputPlaceholder(key, label)) + '" required></textarea></div>');
         }
@@ -809,7 +820,8 @@
         return '<div class="demo-box sig-cut"><div class="demo-head"><div><p class="run-eyebrow">Cloud workflow</p><h3>Run it now</h3></div><span class="run-price">&asymp; ' + esc(price) + ' / run</span></div>' +
           '<p class="demo-note">You pay per run from your credits. Omo handles the hosting, service keys, and setup.</p>' +
           '<form data-demo-form data-slug="' + esc(p.slug) + '" novalidate><div class="demo-row">' + fields.join('') + '</div>' +
-          '<button class="button button-primary demo-run" type="submit">Run on our cloud — &asymp; ' + esc(price) + '</button>' +
+          '<button class="button button-primary demo-run" type="submit">Run on our cloud — &asymp; ' + esc(price) + ' / run</button>' +
+          '<a class="button button-secondary demo-buy" href="#" data-action="buy">' + (isFreeListing(p) ? 'Download — Free' : 'Buy — $' + p.priceOwn) + '</a>' +
           '<p class="run-usage">Runs from your balance &middot; $5 free when you join</p>' +
           '<p class="demo-status" data-demo-status role="status" aria-live="polite"></p>' +
           '<div class="credit-empty" data-credit-empty hidden><strong>You\'re out of credits</strong>' +
@@ -845,9 +857,7 @@
           '<section class="detail-section"><h3>Two ways to use it</h3><div class="use-doors">' +
           doorHTML('💻', 'Download', 'Take the workflow and prompts. Run it on your machine.') +
           doorHTML('🔌', 'API', 'We run it in our cloud and handle the service keys.') + '</div></section>' +
-          '<section class="detail-section">' + demoBoxHTML(p) + '</section>' +
-          '<div class="detail-footer"><button class="button button-primary" type="button" data-action="demo">Run it now</button>' +
-          '<a class="button button-secondary" href="#" data-action="buy">' + (isFreeListing(p) ? 'Download — Free' : 'Buy — $' + p.priceOwn) + '</a></div>';
+          '<section class="detail-section">' + demoBoxHTML(p) + '</section>';
       }
       function openDialog(p, focusDemo) {
         if (!p || !dialog || !dialogBody) return;
@@ -887,7 +897,7 @@
       }
       function markPurchased() {
         var buy = dialogBody && dialogBody.querySelector('[data-action="buy"]');
-        if (buy) { buy.textContent = 'It\'s yours ✓'; buy.className = 'button button-primary'; buy.removeAttribute('data-action'); }
+        if (buy) { buy.textContent = 'It\'s yours ✓'; buy.className = 'button button-primary demo-buy'; buy.removeAttribute('data-action'); }
       }
       function handleBuy(slug) {
         var listing = PRODUCTS[slug];
@@ -1140,7 +1150,7 @@
                 if (!result.data.ok) { status.setAttribute('data-state', 'error'); status.textContent = result.data.message || result.data.error || 'The workflow could not run.'; return; }
                 resultBox.innerHTML = renderDemoOutput(result.data.output !== undefined ? result.data.output : result.data); resultBox.hidden = false; status.textContent = 'Done — that’s the real helper output.';
               }).catch(function () { status.setAttribute('data-state', 'error'); status.textContent = 'Could not reach the cloud runner right now.'; })
-              .finally(function () { runButton.disabled = false; runButton.textContent = 'Run on our cloud — ≈ $' + (product.runPrice || product.priceRun); });
+              .finally(function () { runButton.disabled = false; runButton.textContent = 'Run on our cloud — ≈ $' + (product.runPrice || product.priceRun) + ' / run'; });
           });
         }
         if (closeBtn) closeBtn.addEventListener('click', function () { if (dialog.close) dialog.close(); else dialog.removeAttribute('open'); });
