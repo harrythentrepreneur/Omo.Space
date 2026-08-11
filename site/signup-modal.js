@@ -1,10 +1,11 @@
-/* Omo's simple account popup. Uses Clerk's headless API when available and
- * keeps ClerkAuth's zero-config demo flow as the fallback. */
+/* Omo's default account popup. Uses Clerk's headless API so every auth path
+ * keeps the branded Omo form instead of opening Clerk's hosted modal. */
 (function () {
   'use strict';
 
   var modal = document.getElementById('signup-modal');
   var card = modal && modal.querySelector('.auth-modal__card');
+  var logo = modal && modal.querySelector('.auth-modal__logo');
   var launchButton = document.getElementById('create-account');
   var closeButton = document.getElementById('auth-modal-close');
   var formView = document.getElementById('auth-form-view');
@@ -28,10 +29,13 @@
   var resendButton = document.getElementById('auth-resend');
   var mode = 'signup';
   var busy = false;
-  var fallbackPending = false;
   var lastFocused = null;
 
-  if (!modal || !card || !launchButton || !form) return;
+  if (!modal || !card || !form) return;
+
+  // The lockup was 72px tall in the original modal. Keep it centered while
+  // giving the form heading more room, including on pages with older CSS.
+  if (logo) logo.style.height = '52px';
 
   function redirectTarget() {
     var slug = '';
@@ -175,30 +179,20 @@
     return Promise.resolve(window.Clerk.setActive({ session: sessionId })).then(redirectToDashboard);
   }
 
-  function fallbackToClerk(kind) {
-    if (!window.ClerkAuth) throw new Error('The sign-in service is still loading. Please try again.');
-    fallbackPending = true;
-    if (kind === 'signup' && typeof window.ClerkAuth.signUpAndRedirect === 'function') {
-      return Promise.resolve(window.ClerkAuth.signUpAndRedirect());
-    }
-    if (kind === 'login' && typeof window.ClerkAuth.signIn === 'function') {
-      return Promise.resolve(window.ClerkAuth.signIn());
-    }
-    throw new Error('The sign-in service is unavailable. Please refresh and try again.');
+  function unavailable() {
+    return Promise.reject(new Error('The sign-in service is still loading. Please try again.'));
   }
 
   function submitDemo(kind) {
     if (!window.ClerkAuth) return Promise.reject(new Error('Demo sign-in is unavailable. Please refresh and try again.'));
-    var action = kind === 'signup' ? window.ClerkAuth.signUpAndRedirect : window.ClerkAuth.signIn;
+    var action = kind === 'signup' ? window.ClerkAuth.signUp : window.ClerkAuth.signIn;
     if (typeof action !== 'function') return Promise.reject(new Error('Demo sign-in is unavailable. Please refresh and try again.'));
-    return Promise.resolve(action.call(window.ClerkAuth)).then(function () {
-      if (kind === 'login') redirectToDashboard();
-    });
+    return Promise.resolve(action.call(window.ClerkAuth)).then(redirectToDashboard);
   }
 
   function submitRealSignUp() {
     var signUp = clerkSignUp();
-    if (!signUp) return fallbackToClerk('signup');
+    if (!signUp) return unavailable();
 
     return Promise.resolve(signUp.create({
       firstName: firstName.value.trim(),
@@ -223,15 +217,13 @@
 
   function submitRealLogin() {
     var signIn = clerkSignIn();
-    if (!signIn) return fallbackToClerk('login');
+    if (!signIn) return unavailable();
     return Promise.resolve(signIn.create({
       identifier: email.value.trim(),
       password: password.value,
       strategy: 'password'
     })).then(function (result) {
-      if (!result || result.status !== 'complete') {
-        return fallbackToClerk('login');
-      }
+      if (!result || result.status !== 'complete') throw new Error('Sign-in needs another step. Please try again.');
       return activateSession(result);
     });
   }
@@ -250,7 +242,6 @@
     }
 
     Promise.resolve(request).catch(function (error) {
-      fallbackPending = false;
       setMessage(errorMessage, friendlyError(error, mode));
     }).finally(function () {
       setBusy(false, submitButton, '');
@@ -320,7 +311,7 @@
 
   submitButton.dataset.defaultLabel = 'Sign up';
   verifyButton.dataset.defaultLabel = 'Verify email';
-  launchButton.addEventListener('click', function () { open('signup'); });
+  if (launchButton) launchButton.addEventListener('click', function () { open('signup'); });
   closeButton.addEventListener('click', close);
   modal.addEventListener('click', function (event) { if (event.target === modal) close(); });
   form.addEventListener('input', updateValidity);
@@ -331,15 +322,36 @@
   resendButton.addEventListener('click', resendCode);
   document.addEventListener('keydown', handleKeydown);
 
-  if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') {
-    window.ClerkAuth.onAuthChange(function () {
-      if (fallbackPending && window.ClerkAuth.isSignedIn()) redirectToDashboard();
+  Array.prototype.forEach.call(document.querySelectorAll('a[href*="signup.html"]'), function (link) {
+    if (!link.matches('[data-omo-login], #sell-login')) return;
+    link.addEventListener('click', function (event) {
+      event.preventDefault();
+      open('login');
     });
-  }
+  });
 
   window.OmoSignupModal = {
     open: function () { open('signup'); },
     openSignIn: function () { open('login'); },
     close: close
   };
+
+  // signup.html is the canonical auth destination, so arriving there should
+  // show this form immediately rather than a second marketing-page click.
+  if (/(^|\/)signup(?:\.html)?\/?$/.test(window.location.pathname)) {
+    var requestedMode = '';
+    var hasOpenTarget = false;
+    var cameFromOmoPage = false;
+    try {
+      var params = new URLSearchParams(window.location.search);
+      requestedMode = params.get('mode') || params.get('auth') || '';
+      hasOpenTarget = params.has('open');
+      if (document.referrer) {
+        var referrer = new URL(document.referrer);
+        cameFromOmoPage = referrer.origin === window.location.origin &&
+          !/(^|\/)signup(?:\.html)?\/?$/.test(referrer.pathname);
+      }
+    } catch (error) {}
+    open(requestedMode === 'login' || (!requestedMode && !hasOpenTarget && cameFromOmoPage) ? 'login' : 'signup');
+  }
 })();

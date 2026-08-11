@@ -1169,20 +1169,8 @@
           window.location.assign('dashboard.html?open=' + encodeURIComponent(listing.slug));
           return;
         }
-        addOpenParam();
-        if (window.ClerkAuth && typeof window.ClerkAuth.signUpAndRedirect === 'function') {
-          try {
-            var pending = window.ClerkAuth.signUpAndRedirect();
-            if (pending && typeof pending.catch === 'function') {
-              pending.catch(function () {
-                setOfferNote('Sign-up could not open right now — please try again');
-              });
-            }
-          } catch (error) {
-            setOfferNote('Sign-up could not open right now — please try again');
-          }
-          return;
-        }
+        // Keep signed-out runs on Omo's branded account form instead of
+        // bypassing it for Clerk's hosted modal.
         window.location.assign('signup.html?open=' + encodeURIComponent(listing.slug));
       });
 
