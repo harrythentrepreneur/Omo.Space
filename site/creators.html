@@ -140,6 +140,19 @@
     .hero-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
     .hero-actions .button { min-width: 120px; }
     .hero-note { margin: 0; font-size: 14px; line-height: 1.45; color: var(--moss); }
+    .hero-note a { color: var(--pine); font-weight: 700; text-underline-offset: 3px; }
+    .creator-waitlist { width: min(100%, 520px); margin: 28px auto 14px; }
+    .creator-waitlist-row { display: flex; gap: 8px; }
+    .creator-waitlist-input {
+      flex: 1; min-width: 0; height: 48px; padding: 0 16px;
+      border: 1px solid var(--rule); border-radius: 10px; background: var(--surface);
+      color: var(--pine); font: inherit; font-size: 15px;
+    }
+    .creator-waitlist-input:focus { border-color: var(--orange); outline: 3px solid var(--mint); outline-offset: 2px; }
+    .creator-waitlist-input[aria-invalid="true"] { border-color: #8c2e16; }
+    .creator-waitlist button:disabled { cursor: wait; opacity: .7; }
+    .creator-waitlist-note { margin: 10px 0 0; color: var(--pine); font-size: 14px; font-weight: 700; }
+    .creator-waitlist-note[data-state="error"] { color: #8c2e16; }
 
     /* ── Why partner ────────────────────────────────────────────── */
     .why-section { padding: 64px 0 96px; }
@@ -249,6 +262,8 @@
     @media (max-width: 480px) {
       .hero-actions { flex-direction: column; }
       .hero-actions .button { width: 100%; }
+      .creator-waitlist-row { flex-direction: column; }
+      .creator-waitlist-row .button { width: 100%; }
       .nav-actions { align-items: stretch; }
       .paid-cta .button { width: 100%; }
       .footer-links { width: 100%; flex-direction: column; align-items: flex-start; gap: 0; }
@@ -274,14 +289,17 @@
     <!-- ── Hero ─────────────────────────────────────────────── -->
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="shell hero-inner">
-        <p class="eyebrow">For creators</p>
-        <h1 class="hero-title" id="hero-title">Get paid for your <em>skills and workflows</em>.</h1>
-        <p class="hero-sub">You built the skill.md and prompts. We host it, bill buyers, and pay you every time it is used. You keep 85%.</p>
-        <div class="hero-actions">
-          <a class="button button-accent" href="mailto:partners@omo.space">Partner with us</a>
-          <a class="button button-secondary" href="index.html">See the store</a>
-        </div>
-        <p class="hero-note">Built with Claude Code, Codex, or Hermes? That counts.</p>
+        <p class="eyebrow">Creators · Invite-only</p>
+        <h1 class="hero-title" id="hero-title">Omo is open to <em>select creators</em> right now.</h1>
+        <p class="hero-sub">We’re inviting a small group while we get the creator experience right. Join the waitlist now and you’ll be ready when we open submissions more broadly.</p>
+        <form class="creator-waitlist" id="creator-waitlist" data-waitlist-form data-source="creators" novalidate>
+          <div class="creator-waitlist-row">
+            <input class="creator-waitlist-input" id="creator-waitlist-email" type="email" name="email" placeholder="you@example.com" aria-label="Email address" aria-describedby="creator-waitlist-note" autocomplete="email" required>
+            <button class="button button-accent" type="submit">Join the waitlist</button>
+          </div>
+          <p class="creator-waitlist-note" id="creator-waitlist-note" data-waitlist-note role="status" aria-live="polite" hidden></p>
+        </form>
+        <p class="hero-note">Want the simple creator signup page? <a href="sell.html">Create your account here.</a></p>
       </div>
     </section>
 
@@ -340,19 +358,19 @@
     <section class="paid-section" aria-labelledby="paid-title">
       <div class="shell">
         <div class="paid-head">
-          <h2 class="paid-title" id="paid-title">Get <em>paid</em>.</h2>
-          <p class="paid-sub">List it once. Get paid each time someone buys or runs it.</p>
+          <h2 class="paid-title" id="paid-title">When you’re invited, get <em>paid</em>.</h2>
+          <p class="paid-sub">Join the waitlist now. Once invited, list it once and get paid each time someone buys or runs it.</p>
         </div>
         <div class="paid-grid">
           <div class="paid-step sig-cut">
-            <p class="paid-num">01 — SIGN UP</p>
-            <h3>Partner with us</h3>
-            <p>Send us a line. Tell us what your skill or workflow does.</p>
+            <p class="paid-num">01 — JOIN</p>
+            <h3>Join the waitlist</h3>
+            <p>Leave your email so you’re ready when the next creator spots open.</p>
           </div>
           <div class="paid-step">
-            <p class="paid-num">02 — WE LIST YOU</p>
-            <h3>Your page goes live</h3>
-            <p>We set up the page, hosting, API keys, billing, and checkout.</p>
+            <p class="paid-num">02 — GET INVITED</p>
+            <h3>Tell us what you built</h3>
+            <p>Selected creators share their workflow and we prepare its listing.</p>
           </div>
           <div class="paid-step">
             <p class="paid-num">03 — BUYERS PAY</p>
@@ -367,7 +385,7 @@
         </div>
         <p class="paid-affiliate"><strong>Share your link.</strong> When someone signs up through your link and lists their own helper, you earn affiliate revenue from their sales too. Your audience becomes a channel — not just a following.</p>
         <div class="paid-cta">
-          <a class="button button-primary" href="mailto:partners@omo.space">Partner with us</a>
+          <a class="button button-primary" href="#creator-waitlist">Join the creator waitlist</a>
         </div>
       </div>
     </section>
@@ -391,5 +409,6 @@
       </nav>
     </div>
   </footer>
+  <script src="waitlist.js"></script>
 </body>
 </html>

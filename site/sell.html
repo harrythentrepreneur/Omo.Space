@@ -86,6 +86,18 @@
     .signup-button:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(23, 53, 44, .2); }
     .login-note { margin: 18px 0 0; color: var(--moss); font-size: 14px; }
     .login-link { padding: 0; border: 0; background: transparent; color: var(--pine); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+    .waitlist-form { max-width: 520px; margin: 30px auto 0; padding-top: 26px; border-top: 1px solid var(--rule); }
+    .waitlist-label { display: block; margin-bottom: 11px; color: var(--moss); font-size: 14px; }
+    .waitlist-row { display: flex; gap: 8px; }
+    .waitlist-input {
+      flex: 1; min-width: 0; height: 50px; padding: 0 16px; border: 1px solid var(--rule);
+      border-radius: 10px; background: var(--surface); color: var(--pine);
+    }
+    .waitlist-input:focus { border-color: var(--orange); outline: none; }
+    .waitlist-submit { min-height: 50px; margin: 0; white-space: nowrap; }
+    .waitlist-submit:disabled { cursor: wait; opacity: .7; }
+    .waitlist-note { margin: 10px 0 0; color: var(--pine); font-size: 14px; font-weight: 700; }
+    .waitlist-note[data-state="error"] { color: #8c2e16; }
     .page-footer {
       padding-top: 20px; border-top: 1px solid var(--rule); display: flex; align-items: center;
       justify-content: space-between; gap: 16px; color: var(--moss); font-size: 13px;
@@ -158,6 +170,8 @@
       h1 { font-size: clamp(42px, 13vw, 58px); }
       .sell-body { font-size: 17px; }
       .signup-button { width: 100%; }
+      .waitlist-row { flex-direction: column; }
+      .waitlist-submit { width: 100%; }
       .page-footer { align-items: flex-start; flex-direction: column; gap: 4px; }
     }
     @media (max-width: 420px) {
@@ -188,6 +202,14 @@
         </div>
         <button class="signup-button" id="create-account" type="button">Create your account</button>
         <p class="login-note">Already have an account? <a class="login-link" id="sell-login" href="signup.html">Log in</a></p>
+        <form class="waitlist-form" data-waitlist-form data-source="sell" novalidate>
+          <label class="waitlist-label" for="sell-waitlist-email">Want launch updates and early seller invites? Join the waitlist.</label>
+          <div class="waitlist-row">
+            <input class="waitlist-input" id="sell-waitlist-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required>
+            <button class="signup-button waitlist-submit" type="submit">Join the waitlist</button>
+          </div>
+          <p class="waitlist-note" data-waitlist-note role="status" aria-live="polite" hidden></p>
+        </form>
       </section>
     </main>
     <footer class="page-footer">
@@ -251,6 +273,7 @@
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="signup-modal.js"></script>
+  <script src="waitlist.js"></script>
   <script>
     (function () {
       var loginLink = document.getElementById('sell-login');

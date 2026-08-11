@@ -215,7 +215,25 @@ check('router: GET returns 405', get.status === 405);
 // Unknown route → 404
 const nf = await worker.fetch(mkReq('POST', '/api/nope', {}), env);
 const nfBody = await nf.json();
-check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 8);
+check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 9);
+
+// Public waitlist signup: normalized insert, validation, and duplicate replay.
+const waitlistAddedResponse = await worker.fetch(mkReq('POST', '/api/waitlist', {
+  email: '  Launch.Test@Example.com  ', source: 'creators',
+}), env);
+const waitlistAdded = await waitlistAddedResponse.json();
+check('waitlist: valid email is normalized and inserted', waitlistAddedResponse.status === 200 && waitlistAdded.ok === true && waitlistAdded.status === 'added');
+
+const waitlistInvalid = await worker.fetch(mkReq('POST', '/api/waitlist', {
+  email: 'not-an-email', source: 'creators',
+}), env);
+check('waitlist: invalid email returns 400', waitlistInvalid.status === 400);
+
+const waitlistDuplicateResponse = await worker.fetch(mkReq('POST', '/api/waitlist', {
+  email: 'launch.test@example.com', source: 'sell',
+}), env);
+const waitlistDuplicate = await waitlistDuplicateResponse.json();
+check('waitlist: duplicate email returns already without error', waitlistDuplicateResponse.status === 200 && waitlistDuplicate.ok === true && waitlistDuplicate.status === 'already');
 
 // Generic /api/run route
 const run = await (await worker.fetch(mkReq('POST', '/api/run', {

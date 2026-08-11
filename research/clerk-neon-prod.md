@@ -85,7 +85,7 @@ Do not commit secret values. Only publishable keys belong in
   `runs`; both contained 0 rows before the first real signup. The local `psql`
   binary was unavailable, so the equivalent SELECTs were executed with the
   repo's installed official `@neondatabase/serverless` driver.
-- Local suites: balance 22/22, router 88/88, cost model 11/11.
+- Local suites: balance 22/22, router 91/91, cost model 11/11.
 
 ## Stripe checkout contract
 
@@ -98,6 +98,23 @@ ignored: the Worker resolves the listing name and one-time price from
 Stripe collects the buyer email when it is omitted. Signed-in callers use the
 same contract; ownership is durably keyed by the Checkout Session and the
 Stripe-collected buyer email after the signed webhook completes.
+
+## Waitlist contract
+
+`POST /api/waitlist` is public and accepts JSON `{ "email": "person@example.com", "source": "creators" }`.
+`source` is optional. The Worker trims and lowercases the email, returns HTTP
+400 for an invalid address, and inserts it into Neon's `waitlist` table. A
+first submission returns `{ "ok": true, "status": "added" }`; a repeat returns
+HTTP 200 with `{ "ok": true, "status": "already" }`.
+
+The migration-safe schema is `waitlist(id SERIAL PRIMARY KEY, email TEXT NOT
+NULL UNIQUE, source TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`.
+The unique email constraint is the endpoint's duplicate/idempotency guard.
+
+Production verification on 2026-08-12 exercised a unique temporary address:
+the first POST returned `added`, a case-variant repeat returned `already`, and
+an invalid address returned HTTP 400. Neon showed the normalized row and its
+source. The temporary row was then deleted; a follow-up count returned zero.
 
 Useful repeatable checks:
 

@@ -142,3 +142,12 @@ CREATE INDEX IF NOT EXISTS idx_purchases_buyer_created
 
 CREATE INDEX IF NOT EXISTS idx_purchases_slug_state
   ON purchases (slug, state);
+
+-- Public launch-interest capture. The unique email constraint makes repeat
+-- submissions idempotent while retaining the first recorded source.
+CREATE TABLE IF NOT EXISTS waitlist (
+  id         SERIAL PRIMARY KEY,
+  email      TEXT NOT NULL UNIQUE,
+  source     TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

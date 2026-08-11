@@ -7,6 +7,7 @@
 //   POST /api/run                      → catalog helper runner {slug, fields}; real mode
 //                                         authenticates, requires idempotency, and debits credits
 //   POST /api/checkout                 → guest Stripe Checkout {slug, email?}
+//   POST /api/waitlist                 → public waitlist signup {email, source?}
 //   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
@@ -208,6 +209,7 @@ const ROUTES = {
   '/api/product-photo-generator': { handler: handlePhoto },
   '/api/run': { handler: handleGenericRun }, // any catalog skill: {slug, system_prompt, fields:{...}, user_id?}
   '/api/checkout': { handler: handleCheckout }, // Guest Stripe Checkout: {slug, email?}; client price is ignored
+  '/api/waitlist': { handler: handleWaitlist }, // Public waitlist signup: {email, source?}
   '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
   '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
   '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $5 grant
@@ -1094,7 +1096,32 @@ async function handleCheckout(request, env) {
   }
 }
 
-// ── Route: dashboard /api/me ───────────────────────────────────────────────
+// ── Route: public waitlist ──────────────────────────────────────────────
+// Body: { email, source? }. Email is normalized before the unique insert, so
+// casing and surrounding whitespace cannot create duplicate rows.
+
+async function handleWaitlist(request, env) {
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+
+  const email = normalizeWaitlistEmail(body.email);
+  if (!email) {
+    return json({ ok: false, error: 'invalid_email', message: 'That email looks a little off — try it once more.' }, 400, cors());
+  }
+
+  const rawSource = String(body.source || '').trim().toLowerCase();
+  if (rawSource && !/^[a-z0-9][a-z0-9._:-]{0,63}$/.test(rawSource)) {
+    return json({ ok: false, error: 'invalid_source', message: 'Source must be 1–64 letters, numbers, dots, dashes, underscores, or colons.' }, 400, cors());
+  }
+
+  const added = await insertWaitlistEntry(env, email, rawSource || null);
+  if (!added) {
+    return json({ ok: true, status: 'already', message: 'Already on the list!' }, 200, cors());
+  }
+  return json({ ok: true, status: 'added', message: "You're on the list — we'll email you when it opens 🎉" }, 200, cors());
+}
+
+// ── Route: dashboard /api/me ──────────────────────────────────────────────
 // Real: GET/POST /api/me with a Clerk bearer token. Mock: the legacy
 // ?user_id=… / {user_id} form remains available for the local demo. →
 //   { ok, balance: "10.00", balance_usd, balance_cents, currency: "usd",
@@ -1378,6 +1405,7 @@ const mockRunProgress = new Map();
 const mockPendingTopups = new Map();
 const mockPurchases = new Map();
 const mockPurchaseEvents = new Set();
+const mockWaitlist = new Map();
 const clerkJwksCache = new Map();
 
 function neonDatabaseUrl(env) {
@@ -1414,6 +1442,12 @@ function normalizeBuyerEmail(value) {
   return at > 0 && at === email.lastIndexOf('@') && at < email.length - 1 ? email : '';
 }
 
+function normalizeWaitlistEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  if (!email || email.length > 254) return '';
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
+
 function boundedInt(value, min, max, fallback) {
   const number = Number(value);
   return Number.isInteger(number) && number >= min && number <= max ? number : fallback;
@@ -1442,6 +1476,27 @@ function getNeonPool(env) {
 
 function prepared(name, text, values) {
   return { name, text, values: values || [] };
+}
+
+async function insertWaitlistEntry(env, email, source) {
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-waitlist-insert-v1',
+      'INSERT INTO waitlist (email, source) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING RETURNING id',
+      [email, source]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare('INSERT OR IGNORE INTO waitlist (email, source, created_at) VALUES (?, ?, ?)')
+      .bind(email, source, new Date().toISOString())
+      .run();
+    return Number(result && result.meta && result.meta.changes) === 1;
+  }
+  if (mockWaitlist.has(email)) return false;
+  mockWaitlist.set(email, { email, source, created_at: new Date().toISOString() });
+  return true;
 }
 
 function balanceSecret(env) {
