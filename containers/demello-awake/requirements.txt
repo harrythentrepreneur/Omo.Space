@@ -1,0 +1,9 @@
+modal==1.5.0
+fastapi==0.109.0
+pydantic==2.13.3
+httpx==0.28.1
+openai==2.36.0
+jsonschema==4.26.0
+Pillow==11.3.0
+numpy==2.2.6
+pytest==8.4.0

@@ -1,0 +1,405 @@
+spec_version: cognition.container/v1
+name: de Mello Awake
+slug: demello-awake
+version: 0.1.0
+status: milestone-1-candidate
+
+release:
+  app_name_template: omo-demello-awake-<release_hash_short>
+  release_hash: sha256:PENDING-DETERMINISTIC-COMPILER
+  immutable: true
+  paid_traffic_allowed: false
+  automatic_promotion_allowed: false
+  rollback_target: disabled-zero-traffic
+
+source:
+  kind: reviewed-repository-evidence
+  path: research/demello-deploy-plan.md
+  content_hash: sha256:PENDING-DETERMINISTIC-COMPILER
+  provenance: provenance.json
+  evidence:
+    - manifest/SPEC.md
+    - manifest/ART_PIPELINE_V3.md
+    - manifest/VISUAL_SPEC.md
+    - manifest/taste_frames_v3_vision_qa.md
+
+image:
+  base: debian-slim
+  base_digest: null
+  python: "3.12"
+  requirements: requirements.txt
+  apt_packages:
+    - ffmpeg
+    - golang-go
+    - ca-certificates
+  go_runner:
+    source: cmd/runner
+    output: /usr/local/bin/demello-runner
+    build_mode: reviewed-static-binary
+  startup_downloads_allowed: false
+  gap: Base-image digest and Debian package snapshot must be frozen before an immutable paid candidate.
+
+gpu: null
+resources:
+  cpu: 1.0
+  memory_mb: 2048
+  timeout_seconds: 1200
+  min_containers: 0
+  max_containers: 4
+  scaledown_window_seconds: 30
+  max_inputs_per_container: 1
+  region: null
+
+endpoint:
+  mode: async_job
+  public_buyer_endpoint: false
+  submit_paths:
+    - /v1/runs
+    - /run
+  result_path: /v1/runs/{run_id}
+  request_schema: schemas/private-run.json
+  result_schema: schemas/output.json
+  auth:
+    milestone: api_server_key_bearer
+    header: Authorization
+    scheme: Bearer
+    env_key: API_SERVER_KEY
+    modal_proxy_token_required: false
+    signed_worker_capability_required: false
+    paid_target: modal_proxy_token_plus_short_lived_signed_worker_capability
+  headers:
+    idempotency_key:
+      name: Idempotency-Key
+      required: true
+      max_length: 200
+  durability:
+    milestone: modal_function_call_transport
+    paid_target: worker_owned_run_state_with_signed_checkpoints
+
+secret_bindings:
+  modal_secret_name: omo-demello-awake
+  values_in_spec: false
+  functions:
+    ingress:
+      - API_SERVER_KEY
+    workflow:
+      - OPENAI_API_KEY
+      - OPENCODE_GO_API_KEY
+  gap: Split ingress and provider credentials into least-privilege versioned bindings before paid traffic.
+
+immutable_provider_config:
+  transcription:
+    provider: openai
+    model_alias: gpt-4o-mini-transcribe
+    model_snapshot: gpt-4o-mini-transcribe-2025-12-15
+    method: POST
+    endpoint: https://api.openai.com/v1/audio/transcriptions
+  director:
+    preferred_provider: opencode_go
+    model: deepseek-v4-flash
+    method: POST
+    endpoint: https://opencode.ai/zen/go/v1/chat/completions
+    fallback: deterministic_transcript_director
+  image_generation:
+    provider: openai
+    model_alias: gpt-image-2
+    model_snapshot: gpt-image-2-2026-04-21
+    generation:
+      method: POST
+      endpoint: https://api.openai.com/v1/images/generations
+    edit:
+      method: POST
+      endpoint: https://api.openai.com/v1/images/edits
+    fallback: procedural_sumi_e
+
+egress:
+  fixed_host_allowlist:
+    - api.openai.com
+    - opencode.ai
+  dynamic_audio_url:
+    milestone_enabled: true
+    scheme: https
+    max_bytes: 20971520
+    max_redirects: 3
+    dns_revalidate_each_hop: true
+    reject_credentials_in_url: true
+    reject_ip_classes:
+      - loopback
+      - private
+      - link_local
+      - multicast
+      - reserved
+      - unspecified
+    paid_target: exact_r2_input_reference
+
+storage:
+  milestone:
+    type: modal_volume
+    name: omo-demello-awake-artifacts
+    mount_path: /artifacts
+    write_policy: run_scoped_commit_after_qa
+    key_prefix: runs/$.run.id/
+    delivery: signed_expiring_modal_download_route
+  paid_target:
+    type: r2_exact_object_capability
+    owned_by: omo
+    upload_finalize_required: true
+    authorized_download_required: true
+  gaps:
+    - Modal Volume is milestone evidence, not the durable paid artifact plane.
+    - Retention, deletion, quarantine, encryption, and R2 capability protocols are unresolved.
+
+input_schema: schemas/input.json
+
+steps:
+  - id: acquire-audio
+    type: native
+    operation: ffmpeg.audio.acquire_probe_normalize
+    input_bindings:
+      audio_url: $.input.audio_url
+      audio_ref: $.input.audio_ref
+      duration_bounds: $.input.duration_bounds
+    timeout_seconds: 90
+    retries: 0
+    idempotency: deterministic_request_scoped_files
+    output_binding: $.steps.acquire-audio.output
+    output_schema: schemas/internal.json#/$defs/normalized_audio
+    bounds:
+      max_download_bytes: 20971520
+      max_redirects: 3
+      min_seconds: 5
+      max_seconds: 20
+      undersize_fails_before_paid_image_call: true
+
+  - id: transcribe
+    type: api
+    provider: openai
+    operation: audio.transcriptions.create
+    model: gpt-4o-mini-transcribe-2025-12-15
+    endpoint: https://api.openai.com/v1/audio/transcriptions
+    depends_on: [acquire-audio]
+    input_bindings:
+      audio: $.steps.acquire-audio.output.path
+    timeout_seconds: 120
+    max_attempts: 2
+    retry_ownership: adapter
+    effect_key: $.run.id/transcribe
+    output_binding: $.steps.transcribe.output
+    output_schema: schemas/internal.json#/$defs/transcript
+    usage_units:
+      - audio_seconds
+      - input_audio_tokens
+      - output_text_tokens
+
+  - id: direct-story
+    type: llm
+    provider: opencode_go
+    operation: chat.completions.create
+    model: deepseek-v4-flash
+    endpoint: https://opencode.ai/zen/go/v1/chat/completions
+    depends_on: [transcribe]
+    system_prompt: prompts/director.txt
+    params:
+      max_output_tokens: 4000
+      temperature: 0.2
+    input_bindings:
+      transcript: $.steps.transcribe.output
+      duration_seconds: $.steps.acquire-audio.output.duration_seconds
+      style: $.input.style
+    timeout_seconds: 90
+    max_attempts: 2
+    retry_ownership: adapter
+    fallback:
+      enabled: true
+      operation: deterministic_transcript_director
+      disclosure_required: true
+    output_binding: $.steps.direct-story.output
+    output_schema: schemas/internal.json#/$defs/director_schedule
+    usage_units:
+      - input_tokens
+      - output_tokens
+
+  - id: generate-keyframes
+    type: api
+    provider: openai
+    operation: images.generate_then_chained_edit
+    model: gpt-image-2-2026-04-21
+    endpoints:
+      first: https://api.openai.com/v1/images/generations
+      chained: https://api.openai.com/v1/images/edits
+    depends_on: [direct-story]
+    system_prompt: prompts/frame.txt
+    input_bindings:
+      schedule: $.steps.direct-story.output
+      style: $.input.style
+    timeout_seconds: 600
+    max_generated_images: 8
+    max_attempts_per_image: 3
+    max_retries_per_image: 2
+    retry_ownership: adapter
+    effect_key: $.run.id/image/$.attempt.index
+    parent_policy: last_accepted_only
+    fallback:
+      enabled: true
+      operation: procedural_sumi_e
+      disclosure_value: procedural-fallback
+      provider_spend_usd: 0
+    validation:
+      decode: required
+      width: 1080
+      height: 1920
+      min_white_field_ratio: 0.85
+      low_chroma: required
+      sparse_dark_line_mask: required
+    output_binding: $.steps.generate-keyframes.output
+    output_schema: schemas/internal.json#/$defs/accepted_keyframes
+    usage_units:
+      - image_requests
+      - images_generated
+      - image_retries
+      - image_size
+      - image_quality
+
+  - id: expand-semantic-frames
+    type: native
+    operation: pillow.semantic_cells.expand
+    depends_on: [generate-keyframes, direct-story]
+    input_bindings:
+      accepted_keyframes: $.steps.generate-keyframes.output
+      schedule: $.steps.direct-story.output
+    timeout_seconds: 180
+    retries: 0
+    semantic_fps: 3
+    output_binding: $.steps.expand-semantic-frames.output
+    output_schema: schemas/internal.json#/$defs/semantic_frames
+
+  - id: assemble
+    type: native
+    operation: ffmpeg.video.assemble_h264_aac
+    depends_on: [expand-semantic-frames, acquire-audio]
+    input_bindings:
+      frames: $.steps.expand-semantic-frames.output
+      audio: $.steps.acquire-audio.output.path
+    timeout_seconds: 300
+    retries: 0
+    params:
+      width: 1080
+      height: 1920
+      fps: 30
+      video_codec: h264
+      pixel_format: yuv420p
+      audio_codec: aac
+      faststart: true
+      blend_frames_per_cell: 6
+      landing_frames_per_cell: 4
+    output_binding: $.steps.assemble.output
+    output_schema: schemas/internal.json#/$defs/assembled_video
+
+  - id: qa-and-persist
+    type: native
+    operation: media.validate_checksum_contact_sheet_commit
+    depends_on: [assemble, generate-keyframes]
+    input_bindings:
+      video: $.steps.assemble.output
+      accepted_keyframes: $.steps.generate-keyframes.output
+      artifact_prefix: $.run.artifact_prefix
+    timeout_seconds: 180
+    retries: 0
+    commit_after_validation_only: true
+    validations:
+      - ffprobe_streams
+      - full_decode
+      - duration_bounds
+      - exact_dimensions
+      - exact_frame_rate
+      - audio_present
+      - sparse_monochrome_style
+      - checksum_and_bytes
+      - contact_sheet
+    output_binding: $.result
+    output_schema: schemas/output.json
+
+output_projection:
+  run_id: $.run.id
+  release_hash: $.run.release_hash
+  status:
+    literal: completed
+  workflow_version:
+    literal: demello-awake@0.1.0
+  video_url: $.steps.qa-and-persist.output.video_url
+  contact_sheet_url: $.steps.qa-and-persist.output.contact_sheet_url
+  frames_used: $.run.frames_used
+  cost: $.run.cost
+  media: $.steps.qa-and-persist.output.media
+  usage: $.run.usage
+  provider_usage: $.run.provider_usage
+  providers: $.run.providers
+  generation_provider: $.run.generation_provider
+  fallback: $.run.fallback
+  artifacts: $.steps.qa-and-persist.output.artifacts
+
+output_schema: schemas/output.json
+
+tests:
+  cases: tests/cases.json
+  contract: tests/test_contract.py
+  pipeline: tests/test_pipeline.py
+  minimum_happy_cases: 3
+  minimum_negative_failure_cases: 6
+  assertions:
+    - draft_2020_12_schemas_valid
+    - exactly_one_audio_url_or_audio_ref
+    - unknown_fields_rejected
+    - invalid_or_short_audio_spends_zero
+    - ssrf_and_redirect_policy
+    - seven_step_dag_acyclic_and_bound
+    - provider_retries_bounded
+    - rejected_image_never_becomes_parent
+    - procedural_fallback_explicitly_disclosed
+    - h264_aac_1080x1920_30fps_faststart
+    - artifact_checksum_bytes_and_exact_run_prefix
+    - guarded_cost_formula_and_unknown_units_fail_closed
+    - bearer_auth_and_idempotency_header_required
+
+cost:
+  authority: worker_only
+  app_role: measured_evidence_only
+  paid_quote_enabled: false
+  currency: USD
+  arithmetic_target: integer_nanodollars
+  target_margin: 0.80
+  tail_reserve: 0.15
+  floor_usd: 0.10
+  formula: >-
+    C_guard = max(C_static, C_success_p95,
+    max(C_delivered_7d, C_delivered_30d) * (1 + tail_reserve));
+    buyer_price = ceil_to_cent(max(0.10, C_guard / (1 - 0.80)))
+  physical_usage_units:
+    - transcription_audio_seconds
+    - director_input_tokens
+    - director_output_tokens
+    - image_requests_by_model_size_quality
+    - image_retries
+    - modal_cpu_core_seconds
+    - modal_memory_gib_seconds
+    - artifact_bytes
+    - artifact_storage_usd
+    - artifact_egress_usd
+  provider_rate_registry: unresolved-blocks-paid-traffic
+  invoice_reconciliation: required-before-paid-traffic
+  unknown_units: fail_closed
+
+budget:
+  paid_traffic_allowed: false
+  milestone_max_execution_cost_usd: 1.00
+  max_paid_qa_usd: 1.00
+  max_total_steps: 7
+  max_total_runtime_seconds: 1200
+  max_provider_retries_per_image: 2
+  max_generated_images: 8
+  max_input_audio_bytes: 20971520
+  max_audio_seconds: 20
+  max_cost_enforcement:
+    milestone: request_bound_checked_before_each_provider_phase
+    paid_target: durable_pre_phase_budget_debit_across_all_retries
+    gap: Durable reservation, effect acknowledgement, settlement, and reconciliation do not exist yet.

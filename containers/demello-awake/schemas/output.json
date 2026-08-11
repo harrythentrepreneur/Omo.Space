@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omo.best/schemas/demello-awake/output.json",
+  "title": "de Mello Awake completed private status response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "release_hash",
+    "request_hash",
+    "status",
+    "video_url",
+    "contact_sheet_url",
+    "frames_used",
+    "cost",
+    "media",
+    "generation_provider",
+    "platform"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$"
+    },
+    "release_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "request_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "status": {"const": "completed"},
+    "video_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^\\s]+$",
+      "maxLength": 4096
+    },
+    "contact_sheet_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^\\s]+$",
+      "maxLength": 4096
+    },
+    "frames_used": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generated", "semantic", "output"],
+      "properties": {
+        "generated": {"type": "integer", "minimum": 1, "maximum": 60},
+        "semantic": {"type": "integer", "minimum": 15, "maximum": 60},
+        "output": {"type": "integer", "minimum": 150, "maximum": 600}
+      },
+      "$comment": "semantic = ceil(duration_seconds * 3), output = round(duration_seconds * 30), generated <= semantic"
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "measured_usd",
+        "success_p95_usd",
+        "delivered_tail_usd",
+        "guard_cost_usd",
+        "guarded_price_usd",
+        "target_margin",
+        "tail_reserve",
+        "successful_sample_size"
+      ],
+      "properties": {
+        "measured_usd": {"type": "number", "minimum": 0},
+        "success_p95_usd": {"type": "number", "minimum": 0},
+        "delivered_tail_usd": {"type": "number", "minimum": 0},
+        "guard_cost_usd": {"type": "number", "minimum": 0},
+        "guarded_price_usd": {"type": "number", "minimum": 0.1},
+        "target_margin": {"const": 0.8},
+        "tail_reserve": {"const": 0.15},
+        "successful_sample_size": {"type": "integer", "minimum": 1}
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["duration_seconds", "video_codec", "audio_codec", "width", "height", "fps"],
+      "properties": {
+        "duration_seconds": {"type": "number", "minimum": 5, "maximum": 20.25},
+        "video_codec": {"const": "h264"},
+        "audio_codec": {"const": "aac"},
+        "width": {"const": 1080},
+        "height": {"const": 1920},
+        "fps": {"const": 30}
+      }
+    },
+    "generation_provider": {
+      "enum": ["openai", "procedural-fallback"]
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modal_proxy_token",
+        "omo_r2_artifacts",
+        "private_bearer_auth",
+        "artifact_backend",
+        "paid_traffic_ready"
+      ],
+      "properties": {
+        "modal_proxy_token": {"type": "boolean"},
+        "omo_r2_artifacts": {"type": "boolean"},
+        "private_bearer_auth": {"type": "boolean"},
+        "artifact_backend": {"type": "string", "minLength": 1, "maxLength": 100},
+        "paid_traffic_ready": {"type": "boolean"}
+      }
+    }
+  }
+}

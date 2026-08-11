@@ -1,0 +1,80 @@
+{
+  "schema_version": "omo.release-manifest/v1-draft",
+  "workflow_slug": "demello-awake",
+  "workflow_version": "demello-awake@0.1.0",
+  "release_hash": "sha256:aa5c370cafa96520c47f35b568b821805605796f8dfcc542516b94338d9c8123",
+  "release_hash_short": "aa5c370cafa9",
+  "modal_app_name_template": "omo-demello-awake-<release_hash_short>",
+  "status": "candidate-ready-for-private-modal-deploy",
+  "environment": "staging",
+  "traffic_percentage": 0,
+  "promotion_authorized": false,
+  "rollback_target": "disabled-zero-traffic",
+  "compiler": {
+    "name": "manual-normalized-tree-hasher",
+    "version": "1",
+    "reproducible_clean_compiles": 1
+  },
+  "hash_contract": {
+    "algorithm": "sha256",
+    "path_order": "sorted UTF-8 relative paths",
+    "serialization": "canonical JSON plus normalized YAML/text",
+    "line_endings": "LF",
+    "symlink_policy": "reject",
+    "timestamps_included": false,
+    "manifest_self_reference": "release_hash fields normalized to sha256:PENDING-DETERMINISTIC-COMPILER",
+    "signer": null
+  },
+  "contracts": {
+    "container": "container.yaml",
+    "input": "schemas/input.json",
+    "private_run": "schemas/private-run.json",
+    "output": "schemas/output.json",
+    "internal": "schemas/internal.json",
+    "capabilities": "capability-manifest.json",
+    "provenance": "provenance.json"
+  },
+  "runtime": {
+    "python": "3.12",
+    "modal": "1.5.0",
+    "openai_sdk": "2.36.0",
+    "go_runner": "cmd/runner",
+    "base_image_digest": "modal-managed-debian-slim-python3.12-unpinned",
+    "dependency_lock": "requirements.txt",
+    "sbom": null
+  },
+  "models": [
+    {"provider": "openai", "model": "gpt-4o-mini-transcribe-2025-12-15", "operation": "transcription"},
+    {"provider": "opencode_go", "model": "deepseek-v4-flash", "operation": "director", "optional": true},
+    {"provider": "openai", "model": "gpt-image-2-2026-04-21", "operation": "image_generation_and_edit"}
+  ],
+  "artifact_policy": {
+    "milestone_store": "modal-volume:omo-demello-awake-artifacts",
+    "key_prefix": "runs/<run_id>/",
+    "target_store": "r2-exact-object-capability",
+    "retention_policy_version": null
+  },
+  "cost_policy": {
+    "version": "demello-guarded-cost/v1-draft",
+    "target_margin": 0.8,
+    "tail_reserve": 0.15,
+    "buyer_floor_usd": 0.1,
+    "paid_quote_enabled": false,
+    "provider_rate_registry_version": null
+  },
+  "qa": {
+    "report_hash": null,
+    "signer": null,
+    "real_runs_completed": 0,
+    "thirty_clean_days": false,
+    "rollback_drilled": false
+  },
+  "blocking_reasons": [
+    "release hash, base digest, compiler version, lock/SBOM, and signatures are pending",
+    "Proxy Token plus signed Worker capability is not implemented",
+    "Modal Volume is not the paid R2 artifact plane",
+    "durable paid state, reservation, settlement, and reconciliation are absent",
+    "provider rates and accepted-output benchmark do not support a paid quote",
+    "signed QA and manual promotion evidence are absent"
+  ]
+}

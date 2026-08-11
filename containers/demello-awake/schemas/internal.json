@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omo.best/schemas/demello-awake/internal.json",
+  "title": "de Mello Awake internal step contracts",
+  "$defs": {
+    "normalized_audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "duration_seconds", "sha256", "bytes", "mime_type"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/tmp/demello-[A-Za-z0-9_-]+/audio\\.(wav|m4a)$"},
+        "duration_seconds": {"type": "number", "minimum": 5, "maximum": 20},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "bytes": {"type": "integer", "minimum": 1, "maximum": 20971520},
+        "mime_type": {"enum": ["audio/wav", "audio/mp4"]}
+      }
+    },
+    "transcript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "language", "duration_seconds", "segments"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1, "maxLength": 20000},
+        "language": {"const": "en"},
+        "duration_seconds": {"type": "number", "minimum": 5, "maximum": 20},
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["start_seconds", "end_seconds", "text"],
+            "properties": {
+              "start_seconds": {"type": "number", "minimum": 0, "maximum": 20},
+              "end_seconds": {"type": "number", "minimum": 0, "maximum": 20},
+              "text": {"type": "string", "minLength": 1, "maxLength": 2000}
+            }
+          }
+        }
+      }
+    },
+    "director_schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["story_id", "duration_s", "generation_fps", "scene_sheet", "seconds"],
+      "properties": {
+        "story_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"},
+        "duration_s": {"type": "number", "minimum": 5, "maximum": 20},
+        "generation_fps": {"const": 3},
+        "scene_sheet": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["opening", "closing", "immutable_anchors", "protected_negative_space"],
+          "properties": {
+            "opening": {"type": "string", "minLength": 1, "maxLength": 500},
+            "closing": {"type": "string", "minLength": 1, "maxLength": 500},
+            "immutable_anchors": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1, "maxLength": 200}
+            },
+            "protected_negative_space": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1, "maxLength": 200}
+            }
+          }
+        },
+        "seconds": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 20,
+          "items": {"$ref": "#/$defs/director_second"}
+        }
+      }
+    },
+    "director_second": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sec",
+        "phase",
+        "beat_type",
+        "spoken_meaning",
+        "verb",
+        "target",
+        "pattern",
+        "micro",
+        "protected",
+        "camera_follow_percent"
+      ],
+      "properties": {
+        "sec": {"type": "integer", "minimum": 0, "maximum": 19},
+        "phase": {"enum": ["opening", "development", "escalation", "pivot", "resolution", "closing"]},
+        "beat_type": {"enum": ["HOLD", "DRIFT", "PIVOT", "CHANGE"]},
+        "spoken_meaning": {"type": "string", "minLength": 1, "maxLength": 500},
+        "verb": {"type": "string", "minLength": 1, "maxLength": 80},
+        "target": {"type": "string", "minLength": 1, "maxLength": 200},
+        "pattern": {"enum": ["settle-change-land", "anticipate-act-recover", "hold-breathe-hold"]},
+        "micro": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role", "delta"],
+            "properties": {
+              "role": {"enum": ["settle", "change", "land", "anticipate", "act", "recover", "hold", "breathe"]},
+              "delta": {"type": "string", "minLength": 1, "maxLength": 300}
+            }
+          }
+        },
+        "protected": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 200}
+        },
+        "camera_follow_percent": {"type": "number", "minimum": 0, "maximum": 0.2}
+      }
+    },
+    "accepted_keyframes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "frames", "provider", "retries"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 1, "maximum": 60},
+        "provider": {"enum": ["openai-gpt-image-2", "procedural-fallback"]},
+        "retries": {"type": "integer", "minimum": 0, "maximum": 16},
+        "frames": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["frame_id", "path", "sha256", "parent_sha256", "accepted"],
+            "properties": {
+              "frame_id": {"type": "string", "pattern": "^F[0-9]{3}$"},
+              "path": {"type": "string", "minLength": 1, "maxLength": 1024},
+              "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "parent_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+              "accepted": {"const": true}
+            }
+          }
+        }
+      }
+    },
+    "semantic_frames": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "fps", "directory"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 15, "maximum": 60},
+        "fps": {"const": 3},
+        "directory": {"type": "string", "minLength": 1, "maxLength": 1024}
+      }
+    },
+    "assembled_video": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "duration_seconds", "frame_count", "video_codec", "audio_codec", "width", "height", "fps"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "duration_seconds": {"type": "number", "minimum": 5, "maximum": 20},
+        "frame_count": {"type": "integer", "minimum": 150, "maximum": 600},
+        "video_codec": {"const": "h264"},
+        "audio_codec": {"const": "aac"},
+        "width": {"const": 1080},
+        "height": {"const": 1920},
+        "fps": {"const": 30}
+      }
+    }
+  }
+}

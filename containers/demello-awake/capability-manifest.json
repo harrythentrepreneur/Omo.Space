@@ -1,0 +1,116 @@
+{
+  "schema_version": "omo.capability-manifest/v1-draft",
+  "workflow_slug": "demello-awake",
+  "release_hash": "sha256:PENDING-DETERMINISTIC-COMPILER",
+  "status": "milestone-1-candidate",
+  "paid_traffic_allowed": false,
+  "capabilities": {
+    "providers": [
+      {
+        "provider": "openai",
+        "operation": "audio.transcriptions.create",
+        "model": "gpt-4o-mini-transcribe-2025-12-15",
+        "host": "api.openai.com",
+        "path": "/v1/audio/transcriptions",
+        "secret_binding": "OPENAI_API_KEY",
+        "max_attempts": 2
+      },
+      {
+        "provider": "opencode_go",
+        "operation": "chat.completions.create",
+        "model": "deepseek-v4-flash",
+        "host": "opencode.ai",
+        "path": "/zen/go/v1/chat/completions",
+        "secret_binding": "OPENCODE_GO_API_KEY",
+        "max_attempts": 2,
+        "optional": true
+      },
+      {
+        "provider": "openai",
+        "operation": "images.generate_then_chained_edit",
+        "model": "gpt-image-2-2026-04-21",
+        "host": "api.openai.com",
+        "paths": ["/v1/images/generations", "/v1/images/edits"],
+        "secret_binding": "OPENAI_API_KEY",
+        "max_generated_images": 8,
+        "max_attempts_per_image": 3
+      }
+    ],
+    "native": [
+      {"binary": "ffmpeg", "operations": ["probe", "normalize", "assemble_h264_aac"]},
+      {"binary": "ffprobe", "operations": ["media_contract_validation"]},
+      {"binary": "demello-runner", "language": "go", "operations": ["typed_subprocess_boundary", "signal_propagation"]},
+      {"library": "Pillow", "operations": ["semantic_frame_expansion", "contact_sheet", "visual_qa"]}
+    ],
+    "network": {
+      "fixed_hosts": ["api.openai.com", "opencode.ai"],
+      "dynamic_audio_https": {
+        "milestone_only": true,
+        "max_bytes": 20971520,
+        "max_redirects": 3,
+        "ssrf_policy_required": true,
+        "paid_replacement": "exact_r2_input_reference"
+      }
+    },
+    "storage": {
+      "milestone": {
+        "type": "modal_volume",
+        "name": "omo-demello-awake-artifacts",
+        "prefix": "runs/<run_id>/",
+        "commit_after_qa": true
+      },
+      "paid_target": "r2_exact_object_capability"
+    },
+    "secrets": [
+      {"binding": "API_SERVER_KEY", "scope": "milestone_ingress_bearer"},
+      {"binding": "OPENAI_API_KEY", "scope": "transcription_and_image_provider"},
+      {"binding": "OPENCODE_GO_API_KEY", "scope": "optional_director_provider"}
+    ],
+    "resources": {
+      "gpu": null,
+      "cpu": 1.0,
+      "memory_mb": 2048,
+      "timeout_seconds": 1200,
+      "min_containers": 0,
+      "max_containers": 4,
+      "max_inputs_per_container": 1
+    },
+    "fallbacks": [
+      {
+        "id": "deterministic_transcript_director",
+        "enabled": true,
+        "condition": "OPENCODE_GO_API_KEY absent or bounded provider failure",
+        "disclosure_required": true
+      },
+      {
+        "id": "procedural_sumi_e",
+        "enabled": true,
+        "condition": "bounded GPT Image 2 failure after release budget checks",
+        "result_generation_provider": "procedural-fallback",
+        "image_provider_spend_usd": 0,
+        "disclosure_required": true
+      }
+    ]
+  },
+  "denied": [
+    "buyer_identity_or_balance_authority",
+    "production_traffic_promotion",
+    "general_database_credentials",
+    "general_r2_credentials",
+    "arbitrary_shell_from_spec",
+    "arbitrary_package_or_image_selection",
+    "unbounded_network_egress",
+    "unbounded_provider_retry",
+    "buyer_selected_model_prompt_price_or_artifact_key"
+  ],
+  "paid_blockers": [
+    "modal_proxy_token_plus_signed_worker_capability",
+    "durable_idempotency_and_provider_acknowledgement",
+    "approved_paid_state_and_append_only_ledger",
+    "r2_upload_finalize_and_authorized_download",
+    "retention_deletion_and_quarantine_policy",
+    "reconciled_provider_rate_registry_and_hard_budget",
+    "canonical_release_hash_and_signed_qa",
+    "manual_promotion_and_rollback_drill"
+  ]
+}

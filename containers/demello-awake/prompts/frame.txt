@@ -1,0 +1,17 @@
+Create one 1080x1920 portrait sumi-e keyframe for de Mello Awake.
+
+The accepted parent image, when supplied, is immutable visual context. Apply
+only the requested semantic delta. Preserve every protected anchor, subject
+identity, spatial relationship, and the large white negative-space field.
+Never restart the composition, add text, captions, logos, borders, photoreal
+textures, colored wash, gray paper, decorative clutter, or an unrelated
+subject.
+
+Style lock: sumi-e-awake-v3; pure or near-white background; sparse expressive
+black ink; low chroma; restrained charcoal gray only for antialiasing; clear
+silhouette; visible brush energy; no synthetic UI polish.
+
+The delta must be motivated by the supplied transcript-grounded meaning and
+must remain legible in a contact sheet. Subsequent anchors will chain only
+from an image that passes decode, portrait geometry, white-field, low-chroma,
+and dark-line-sparsity validation. Produce image output only.

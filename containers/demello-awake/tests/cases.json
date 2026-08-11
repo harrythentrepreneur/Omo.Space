@@ -1,0 +1,15 @@
+{
+  "happy": [
+    {"audio_ref":"sample-demello-10s","style":"sumi-e-awake-v3","duration_bounds":{"min_seconds":5,"max_seconds":5}},
+    {"audio_ref":"sample-demello-10s","style":"sumi-e-awake-v3","duration_bounds":{"min_seconds":5,"max_seconds":10}},
+    {"audio_url":"https://media.example/clip.mp3","style":"sumi-e-awake-v3","duration_bounds":{"min_seconds":8,"max_seconds":20}}
+  ],
+  "negative": [
+    {"style":"sumi-e-awake-v3","duration_bounds":{"min_seconds":5,"max_seconds":10}},
+    {"audio_ref":"sample-demello-10s","audio_url":"https://media.example/clip.mp3","style":"sumi-e-awake-v3","duration_bounds":{"min_seconds":5,"max_seconds":10}},
+    {"audio_ref":"../../secret","style":"sumi-e-awake-v3","duration_bounds":{"min_seconds":5,"max_seconds":10}},
+    {"audio_ref":"sample-demello-10s","style":"oil","duration_bounds":{"min_seconds":5,"max_seconds":10}},
+    {"audio_ref":"sample-demello-10s","style":"sumi-e-awake-v3","duration_bounds":{"min_seconds":12,"max_seconds":5}},
+    {"audio_ref":"sample-demello-10s","style":"sumi-e-awake-v3","duration_bounds":{"min_seconds":5,"max_seconds":21},"unexpected":true}
+  ]
+}

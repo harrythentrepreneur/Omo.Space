@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omo.best/schemas/demello-awake/private-run.json",
+  "title": "de Mello Awake milestone private submit body",
+  "description": "Accepts either direct smoke-test input or the future Worker-owned dispatch envelope. Bearer authorization and Idempotency-Key are HTTP-header requirements, not body fields.",
+  "oneOf": [
+    {
+      "$ref": "input.json"
+    },
+    {
+      "$ref": "#/$defs/worker_envelope"
+    }
+  ],
+  "$defs": {
+    "worker_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "release_hash",
+        "request_hash",
+        "input",
+        "max_cost_usd"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$"
+        },
+        "release_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "request_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "input": {
+          "$ref": "input.json"
+        },
+        "max_cost_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "description": "Milestone transport field only. Paid traffic additionally requires pre-phase durable budget debits and reconciliation."
+        }
+      }
+    }
+  }
+}

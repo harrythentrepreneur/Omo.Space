@@ -1,0 +1,124 @@
+{
+  "schema_version": "omo.provenance/v1-draft",
+  "workflow_slug": "demello-awake",
+  "candidate_version": "0.1.0",
+  "status": "milestone-1-evidence",
+  "generated_from": {
+    "plan": "research/demello-deploy-plan.md",
+    "plan_date": "2026-08-11",
+    "source_hash": "sha256:PENDING-DETERMINISTIC-COMPILER"
+  },
+  "sources": [
+    {
+      "path": "research/demello-deploy-plan.md",
+      "role": "authoritative deployment boundary, run contract, DAG, runtime, release, cost, and milestone gaps",
+      "confidence": "high"
+    },
+    {
+      "path": "research/modal-optimization/round-5.md",
+      "role": "authoritative execution-plane, immutable-release, artifact, idempotency, and guarded-pricing invariants",
+      "confidence": "high"
+    },
+    {
+      "path": "research/modal-container-plan.md#33-minimal-executable-container-spec",
+      "role": "draft minimum container fields and constrained binding language",
+      "confidence": "high"
+    },
+    {
+      "path": "research/mega-agent-blueprint.md",
+      "role": "planned generated-bundle shape, capability diff, QA, and promotion boundaries",
+      "confidence": "high"
+    },
+    {
+      "path": "containers/demello-awake/manifest/ART_PIPELINE_V3.md",
+      "role": "three-semantic-cells-per-second schedule, chaining, motion, prompt, and visual QA rules",
+      "confidence": "high"
+    },
+    {
+      "path": "containers/demello-awake/manifest/VISUAL_SPEC.md",
+      "role": "historical visual style and assembly evidence; API/subscription instructions are not executable authority",
+      "confidence": "medium"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-image-2",
+      "retrieved_on": "2026-08-11",
+      "role": "GPT Image 2 model and /v1/images/generations plus /v1/images/edits endpoint evidence",
+      "confidence": "high"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe",
+      "retrieved_on": "2026-08-11",
+      "role": "OpenAI transcription model and /v1/audio/transcriptions endpoint evidence",
+      "confidence": "high"
+    }
+  ],
+  "material_fields": [
+    {
+      "field": "input.exactly_one_audio_source",
+      "evidence": "research/demello-deploy-plan.md:64-76",
+      "confidence": "high",
+      "inference": "none"
+    },
+    {
+      "field": "endpoint.milestone_bearer_auth",
+      "evidence": "research/demello-deploy-plan.md:78-84",
+      "confidence": "high",
+      "inference": "none"
+    },
+    {
+      "field": "storage.modal_volume_milestone_only",
+      "evidence": "research/demello-deploy-plan.md:100,120-127,166-173",
+      "confidence": "high",
+      "inference": "none"
+    },
+    {
+      "field": "dag.seven_steps",
+      "evidence": "research/demello-deploy-plan.md:102-112",
+      "confidence": "high",
+      "inference": "typed expansion only"
+    },
+    {
+      "field": "pricing.guard_formula",
+      "evidence": "research/demello-deploy-plan.md:152-164",
+      "confidence": "high",
+      "inference": "none"
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "U-DEMELLO-HASH-001",
+      "class": "release_hash",
+      "question": "What canonical compiler/hash manifest produces the final release hash and App name?",
+      "required_for": ["immutable_deploy", "promotion"],
+      "status": "open"
+    },
+    {
+      "id": "U-DEMELLO-AUTH-001",
+      "class": "private_auth",
+      "question": "Where are Modal Proxy Token and replay-protected Worker capability verification implemented?",
+      "required_for": ["paid_traffic"],
+      "status": "open"
+    },
+    {
+      "id": "U-DEMELLO-R2-001",
+      "class": "artifact_plane",
+      "question": "What exact R2 upload/finalize/download, ownership, encryption, quarantine, retention, and deletion contract is approved?",
+      "required_for": ["paid_traffic", "durable_delivery"],
+      "status": "open"
+    },
+    {
+      "id": "U-DEMELLO-STATE-001",
+      "class": "paid_state",
+      "question": "Has the Neon-versus-D1 ADR and transactional run/ledger/checkpoint protocol been approved?",
+      "required_for": ["paid_traffic"],
+      "status": "open"
+    },
+    {
+      "id": "U-DEMELLO-COST-001",
+      "class": "pricing",
+      "question": "What reconciled provider rates and real delivered benchmark establish C_static, max_cost, and the initial quote?",
+      "required_for": ["paid_quote", "promotion"],
+      "status": "open"
+    }
+  ]
+}

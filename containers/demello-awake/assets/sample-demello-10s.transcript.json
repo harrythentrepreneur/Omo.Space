@@ -1,0 +1,13 @@
+{
+  "text": "puts it into his mouth and tastes it, and the story goes, and it tasted so sweet",
+  "language": "en",
+  "duration": 10.536,
+  "model": "bundled-source-transcript-v3",
+  "usage": {"cost_usd": 0.0},
+  "segments": [
+    {"start": 0.0, "end": 2.6, "text": "puts it into his mouth"},
+    {"start": 2.6, "end": 3.1, "text": "and tastes it"},
+    {"start": 3.1, "end": 5.6, "text": "and the story goes"},
+    {"start": 5.6, "end": 9.9, "text": "and it tasted so sweet"}
+  ]
+}

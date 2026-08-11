@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omo.best/schemas/demello-awake/input.json",
+  "title": "de Mello Awake workflow input",
+  "description": "A short audio source and immutable visual-style/duration policy. Runtime policy additionally allowlists audio_ref and performs redirect-aware SSRF checks for audio_url.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["style", "duration_bounds"],
+  "properties": {
+    "audio_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^\\s]+$",
+      "minLength": 9,
+      "maxLength": 2048,
+      "description": "HTTPS-only input. Loopback, private, link-local, multicast, reserved, credential-bearing, and redirect-escaping targets are rejected by runtime policy."
+    },
+    "audio_ref": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+      "description": "Server-owned allowlisted identifier, never a path or caller-selected object key."
+    },
+    "style": {
+      "const": "sumi-e-awake-v3"
+    },
+    "duration_bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_seconds", "max_seconds"],
+      "properties": {
+        "min_seconds": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 20,
+          "multipleOf": 0.001
+        },
+        "max_seconds": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 20,
+          "multipleOf": 0.001
+        }
+      },
+      "$comment": "Runtime semantic validation requires max_seconds >= min_seconds. Accepted audio above max_seconds is trimmed; audio below min_seconds fails before image spend."
+    }
+  },
+  "oneOf": [
+    {
+      "required": ["audio_url"],
+      "not": {"required": ["audio_ref"]}
+    },
+    {
+      "required": ["audio_ref"],
+      "not": {"required": ["audio_url"]}
+    }
+  ]
+}
