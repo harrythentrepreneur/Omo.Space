@@ -58,6 +58,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 LLM_BASE_URL = "https://opencode.ai/zen/go/v1"
 LLM_MODEL = "deepseek-v4-flash"
+CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsub21vLnNwYWNlJA"
 MIN_TOPUP_USD = "5"
 MAX_TOPUP_USD = "1000"
 CLERK_CLOCK_SKEW_SECONDS = "5"

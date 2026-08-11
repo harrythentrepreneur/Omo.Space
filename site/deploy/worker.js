@@ -2481,6 +2481,7 @@ function toStrArray(v) {
 
 function isAllowedStorefrontOrigin(origin) {
   return origin === 'https://omo.space' ||
+    origin === 'https://www.omo.space' ||
     origin === 'https://omo.best' ||
     /^http:\/\/localhost(?::\d{1,5})?$/.test(origin);
 }
