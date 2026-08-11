@@ -1,17 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="139" height="40" viewBox="0 0 139 40" role="img" aria-labelledby="logo-title logo-desc">
-  <title id="logo-title">Omo</title>
-  <desc id="logo-desc">A peach smiley beside the lowercase Omo wordmark.</desc>
-  <metadata>Official Omo Sweet &amp; Pastel logo. Wordmark outlined from Baloo 2 ExtraBold (800).</metadata>
-  <style>
-    .wordmark { fill: #4f3f59; font-family: "Baloo 2", sans-serif; font-weight: 800; }
-  </style>
-  <circle cx="19" cy="20" r="17" fill="#ffb89d"/>
-  <path d="M29.8 8.5a17 17 0 0 1 4.5 18.2 17 17 0 0 1-7.3 8.1A17 17 0 0 0 29.8 8.5Z" fill="#f47f78" opacity=".18"/>
-  <circle cx="13.5" cy="18" r="1.65" fill="#4f3f59"/>
-  <circle cx="24.5" cy="18" r="1.65" fill="#4f3f59"/>
-  <path d="M13.2 23.1c1.4 2 3.3 3 5.8 3s4.4-1 5.8-3" fill="none" stroke="#4f3f59" stroke-width="2.2" stroke-linecap="round"/>
-  <g class="wordmark" transform="translate(44 32) scale(.048 -.048)">
+<svg xmlns="http://www.w3.org/2000/svg" width="109" height="40" viewBox="0 0 109 40" role="img" aria-labelledby="logo-title logo-desc">
+  <title id="logo-title">omo</title>
+  <desc id="logo-desc">A peach organic bean with the text face •ᴗ• beside the lowercase omo wordmark.</desc>
+  <metadata>Omo Sweet &amp; Pastel logo. Bean geometry reproduces the concept's 39 by 34 CSS border-radius shape; wordmark outlined from Baloo 2 ExtraBold.</metadata>
+  <defs>
+    <path id="bean-shape" d="M20.28 0A18.72 15.3 0 0 1 39 15.3A17.16 18.7 0 0 1 21.84 34A21.84 14.96 0 0 1 0 19.04A20.28 19.04 0 0 1 20.28 0Z"/>
+    <filter id="bean-inset" x="-5" y="-5" width="49" height="44" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset in="SourceAlpha" dx="-3" dy="-4" result="shifted-alpha"/>
+      <feComposite in="SourceAlpha" in2="shifted-alpha" operator="out" result="shadow-mask"/>
+      <feFlood flood-color="#f47f78" flood-opacity=".2" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-mask" operator="in" result="inset-shadow"/>
+      <feMerge>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="inset-shadow"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g transform="translate(2 3) rotate(-7 19.5 17)">
+    <use href="#bean-shape" fill="#ffb89d" filter="url(#bean-inset)"/>
+    <text x="19.5" y="17" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="15" font-weight="800" letter-spacing="-1.2" fill="#4f3f59">•ᴗ•</text>
+  </g>
+  <g fill="#4f3f59" transform="translate(51 29) scale(.03 -.03)">
     <path d="M555 243Q555 163 522.5 105Q490 47 431.5 15.5Q373-16 293-16Q214-16 155 15Q96 46 63.5 104Q31 162 31 243Q31 322 64 380Q97 438 156 469.5Q215 501 293 501Q372 501 430.5 469Q489 437 522 379Q555 321 555 243ZM293 368Q252 368 228.5 335.5Q205 303 205 243Q205 181 228 149Q251 117 293 117Q335 117 358 149.5Q381 182 381 243Q381 302 357.5 335Q334 368 293 368Z"/>
     <path transform="translate(546)" d="M508 334V221H338V311Q338 341 320.5 354.5Q303 368 278 368Q259 368 245 362.5Q231 357 222 352V221H52V373Q52 400 63.5 417Q75 434 95 448Q129 472 179.5 486.5Q230 501 285 501Q332 501 375 486.5Q418 472 453 440Q461 433 469.5 426Q478 419 482 411Q493 394 500.5 374Q508 354 508 334ZM794 316V221H624V311Q624 341 608 354.5Q592 368 566 368Q547 368 530 360.5Q513 353 502 344L409 439Q444 464 486.5 482.5Q529 501 592 501Q643 501 689.5 483Q736 465 765 424.5Q794 384 794 316ZM52 264H222V1Q211-2 190.5-5Q170-8 146-8Q97-8 74.5 9Q52 26 52 72ZM338 264H508V1Q497-2 476.5-5Q456-8 432-8Q383-8 360.5 9Q338 26 338 72ZM624 264H794V1Q783-2 762.5-5Q742-8 718-8Q669-8 646.5 9Q624 26 624 72Z"/>
     <path transform="translate(1353)" d="M555 243Q555 163 522.5 105Q490 47 431.5 15.5Q373-16 293-16Q214-16 155 15Q96 46 63.5 104Q31 162 31 243Q31 322 64 380Q97 438 156 469.5Q215 501 293 501Q372 501 430.5 469Q489 437 522 379Q555 321 555 243ZM293 368Q252 368 228.5 335.5Q205 303 205 243Q205 181 228 149Q251 117 293 117Q335 117 358 149.5Q381 182 381 243Q381 302 357.5 335Q334 368 293 368Z"/>

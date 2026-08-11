@@ -1,9 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="favicon-title">
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="favicon-title favicon-desc">
   <title id="favicon-title">Omo</title>
-  <circle cx="32" cy="32" r="28" fill="#ffb89d"/>
-  <path d="M49.8 13.1a28 28 0 0 1 7.4 30 28 28 0 0 1-12 13.3 28 28 0 0 0 4.6-43.3Z" fill="#f47f78" opacity=".18"/>
-  <circle cx="23" cy="28.5" r="3.2" fill="#4f3f59"/>
-  <circle cx="41" cy="28.5" r="3.2" fill="#4f3f59"/>
-  <path d="M22.5 37c2.3 3.3 5.5 5 9.5 5s7.2-1.7 9.5-5" fill="none" stroke="#4f3f59" stroke-width="3.6" stroke-linecap="round"/>
+  <desc id="favicon-desc">A peach organic bean with the text face •ᴗ•.</desc>
+  <defs>
+    <path id="bean-shape" d="M20.28 0A18.72 15.3 0 0 1 39 15.3A17.16 18.7 0 0 1 21.84 34A21.84 14.96 0 0 1 0 19.04A20.28 19.04 0 0 1 20.28 0Z"/>
+    <filter id="bean-inset" x="-5" y="-5" width="49" height="44" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset in="SourceAlpha" dx="-3" dy="-4" result="shifted-alpha"/>
+      <feComposite in="SourceAlpha" in2="shifted-alpha" operator="out" result="shadow-mask"/>
+      <feFlood flood-color="#f47f78" flood-opacity=".2" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-mask" operator="in" result="inset-shadow"/>
+      <feMerge>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="inset-shadow"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g transform="translate(32 32) rotate(-7) scale(1.435897436) translate(-19.5 -17)">
+    <use href="#bean-shape" fill="#ffb89d" filter="url(#bean-inset)"/>
+    <text x="19.5" y="17" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="15" font-weight="800" letter-spacing="-1.2" fill="#4f3f59">•ᴗ•</text>
+  </g>
 </svg>
