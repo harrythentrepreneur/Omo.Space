@@ -6,7 +6,7 @@
 //   POST /api/product-photo-generator  → listing image shot plan + copy
 //   POST /api/run                      → catalog helper runner {slug, fields}; real mode
 //                                         authenticates, requires idempotency, and debits credits
-//   POST /api/checkout                 → Stripe Checkout session {slug, email?}
+//   POST /api/checkout                 → guest Stripe Checkout {slug, email?}
 //   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
@@ -207,7 +207,7 @@ const ROUTES = {
   '/api/meta-ads-analyser': { handler: handleMeta },
   '/api/product-photo-generator': { handler: handlePhoto },
   '/api/run': { handler: handleGenericRun }, // any catalog skill: {slug, system_prompt, fields:{...}, user_id?}
-  '/api/checkout': { handler: handleCheckout }, // Stripe Checkout session: {slug, priceUsd, email?}
+  '/api/checkout': { handler: handleCheckout }, // Guest Stripe Checkout: {slug, email?}; client price is ignored
   '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
   '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
   '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $5 grant
@@ -1025,9 +1025,11 @@ async function handleRunProgressWebhook(request, env, _url, params) {
 }
 
 // ── Route: Stripe Checkout session ────────────────────────────────────────
-// Body: { slug, email? } → creates a Stripe Checkout Session
-// and returns { url } when the worker has STRIPE_SECRET_KEY set; 501 when not
-// configured. Slug, product name, and price are server-catalog values.
+// Body: { slug, email? } → creates a Stripe Checkout Session and returns
+// { url }. This route intentionally allows signed-out buyers; Stripe collects
+// an email when one is not supplied. Slug, product name, and price are always
+// resolved from SERVER_CATALOG. A valid optional Idempotency-Key is scoped and
+// forwarded to Stripe so caller retries reuse the same Checkout Session.
 
 async function handleCheckout(request, env) {
   let body;
@@ -1037,16 +1039,21 @@ async function handleCheckout(request, env) {
   if (!slug) return json({ error: 'Send slug.' }, 400, cors());
   if (!listing) return json({ error: 'unknown_catalog_slug' }, 404, cors());
 
-  const secretKey = env.STRIPE_SECRET_KEY;
+  const secretKey = String(env.STRIPE_SECRET_KEY || '').trim();
   if (!secretKey) {
     return json({ error: 'stripe not configured' }, 501, cors());
   }
 
-  const email = String(body.email || '').trim();
-  if (email.length > 254) return json({ error: 'invalid email' }, 400, cors());
+  const suppliedEmail = String(body.email || '').trim();
+  const email = normalizeBuyerEmail(suppliedEmail);
+  if (suppliedEmail && !email) return json({ error: 'invalid email' }, 400, cors());
+  const callerIdempotencyKey = String(request.headers.get('idempotency-key') || '').trim();
+  if (callerIdempotencyKey && !IDEMPOTENCY_KEY_RE.test(callerIdempotencyKey)) {
+    return json({ error: 'Invalid Idempotency-Key (8-128 URL-safe characters).' }, 400, cors());
+  }
   const params = new URLSearchParams();
   params.set('mode', 'payment');
-  params.set('success_url', `https://omo.space/?purchased=${encodeURIComponent(slug)}`);
+  params.set('success_url', `https://omo.space/?purchased=${encodeURIComponent(slug)}&session_id={CHECKOUT_SESSION_ID}`);
   params.set('cancel_url', 'https://omo.space/?purchased=cancelled');
   params.set('line_items[0][quantity]', '1');
   params.set('line_items[0][price_data][currency]', 'usd');
@@ -1054,25 +1061,34 @@ async function handleCheckout(request, env) {
   params.set('line_items[0][price_data][unit_amount]', String(listing.licensePriceCents));
   params.set('metadata[type]', 'catalog_license');
   params.set('metadata[slug]', slug);
+  params.set('metadata[amount_cents]', String(listing.licensePriceCents));
+  params.set('metadata[currency]', 'usd');
   if (email) params.set('customer_email', email);
 
   try {
+    const stripeHeaders = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Bearer ${secretKey}`,
+    };
+    if (callerIdempotencyKey) {
+      stripeHeaders['Idempotency-Key'] = `omo-checkout-${await sha256Hex(`catalog-license\u0000${slug}\u0000${callerIdempotencyKey}`)}`;
+    }
     const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Bearer ${secretKey}`,
-      },
+      headers: stripeHeaders,
       body: params.toString(),
     });
     if (!res.ok) {
       return json({ error: `stripe error ${res.status}` }, 502, cors());
     }
     const data = await res.json();
-    if (!data || !data.url) {
-      return json({ error: 'stripe returned no checkout url' }, 502, cors());
+    let checkoutUrl;
+    try { checkoutUrl = new URL(data && data.url); } catch { checkoutUrl = null; }
+    if (!data || !data.id || !checkoutUrl || checkoutUrl.origin !== 'https://checkout.stripe.com') {
+      return json({ error: 'stripe returned an invalid checkout session' }, 502, cors());
     }
-    return json({ url: data.url }, 200, cors());
+    await recordPendingPurchase(env, data.id, listing, email);
+    return json({ url: checkoutUrl.toString() }, 200, cors());
   } catch (e) {
     return json({ error: 'stripe unavailable' }, 502, cors());
   }
@@ -1131,7 +1147,7 @@ async function handleMe(request, env, url) {
 
 async function handleTopup(request, env) {
   if (request.headers.get('stripe-signature')) {
-    return handleStripeTopupWebhook(request, env);
+    return handleStripeWebhook(request, env);
   }
 
   let body;
@@ -1205,9 +1221,10 @@ async function handleTopup(request, env) {
   }
 }
 
-// Stripe sends checkout.session.completed to this same endpoint. A signed,
-// paid credits session is applied exactly once, then /api/me reflects it.
-async function handleStripeTopupWebhook(request, env) {
+// Stripe sends checkout.session.completed to this shared endpoint. Signed
+// credit top-ups are applied exactly once; signed catalog-license purchases
+// are recorded exactly once for later download/ownership fulfillment.
+async function handleStripeWebhook(request, env) {
   if (!env.STRIPE_WEBHOOK_SECRET) {
     return json({ error: 'stripe webhook not configured' }, 501, cors());
   }
@@ -1237,6 +1254,13 @@ async function handleStripeTopupWebhook(request, env) {
 
   if (!event.id) return json({ error: 'missing event id' }, 400, cors());
 
+  if (metadata && metadata.type === 'catalog_license') {
+    return handleStripePurchaseCompleted(env, event.id, session, metadata, amountCents, currency);
+  }
+  if (!metadata || metadata.type !== 'credits_topup') {
+    return json({ ok: true, ignored: true }, 200, cors());
+  }
+
   let userId = '';
   if (isRealMode(env)) {
     const pending = await getPendingTopup(env, session.id);
@@ -1264,6 +1288,36 @@ async function handleStripeTopupWebhook(request, env) {
     balance: (record.balance_cents / 100).toFixed(2),
     balance_cents: record.balance_cents,
   }, 200, cors());
+}
+
+async function handleStripePurchaseCompleted(env, eventId, session, metadata, amountCents, currency) {
+  const slug = String(metadata.slug || '').trim();
+  const listing = SERVER_CATALOG.get(slug);
+  const metadataAmountCents = Number(metadata.amount_cents);
+  const metadataCurrency = String(metadata.currency || '').toLowerCase();
+  if (!listing || metadataAmountCents !== listing.licensePriceCents || metadataCurrency !== 'usd' ||
+      amountCents !== listing.licensePriceCents || currency !== 'usd') {
+    return json({ ok: true, ignored: true }, 200, cors());
+  }
+
+  const pending = await getPendingPurchase(env, session.id);
+  if (!pending || pending.slug !== slug || Number(pending.amount_cents) !== listing.licensePriceCents ||
+      String(pending.currency || '').toLowerCase() !== 'usd') {
+    return json({ ok: true, ignored: true }, 200, cors());
+  }
+
+  const buyerEmail = normalizeBuyerEmail(
+    (session.customer_details && session.customer_details.email) || session.customer_email || pending.buyer_email || ''
+  );
+  const applied = await completePurchase(env, eventId, session.id, listing, buyerEmail);
+  // Deliberately omit buyer email and all secrets from production logs.
+  console.info('stripe catalog purchase completed', {
+    stripe_event_id: String(eventId).slice(0, 128),
+    session_id: String(session.id).slice(0, 128),
+    slug,
+    applied,
+  });
+  return json({ ok: true, applied, type: 'catalog_license', slug }, 200, cors());
 }
 
 // ── Route: Clerk webhook ───────────────────────────────────────────────────
@@ -1322,6 +1376,8 @@ const mockApiKeys = new Map();
 const mockRunRequests = new Map();
 const mockRunProgress = new Map();
 const mockPendingTopups = new Map();
+const mockPurchases = new Map();
+const mockPurchaseEvents = new Set();
 const clerkJwksCache = new Map();
 
 function neonDatabaseUrl(env) {
@@ -1349,6 +1405,13 @@ function isRealMode(env) {
 
 function validUserId(value) {
   return USER_ID_RE.test(String(value || '').trim());
+}
+
+function normalizeBuyerEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  if (!email || email.length > 254 || /\s/.test(email)) return '';
+  const at = email.indexOf('@');
+  return at > 0 && at === email.lastIndexOf('@') && at < email.length - 1 ? email : '';
 }
 
 function boundedInt(value, min, max, fallback) {
@@ -2110,6 +2173,79 @@ async function refundRunCredits(env, userId, costCents, runId) {
     rec.balance_cents += costCents;
     mockLedgerEntry(ledgerId, userId, 'run_refund', costCents, rec.balance_cents, runId, now);
   }
+}
+
+async function recordPendingPurchase(env, sessionId, listing, buyerEmail) {
+  const now = new Date().toISOString();
+  const values = [
+    sessionId, listing.slug, listing.name, listing.licensePriceCents,
+    'usd', buyerEmail || '', 'pending', now, now,
+  ];
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-purchase-create-v1',
+      'INSERT INTO purchases (session_id, slug, listing_name, amount_cents, currency, buyer_email, state, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (session_id) DO NOTHING',
+      values
+    ));
+  } else if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare('INSERT OR IGNORE INTO purchases (session_id, slug, listing_name, amount_cents, currency, buyer_email, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(...values).run();
+  } else if (!mockPurchases.has(sessionId)) {
+    mockPurchases.set(sessionId, {
+      session_id: sessionId,
+      stripe_event_id: null,
+      slug: listing.slug,
+      listing_name: listing.name,
+      amount_cents: listing.licensePriceCents,
+      currency: 'usd',
+      buyer_email: buyerEmail || '',
+      state: 'pending',
+      created_at: now,
+      updated_at: now,
+      completed_at: null,
+    });
+  }
+}
+
+async function getPendingPurchase(env, sessionId) {
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-purchase-get-v1', 'SELECT * FROM purchases WHERE session_id = $1', [sessionId]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return env.BALANCE_DB.prepare('SELECT * FROM purchases WHERE session_id = ?').bind(sessionId).first();
+  }
+  return mockPurchases.get(sessionId) || null;
+}
+
+async function completePurchase(env, stripeEventId, sessionId, listing, buyerEmail) {
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-purchase-complete-v1',
+      "UPDATE purchases SET stripe_event_id = $1, buyer_email = CASE WHEN $2 <> '' THEN $2 ELSE buyer_email END, state = 'completed', updated_at = $3, completed_at = $3 WHERE session_id = $4 AND slug = $5 AND amount_cents = $6 AND currency = 'usd' AND state = 'pending' AND NOT EXISTS (SELECT 1 FROM purchases claimed WHERE claimed.stripe_event_id = $1) RETURNING session_id",
+      [stripeEventId, buyerEmail || '', now, sessionId, listing.slug, listing.licensePriceCents]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare("UPDATE purchases SET stripe_event_id = ?, buyer_email = CASE WHEN ? <> '' THEN ? ELSE buyer_email END, state = 'completed', updated_at = ?, completed_at = ? WHERE session_id = ? AND slug = ? AND amount_cents = ? AND currency = 'usd' AND state = 'pending' AND NOT EXISTS (SELECT 1 FROM purchases claimed WHERE claimed.stripe_event_id = ?)")
+      .bind(stripeEventId, buyerEmail || '', buyerEmail || '', now, now, sessionId, listing.slug, listing.licensePriceCents, stripeEventId).run();
+    return !!(result.meta && result.meta.changes);
+  }
+  const pending = mockPurchases.get(sessionId);
+  if (!pending || pending.state !== 'pending' || mockPurchaseEvents.has(stripeEventId) ||
+      pending.slug !== listing.slug || pending.amount_cents !== listing.licensePriceCents || pending.currency !== 'usd') {
+    return false;
+  }
+  mockPurchaseEvents.add(stripeEventId);
+  pending.stripe_event_id = stripeEventId;
+  pending.buyer_email = buyerEmail || pending.buyer_email;
+  pending.state = 'completed';
+  pending.updated_at = now;
+  pending.completed_at = now;
+  return true;
 }
 
 async function recordPendingTopup(env, sessionId, userId, amountCents, currency) {

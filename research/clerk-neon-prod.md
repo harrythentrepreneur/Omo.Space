@@ -1,6 +1,6 @@
 # Clerk + Neon production status
 
-Last verified: 2026-08-11 (Asia/Bishkek)
+Last verified: 2026-08-12 (Asia/Bishkek)
 
 ## Live production configuration
 
@@ -85,7 +85,19 @@ Do not commit secret values. Only publishable keys belong in
   `runs`; both contained 0 rows before the first real signup. The local `psql`
   binary was unavailable, so the equivalent SELECTs were executed with the
   repo's installed official `@neondatabase/serverless` driver.
-- Local suites: balance 22/22, router 78/78, cost model 11/11.
+- Local suites: balance 22/22, router 88/88, cost model 11/11.
+
+## Stripe checkout contract
+
+`POST /api/checkout` is intentionally guest-accessible so landing-page buyers
+do not need a Clerk session. It accepts a required catalog `slug`, an optional
+`email`, and an optional `Idempotency-Key` header. Any client `priceUsd` is
+ignored: the Worker resolves the listing name and one-time price from
+`SERVER_CATALOG`, returns 404 for an unknown slug, returns 501 until
+`STRIPE_SECRET_KEY` exists, and otherwise returns `{ "url": "https://checkout.stripe.com/..." }`.
+Stripe collects the buyer email when it is omitted. Signed-in callers use the
+same contract; ownership is durably keyed by the Checkout Session and the
+Stripe-collected buyer email after the signed webhook completes.
 
 Useful repeatable checks:
 
@@ -112,12 +124,17 @@ psql "$NEON_DATABASE_URL" -c \
 
 ## Remaining user actions
 
-1. **Stripe production credentials.** `site/key-config.js` still uses a Stripe
-   test publishable key, and the Worker secret list does not contain
-   `STRIPE_SECRET_KEY` or `STRIPE_WEBHOOK_SECRET`. Replace only the Stripe
-   publishable key with the live `pk_live_` value, set both Worker secrets with
-   `npx wrangler secret put`, configure Stripe's webhook for
-   `https://omo.space/api/topup`, then redeploy.
+1. **Stripe production credentials and webhook.** Set these two Worker secret
+   values (the values themselves must never be committed):
+
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+
+   Configure Stripe to send `checkout.session.completed` to
+   `https://omo.space/api/topup`. That single signed endpoint handles both
+   credit top-ups and one-time catalog purchases. After the secrets are set
+   and the deployment includes the migration-safe `schema.sql`, no code change
+   is needed.
 2. **Perform one real identity test.** Sign up at `https://omo.space` with a new
    account. Then confirm the dashboard shows `$5.00` and query Neon for that
    Clerk user ID: `users.balance_cents` must equal `500`. This is the only

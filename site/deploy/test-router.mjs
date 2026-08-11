@@ -51,6 +51,22 @@ async function expectedModalIdempotencyKey(userId, callerKey) {
   return `omo-${Buffer.from(digest).toString('hex')}`;
 }
 
+async function signedStripeRequest(event, secret) {
+  const raw = JSON.stringify(event);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const key = await webcrypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const mac = await webcrypto.subtle.sign(
+    'HMAC', key, new TextEncoder().encode(`${timestamp}.${raw}`),
+  );
+  const signature = Buffer.from(mac).toString('hex');
+  return Object.assign(mkReq('POST', '/api/topup', event, {
+    'Stripe-Signature': `t=${timestamp},v1=${signature}`,
+  }), { text: async () => raw });
+}
+
 // worker.js imports balance.mjs + cost-model.mjs (bundled at deploy time).
 // The vm sandbox can't resolve imports, so concatenate them first with the
 // `export`/`import` keywords stripped — they are dependency-free modules, so
@@ -163,6 +179,19 @@ check('dashboard: terminal 5xx run states are handled before indefinite retry', 
 check('dashboard: server top-ups post to /api/topup with authenticated headers', dashboardSource.includes("fetch((API_BASE || '') + '/api/topup'") && dashboardSource.includes("authenticatedRunHeaders('').then(function (headers)"));
 check('dashboard: hosted video form exposes the sample-only provider gate', dashboardSource.includes('Hosted staging currently accepts only sample-demello-10s'));
 
+let browserCheckoutCall = null;
+const stripeClientSandbox = {
+  window: { location: { href: '' } },
+  fetch: async (url, opts) => {
+    browserCheckoutCall = { url, opts };
+    return { status: 200, json: async () => ({ url: 'https://checkout.stripe.com/c/pay/browser_test' }) };
+  },
+};
+vm.createContext(stripeClientSandbox);
+vm.runInContext(fs.readFileSync(path.join(here, '..', 'stripe.js'), 'utf8'), stripeClientSandbox, { filename: 'stripe.js' });
+await stripeClientSandbox.window.StripePay.checkout('ugc-script-studio', { priceOwn: 39 }, null, {});
+check('checkout client: placeholder key still posts idempotently + redirects', browserCheckoutCall && browserCheckoutCall.url === '/api/checkout' && JSON.parse(browserCheckoutCall.opts.body).slug === 'ugc-script-studio' && /^checkout-[A-Za-z0-9-]{8,}$/.test(browserCheckoutCall.opts.headers['Idempotency-Key']) && stripeClientSandbox.window.location.href === 'https://checkout.stripe.com/c/pay/browser_test');
+
 const mkReq = (method, pathname, body, extraHeaders = {}) => ({
   method,
   url: `https://demo.cognition.cv${pathname}`,
@@ -230,19 +259,56 @@ check('checkout: 501 body says not configured', coBody.error === 'stripe not con
 
 const badCheckout = await worker.fetch(mkReq('POST', '/api/checkout', { slug: '', priceUsd: 5 }), stripeEnv);
 check('checkout: missing slug returns 400', badCheckout.status === 400);
+const stripeCallsBeforeUnknown = stripeCalls.length;
+const unknownCheckout = await worker.fetch(mkReq('POST', '/api/checkout', { slug: 'client-invented-listing', priceUsd: 1 }), stripeEnv);
+check('checkout: unknown slug returns 404 without calling Stripe', unknownCheckout.status === 404 && stripeCalls.length === stripeCallsBeforeUnknown);
 
-const cs = await (await worker.fetch(mkReq('POST', '/api/checkout', { slug: 'ugc-script-studio', priceUsd: 25, email: 'buyer@example.com' }), stripeEnv)).json();
-check('checkout: returns Stripe Checkout url', cs.url === 'https://checkout.stripe.com/c/pay/test_123');
+const csResponse = await worker.fetch(mkReq('POST', '/api/checkout', {
+  slug: 'ugc-script-studio', priceUsd: 0.01, email: 'buyer@example.com',
+}, { Origin: 'https://omo.space', 'Idempotency-Key': 'checkout-router-0001' }), stripeEnv);
+const cs = await csResponse.json();
+check('checkout: guest buyer needs no auth and receives hosted Stripe URL', csResponse.status === 200 && cs.url === 'https://checkout.stripe.com/c/pay/test_123');
+check('checkout: real-mode CORS allows the production storefront', csResponse.headers.get('Access-Control-Allow-Origin') === 'https://omo.space');
 
 const sc = stripeCalls[stripeCalls.length - 1];
 const scParams = new URLSearchParams(sc.body);
 check('checkout: posts form-encoded to Stripe sessions API', sc.url === 'https://api.stripe.com/v1/checkout/sessions');
 check('checkout: unit_amount is server catalog price (client price ignored)', scParams.get('line_items[0][price_data][unit_amount]') === '3900');
 check('checkout: currency + mode + quantity set', scParams.get('line_items[0][price_data][currency]') === 'usd' && scParams.get('mode') === 'payment' && scParams.get('line_items[0][quantity]') === '1');
-check('checkout: success_url carries the slug', (scParams.get('success_url') || '').includes('purchased=ugc-script-studio'));
-check('checkout: cancel_url set', (scParams.get('cancel_url') || '').includes('purchased=cancelled'));
+check('checkout: product name comes from the server catalog', scParams.get('line_items[0][price_data][product_data][name]') === 'UGC Script Studio');
+check('checkout: success_url carries slug + Stripe session placeholder', scParams.get('success_url') === 'https://omo.space/?purchased=ugc-script-studio&session_id={CHECKOUT_SESSION_ID}');
+check('checkout: cancel_url set', scParams.get('cancel_url') === 'https://omo.space/?purchased=cancelled');
 check('checkout: buyer email forwarded', scParams.get('customer_email') === 'buyer@example.com');
+check('checkout: ownership metadata pins catalog amount + currency', scParams.get('metadata[type]') === 'catalog_license' && scParams.get('metadata[slug]') === 'ugc-script-studio' && scParams.get('metadata[amount_cents]') === '3900' && scParams.get('metadata[currency]') === 'usd');
 check('checkout: bearer auth uses the secret (never logged)', (sc.headers.Authorization || '') === 'Bearer sk_test_fake_secret');
+check('checkout: caller idempotency is scoped before Stripe', /^omo-checkout-[0-9a-f]{64}$/.test(sc.headers['Idempotency-Key'] || '') && sc.headers['Idempotency-Key'] !== 'checkout-router-0001');
+
+const authedCheckout = await worker.fetch(mkReq('POST', '/api/checkout', {
+  slug: 'listing-copy-engine', email: 'member@example.com',
+}, user111Headers), stripeEnv);
+check('checkout: authenticated callers use the same guest-compatible contract', authedCheckout.status === 200);
+
+const stripeWebhookSecret = 'whsec_router_purchase_secret';
+const purchaseEvent = {
+  id: 'evt_catalog_purchase_123',
+  type: 'checkout.session.completed',
+  data: { object: {
+    id: 'cs_test_123',
+    payment_status: 'paid',
+    amount_total: 3900,
+    currency: 'usd',
+    customer_details: { email: 'stripe-buyer@example.com' },
+    metadata: { type: 'catalog_license', slug: 'ugc-script-studio', amount_cents: '3900', currency: 'usd' },
+  } },
+};
+const purchaseWebhookEnv = { ...stripeEnv, STRIPE_WEBHOOK_SECRET: stripeWebhookSecret };
+const purchaseWebhook = await worker.fetch(await signedStripeRequest(purchaseEvent, stripeWebhookSecret), purchaseWebhookEnv);
+const purchaseWebhookBody = await purchaseWebhook.json();
+check('checkout webhook: signed paid purchase is acknowledged + recorded', purchaseWebhook.status === 200 && purchaseWebhookBody.ok === true && purchaseWebhookBody.applied === true && purchaseWebhookBody.slug === 'ugc-script-studio');
+const purchaseReplay = await worker.fetch(await signedStripeRequest(purchaseEvent, stripeWebhookSecret), purchaseWebhookEnv);
+const purchaseReplayBody = await purchaseReplay.json();
+check('checkout webhook: replay is acknowledged without duplicate ownership', purchaseReplay.status === 200 && purchaseReplayBody.ok === true && purchaseReplayBody.applied === false);
+
 await worker.fetch(mkReq('POST', '/api/checkout', { slug: 'japanese-style-story-video', priceUsd: 99 }), stripeEnv);
 const demelloCheckoutParams = new URLSearchParams(stripeCalls.at(-1).body);
 check('checkout: Japanese Style Story Video own price is server-pinned at $29', demelloCheckoutParams.get('line_items[0][price_data][unit_amount]') === '2900');
@@ -491,6 +557,18 @@ const tpcParams = new URLSearchParams(tpc.body);
 check('topup: custom $7 becomes a 700-cent unit_amount', tpcParams.get('line_items[0][price_data][unit_amount]') === '700');
 check('topup: success_url goes to dashboard', (tpcParams.get('success_url') || '').includes('dashboard.html?topup=success'));
 check('topup: verified user overrides body user in reference + metadata', tpcParams.get('client_reference_id') === 'user_111' && tpcParams.get('metadata[user_id]') === 'user_111');
+
+const topupEvent = {
+  id: 'evt_credit_topup_123',
+  type: 'checkout.session.completed',
+  data: { object: {
+    id: 'cs_test_123', payment_status: 'paid', amount_total: 700, currency: 'usd', client_reference_id: 'user_111',
+    metadata: { type: 'credits_topup', user_id: 'user_111', amount_cents: '700', currency: 'usd' },
+  } },
+};
+const topupWebhook = await worker.fetch(await signedStripeRequest(topupEvent, stripeWebhookSecret), purchaseWebhookEnv);
+const topupWebhookBody = await topupWebhook.json();
+check('topup webhook: shared signed endpoint still fulfills credits', topupWebhook.status === 200 && topupWebhookBody.ok === true && topupWebhookBody.applied === true && topupWebhookBody.user_id === 'user_111');
 
 // ── /api/clerk-webhook (user.created → $5 grant) ──────────────────────────
 

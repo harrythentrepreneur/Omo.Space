@@ -117,3 +117,28 @@ CREATE TABLE IF NOT EXISTS topup_sessions (
   created_at   TEXT NOT NULL,
   updated_at   TEXT NOT NULL
 );
+
+-- One-time catalog ownership. /api/checkout creates the pending row from
+-- server-owned catalog data before returning the hosted Stripe URL; the
+-- signed checkout.session.completed webhook fills the Stripe-collected buyer
+-- email and advances it exactly once. session_id and stripe_event_id provide
+-- independent retry/idempotency guards.
+CREATE TABLE IF NOT EXISTS purchases (
+  session_id      TEXT PRIMARY KEY,              -- Stripe cs_... Checkout session
+  stripe_event_id TEXT UNIQUE,                   -- Stripe evt_... completion delivery
+  slug            TEXT NOT NULL,
+  listing_name    TEXT NOT NULL,
+  amount_cents    INTEGER NOT NULL,
+  currency        TEXT NOT NULL CHECK (currency = 'usd'),
+  buyer_email     TEXT NOT NULL DEFAULT '',       -- supplied or collected by Stripe
+  state           TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_purchases_buyer_created
+  ON purchases (buyer_email, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_purchases_slug_state
+  ON purchases (slug, state);

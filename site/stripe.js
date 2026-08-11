@@ -1,5 +1,6 @@
-/* stripe.js — Stripe Checkout for purchases and credit top-ups, with a
- * local simulated fallback while the shared publishable key is a placeholder.
+/* stripe.js — Stripe Checkout for purchases and credit top-ups. Catalog
+ * purchases always use the server-created hosted Checkout URL; credit top-ups
+ * retain a local demo fallback while the publishable key is a placeholder.
  *
  * Exposes window.StripePay = { getKey, isConfigured, checkout, topup }.
  */
@@ -7,7 +8,6 @@
   'use strict';
 
   var PLACEHOLDER = 'pk_test_placeholder';
-  var PURCHASE_KEY = 'cognition_purchases_v1';
   var BALANCE_KEY = 'omo_balance_v1';
   var MIN_TOPUP_USD = 5;
 
@@ -47,25 +47,18 @@
     if (callbacks && typeof callbacks.onError === 'function') callbacks.onError(message);
   }
 
-  function recordPurchase(slug, listing) {
-    var purchases = [];
-    try { purchases = JSON.parse(localStorage.getItem(PURCHASE_KEY) || '[]'); } catch (e) { purchases = []; }
-    if (!Array.isArray(purchases)) purchases = [];
-    if (!purchases.some(function (purchase) { return purchase && purchase.slug === slug; })) {
-      purchases.push({
-        slug: slug,
-        priceOwn: listing && listing.priceOwn != null ? listing.priceOwn : null,
-        date: new Date().toISOString()
-      });
-      try { localStorage.setItem(PURCHASE_KEY, JSON.stringify(purchases)); } catch (e) {}
-    }
-  }
-
-  function simulateCheckout(slug, listing, callbacks) {
-    recordPurchase(slug, listing);
-    if (callbacks && typeof callbacks.onSuccess === 'function') {
-      callbacks.onSuccess({ slug: slug, simulated: true });
-    }
+  function checkoutAttemptKey(slug, email) {
+    var storageKey = 'omo_checkout_attempt_v1:' + slug + ':' + String(email || '').trim().toLowerCase();
+    try {
+      var saved = sessionStorage.getItem(storageKey);
+      if (saved) return saved;
+    } catch (e) {}
+    var randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    var key = 'checkout-' + randomPart;
+    try { sessionStorage.setItem(storageKey, key); } catch (e) {}
+    return key;
   }
 
   function simulateTopup(amountUsd, callbacks) {
@@ -80,10 +73,12 @@
     }
   }
 
-  function post(path, payload, callbacks) {
+  function post(path, payload, callbacks, idempotencyKey) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
     return fetch(apiUrl(path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify(payload)
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
@@ -101,16 +96,17 @@
 
   function checkout(slug, listing, user, callbacks) {
     var priceUsd = Number(listing && listing.priceOwn);
-    if (!isConfigured() || !isFinite(priceUsd) || priceUsd <= 0) {
-      simulateCheckout(slug, listing, callbacks);
+    if (!slug) {
+      fail(callbacks, 'Checkout could not start: missing listing.');
       return;
     }
+    var email = user && user.email ? user.email : '';
     return post('/api/checkout', {
       slug: slug,
       priceUsd: priceUsd,
-      email: user && user.email ? user.email : '',
+      email: email,
       mode: 'payment'
-    }, callbacks);
+    }, callbacks, checkoutAttemptKey(slug, email));
   }
 
   function topup(amountUsd, callbacks) {

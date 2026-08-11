@@ -11,7 +11,7 @@
 #   /api/meta-ads-analyser
 #   /api/product-photo-generator
 #   /api/run               (catalog runner — Clerk/API-key auth + idempotent debit in real mode)
-#   /api/checkout          (Stripe Checkout for license purchases)
+#   /api/checkout          (guest Stripe Checkout; server-priced catalog licenses)
 #   /api/me                (balance + api key + usage for the dashboard)
 #   /api/topup             (Stripe Checkout for credit top-ups)
 #   /api/clerk-webhook     (user.created → $5 signup grant)
@@ -65,8 +65,10 @@ CLERK_CLOCK_SKEW_SECONDS = "5"
 RUN_RESERVATION_TTL_SECONDS = "300"
 
 # Stripe test and production use the identical worker code. Set the matching
-# STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET with `wrangler secret put`; swap
-# test secrets for live secrets only when promoting the deployment.
+# STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET with `wrangler secret put`; send
+# checkout.session.completed to https://omo.space/api/topup for both catalog
+# purchases and credit top-ups. Swap test secrets for live secrets only when
+# promoting the deployment.
 
 # Demo caps per route (per IP per day) — mirror each SKILL.md demo_caps.
 # UGC Script Studio
