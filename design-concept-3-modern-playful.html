@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Omo marketplace — Modern Color Pop design concept">
+  <title>Omo — Modern Color Pop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #f8f9f5;
+      --white: #ffffff;
+      --ink: #171a19;
+      --muted: #68716d;
+      --orange: #ff4f2e;
+      --orange-soft: #ffe2d9;
+      --sky: #bfe2ff;
+      --lemon: #f4ec66;
+      --mint: #c9f2d9;
+      --line: #e5e9e5;
+      --shadow: 0 26px 70px rgba(39, 50, 45, .12);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Plus Jakarta Sans", sans-serif;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(1190px, calc(100% - 48px)); margin-inline: auto; }
+
+    .nav {
+      min-height: 88px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 32px;
+      position: relative;
+      z-index: 5;
+    }
+
+    .brand { display: inline-flex; align-items: center; gap: 10px; font: 800 28px/1 "Manrope", sans-serif; letter-spacing: -.055em; }
+    .brand-orbit { width: 33px; height: 33px; position: relative; border-radius: 11px; background: var(--orange); transform: rotate(8deg); }
+    .brand-orbit::before { content: ""; width: 9px; height: 9px; position: absolute; left: 7px; top: 8px; border-radius: 50%; background: white; box-shadow: 11px 7px 0 white; }
+    .nav-links { display: flex; align-items: center; gap: 30px; font-size: 13px; font-weight: 700; }
+    .nav-links a { transition: color .2s; }
+    .nav-links a:hover { color: var(--orange); }
+
+    .sign-in, .button {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 14px;
+      font-weight: 800;
+      transition: transform .22s, box-shadow .22s, background .22s;
+    }
+
+    .sign-in { min-height: 43px; padding: 0 17px; border: 1px solid var(--line); background: var(--white); font-size: 13px; box-shadow: 0 6px 20px rgba(39, 50, 45, .06); }
+    .button { min-height: 56px; padding: 0 24px; font-size: 14px; }
+    .button.primary { background: var(--orange); color: white; box-shadow: 0 15px 28px rgba(255, 79, 46, .24); }
+    .button.secondary { border: 1px solid var(--line); background: var(--white); box-shadow: 0 10px 24px rgba(39, 50, 45, .07); }
+    .button:hover, .sign-in:hover { transform: translateY(-3px); }
+    .button.primary:hover { box-shadow: 0 19px 35px rgba(255, 79, 46, .32); }
+
+    .hero {
+      min-height: 690px;
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      align-items: center;
+      gap: 75px;
+      padding: 82px 0 110px;
+    }
+
+    .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .eyebrow-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 6px var(--orange-soft); }
+    .hero h1 { max-width: 720px; margin: 25px 0 23px; font: 800 clamp(51px, 6.2vw, 83px)/.99 "Manrope", sans-serif; letter-spacing: -.07em; }
+    .hero h1 em { position: relative; color: var(--orange); font-style: normal; white-space: nowrap; }
+    .hero h1 em::after { content: ""; position: absolute; left: 3%; right: 1%; bottom: -7px; height: 7px; border-radius: 10px; background: var(--lemon); transform: rotate(-1deg); }
+    .hero-copy > p { max-width: 590px; margin: 0 0 31px; color: var(--muted); font-size: 18px; font-weight: 600; line-height: 1.65; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 13px; }
+    .trust-row { display: flex; flex-wrap: wrap; gap: 17px; margin-top: 25px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .trust-row span::before { content: "✓"; margin-right: 5px; color: var(--orange); }
+
+    .result-stage { min-height: 485px; position: relative; perspective: 1000px; }
+    .halo { position: absolute; width: 420px; height: 420px; left: 50%; top: 50%; border-radius: 50%; background: var(--orange-soft); transform: translate(-50%, -50%); }
+    .halo::before { content: ""; position: absolute; width: 255px; height: 255px; left: -45px; top: 32px; border-radius: 50%; background: var(--sky); opacity: .8; }
+    .result-card {
+      width: min(385px, 86%);
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      padding: 16px;
+      border: 1px solid rgba(23, 26, 25, .07);
+      border-radius: 28px;
+      background: rgba(255,255,255,.94);
+      box-shadow: var(--shadow);
+      transform: translate(-50%, -50%) rotateY(-5deg) rotateX(2deg) rotate(2deg);
+      backdrop-filter: blur(10px);
+      transition: transform .3s ease;
+    }
+    .result-stage:hover .result-card { transform: translate(-50%, -52%) rotateY(0) rotateX(0) rotate(0); }
+    .result-top { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 15px; }
+    .result-label { display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 800; }
+    .result-label i { width: 10px; height: 10px; border-radius: 50%; background: #55d98b; box-shadow: 0 0 0 4px #e2f9eb; }
+    .dots { letter-spacing: 2px; color: #b7bfbb; }
+    .result-screen { min-height: 240px; display: flex; flex-direction: column; justify-content: space-between; padding: 27px; border-radius: 20px; background: var(--ink); color: white; position: relative; overflow: hidden; }
+    .result-screen::after { content: ""; position: absolute; width: 180px; height: 180px; right: -78px; bottom: -90px; border-radius: 50%; background: var(--orange); }
+    .screen-icon { width: 75px; height: 75px; display: grid; place-items: center; border-radius: 22px; background: var(--lemon); font-size: 39px; transform: rotate(-5deg); }
+    .result-screen small { display: block; margin-bottom: 5px; color: #afb8b3; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+    .result-screen strong { display: block; max-width: 240px; font: 700 23px/1.25 "Manrope", sans-serif; position: relative; z-index: 1; }
+    .result-bottom { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 18px 5px 2px; font-size: 11px; font-weight: 750; }
+    .ready { padding: 6px 10px; border-radius: 8px; background: var(--mint); color: #20613b; }
+    .float-chip { position: absolute; display: flex; align-items: center; gap: 7px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 13px; background: white; box-shadow: 0 14px 35px rgba(39, 50, 45, .13); font-size: 11px; font-weight: 800; }
+    .float-chip.one { left: -3px; top: 79px; transform: rotate(-8deg); }
+    .float-chip.two { right: -6px; bottom: 90px; transform: rotate(7deg); }
+    .float-chip.three { left: 25px; bottom: 22px; transform: rotate(-3deg); }
+
+    .proof-line { border-block: 1px solid var(--line); background: rgba(255,255,255,.55); }
+    .proof-row { min-height: 78px; display: flex; justify-content: space-between; align-items: center; gap: 25px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .proof-row strong { color: var(--ink); font-size: 13px; }
+    .proof-items { display: flex; align-items: center; justify-content: flex-end; gap: 28px; }
+
+    .section { padding: 112px 0; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 38px; }
+    .section h2 { max-width: 650px; margin: 0; font: 800 clamp(39px, 4.8vw, 61px)/1.04 "Manrope", sans-serif; letter-spacing: -.055em; }
+    .section-head p { max-width: 390px; margin: 0; color: var(--muted); font-size: 14px; font-weight: 600; }
+    .listings { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .listing {
+      min-width: 0;
+      padding: 11px 11px 21px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--white);
+      box-shadow: 0 12px 30px rgba(39, 50, 45, .055);
+      transition: transform .25s ease, box-shadow .25s ease;
+      transform-style: preserve-3d;
+    }
+    .listing:hover { transform: translateY(-9px) rotateX(2deg) rotateY(-2deg); box-shadow: 0 24px 48px rgba(39, 50, 45, .12); }
+    .cover { height: 176px; display: grid; place-items: center; border-radius: 17px; font-size: 61px; position: relative; overflow: hidden; }
+    .listing:nth-child(1) .cover { background: var(--orange-soft); }
+    .listing:nth-child(2) .cover { background: var(--sky); }
+    .listing:nth-child(3) .cover { background: var(--lemon); }
+    .listing:nth-child(4) .cover { background: var(--mint); }
+    .cover::before { content: ""; position: absolute; width: 98px; height: 98px; border-radius: 29px; background: rgba(255,255,255,.62); transform: rotate(8deg); }
+    .cover span { position: relative; z-index: 1; filter: drop-shadow(0 8px 9px rgba(0,0,0,.12)); }
+    .listing-body { padding: 17px 8px 0; }
+    .listing h3 { min-height: 45px; margin: 0 0 7px; font: 750 17px/1.25 "Manrope", sans-serif; letter-spacing: -.025em; }
+    .listing p { min-height: 42px; margin: 0 0 16px; color: var(--muted); font-size: 12px; font-weight: 600; }
+    .price { display: inline-flex; padding: 6px 9px; border-radius: 8px; background: #f1f3f0; color: #4d5652; font-size: 10px; font-weight: 800; }
+
+    .pricing-section { padding: 0 0 115px; }
+    .pricing {
+      display: grid;
+      grid-template-columns: 1.25fr repeat(3, 1fr);
+      padding: 10px;
+      border-radius: 27px;
+      background: var(--ink);
+      color: white;
+      box-shadow: 0 30px 65px rgba(23, 26, 25, .17);
+    }
+    .pricing-intro { display: flex; flex-direction: column; justify-content: center; padding: 30px; }
+    .pricing-intro span { color: var(--lemon); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .pricing-intro h2 { margin: 7px 0 3px; font: 750 28px/1.1 "Manrope", sans-serif; letter-spacing: -.04em; }
+    .pricing-intro p { margin: 0; color: #aab3af; font-size: 12px; }
+    .price-mode { margin: 0 0 0 8px; padding: 25px; border-radius: 19px; background: #272b29; }
+    .price-mode b { display: block; margin: 16px 0 5px; font-size: 17px; }
+    .price-mode p { margin: 0; color: #aeb6b2; font-size: 11px; }
+    .mode-dot { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; color: var(--ink); font-size: 17px; }
+    .price-mode:nth-child(2) .mode-dot { background: var(--mint); }
+    .price-mode:nth-child(3) .mode-dot { background: var(--lemon); }
+    .price-mode:nth-child(4) .mode-dot { background: var(--orange); color: white; }
+
+    footer { border-top: 1px solid var(--line); background: white; }
+    .footer-row { min-height: 132px; display: flex; align-items: center; justify-content: space-between; gap: 30px; }
+    .footer-brand strong { display: block; font: 800 25px/1 "Manrope", sans-serif; letter-spacing: -.05em; }
+    .footer-brand span { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 25px; color: #4f5854; font-size: 12px; font-weight: 750; }
+
+    @media (max-width: 960px) {
+      .nav-links { display: none; }
+      .hero { grid-template-columns: 1fr; gap: 55px; text-align: center; }
+      .hero-copy > p { margin-inline: auto; }
+      .hero-actions, .trust-row { justify-content: center; }
+      .result-stage { width: min(540px, 100%); margin-inline: auto; }
+      .listings { grid-template-columns: repeat(2, 1fr); }
+      .pricing { grid-template-columns: repeat(3, 1fr); }
+      .pricing-intro { grid-column: 1 / -1; text-align: center; }
+    }
+
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 24px, 1190px); }
+      .nav { min-height: 72px; }
+      .brand { font-size: 25px; }
+      .brand-orbit { width: 29px; height: 29px; }
+      .sign-in { min-height: 39px; padding-inline: 14px; }
+      .hero { min-height: 0; padding: 66px 0 86px; }
+      .hero h1 { font-size: clamp(46px, 14.5vw, 64px); }
+      .hero h1 em { white-space: normal; }
+      .hero-copy > p { font-size: 16px; }
+      .hero-actions { flex-direction: column; align-items: stretch; padding: 0 8px; }
+      .trust-row { gap: 9px 15px; font-size: 11px; }
+      .result-stage { min-height: 410px; }
+      .halo { width: 330px; height: 330px; }
+      .halo::before { width: 190px; height: 190px; left: -20px; }
+      .result-card { width: 288px; padding: 11px; border-radius: 23px; }
+      .result-screen { min-height: 200px; padding: 21px; }
+      .screen-icon { width: 61px; height: 61px; font-size: 32px; }
+      .result-screen strong { font-size: 19px; }
+      .float-chip { padding: 8px 10px; }
+      .float-chip.one { left: 0; top: 32px; }
+      .float-chip.two { right: 0; bottom: 48px; }
+      .float-chip.three { left: 6px; bottom: 4px; }
+      .proof-row { min-height: 110px; flex-direction: column; justify-content: center; text-align: center; }
+      .proof-items { justify-content: center; flex-wrap: wrap; gap: 11px 19px; }
+      .section { padding: 84px 0; }
+      .section-head { display: block; text-align: center; }
+      .section-head p { margin: 12px auto 0; }
+      .listings { grid-template-columns: 1fr; }
+      .cover { height: 190px; }
+      .listing h3, .listing p { min-height: 0; }
+      .pricing { grid-template-columns: 1fr; }
+      .pricing-intro { grid-column: auto; }
+      .price-mode { margin: 5px 0 0; text-align: center; }
+      .mode-dot { margin-inline: auto; }
+      .footer-row { padding: 35px 0; flex-direction: column; align-items: flex-start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="#" aria-label="Omo home"><span class="brand-orbit"></span>omo</a>
+      <div class="nav-links"><a href="#store">Store</a><a href="#creators">For creators</a><a href="#host">Host yours</a><a href="#dashboard">Dashboard</a></div>
+      <a class="sign-in" href="#signin">Sign in</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero shell">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="eyebrow-dot"></span>workflows that work</span>
+        <h1>Buy the result, <em>not another</em> subscription.</h1>
+        <p>Useful AI workflows without the monthly baggage. Run one for pennies, buy one to keep, or download it and make it yours.</p>
+        <div class="hero-actions"><a class="button primary" href="#store">Explore the store <span aria-hidden="true">&nbsp;↗</span></a><a class="button secondary" href="#creators">Start selling</a></div>
+        <div class="trust-row"><span>One API call</span><span>No lock-in</span><span>Run locally</span></div>
+      </div>
+
+      <div class="result-stage" aria-label="A finished workflow result ready to download">
+        <div class="halo"></div>
+        <span class="float-chip one">⚡ one quick run</span><span class="float-chip two">📦 yours to keep</span><span class="float-chip three">☁️ or run anywhere</span>
+        <article class="result-card">
+          <div class="result-top"><span class="result-label"><i></i> Workflow complete</span><span class="dots">•••</span></div>
+          <div class="result-screen"><span class="screen-icon">✨</span><div><small>Your result</small><strong>24 product descriptions, polished and ready.</strong></div></div>
+          <div class="result-bottom"><span class="ready">Ready to download</span><span>cost · $0.10</span></div>
+        </article>
+      </div>
+    </section>
+
+    <div class="proof-line"><div class="proof-row shell"><strong>Small price. Finished job.</strong><div class="proof-items"><span>✓ Proven by real makers</span><span>✓ Transparent pricing</span><span>✓ No recurring bill</span></div></div></div>
+
+    <section class="section shell" id="store">
+      <div class="section-head"><h2>Good tools. Zero tool collecting.</h2><p>Choose a job, get the result, move on with your day. Beautifully simple.</p></div>
+      <div class="listings">
+        <article class="listing"><div class="cover"><span>🧩</span></div><div class="listing-body"><h3>Arcads Node UGC Builder</h3><p>Build scroll-ready UGC from your product brief.</p><span class="price">$4 one-time</span></div></article>
+        <article class="listing"><div class="cover"><span>🛍️</span></div><div class="listing-body"><h3>Shopify Pics → Descriptions</h3><p>Turn product photos into clean shop copy.</p><span class="price">≈ $0.10 / run</span></div></article>
+        <article class="listing"><div class="cover"><span>🔤</span></div><div class="listing-body"><h3>Phonics Book Maker</h3><p>Create a custom printable reading book.</p><span class="price">Free</span></div></article>
+        <article class="listing"><div class="cover"><span>🎬</span></div><div class="listing-body"><h3>AI Song + Animation Maker</h3><p>Go from a thought to a tiny music video.</p><span class="price">$2 one-time</span></div></article>
+      </div>
+    </section>
+
+    <section class="pricing-section shell" id="creators">
+      <div class="pricing">
+        <div class="pricing-intro"><span>Choose what fits</span><h2>Fair from the start.</h2><p>Every price is clear before you run.</p></div>
+        <div class="price-mode"><span class="mode-dot">♡</span><b>Free</b><p>Useful, generous, $0.</p></div>
+        <div class="price-mode"><span class="mode-dot">↓</span><b>One-time</b><p>Buy once. Keep forever.</p></div>
+        <div class="price-mode"><span class="mode-dot">↻</span><b>Per-use</b><p>Pay only when it runs.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-row shell">
+      <div class="footer-brand"><strong>Omo.</strong><span>Marketplace of proven AI workflows</span></div>
+      <div class="footer-links"><a href="#store">Store</a><a href="#creators">Creators</a><a href="#about">About</a><a href="#terms">Terms</a></div>
+    </div>
+  </footer>
+</body>
+</html>

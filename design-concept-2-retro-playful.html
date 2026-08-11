@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Omo marketplace — Retro Arcade Fun design concept">
+  <title>Omo — Retro Arcade Fun</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,500..800&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream: #fff4cf;
+      --paper: #fffaf0;
+      --ink: #252126;
+      --coral: #ff625c;
+      --mustard: #f4bd3c;
+      --teal: #27b6a8;
+      --blue: #5e8df5;
+      --pink: #ff8abb;
+      --border: 3px solid var(--ink);
+      --shadow: 7px 7px 0 var(--ink);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background-color: var(--cream);
+      background-image: radial-gradient(rgba(37, 33, 38, .13) 1.2px, transparent 1.2px);
+      background-size: 18px 18px;
+      font-family: "Bricolage Grotesque", sans-serif;
+      font-size: 16px;
+      line-height: 1.45;
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(1180px, calc(100% - 42px)); margin-inline: auto; }
+
+    .nav-wrap { padding: 18px 0; }
+    .nav {
+      min-height: 68px;
+      padding: 9px 10px 9px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border: var(--border);
+      border-radius: 16px;
+      background: var(--paper);
+      box-shadow: 5px 5px 0 var(--ink);
+    }
+
+    .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 29px; letter-spacing: -.055em; }
+    .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border: 2px solid var(--ink); border-radius: 9px; background: var(--coral); box-shadow: 3px 3px 0 var(--ink); transform: rotate(-5deg); font: 700 16px/1 "Space Mono", monospace; }
+    .nav-links { display: flex; align-items: center; gap: 27px; font: 700 13px/1 "Space Mono", monospace; }
+    .nav-links a { border-bottom: 2px solid transparent; }
+    .nav-links a:hover { border-color: var(--coral); }
+
+    .button, .sign-in {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid var(--ink);
+      color: var(--ink);
+      font-family: "Space Mono", monospace;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: -.03em;
+      transition: transform .15s, box-shadow .15s;
+    }
+
+    .sign-in { min-height: 43px; padding: 0 16px; border-radius: 10px; background: var(--mustard); box-shadow: 3px 3px 0 var(--ink); }
+    .button { min-height: 54px; padding: 0 21px; border-radius: 12px; box-shadow: 5px 5px 0 var(--ink); }
+    .button.primary { background: var(--coral); }
+    .button.secondary { background: var(--teal); }
+    .button:hover, .sign-in:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--ink); }
+    .button:active, .sign-in:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
+
+    .hero {
+      min-height: 660px;
+      display: grid;
+      grid-template-columns: 1.02fr .98fr;
+      align-items: center;
+      gap: 56px;
+      padding: 65px 0 88px;
+    }
+
+    .kicker { display: inline-block; padding: 7px 12px; border: 2px solid var(--ink); background: var(--mustard); box-shadow: 3px 3px 0 var(--ink); font: 700 12px/1.2 "Space Mono", monospace; transform: rotate(-2deg); }
+    .hero h1 { margin: 26px 0 21px; font-size: clamp(50px, 6.3vw, 82px); font-weight: 800; line-height: .91; letter-spacing: -.07em; }
+    .hero h1 span { display: inline-block; color: var(--coral); text-shadow: 3px 3px 0 var(--ink); -webkit-text-stroke: 2px var(--ink); transform: rotate(-1.5deg); }
+    .hero-copy > p { max-width: 590px; margin: 0 0 29px; font-size: 18px; font-weight: 600; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 15px; }
+    .run-note { margin: 21px 0 0; font: 700 12px/1.5 "Space Mono", monospace; }
+
+    .arcade-scene { min-height: 480px; position: relative; }
+    .burst {
+      position: absolute;
+      inset: 0;
+      background: var(--mustard);
+      border: var(--border);
+      box-shadow: 10px 10px 0 var(--ink);
+      clip-path: polygon(50% 0, 60% 14%, 75% 5%, 78% 23%, 96% 19%, 88% 36%, 100% 49%, 83% 58%, 93% 75%, 74% 76%, 70% 96%, 54% 84%, 40% 100%, 32% 82%, 12% 90%, 16% 69%, 0 62%, 16% 48%, 4% 32%, 25% 29%, 23% 8%, 42% 18%);
+    }
+
+    .machine {
+      position: absolute;
+      width: 330px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) rotate(2deg);
+      border: var(--border);
+      border-radius: 25px 25px 36px 36px;
+      background: var(--coral);
+      box-shadow: 9px 9px 0 var(--ink);
+      overflow: hidden;
+    }
+
+    .machine-head { padding: 13px; border-bottom: 3px solid var(--ink); background: var(--teal); text-align: center; font: 700 17px/1 "Space Mono", monospace; letter-spacing: .06em; }
+    .screen { margin: 18px; padding: 22px 18px; min-height: 175px; border: var(--border); border-radius: 15px; background: #24283a; color: white; text-align: center; box-shadow: inset 5px 5px 0 rgba(0,0,0,.25); }
+    .screen-emoji { display: block; font-size: 67px; filter: drop-shadow(4px 4px 0 #000); }
+    .screen strong { display: block; margin-top: 6px; color: #b8ff76; font: 700 15px/1.3 "Space Mono", monospace; }
+    .controls { display: flex; align-items: center; justify-content: space-around; padding: 4px 32px 25px; }
+    .joystick { position: relative; width: 15px; height: 40px; border: 2px solid var(--ink); background: var(--ink); }
+    .joystick::before { content: ""; position: absolute; width: 31px; height: 31px; left: 50%; top: -17px; transform: translateX(-50%); border: 3px solid var(--ink); border-radius: 50%; background: var(--blue); }
+    .joystick::after { content: ""; position: absolute; width: 58px; height: 13px; left: 50%; bottom: -4px; transform: translateX(-50%); border: 3px solid var(--ink); border-radius: 50%; background: var(--mustard); }
+    .buttons { display: flex; gap: 10px; transform: rotate(-8deg); }
+    .round-button { width: 37px; height: 37px; border: 3px solid var(--ink); border-radius: 50%; background: var(--pink); box-shadow: 3px 3px 0 var(--ink); }
+    .round-button + .round-button { background: var(--blue); }
+    .sticker { position: absolute; padding: 9px 12px; border: 3px solid var(--ink); border-radius: 999px; box-shadow: 4px 4px 0 var(--ink); font: 700 11px/1 "Space Mono", monospace; }
+    .sticker.one { right: -10px; top: 24px; background: var(--pink); transform: rotate(9deg); }
+    .sticker.two { left: -7px; bottom: 48px; background: var(--blue); color: white; transform: rotate(-9deg); }
+
+    .marquee { padding: 12px 0; overflow: hidden; border-block: var(--border); background: var(--teal); }
+    .marquee-track { width: max-content; display: flex; gap: 28px; font: 700 14px/1 "Space Mono", monospace; text-transform: uppercase; }
+    .marquee-track span::after { content: "✹"; margin-left: 28px; }
+
+    .section { padding: 96px 0; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 41px; }
+    .title-lockup { position: relative; }
+    .title-lockup small { display: block; margin-bottom: 6px; font: 700 12px/1 "Space Mono", monospace; text-transform: uppercase; }
+    .section h2 { margin: 0; font-size: clamp(38px, 5vw, 61px); line-height: .95; letter-spacing: -.055em; }
+    .section-head p { max-width: 390px; margin: 0; font-weight: 650; }
+
+    .listings { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+    .listing {
+      min-width: 0;
+      padding: 11px 11px 19px;
+      border: var(--border);
+      border-radius: 17px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      transition: transform .2s;
+    }
+    .listing:nth-child(1) { transform: rotate(-1.5deg); }
+    .listing:nth-child(2) { transform: rotate(1.4deg) translateY(-6px); }
+    .listing:nth-child(3) { transform: rotate(-.8deg); }
+    .listing:nth-child(4) { transform: rotate(1.8deg) translateY(-4px); }
+    .listing:hover { transform: rotate(0) translateY(-10px); }
+    .cover { height: 157px; display: grid; place-items: center; border: 3px solid var(--ink); border-radius: 11px; font-size: 59px; position: relative; overflow: hidden; }
+    .listing:nth-child(1) .cover { background-color: var(--blue); background-image: radial-gradient(rgba(255,255,255,.55) 2px, transparent 2px); background-size: 15px 15px; }
+    .listing:nth-child(2) .cover { background: repeating-linear-gradient(-45deg, var(--coral), var(--coral) 12px, #ff817d 12px, #ff817d 24px); }
+    .listing:nth-child(3) .cover { background-color: var(--mustard); background-image: radial-gradient(var(--ink) 1.5px, transparent 1.5px); background-size: 13px 13px; }
+    .listing:nth-child(4) .cover { background: repeating-linear-gradient(90deg, var(--teal), var(--teal) 18px, #51cfc2 18px, #51cfc2 36px); }
+    .cover span { display: grid; place-items: center; width: 93px; height: 93px; border: var(--border); border-radius: 50%; background: var(--paper); box-shadow: 5px 5px 0 var(--ink); }
+    .cover::after { content: "NEW!"; position: absolute; right: -12px; top: 13px; padding: 5px 16px; border-block: 2px solid var(--ink); background: var(--pink); transform: rotate(10deg); font: 700 9px/1 "Space Mono", monospace; }
+    .listing-body { padding: 15px 5px 0; }
+    .listing h3 { min-height: 45px; margin: 0 0 8px; font-size: 18px; line-height: 1.15; letter-spacing: -.025em; }
+    .listing p { min-height: 44px; margin: 0 0 15px; font-size: 13px; font-weight: 600; }
+    .price { display: inline-flex; padding: 6px 9px; border: 2px solid var(--ink); border-radius: 7px; background: var(--mustard); box-shadow: 2px 2px 0 var(--ink); font: 700 10px/1 "Space Mono", monospace; }
+
+    .pricing-section { padding: 15px 0 105px; }
+    .pricing-box { border: var(--border); background: var(--coral); box-shadow: 10px 10px 0 var(--ink); }
+    .pricing-title { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 22px 28px; border-bottom: var(--border); }
+    .pricing-title h2 { margin: 0; font-size: 31px; letter-spacing: -.04em; }
+    .pricing-title span { font: 700 11px/1.3 "Space Mono", monospace; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--paper); }
+    .price-mode { padding: 29px; border-right: var(--border); }
+    .price-mode:last-child { border-right: 0; }
+    .price-mode strong { display: block; margin-bottom: 7px; font-size: 23px; }
+    .price-mode p { margin: 0; font: 400 12px/1.5 "Space Mono", monospace; }
+    .price-mode .mode-icon { display: inline-block; margin-bottom: 15px; font-size: 27px; transform: rotate(-7deg); }
+
+    footer { border-top: var(--border); background: var(--ink); color: var(--cream); }
+    .footer-row { min-height: 123px; display: flex; justify-content: space-between; align-items: center; gap: 28px; }
+    .footer-brand strong { display: block; font-size: 29px; line-height: 1; }
+    .footer-brand span { font: 400 12px/1.5 "Space Mono", monospace; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 24px; font: 700 11px/1 "Space Mono", monospace; text-transform: uppercase; }
+
+    @media (max-width: 950px) {
+      .nav-links { display: none; }
+      .hero { grid-template-columns: 1fr; text-align: center; gap: 45px; }
+      .hero-copy > p { margin-inline: auto; }
+      .hero-actions { justify-content: center; }
+      .arcade-scene { width: min(530px, 100%); margin-inline: auto; }
+      .listings { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 24px, 1180px); }
+      .nav-wrap { padding: 12px 0; }
+      .nav { min-height: 61px; padding-left: 13px; }
+      .brand { font-size: 25px; }
+      .brand-mark { width: 31px; height: 31px; font-size: 13px; }
+      .sign-in { min-height: 38px; padding-inline: 11px; font-size: 11px; }
+      .hero { min-height: 0; padding: 56px 0 75px; }
+      .hero h1 { font-size: clamp(46px, 15vw, 65px); }
+      .hero h1 span { -webkit-text-stroke-width: 1px; text-shadow: 2px 2px 0 var(--ink); }
+      .hero-actions { flex-direction: column; align-items: stretch; padding-inline: 8px; }
+      .arcade-scene { min-height: 390px; }
+      .machine { width: 270px; }
+      .machine-head { font-size: 14px; }
+      .screen { min-height: 145px; margin: 14px; padding: 16px; }
+      .screen-emoji { font-size: 52px; }
+      .sticker.one { right: 0; }
+      .sticker.two { left: 0; }
+      .section { padding: 73px 0; }
+      .section-head { display: block; text-align: center; }
+      .section-head p { margin: 12px auto 0; }
+      .listings { grid-template-columns: 1fr; gap: 29px; padding-inline: 5px; }
+      .listing h3, .listing p { min-height: 0; }
+      .cover { height: 175px; }
+      .pricing-title { display: block; text-align: center; }
+      .pricing-title span { display: block; margin-top: 7px; }
+      .pricing-grid { grid-template-columns: 1fr; }
+      .price-mode { border-right: 0; border-bottom: var(--border); text-align: center; }
+      .price-mode:last-child { border-bottom: 0; }
+      .footer-row { padding: 33px 0; flex-direction: column; align-items: flex-start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav-wrap shell">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="#" aria-label="Omo home"><span class="brand-mark">O!</span>OMO</a>
+      <div class="nav-links"><a href="#store">Store</a><a href="#creators">For creators</a><a href="#host">Host yours</a><a href="#dashboard">Dashboard</a></div>
+      <a class="sign-in" href="#signin">Sign in</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero shell">
+      <div class="hero-copy">
+        <span class="kicker">★ INSERT TASK — GET RESULT ★</span>
+        <h1>Buy the result, <span>not another subscription.</span></h1>
+        <p>One proven workflow. One tiny payment. One job gloriously done. Run it here, download it, or plug it into your stack.</p>
+        <div class="hero-actions"><a class="button primary" href="#store">Play the store →</a><a class="button secondary" href="#creators">Sell a workflow</a></div>
+        <p class="run-note">NO LOCK-IN / PAY PER PLAY / KEEP YOUR PRIZE</p>
+      </div>
+
+      <div class="arcade-scene" aria-label="An Omo arcade machine offering workflow results">
+        <div class="burst"></div>
+        <span class="sticker one">10¢ A RUN!</span><span class="sticker two">PROVEN ✓</span>
+        <div class="machine">
+          <div class="machine-head">OMO RESULT-O-MATIC</div>
+          <div class="screen"><span class="screen-emoji">🏆</span><strong>RESULT UNLOCKED!</strong></div>
+          <div class="controls"><span class="joystick"></span><div class="buttons"><span class="round-button"></span><span class="round-button"></span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="marquee" aria-hidden="true"><div class="marquee-track"><span>ONE API CALL</span><span>PAY PER USE</span><span>RUN IT LOCALLY</span><span>YOURS TO KEEP</span><span>ONE API CALL</span><span>PAY PER USE</span></div></div>
+
+    <section class="section shell" id="store">
+      <div class="section-head">
+        <div class="title-lockup"><small>Player select</small><h2>Choose your power-up</h2></div>
+        <p>Real workflows from makers who already beat the hard level.</p>
+      </div>
+      <div class="listings">
+        <article class="listing"><div class="cover"><span>🧩</span></div><div class="listing-body"><h3>Arcads Node UGC Builder</h3><p>Product in. Scroll-stopping UGC out.</p><span class="price">$4 ONE-TIME</span></div></article>
+        <article class="listing"><div class="cover"><span>🛍️</span></div><div class="listing-body"><h3>Shopify Pics → Descriptions</h3><p>Turn photo drops into shop-ready copy.</p><span class="price">≈ $0.10 / RUN</span></div></article>
+        <article class="listing"><div class="cover"><span>🔤</span></div><div class="listing-body"><h3>Phonics Book Maker</h3><p>A printable reading quest, ready fast.</p><span class="price">FREE</span></div></article>
+        <article class="listing"><div class="cover"><span>🎬</span></div><div class="listing-body"><h3>AI Song + Animation Maker</h3><p>Make your own bite-size music video.</p><span class="price">$2 ONE-TIME</span></div></article>
+      </div>
+    </section>
+
+    <section class="pricing-section shell" id="creators">
+      <div class="pricing-box">
+        <div class="pricing-title"><h2>Pick your coin slot</h2><span>NO MEMBERSHIP CARD REQUIRED</span></div>
+        <div class="pricing-grid">
+          <div class="price-mode"><span class="mode-icon">🆓</span><strong>Free</strong><p>Zero coins. Full result. Nice.</p></div>
+          <div class="price-mode"><span class="mode-icon">🎟️</span><strong>One-time</strong><p>Buy the cartridge. Keep it forever.</p></div>
+          <div class="price-mode"><span class="mode-icon">🕹️</span><strong>Per-use</strong><p>Drop in a few cents when you play.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-row shell">
+      <div class="footer-brand"><strong>OMO.</strong><span>Marketplace of proven AI workflows</span></div>
+      <div class="footer-links"><a href="#store">Store</a><a href="#creators">Creators</a><a href="#about">About</a><a href="#terms">Terms</a></div>
+    </div>
+  </footer>
+</body>
+</html>

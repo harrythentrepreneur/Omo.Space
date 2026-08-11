@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Omo marketplace — Sweet & Pastel design concept">
+  <title>Omo — Sweet &amp; Pastel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&amp;family=Nunito:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream: #fff9f3;
+      --paper: #fffefd;
+      --ink: #4f3f59;
+      --muted: #766b7f;
+      --peach: #ffb89d;
+      --peach-deep: #f47f78;
+      --lilac: #d9c5ff;
+      --mint: #bdeedb;
+      --blue: #bfe4ff;
+      --lemon: #ffe99a;
+      --line: rgba(79, 63, 89, .12);
+      --shadow: 0 16px 0 rgba(158, 132, 171, .09), 0 24px 48px rgba(110, 83, 124, .11);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 7% 12%, rgba(217, 197, 255, .34) 0 7%, transparent 7.2%),
+        radial-gradient(circle at 97% 28%, rgba(189, 238, 219, .4) 0 9%, transparent 9.2%),
+        var(--cream);
+      font-family: "Nunito", sans-serif;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+
+    .shell {
+      width: min(1180px, calc(100% - 40px));
+      margin-inline: auto;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 86px;
+      gap: 28px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font: 800 30px/1 "Baloo 2", sans-serif;
+      letter-spacing: -.04em;
+    }
+
+    .brand-bean {
+      width: 39px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 52% 48% 44% 56% / 56% 45% 55% 44%;
+      background: var(--peach);
+      transform: rotate(-7deg);
+      box-shadow: inset -3px -4px 0 rgba(244, 127, 120, .2);
+      font: 800 15px/1 sans-serif;
+    }
+
+    .nav-links { display: flex; align-items: center; gap: 29px; font-weight: 800; font-size: 14px; }
+    .nav-links a { transition: color .2s, transform .2s; }
+    .nav-links a:hover { color: var(--peach-deep); transform: translateY(-2px); }
+
+    .sign-in,
+    .button {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      border: 0;
+      border-radius: 999px;
+      font-weight: 900;
+      transition: transform .2s, box-shadow .2s;
+    }
+
+    .sign-in {
+      padding: 12px 20px;
+      background: var(--paper);
+      box-shadow: 0 5px 0 var(--lilac);
+    }
+
+    .button { padding: 16px 24px; min-width: 154px; }
+    .button.primary { background: var(--peach-deep); color: white; box-shadow: 0 7px 0 #d96264; }
+    .button.secondary { background: var(--paper); box-shadow: 0 7px 0 var(--lilac); }
+    .button:hover, .sign-in:hover { transform: translateY(-3px); }
+    .button:active, .sign-in:active { transform: translateY(2px); box-shadow: none; }
+
+    .hero {
+      min-height: 660px;
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      align-items: center;
+      gap: 48px;
+      padding: 70px 0 90px;
+      position: relative;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--mint);
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .hero h1 {
+      max-width: 690px;
+      margin: 24px 0 20px;
+      font: 800 clamp(48px, 6.2vw, 79px)/.96 "Baloo 2", sans-serif;
+      letter-spacing: -.055em;
+    }
+
+    .hero h1 .swash {
+      display: inline-block;
+      color: var(--peach-deep);
+      position: relative;
+      z-index: 0;
+    }
+
+    .hero h1 .swash::after {
+      content: "";
+      position: absolute;
+      left: -2%;
+      right: -3%;
+      bottom: 4px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--lemon);
+      z-index: -1;
+      transform: rotate(-1deg);
+    }
+
+    .hero-copy > p { max-width: 575px; margin: 0 0 30px; color: var(--muted); font-size: 19px; font-weight: 650; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 14px; }
+    .tiny-note { display: block; margin-top: 21px; font-size: 13px; font-weight: 800; color: #887790; }
+
+    .candy-scene {
+      min-height: 480px;
+      position: relative;
+      isolation: isolate;
+    }
+
+    .blob {
+      position: absolute;
+      inset: 5% 0 1% 3%;
+      border-radius: 42% 58% 57% 43% / 46% 38% 62% 54%;
+      background: var(--lilac);
+      transform: rotate(-3deg);
+      z-index: -2;
+      box-shadow: var(--shadow);
+    }
+
+    .blob::before {
+      content: "";
+      position: absolute;
+      inset: 9%;
+      border: 3px dashed rgba(255,255,255,.65);
+      border-radius: inherit;
+    }
+
+    .mini-window {
+      position: absolute;
+      width: 250px;
+      padding: 18px;
+      border: 5px solid var(--paper);
+      border-radius: 28px;
+      background: rgba(255, 254, 253, .94);
+      box-shadow: 0 18px 36px rgba(91, 65, 105, .17);
+      backdrop-filter: blur(8px);
+    }
+
+    .mini-window.one { left: 4%; top: 13%; transform: rotate(-7deg); }
+    .mini-window.two { right: 1%; top: 28%; transform: rotate(7deg); }
+    .mini-window.three { left: 22%; bottom: 3%; transform: rotate(2deg); }
+    .mini-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .mini-icon { width: 66px; height: 66px; display: grid; place-items: center; border-radius: 22px; font-size: 34px; }
+    .one .mini-icon { background: var(--blue); }
+    .two .mini-icon { background: var(--mint); }
+    .three .mini-icon { background: var(--peach); }
+    .face { font: 900 16px/1 monospace; letter-spacing: -3px; }
+    .mini-title { margin: 14px 0 5px; font: 800 18px/1.12 "Baloo 2", sans-serif; }
+    .mini-line { height: 8px; margin-top: 8px; border-radius: 8px; background: #eee6f1; }
+    .mini-line.short { width: 60%; }
+    .sparkle { position: absolute; font-size: 29px; filter: drop-shadow(0 5px 0 rgba(255,255,255,.6)); animation: float 3s ease-in-out infinite; }
+    .sparkle.a { right: 8%; top: 3%; }
+    .sparkle.b { left: 0; bottom: 18%; animation-delay: -.8s; }
+    .sparkle.c { right: 2%; bottom: 5%; animation-delay: -1.7s; }
+
+    @keyframes float { 50% { transform: translateY(-9px) rotate(6deg); } }
+
+    .section { padding: 88px 0; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+    .section h2 { margin: 0; font: 800 clamp(35px, 4vw, 53px)/1 "Baloo 2", sans-serif; letter-spacing: -.035em; }
+    .section-head p { max-width: 410px; margin: 0; color: var(--muted); font-weight: 700; }
+
+    .listings { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .listing {
+      min-width: 0;
+      padding: 12px 12px 20px;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: var(--paper);
+      box-shadow: 0 13px 0 rgba(199, 180, 210, .2);
+      transition: transform .22s, box-shadow .22s;
+    }
+
+    .listing:hover { transform: translateY(-8px) rotate(-1deg); box-shadow: 0 20px 0 rgba(199, 180, 210, .2); }
+    .listing:nth-child(even):hover { transform: translateY(-8px) rotate(1deg); }
+    .cover { height: 166px; display: grid; place-items: center; border-radius: 23px; position: relative; overflow: hidden; font-size: 60px; }
+    .listing:nth-child(1) .cover { background: var(--lilac); }
+    .listing:nth-child(2) .cover { background: var(--peach); }
+    .listing:nth-child(3) .cover { background: var(--mint); }
+    .listing:nth-child(4) .cover { background: var(--blue); }
+    .cover::after { content: "•ᴗ•"; position: absolute; right: 13px; bottom: 9px; padding: 6px 8px; border-radius: 99px; background: rgba(255,255,255,.65); font: 900 14px/1 monospace; letter-spacing: -1px; }
+    .listing-body { padding: 16px 7px 0; }
+    .listing h3 { min-height: 48px; margin: 0 0 7px; font: 800 19px/1.18 "Baloo 2", sans-serif; letter-spacing: -.015em; }
+    .listing p { min-height: 42px; margin: 0 0 16px; color: var(--muted); font-size: 13px; font-weight: 700; }
+    .price { display: inline-flex; padding: 7px 11px; border-radius: 999px; background: #f5eff8; font-size: 12px; font-weight: 900; }
+
+    .pricing-wrap { padding: 26px 0 100px; }
+    .pricing {
+      display: grid;
+      grid-template-columns: 1.05fr repeat(3, 1fr);
+      align-items: stretch;
+      overflow: hidden;
+      border-radius: 34px;
+      background: var(--ink);
+      color: white;
+      box-shadow: var(--shadow);
+    }
+
+    .pricing-intro { padding: 34px; background: linear-gradient(145deg, #574461, #43344b); }
+    .pricing-intro .tiny { color: var(--mint); font-weight: 900; text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
+    .pricing-intro h2 { margin: 8px 0 5px; font: 800 30px/1.05 "Baloo 2", sans-serif; }
+    .pricing-intro p { margin: 0; color: #d9ccdf; font-size: 14px; }
+    .pricing-item { display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 28px; border-left: 1px solid rgba(255,255,255,.12); }
+    .pricing-item:nth-child(2) { background: rgba(189, 238, 219, .09); }
+    .pricing-item:nth-child(3) { background: rgba(255, 184, 157, .09); }
+    .pricing-item:nth-child(4) { background: rgba(191, 228, 255, .09); }
+    .pricing-item strong { font: 800 22px/1.1 "Baloo 2", sans-serif; }
+    .pricing-item span { color: #d9ccdf; font-size: 13px; font-weight: 700; }
+
+    footer { padding: 38px 0; border-top: 1px solid var(--line); }
+    .footer-row { display: flex; align-items: center; justify-content: space-between; gap: 28px; }
+    .footer-brand strong { display: block; font: 800 25px/1 "Baloo 2", sans-serif; }
+    .footer-brand span { color: var(--muted); font-size: 13px; font-weight: 700; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 24px; font-size: 13px; font-weight: 900; }
+
+    @media (max-width: 940px) {
+      .nav-links { display: none; }
+      .hero { grid-template-columns: 1fr; padding-top: 48px; }
+      .hero-copy { text-align: center; }
+      .hero-copy > p { margin-inline: auto; }
+      .hero-actions { justify-content: center; }
+      .candy-scene { width: min(520px, 100%); margin: 0 auto; }
+      .listings { grid-template-columns: repeat(2, 1fr); }
+      .pricing { grid-template-columns: 1fr 1fr 1fr; }
+      .pricing-intro { grid-column: 1 / -1; }
+      .pricing-item:nth-child(2) { border-left: 0; }
+    }
+
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 24px, 1180px); }
+      .nav { min-height: 72px; }
+      .brand { font-size: 26px; }
+      .brand-bean { width: 34px; height: 30px; }
+      .sign-in { padding: 10px 15px; }
+      .hero { min-height: 0; gap: 35px; padding: 54px 0 60px; }
+      .hero h1 { font-size: clamp(43px, 14.5vw, 61px); }
+      .hero-copy > p { font-size: 17px; }
+      .hero-actions { flex-direction: column; align-items: stretch; padding: 0 10px; }
+      .candy-scene { min-height: 390px; }
+      .mini-window { width: 205px; padding: 14px; border-radius: 23px; }
+      .mini-window.one { left: 0; }
+      .mini-window.two { right: 0; top: 34%; }
+      .mini-window.three { left: 14%; bottom: 0; }
+      .mini-icon { width: 52px; height: 52px; font-size: 27px; border-radius: 17px; }
+      .mini-title { font-size: 16px; }
+      .section { padding: 65px 0; }
+      .section-head { display: block; text-align: center; }
+      .section-head p { margin: 10px auto 0; }
+      .listings { grid-template-columns: 1fr; }
+      .cover { height: 180px; }
+      .listing h3, .listing p { min-height: 0; }
+      .pricing { grid-template-columns: 1fr; }
+      .pricing-intro { grid-column: auto; }
+      .pricing-item { border-left: 0; border-top: 1px solid rgba(255,255,255,.12); }
+      .footer-row { align-items: flex-start; flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="#" aria-label="Omo home"><span class="brand-bean">•ᴗ•</span>omo</a>
+      <div class="nav-links">
+        <a href="#store">Store</a>
+        <a href="#creators">For creators</a>
+        <a href="#host">Host yours</a>
+        <a href="#dashboard">Dashboard</a>
+      </div>
+      <a class="sign-in" href="#signin">Sign in</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero shell">
+      <div class="hero-copy">
+        <span class="eyebrow">✦ tiny tools, big wins</span>
+        <h1>Buy the <span class="swash">result,</span> not another subscription.</h1>
+        <p>Pick a proven AI helper, send it one task, and get something lovely back. Pay only when you use it—no forever plans, no lock-in.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#store">Browse helpers ✨</a>
+          <a class="button secondary" href="#creators">Sell your workflow</a>
+        </div>
+        <span class="tiny-note">One API call · run locally · yours to keep</span>
+      </div>
+
+      <div class="candy-scene" aria-label="A playful stack of Omo workflow cards">
+        <div class="blob"></div>
+        <span class="sparkle a">✨</span><span class="sparkle b">⭐</span><span class="sparkle c">✦</span>
+        <article class="mini-window one">
+          <div class="mini-top"><span class="mini-icon">🛍️</span><span class="face">•ᴗ•</span></div>
+          <div class="mini-title">Pics become product copy</div>
+          <div class="mini-line"></div><div class="mini-line short"></div>
+        </article>
+        <article class="mini-window two">
+          <div class="mini-top"><span class="mini-icon">🎵</span><span class="face">•◡•</span></div>
+          <div class="mini-title">A song, ready to share</div>
+          <div class="mini-line"></div><div class="mini-line short"></div>
+        </article>
+        <article class="mini-window three">
+          <div class="mini-top"><span class="mini-icon">📚</span><span class="face">•ᴗ•</span></div>
+          <div class="mini-title">Your phonics book is ready!</div>
+          <div class="mini-line"></div><div class="mini-line short"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section shell" id="store">
+      <div class="section-head">
+        <h2>Pick a little helper</h2>
+        <p>Made by clever people, tested in the real world, and ready to get right to work.</p>
+      </div>
+      <div class="listings">
+        <article class="listing">
+          <div class="cover" aria-hidden="true">🧩</div>
+          <div class="listing-body"><h3>Arcads Node UGC Builder</h3><p>Turn a product idea into ready-to-post UGC.</p><span class="price">$4 one-time</span></div>
+        </article>
+        <article class="listing">
+          <div class="cover" aria-hidden="true">🛍️</div>
+          <div class="listing-body"><h3>Shopify Pics → Descriptions</h3><p>Sweet product copy, straight from your photos.</p><span class="price">≈ $0.10 / run</span></div>
+        </article>
+        <article class="listing">
+          <div class="cover" aria-hidden="true">🔤</div>
+          <div class="listing-body"><h3>Phonics Book Maker</h3><p>Make a cheerful practice book in minutes.</p><span class="price">Free</span></div>
+        </article>
+        <article class="listing">
+          <div class="cover" aria-hidden="true">🎬</div>
+          <div class="listing-body"><h3>AI Song + Animation Maker</h3><p>Your idea becomes a song and tiny movie.</p><span class="price">$2 one-time</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="pricing-wrap shell" id="creators" aria-labelledby="pricing-title">
+      <div class="pricing">
+        <div class="pricing-intro"><span class="tiny">pay your way</span><h2 id="pricing-title">No tricky plans</h2><p>Each maker picks the fairest way to share.</p></div>
+        <div class="pricing-item"><strong>🌱 Free</strong><span>Try it. Keep it. Make something.</span></div>
+        <div class="pricing-item"><strong>🎁 One-time</strong><span>Buy once and download forever.</span></div>
+        <div class="pricing-item"><strong>✨ Per-use</strong><span>Pay cents when the magic runs.</span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-row shell">
+      <div class="footer-brand"><strong>Omo.</strong><span>Marketplace of proven AI workflows</span></div>
+      <div class="footer-links"><a href="#store">Store</a><a href="#creators">Creators</a><a href="#about">About</a><a href="#terms">Terms</a></div>
+    </div>
+  </footer>
+</body>
+</html>
