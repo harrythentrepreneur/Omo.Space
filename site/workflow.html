@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <meta name="theme-color" content="#F8F7F5">
-  <meta name="description" content="See what is inside this Omo workflow, then buy it once or run it on Omo's cloud.">
+  <meta name="description" content="See what is inside this Omo workflow. Download the workflow + prompts to run on your computer, or have Omo run it in the cloud per run.">
   <meta name="robots" content="index,follow">
   <title>Workflow details | Omo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -283,7 +283,7 @@
       line-height: 1.5;
     }
     .offer-actions { display: grid; gap: 13px; }
-    .offer-choice { display: grid; gap: 5px; }
+    .offer-choice { position: relative; }
     .button {
       min-height: 50px;
       width: 100%;
@@ -301,12 +301,71 @@
     .button-buy { background: var(--orange); color: var(--pine); }
     .button-run { border-color: var(--pine); background: var(--surface); color: var(--pine); }
     .button:hover:not(:disabled) { filter: brightness(.98); transform: translateY(-1px); }
-    .offer-choice-copy {
-      margin: 0 4px;
-      color: var(--moss);
+    .offer-choice .button { padding-inline: 36px; }
+    .offer-info {
+      position: absolute;
+      top: 50%;
+      right: 7px;
+      z-index: 2;
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: inherit;
+      transform: translateY(-50%);
+      cursor: help;
+    }
+    .offer-info-mark {
+      width: 17px;
+      height: 17px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(23, 53, 44, .48);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .18);
+      font: 700 11px/1 var(--body);
+    }
+    .offer-choice-run .offer-info-mark { background: rgba(23, 53, 44, .06); }
+    .offer-tooltip {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 9px);
+      z-index: 4;
+      width: max-content;
+      max-width: min(240px, calc(100vw - 48px));
+      padding: 8px 10px;
+      border-radius: 7px;
+      background: var(--pine);
+      box-shadow: 0 6px 18px rgba(23, 53, 44, .2);
+      color: #fff;
       font-size: 11px;
-      line-height: 1.4;
-      text-align: center;
+      font-weight: 500;
+      line-height: 1.45;
+      text-align: left;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(3px);
+      transition: opacity .15s ease, transform .15s ease, visibility .15s ease;
+      pointer-events: none;
+    }
+    .offer-tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      right: 15px;
+      border: 5px solid transparent;
+      border-top-color: var(--pine);
+    }
+    .offer-info:hover + .offer-tooltip,
+    .offer-info:focus-visible + .offer-tooltip,
+    .offer-info[aria-expanded="true"] + .offer-tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
     }
     .offer-note {
       margin: 8px 0 0;
@@ -448,13 +507,19 @@
               <h2 class="offer-title" id="offer-title"></h2>
               <p class="offer-desc" id="offer-desc"></p>
               <div class="offer-actions">
-                <div class="offer-choice">
-                  <button class="button button-buy" id="buy-button" type="button" aria-describedby="buy-copy"></button>
-                  <p class="offer-choice-copy" id="buy-copy">Workflow + prompts. Run them on your computer.</p>
+                <div class="offer-choice offer-choice-buy">
+                  <button class="button button-buy" id="buy-button" type="button"></button>
+                  <button class="offer-info" id="buy-info" type="button" aria-label="About Download Skill.md: Workflow + prompts. Run them on your computer." aria-controls="buy-tooltip" aria-expanded="false">
+                    <span class="offer-info-mark" aria-hidden="true">i</span>
+                  </button>
+                  <span class="offer-tooltip" id="buy-tooltip" role="tooltip">Workflow + prompts. Run them on your computer.</span>
                 </div>
-                <div class="offer-choice">
-                  <button class="button button-run" id="run-button" type="button" aria-describedby="run-copy"></button>
-                  <p class="offer-choice-copy" id="run-copy">Per run. Omo handles the setup and sends back the finished result.</p>
+                <div class="offer-choice offer-choice-run">
+                  <button class="button button-run" id="run-button" type="button"></button>
+                  <button class="offer-info" id="run-info" type="button" aria-label="About Run it for me: Per run. Omo handles the setup and sends back the finished result." aria-controls="run-tooltip" aria-expanded="false">
+                    <span class="offer-info-mark" aria-hidden="true">i</span>
+                  </button>
+                  <span class="offer-tooltip" id="run-tooltip" role="tooltip">Per run. Omo handles the setup and sends back the finished result.</span>
                 </div>
               </div>
             </div>
@@ -609,7 +674,10 @@
 
       document.title = listing.name + ' | Omo';
       var metaDescription = document.querySelector('meta[name="description"]');
-      if (metaDescription) metaDescription.setAttribute('content', listing.promise || listing.desc || 'Omo workflow');
+      if (metaDescription) {
+        metaDescription.setAttribute('content', (listing.promise || 'Explore this Omo workflow.') +
+          ' Download the workflow + prompts, or have Omo run it in the cloud per run.');
+      }
       el('listing-title').textContent = listing.name;
       el('listing-promise').textContent = listing.promise;
       el('quiet-line').textContent = 'by ' + maker + ' · ' + String(listing.upvotes || 0) + ' upvotes';
@@ -651,8 +719,34 @@
       el('offer-cover').innerHTML = coverHTML(listing.name + ' cover');
       el('offer-title').textContent = listing.name;
       el('offer-desc').textContent = listing.promise;
-      el('buy-button').textContent = 'Download Skill.md — ' + ownPrice + ' once';
-      el('run-button').textContent = 'Run it for me — about ' + perRun;
+      var buyButtonLabel = 'Download Skill.md — ' + ownPrice + ' once';
+      var runButtonLabel = 'Run it for me — about ' + perRun;
+      el('buy-button').textContent = buyButtonLabel;
+      el('buy-button').setAttribute('aria-label', buyButtonLabel + '. Workflow + prompts. Run them on your computer.');
+      el('run-button').textContent = runButtonLabel;
+      el('run-button').setAttribute('aria-label', runButtonLabel + '. Per run. Omo handles the setup and sends back the finished result.');
+
+      var infoButtons = document.querySelectorAll('.offer-info');
+      function closeInfoTooltips(except) {
+        for (var infoIndex = 0; infoIndex < infoButtons.length; infoIndex++) {
+          if (infoButtons[infoIndex] !== except) infoButtons[infoIndex].setAttribute('aria-expanded', 'false');
+        }
+      }
+      for (var infoIndex = 0; infoIndex < infoButtons.length; infoIndex++) {
+        infoButtons[infoIndex].addEventListener('click', function (event) {
+          event.stopPropagation();
+          var shouldOpen = this.getAttribute('aria-expanded') !== 'true';
+          closeInfoTooltips(this);
+          this.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        });
+        infoButtons[infoIndex].addEventListener('keydown', function (event) {
+          if (event.key === 'Escape') {
+            this.setAttribute('aria-expanded', 'false');
+            this.blur();
+          }
+        });
+      }
+      document.addEventListener('click', function () { closeInfoTooltips(); });
 
       function syncAuthLinks() {
         el('login-link').href = signedIn() ? 'dashboard.html' : 'signup.html';
