@@ -57,12 +57,12 @@ def test_procedural_story_finishes_as_one_ink_dot_on_white() -> None:
     assert first_box[2] - first_box[0] > 700
     assert last_box[2] - last_box[0] < 80
     assert last_box[3] - last_box[1] < 80
-    assert all(set(frame.get_flattened_data()) == {26, 255} for frame in frames)
+    assert all(set(frame.getdata()) == {26, 255} for frame in frames)
 
     # Wide topology has separate tiger, mice/branch, hanging figure, and berry;
     # the middle insert replaces it with a readable face/berry contact crop.
     def dark_pixels(frame: Image.Image, box: tuple[int, int, int, int]) -> int:
-        return sum(value < 100 for value in frame.crop(box).get_flattened_data())
+        return sum(value < 100 for value in frame.crop(box).getdata())
 
     assert dark_pixels(first, (45, 220, 440, 700)) > 3_000  # tiger + cliff
     assert dark_pixels(first, (310, 550, 850, 790)) > 2_000  # two mice + branch
@@ -98,7 +98,7 @@ def test_dense_authored_frames_never_crossfade_one_moving_dot(tmp_path: Path) ->
         assert box is not None
         assert box[2] - box[0] < 60
         assert abs((box[0] + box[2]) / 2 - expected_x) <= 2
-        assert set(image.get_flattened_data()) == {26, 255}
+        assert set(image.getdata()) == {26, 255}
 
 
 def test_five_second_procedural_pipeline_produces_delivery_contract(tmp_path: Path) -> None:

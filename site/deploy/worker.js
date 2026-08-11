@@ -30,7 +30,7 @@
 //   DEMELLO_MODAL_BEARER — private Modal API bearer (SECRET, required for the
 //                       japanese-style-story-video runner).
 //   DEMELLO_MODAL_URL / DEMELLO_RELEASE_HASH — optional pinned release
-//                       overrides; defaults match the deployed bdab144b977a app.
+//                       overrides; defaults match the deployed 245304c8f988 app.
 //   DEMELLO_MAX_COST_USD — provider/compute ceiling, default 0.003.
 //   DEMELLO_EXPECTED_RUN_SECONDS — derived-progress horizon, default 90.
 //   DEMELLO_RUN_TIMEOUT_SECONDS — terminal refund timeout, default 1300.
@@ -139,8 +139,8 @@ HARD RULES: bullets is a flat array of STRINGS; never invent claims; output ONLY
 
 const DEMELLO_SLUG = 'japanese-style-story-video';
 const DEMELLO_STYLE = 'sumi-e-awake-v3';
-const DEMELLO_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--omo-demello-awake-bdab144b977a-api.modal.run';
-const DEMELLO_DEFAULT_RELEASE_HASH = 'sha256:bdab144b977aee48ecb383041cd4eaa2a7ea454ea7577c15ece41f7d7f59861d';
+const DEMELLO_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--omo-demello-awake-245304c8f988-api.modal.run';
+const DEMELLO_DEFAULT_RELEASE_HASH = 'sha256:245304c8f98839bf6ac570c3c09224fe839041dbc793f3fb7f7afb3eb475259e';
 const DEMELLO_QUOTED_RUN_CENTS = 10;
 const DEMELLO_PAID_TRAFFIC_READY = false;
 const DEMELLO_PHASES = ['reserved', 'running', 'transcribing', 'directing', 'generating', 'assembling', 'delivered', 'failed'];

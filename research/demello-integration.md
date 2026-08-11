@@ -12,9 +12,9 @@ The milestone endpoint is private bearer-authenticated transport. It uses a Moda
 
 ## Deployed milestone release
 
-- Release: `sha256:bdab144b977aee48ecb383041cd4eaa2a7ea454ea7577c15ece41f7d7f59861d`
-- App: `omo-demello-awake-bdab144b977a`
-- Base URL: `https://harrythentrepreneur--omo-demello-awake-bdab144b977a-api.modal.run`
+- Release: `sha256:245304c8f98839bf6ac570c3c09224fe839041dbc793f3fb7f7afb3eb475259e`
+- App: `omo-demello-awake-245304c8f988`
+- Base URL: `https://harrythentrepreneur--omo-demello-awake-245304c8f988-api.modal.run`
 - Submit: `POST /v1/runs` (alias: `POST /run`)
 - Status: `GET /v1/runs/{run_id}`
 - Authentication: `Authorization: Bearer $API_SERVER_KEY`
@@ -39,7 +39,7 @@ The private request schema describes exactly one of `audio_ref` and `audio_url`;
 Direct private smoke calls get a server-generated run ID, canonical request hash, and a $5 execution ceiling. They are not quotes and perform no reservation or settlement.
 
 ```bash
-export DEMELLO_ENDPOINT='https://harrythentrepreneur--omo-demello-awake-bdab144b977a-api.modal.run'
+export DEMELLO_ENDPOINT='https://harrythentrepreneur--omo-demello-awake-245304c8f988-api.modal.run'
 
 curl --fail-with-body -X POST "$DEMELLO_ENDPOINT/v1/runs" \
   -H "Authorization: Bearer $API_SERVER_KEY" \
@@ -100,16 +100,16 @@ The Worker normalizes these Modal-native phases into its smaller public state
 machine. Its elapsed estimate remains only a labeled fallback for an older
 release that returns no checkpoint.
 
-The e335 staging canary observed `2 → 5 → 8 → 52 → 70 → 82 → 94 → 100`
-from submit through delivery. Fixture-backed transcription and direction are
-effectively instantaneous, so a 750 ms external poll did not observe their 20
-and 36 percent markers even though the workflow emitted them. The delivered
-328,613-byte MP4 passed ffprobe as H.264, 1080×1920, 30 fps, 300 frames, exactly
-10.000 seconds; the result disclosed `generation_provider:procedural-fallback`,
-`guarded_price_usd:0.10`, and `paid_traffic_ready:false`.
-The final bdab release is the same passing runtime plus a strict output-schema
-declaration for the delivered `phase` and `progress_pct` fields; its build and
-35 offline checks passed after that contract-only correction.
+The final `245304c8f988` canary observed
+`2 → 5 → 8 → 52 → 70 → 82 → 94 → 100` from submit through delivery.
+Fixture-backed transcription and direction are effectively instantaneous, so
+external polling did not observe their 20 and 36 percent markers even though
+the workflow emitted them. Its 388,765-byte MP4 passed a full decode and
+ffprobe as H.264, 1080×1920, 30 fps, 300 frames, exactly 10.000 seconds with
+AAC audio. The 139,600-byte contact sheet and video were fetched concurrently
+from their signed URLs with HTTP `200/200`. The result disclosed
+`generation_provider:procedural-fallback`, `guarded_price_usd:0.10`, and
+`paid_traffic_ready:false`.
 
 ## Provider authentication
 
@@ -189,8 +189,8 @@ Before successful settlement, the Worker validates both artifact URLs against th
 ### Worker configuration (secret values never go in source)
 
 - `DEMELLO_MODAL_BEARER` — required secret; same value as Modal `API_SERVER_KEY` for this milestone.
-- `DEMELLO_MODAL_URL` — optional override; defaults to the pinned `bdab144b977a` app URL above.
-- `DEMELLO_RELEASE_HASH` — optional override; defaults to the full pinned `sha256:bdab…861d` digest.
+- `DEMELLO_MODAL_URL` — optional override; defaults to the pinned `245304c8f988` app URL above.
+- `DEMELLO_RELEASE_HASH` — optional override; defaults to the full pinned `sha256:2453…259e` digest.
 - `DEMELLO_MAX_COST_USD` — optional guarded ceiling, default `$0.003`.
 - `DEMELLO_EXPECTED_RUN_SECONDS` — optional derived-progress horizon, default 90 seconds.
 - `DEMELLO_RUN_TIMEOUT_SECONDS` — optional run/reconciliation timeout, default 1300 seconds.

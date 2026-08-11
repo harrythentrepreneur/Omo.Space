@@ -347,7 +347,7 @@ check('demello: dispatch returns progress + explicit quoted-but-zero-bill contra
 const modalSubmit = modalCalls.at(-1);
 const modalEnvelope = JSON.parse(modalSubmit.body);
 const primaryModalKey = modalSubmit.headers['Idempotency-Key'];
-check('demello: dispatch uses private bearer + final pinned canonical envelope', modalSubmit.headers.Authorization === 'Bearer private-modal-test-secret' && modalEnvelope.run_id === demelloStart.run_id && modalEnvelope.release_hash === 'sha256:bdab144b977aee48ecb383041cd4eaa2a7ea454ea7577c15ece41f7d7f59861d' && /^[0-9a-f]{64}$/.test(modalEnvelope.request_hash) && modalEnvelope.input.style === 'sumi-e-awake-v3' && modalEnvelope.max_cost_usd === 0.003);
+check('demello: dispatch uses private bearer + final pinned canonical envelope', modalSubmit.headers.Authorization === 'Bearer private-modal-test-secret' && modalEnvelope.run_id === demelloStart.run_id && modalEnvelope.release_hash === 'sha256:245304c8f98839bf6ac570c3c09224fe839041dbc793f3fb7f7afb3eb475259e' && /^[0-9a-f]{64}$/.test(modalEnvelope.request_hash) && modalEnvelope.input.style === 'sumi-e-awake-v3' && modalEnvelope.max_cost_usd === 0.003);
 check('demello: downstream idempotency key is deterministic and opaque', primaryModalKey === await expectedModalIdempotencyKey('user_demello', 'demello-router-0001') && /^omo-[0-9a-f]{64}$/.test(primaryModalKey) && primaryModalKey !== 'demello-router-0001' && !primaryModalKey.includes('user_demello'));
 
 const demelloReplayResponse = await worker.fetch(mkReq('POST', '/api/run', demelloInput, demelloHeaders), demelloEnv);

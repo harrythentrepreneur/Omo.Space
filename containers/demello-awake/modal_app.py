@@ -20,6 +20,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -128,6 +129,9 @@ VOLUME_NAME = "omo-demello-awake-artifacts"
 STYLE = "sumi-e-awake-v3"
 MAX_JSON_BYTES = 128 * 1024
 MAX_RESULT_BYTES = 1024 * 1024
+MAX_ARTIFACT_BYTES = 32 * 1024 * 1024
+API_MEMORY_MIB = 512
+MAX_API_CONCURRENT_INPUTS = 4
 RUN_TIMEOUT_SECONDS = 20 * 60
 SIGNED_URL_TTL_SECONDS = 5 * 60
 MAX_SIGNED_URL_TTL_SECONDS = 15 * 60
@@ -464,6 +468,11 @@ class FileRunStore:
     def __init__(self, root: Path, volume: Any | None = None):
         self.root = Path(root)
         self.volume = volume
+        # Modal Volume reload/commit operations and open artifact reads must not
+        # overlap inside one concurrent ASGI container. A FileResponse deferred
+        # opening the mounted path until after this store method returned, so a
+        # parallel status read could reload the Volume during streaming.
+        self._volume_lock = threading.RLock()
 
     def _commit(self) -> None:
         commit = getattr(self.volume, "commit", None)
@@ -476,32 +485,34 @@ class FileRunStore:
             reload_volume()
 
     def _write_json(self, path: Path, value: Mapping[str, Any]) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        encoded = canonical_json(value)
-        if len(encoded) > MAX_RESULT_BYTES:
-            raise ValueError("state document is too large")
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{path.name}.", dir=str(path.parent)
-        )
-        temporary = Path(temporary_name)
-        try:
-            os.fchmod(descriptor, 0o600)
-            with os.fdopen(descriptor, "wb") as handle:
-                handle.write(encoded)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary, path)
-        finally:
-            if temporary.exists():
-                temporary.unlink()
-        self._commit()
+        with self._volume_lock:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            encoded = canonical_json(value)
+            if len(encoded) > MAX_RESULT_BYTES:
+                raise ValueError("state document is too large")
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=f".{path.name}.", dir=str(path.parent)
+            )
+            temporary = Path(temporary_name)
+            try:
+                os.fchmod(descriptor, 0o600)
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(encoded)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, path)
+            finally:
+                if temporary.exists():
+                    temporary.unlink()
+            self._commit()
 
     def _read_json(self, path: Path) -> dict[str, Any] | None:
-        self._reload()
-        try:
-            raw = path.read_bytes()
-        except FileNotFoundError:
-            return None
+        with self._volume_lock:
+            self._reload()
+            try:
+                raw = path.read_bytes()
+            except FileNotFoundError:
+                return None
         if len(raw) > MAX_RESULT_BYTES:
             raise ValueError("state document is too large")
         value = json.loads(raw)
@@ -583,6 +594,19 @@ class FileRunStore:
         if not candidate.is_file() or candidate.is_symlink():
             raise FileNotFoundError(object_name)
         return candidate
+
+    def read_artifact(self, run_id: str, object_name: str) -> bytes:
+        """Materialize one bounded artifact while Volume access is serialized."""
+        with self._volume_lock:
+            self._reload()
+            path = self.artifact_path(run_id, object_name)
+            size = path.stat().st_size
+            if size <= 0 or size > MAX_ARTIFACT_BYTES:
+                raise ValueError("artifact size is outside the delivery bound")
+            content = path.read_bytes()
+            if len(content) != size:
+                raise ValueError("artifact changed during materialization")
+            return content
 
 
 def _verify_pipeline_result(result: Mapping[str, Any], envelope: Mapping[str, Any], root: Path) -> None:
@@ -909,7 +933,7 @@ def create_fastapi_app(
     """Build the private API with injectable offline test boundaries."""
 
     from fastapi import FastAPI, HTTPException
-    from fastapi.responses import FileResponse, JSONResponse
+    from fastapi.responses import JSONResponse, Response
     from jsonschema import ValidationError
 
     web = FastAPI(title="Omo de Mello Awake private milestone", version="0.1.0")
@@ -1013,15 +1037,17 @@ def create_fastapi_app(
             status = run_store.get_status(_safe_run_id(run_id))
             if not status or status.get("status") != "completed":
                 raise FileNotFoundError(object_name)
-            path = run_store.artifact_path(run_id, object_name)
+            content = run_store.read_artifact(run_id, object_name)
         except (FileNotFoundError, TypeError, ValueError):
             raise HTTPException(status_code=404, detail="artifact_not_found")
         media_type = "video/mp4" if object_name == "video.mp4" else "image/jpeg"
-        return FileResponse(
-            path,
+        return Response(
+            content=content,
             media_type=media_type,
-            filename=object_name,
-            headers={"Cache-Control": "private, no-store"},
+            headers={
+                "Cache-Control": "private, no-store",
+                "Content-Disposition": f'attachment; filename="{object_name}"',
+            },
         )
 
     return web
@@ -1032,13 +1058,13 @@ def create_fastapi_app(
     secrets=[runtime_secret],
     volumes={str(ARTIFACT_ROOT): artifact_volume},
     cpu=0.25,
-    memory=512,
+    memory=API_MEMORY_MIB,
     timeout=150,
     min_containers=0,
     max_containers=8,
     scaledown_window=15,
 )
-@modal.concurrent(max_inputs=20)
+@modal.concurrent(max_inputs=MAX_API_CONCURRENT_INPUTS)
 # Proxy Token is intentionally unavailable for milestone 1. Bearer auth is
 # mandatory in every private/status request; signed artifact GETs are expiring.
 @modal.asgi_app(requires_proxy_auth=False)

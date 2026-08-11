@@ -209,6 +209,70 @@ def test_status_and_signed_expiring_artifacts(tmp_path: Path) -> None:
     assert response.json()["progress_pct"] == 100
 
 
+def test_signed_video_and_contact_download_concurrently_from_memory(tmp_path: Path) -> None:
+    store = modal_app.FileRunStore(tmp_path)
+    run_id = "run_parallel_artifacts"
+    artifact_dir = tmp_path / "runs" / run_id
+    artifact_dir.mkdir(parents=True)
+    video = b"video" * 128_000
+    contact = b"contact" * 32_000
+    (artifact_dir / "video.mp4").write_bytes(video)
+    (artifact_dir / "contact-sheet.jpg").write_bytes(contact)
+    store.set_status(
+        run_id,
+        {
+            "run_id": run_id,
+            "status": "completed",
+            "release_hash": modal_app.RELEASE_DIGEST,
+            "artifacts": {},
+            "frames_used": {"generated": 30, "semantic": 30, "output": 300},
+            "cost": {"measured_usd": 0.0, "guarded_price_usd": 0.1},
+            "media": {"duration_seconds": 10.0},
+            "platform": modal_app.MILESTONE_SECURITY,
+        },
+    )
+    app = modal_app.create_fastapi_app(
+        spawn_runner=lambda _envelope: "unused",
+        store=store,
+        auth_key_getter=lambda: "server-test-key",
+        clock=lambda: 1_000_000.0,
+    )
+
+    async def download_both() -> tuple[httpx.Response, httpx.Response]:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://private.example"
+        ) as client:
+            status = await client.get(
+                f"/v1/runs/{run_id}",
+                headers={"Authorization": "Bearer server-test-key"},
+            )
+            status.raise_for_status()
+            payload = status.json()
+            return tuple(
+                await asyncio.gather(
+                    client.get(payload["video_url"]),
+                    client.get(payload["contact_sheet_url"]),
+                )
+            )  # type: ignore[return-value]
+
+    video_response, contact_response = asyncio.run(download_both())
+    assert video_response.status_code == contact_response.status_code == 200
+    assert video_response.content == video
+    assert contact_response.content == contact
+    assert video_response.headers["content-length"] == str(len(video))
+    assert contact_response.headers["content-length"] == str(len(contact))
+    assert video_response.headers["cache-control"] == "private, no-store"
+
+
+def test_api_artifact_buffer_budget_leaves_half_the_container_for_runtime() -> None:
+    aggregate_artifact_bytes = (
+        modal_app.MAX_ARTIFACT_BYTES * modal_app.MAX_API_CONCURRENT_INPUTS
+    )
+    container_bytes = modal_app.API_MEMORY_MIB * 1024 * 1024
+    assert modal_app.MAX_API_CONCURRENT_INPUTS >= 2
+    assert aggregate_artifact_bytes <= container_bytes // 2
+
+
 def test_running_status_reads_real_monotonic_diagnostic_checkpoint(tmp_path: Path) -> None:
     store = modal_app.FileRunStore(tmp_path)
     run_id = "run_progress_abcdefgh"
