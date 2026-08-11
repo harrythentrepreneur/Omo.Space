@@ -756,7 +756,7 @@
           : (p.cover
             ? '<div class="listing-cover" aria-hidden="true"><img src="' + esc(p.cover) + '" alt="" loading="lazy"><span class="cover-emoji">' + p.emoji + '</span></div>'
             : '<div class="listing-cover" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:52px;line-height:1">' + p.emoji + '</span></div>');
-        return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + esc(p.slug) + '" tabindex="0" role="button" aria-haspopup="dialog" aria-label="View details for ' + esc(p.name) + '">' +
+        return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + esc(p.slug) + '" tabindex="0" role="link" aria-label="Open the workflow page for ' + esc(p.name) + ' in a new tab">' +
           visual + upvoteBtnHTML(p) + '<div class="listing-body">' +
           '<h3 class="listing-name">' + esc(p.name) + '</h3>' +
           '<p class="listing-promise">' + esc(p.promise) + '</p>' +
@@ -764,7 +764,7 @@
           '<p class="listing-meta">' + esc(p.version) + '</p>' +
           '<div class="listing-footer"><p class="listing-price">' + ownLabel + '<span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
           '<div class="listing-actions"><button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Run it</button>' +
-          '<button class="details-link" type="button" data-action="details" aria-haspopup="dialog">View details</button></div></div></div></article>';
+          '<button class="details-link" type="button" data-action="details">View details ↗</button></div></div></div></article>';
       }
       function matches(p) {
         if (!filterByKey(currentScope).match(p)) return false;
@@ -936,6 +936,9 @@
             if (firstField) firstField.focus({ preventScroll: true });
           }
         } else if (closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus({ preventScroll: true });
+      }
+      function openWorkflowPage(slug) {
+        window.open('workflow.html?slug=' + encodeURIComponent(slug), '_blank', 'noopener');
       }
       var openedRequestedListing = false;
       function openRequestedListing() {
@@ -1513,15 +1516,18 @@
             var card = event.target.closest('[data-slug]'); if (!card) return;
             var vote = event.target.closest('[data-upvote]');
             if (vote) { event.stopPropagation(); toggleVote(vote.getAttribute('data-upvote')); return; }
-            var product = PRODUCTS[card.getAttribute('data-slug')];
             var action = event.target.closest('[data-action]');
-            openDialog(product, !!(action && action.getAttribute('data-action') === 'demo'));
+            if (action && action.getAttribute('data-action') === 'demo') {
+              openDialog(PRODUCTS[card.getAttribute('data-slug')], true);
+              return;
+            }
+            openWorkflowPage(card.getAttribute('data-slug'));
           });
           feed.addEventListener('keydown', function (event) {
             if (event.key !== 'Enter' && event.key !== ' ') return;
             if (event.target.closest('[data-upvote]')) return;
             var card = event.target.closest('[data-slug]'); if (!card) return;
-            event.preventDefault(); openDialog(PRODUCTS[card.getAttribute('data-slug')], false);
+            event.preventDefault(); openWorkflowPage(card.getAttribute('data-slug'));
           });
         }
         if (dialogBody) {

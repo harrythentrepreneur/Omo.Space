@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#F8F7F5">
+  <meta name="description" content="See what is inside this Omo workflow, then buy it once or run it on Omo's cloud.">
+  <meta name="robots" content="index,follow">
+  <title>Workflow details | Omo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F8F7F5;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #66756E;
+      --rule: #DCE3DE;
+      --soft: #F2F6F1;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1180px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      background: var(--canvas);
+      color: var(--pine);
+      font-family: var(--body);
+      font-size: 16px;
+      line-height: 1.6;
+      text-rendering: optimizeLegibility;
+    }
+    body, button { font-family: var(--body); }
+    img, svg { display: block; max-width: 100%; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    h1, h2, h3, p { margin-top: 0; overflow-wrap: break-word; }
+    :where(a, button):focus-visible {
+      outline: 3px solid var(--mint);
+      outline-offset: 3px;
+    }
+    [hidden] { display: none !important; }
+
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 100;
+      padding: 10px 14px;
+      border-radius: 9px;
+      background: var(--surface);
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+    .sig-cut { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%); }
+
+    .site-header {
+      position: relative;
+      z-index: 20;
+      border-bottom: 1px solid var(--rule);
+      background: rgba(248, 247, 245, .94);
+      backdrop-filter: blur(12px);
+    }
+    .nav-row {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark-logo { width: auto; height: 34px; }
+    .nav-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+    .back-store {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding-inline: 6px;
+      color: var(--moss);
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .back-store:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 4px; }
+    .button {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 19px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      font: 700 14px/1.2 var(--body);
+      text-decoration: none;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .button:hover { transform: translateY(-1px); }
+    .button-primary { background: var(--orange); color: var(--pine); }
+    .button-primary:hover { box-shadow: 0 7px 20px rgba(255, 107, 61, .25); }
+    .button-secondary { border-color: var(--pine); background: var(--surface); color: var(--pine); }
+    .button-pine { background: var(--pine); color: #fff; }
+    .button-block { width: 100%; }
+
+    .page { padding: 28px 0 80px; }
+    .breadcrumb {
+      margin: 0 0 18px;
+      color: var(--moss);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .breadcrumb a { text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 350px);
+      align-items: start;
+      gap: 24px;
+    }
+    .main-card,
+    .offer-card,
+    .not-found {
+      min-width: 0;
+      border: 1px solid var(--rule);
+      background: var(--surface);
+      box-shadow: 0 12px 34px rgba(23, 53, 44, .05);
+    }
+    .main-card { border-radius: 18px 18px 7px 18px; overflow: hidden; }
+    .hero-copy { padding: 42px 46px 28px; }
+    .eyebrow {
+      margin-bottom: 12px;
+      color: var(--orange);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .listing-title {
+      margin-bottom: 12px;
+      font-family: var(--display);
+      font-size: clamp(36px, 5vw, 54px);
+      font-weight: 600;
+      letter-spacing: -.025em;
+      line-height: 1.04;
+      text-wrap: balance;
+    }
+    .listing-promise {
+      max-width: 720px;
+      margin-bottom: 0;
+      color: var(--moss);
+      font-size: clamp(18px, 2.4vw, 21px);
+      line-height: 1.48;
+      text-wrap: pretty;
+    }
+
+    .media-shell {
+      position: relative;
+      width: calc(100% - 48px);
+      min-height: 330px;
+      margin: 0 24px;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 16px 16px 5px 16px;
+      background: var(--pine);
+      isolation: isolate;
+    }
+    .media-poster,
+    .media-fallback {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+      background: var(--pine);
+      color: #fff;
+    }
+    .media-poster img,
+    .media-fallback img { width: 100%; height: 100%; object-fit: cover; }
+    .media-poster::after,
+    .media-fallback::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(23, 53, 44, .04), rgba(23, 53, 44, .5));
+    }
+    .media-emoji {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--mint), #f4eee5);
+      color: var(--pine);
+      font-size: 72px;
+    }
+    .play-button {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 2;
+      width: 76px;
+      height: 76px;
+      display: grid;
+      place-items: center;
+      border: 2px solid rgba(255, 255, 255, .8);
+      border-radius: 50%;
+      background: rgba(255, 107, 61, .95);
+      box-shadow: 0 12px 32px rgba(23, 53, 44, .3);
+      color: var(--pine);
+      font-size: 27px;
+      line-height: 1;
+      transform: translate(-50%, -50%);
+    }
+    .media-poster:hover .play-button { transform: translate(-50%, -50%) scale(1.04); }
+    .watch-label {
+      position: absolute;
+      left: 18px;
+      bottom: 16px;
+      z-index: 2;
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .reel-frame { width: 100%; height: 100%; border: 0; background: #fff; }
+    .media-stats {
+      width: calc(100% - 48px);
+      margin: 14px 24px 0;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border: 1px solid var(--rule);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .media-stat { min-width: 0; padding: 13px 16px; text-align: center; }
+    .media-stat + .media-stat { border-left: 1px solid var(--rule); }
+    .media-stat strong { display: block; font-size: 14px; line-height: 1.3; }
+    .media-stat span { display: block; margin-top: 2px; color: var(--moss); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+
+    .metadata {
+      margin: 26px 24px 0;
+      padding: 18px 22px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 16px;
+      border-radius: 14px;
+      background: var(--soft);
+    }
+    .meta-item { min-width: 0; }
+    .meta-item span { display: block; color: var(--moss); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .meta-item strong { display: block; margin-top: 3px; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+
+    .sales-copy { padding: 12px 46px 54px; }
+    .intro {
+      margin: 32px 0 0;
+      font-size: 18px;
+      line-height: 1.7;
+      text-wrap: pretty;
+    }
+    .copy-section { padding-top: 38px; }
+    .copy-section + .copy-section { margin-top: 34px; border-top: 1px solid var(--rule); }
+    .copy-section h2 {
+      margin-bottom: 14px;
+      font-family: var(--display);
+      font-size: clamp(28px, 4vw, 36px);
+      font-weight: 600;
+      letter-spacing: -.015em;
+      line-height: 1.1;
+    }
+    .copy-section > p { max-width: 720px; color: var(--moss); text-wrap: pretty; }
+    .emoji-list { margin: 18px 0 0; padding: 0; display: grid; gap: 12px; list-style: none; }
+    .emoji-list li {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      align-items: start;
+      gap: 8px;
+      line-height: 1.55;
+    }
+    .emoji-list strong { color: var(--pine); }
+    .split-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+    .split-card {
+      min-width: 0;
+      padding: 24px;
+      border: 1px solid var(--rule);
+      border-radius: 14px;
+      background: var(--soft);
+    }
+    .split-card h2 { font-size: 28px; }
+    .tag-list { margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; list-style: none; }
+    .tag-list li { padding: 7px 11px; border: 1px solid #c9d8d0; border-radius: 999px; background: var(--surface); font-size: 13px; font-weight: 700; }
+    .pain-card {
+      padding: 30px;
+      border-radius: 16px 16px 5px 16px;
+      background: var(--pine);
+      color: #F8F7F5;
+    }
+    .pain-card h2 { color: #fff; }
+    .pain-card p { color: rgba(255, 255, 255, .75); }
+    .pain-card .emoji-list strong { color: var(--mint); }
+    .pricing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
+    .price-door { padding: 22px; border: 1px solid var(--rule); border-radius: 14px; background: var(--soft); }
+    .price-door span { display: block; color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .price-door strong { display: block; margin: 4px 0; font-family: var(--display); font-size: 28px; font-weight: 600; }
+    .price-door p { margin: 0; color: var(--moss); font-size: 14px; }
+    .final-cta {
+      padding: 34px;
+      border-radius: 18px 18px 5px 18px;
+      background: var(--mint);
+      text-align: center;
+    }
+    .final-cta p { max-width: 570px; margin: 0 auto 20px; color: #365349; }
+    .final-cta .button { min-width: min(100%, 280px); }
+
+    .sidebar { position: sticky; top: 24px; min-width: 0; }
+    .offer-card { padding: 14px; border-radius: 17px 17px 5px 17px; }
+    .offer-cover {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+      border-radius: 12px;
+      background: var(--mint);
+    }
+    .offer-cover img { width: 100%; height: 100%; object-fit: cover; }
+    .offer-cover .media-emoji { font-size: 48px; }
+    .offer-body { padding: 20px 8px 8px; }
+    .offer-title { margin-bottom: 7px; font-family: var(--display); font-size: 25px; font-weight: 600; line-height: 1.13; }
+    .offer-url { margin-bottom: 12px; color: var(--orange); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+    .offer-desc { margin-bottom: 18px; color: var(--moss); font-size: 14px; line-height: 1.5; }
+    .offer-stats { margin-bottom: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--rule); }
+    .offer-stat { min-width: 0; padding: 13px 4px; text-align: center; }
+    .offer-stat strong { display: block; font-size: 14px; line-height: 1.2; overflow-wrap: anywhere; }
+    .offer-stat span { display: block; margin-top: 3px; color: var(--moss); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; }
+    .offer-actions { display: grid; gap: 9px; }
+    .offer-actions .button { min-height: 50px; padding-inline: 12px; text-align: center; }
+    .offer-note { min-height: 20px; margin: 4px 0 0; color: var(--moss); font-size: 12px; text-align: center; }
+    .offer-note[data-state="success"] { color: var(--pine); font-weight: 700; }
+    .powered { margin: 15px 0 0; color: var(--moss); font-size: 11px; text-align: center; }
+
+    .not-found { max-width: 700px; margin: 52px auto; padding: 54px; border-radius: 18px 18px 5px 18px; text-align: center; }
+    .not-found-emoji { margin-bottom: 12px; font-size: 44px; }
+    .not-found h1 { margin-bottom: 10px; font-family: var(--display); font-size: clamp(34px, 7vw, 48px); font-weight: 600; line-height: 1.08; }
+    .not-found p { max-width: 500px; margin: 0 auto 24px; color: var(--moss); }
+
+    @media (max-width: 920px) {
+      .layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; }
+      .hero-copy { padding-inline: 30px; }
+      .sales-copy { padding-inline: 30px; }
+      .metadata { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 28px, var(--shell)); }
+      .page { padding-top: 20px; }
+      .back-store { display: none; }
+      .layout { display: flex; flex-direction: column; }
+      .main-card { width: 100%; }
+      .sidebar { position: static; width: 100%; order: 2; }
+      .offer-card { width: 100%; }
+      .split-sections, .pricing-grid { grid-template-columns: 1fr; }
+      .final-cta { padding: 30px 22px; }
+    }
+    @media (max-width: 520px) {
+      .shell { width: min(100% - 24px, var(--shell)); }
+      .nav-row { min-height: 64px; }
+      .wordmark-logo { height: 30px; }
+      .button { padding-inline: 15px; }
+      .page { padding-bottom: 50px; }
+      .breadcrumb { margin-bottom: 14px; }
+      .hero-copy { padding: 30px 20px 22px; }
+      .listing-title { font-size: clamp(34px, 10.5vw, 44px); }
+      .listing-promise { font-size: 17px; }
+      .media-shell { width: calc(100% - 24px); min-height: 190px; margin-inline: 12px; }
+      .play-button { width: 62px; height: 62px; font-size: 23px; }
+      .media-stats { width: calc(100% - 24px); margin-inline: 12px; }
+      .media-stat { padding: 11px 5px; }
+      .media-stat strong { font-size: 12px; }
+      .metadata { margin: 20px 12px 0; padding: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .sales-copy { padding: 4px 20px 38px; }
+      .intro { margin-top: 28px; font-size: 16px; }
+      .copy-section { padding-top: 32px; }
+      .copy-section + .copy-section { margin-top: 28px; }
+      .split-card, .pain-card { padding: 22px 18px; }
+      .not-found { margin: 30px auto; padding: 38px 22px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo"></a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="back-store" href="index.html#feed">← Back to the store</a>
+        <a class="button button-secondary" id="login-link" href="signup.html">LOG IN</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+    <div class="shell">
+      <p class="breadcrumb" id="breadcrumb"><a href="index.html#feed">Omo workflows</a> <span aria-hidden="true">/</span> <span id="breadcrumb-name">Details</span></p>
+      <div class="layout" id="workflow-layout" hidden>
+        <article class="main-card sig-cut" aria-labelledby="listing-title">
+          <header class="hero-copy">
+            <p class="eyebrow" id="hero-eyebrow">Omo workflow</p>
+            <h1 class="listing-title" id="listing-title"></h1>
+            <p class="listing-promise" id="listing-promise"></p>
+          </header>
+
+          <div class="media-shell sig-cut" id="hero-media"></div>
+          <div class="media-stats" id="media-stats" aria-label="Workflow highlights"></div>
+          <div class="metadata" id="metadata" aria-label="Workflow metadata"></div>
+
+          <div class="sales-copy">
+            <p class="intro" id="listing-intro"></p>
+
+            <section class="copy-section" aria-labelledby="inside-title">
+              <h2 id="inside-title">🧰 What’s Inside</h2>
+              <p>A practical, repeatable workflow—not a loose collection of prompts.</p>
+              <ol class="emoji-list" id="steps-list"></ol>
+            </section>
+
+            <section class="copy-section split-sections" aria-label="Inputs and ideal users">
+              <div class="split-card">
+                <h2>📦 Inputs</h2>
+                <p>Bring these details and the workflow has what it needs to get moving.</p>
+                <ul class="emoji-list" id="inputs-list"></ul>
+              </div>
+              <div class="split-card">
+                <h2>🎯 Perfect For</h2>
+                <p>Especially useful when you want the result without rebuilding the process.</p>
+                <ul class="tag-list" id="perfect-list"></ul>
+              </div>
+            </section>
+
+            <section class="copy-section" aria-labelledby="outputs-title">
+              <h2 id="outputs-title">✅ What You’ll Get</h2>
+              <p>Clear deliverables you can use, share, or keep working from.</p>
+              <ul class="emoji-list" id="outputs-list"></ul>
+            </section>
+
+            <section class="copy-section" aria-labelledby="bonuses-title">
+              <h2 id="bonuses-title">🎁 Bonuses</h2>
+              <ul class="emoji-list" id="bonuses-list"></ul>
+            </section>
+
+            <section class="copy-section pain-card sig-cut" aria-labelledby="pain-title">
+              <h2 id="pain-title">Still doing this the long way?</h2>
+              <p id="pain-intro"></p>
+              <ul class="emoji-list" id="pain-list"></ul>
+            </section>
+
+            <section class="copy-section" aria-labelledby="pricing-title">
+              <h2 id="pricing-title">Simple prices</h2>
+              <p>Choose the door that fits today. There’s no subscription hiding behind either one.</p>
+              <div class="pricing-grid">
+                <div class="price-door">
+                  <span>Own it</span>
+                  <strong id="own-price"></strong>
+                  <p>Download the workflow and prompts once. Keep them.</p>
+                </div>
+                <div class="price-door">
+                  <span>Run it</span>
+                  <strong id="run-price"></strong>
+                  <p>Use Omo’s cloud; we handle the hosting and service keys.</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="copy-section final-cta sig-cut" aria-labelledby="cta-title">
+              <h2 id="cta-title">Ready to skip the setup?</h2>
+              <p id="cta-copy"></p>
+              <a class="button button-pine" id="body-run-link" href="signup.html">Run this workflow</a>
+            </section>
+          </div>
+        </article>
+
+        <aside class="sidebar" aria-label="Workflow offer">
+          <div class="offer-card sig-cut">
+            <div class="offer-cover" id="offer-cover"></div>
+            <div class="offer-body">
+              <h2 class="offer-title" id="offer-title"></h2>
+              <p class="offer-url" id="offer-url"></p>
+              <p class="offer-desc" id="offer-desc"></p>
+              <div class="offer-stats" id="offer-stats"></div>
+              <div class="offer-actions">
+                <button class="button button-primary button-block" id="buy-button" type="button"></button>
+                <a class="button button-pine button-block" id="run-link" href="signup.html"></a>
+              </div>
+              <p class="offer-note" id="offer-note" role="status" aria-live="polite"></p>
+              <p class="powered">Powered by Omo · one workflow, two ways to use it</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <section class="not-found sig-cut" id="not-found" hidden>
+        <div class="not-found-emoji" aria-hidden="true">🧭</div>
+        <h1>Helper not found</h1>
+        <p>That workflow may have moved, or the link may have a typo. The full Omo catalogue is one click away.</p>
+        <a class="button button-primary" href="index.html#feed">Back to all workflows</a>
+      </section>
+    </div>
+  </main>
+
+  <script src="ig-workflows.js"></script>
+  <script src="ig-more.js"></script>
+  <script src="key-config.js"></script>
+  <script src="clerk.js"></script>
+  <script src="stripe.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      function el(id) { return document.getElementById(id); }
+      function esc(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+      function titleCase(value) {
+        return String(value || '')
+          .replace(/[_-]+/g, ' ')
+          .replace(/\b\w/g, function (character) { return character.toUpperCase(); });
+      }
+      function formatPrice(value) {
+        var price = Number(value);
+        if (!isFinite(price)) return '$0';
+        return '$' + (Math.round(price * 100) % 100 === 0 ? price.toFixed(0) : price.toFixed(2).replace(/0$/, ''));
+      }
+      function formatRunPrice(value) {
+        var price = Number(value);
+        return '$' + (isFinite(price) ? price : 0).toFixed(2);
+      }
+      function valueBeforeSeparator(value) {
+        var text = String(value || '');
+        var separator = text.indexOf(':');
+        return separator === -1 ? text : text.slice(0, separator);
+      }
+      function valueAfterSeparator(value) {
+        var text = String(value || '');
+        var separator = text.indexOf(':');
+        return separator === -1 ? '' : text.slice(separator + 1).trim();
+      }
+
+      var products = {};
+      var sources = [window.COGNITION_IG_WORKFLOWS || [], window.COGNITION_IG_MORE || []];
+      for (var sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
+        for (var itemIndex = 0; itemIndex < sources[sourceIndex].length; itemIndex++) {
+          var item = sources[sourceIndex][itemIndex];
+          if (item && item.slug && !products[item.slug]) products[item.slug] = item;
+        }
+      }
+
+      var slug = '';
+      try { slug = (new URLSearchParams(window.location.search || '').get('slug') || '').trim(); } catch (error) {}
+      var listing = products[slug] || null;
+      if (!listing) {
+        el('breadcrumb').hidden = true;
+        el('not-found').hidden = false;
+        document.title = 'Helper not found | Omo';
+        return;
+      }
+
+      var categoryLabels = { content: 'Content', leads: 'Leads', save: 'Save money', ops: 'Operations' };
+      function categoryLabel(value) { return categoryLabels[value] || titleCase(value) || 'Workflow'; }
+      function isFree() { return listing.free === true || Number(listing.priceOwn) === 0; }
+      function runTarget() {
+        var signedIn = !!(window.ClerkAuth && typeof window.ClerkAuth.isSignedIn === 'function' && window.ClerkAuth.isSignedIn());
+        return (signedIn ? 'dashboard.html?open=' : 'signup.html?open=') + encodeURIComponent(listing.slug);
+      }
+      function coverHTML(alt) {
+        var source = listing.cover || listing.icon || '';
+        return source
+          ? '<img src="' + esc(source) + '" alt="' + esc(alt || '') + '">'
+          : '<span class="media-emoji" aria-hidden="true">' + esc(listing.emoji || '✦') + '</span>';
+      }
+      function reelShortcode() {
+        var match = /\/reel\/([A-Za-z0-9_-]+)/.exec(listing.reelUrl || '');
+        return match ? match[1] : '';
+      }
+      function scopeStat() {
+        var inputs = listing.inputs || [];
+        for (var index = 0; index < inputs.length; index++) {
+          if (/\b(duration|length|runtime|time)\b/i.test(valueBeforeSeparator(inputs[index]))) {
+            var duration = valueAfterSeparator(inputs[index]);
+            if (duration) return { value: duration, label: 'Duration / scope' };
+          }
+        }
+        if (listing.demoCap) {
+          var demo = listing.demoCap.replace(/^Free demo:\s*/i, '').replace(/^Hosted (demo|milestone):\s*/i, '');
+          return { value: demo, label: /free demo/i.test(listing.demoCap) ? 'Free demo' : 'Hosted scope' };
+        }
+        return { value: 'On demand', label: 'Availability' };
+      }
+      function workflowStepLabel(step, index) {
+        if (step.label) return step.label;
+        if (step.type === 'llm') {
+          var role = titleCase(step.role || 'result');
+          return role + (step.model ? ' with ' + titleCase(step.model) : '');
+        }
+        if (step.type === 'api') {
+          var apiLabels = {
+            replicate_run: 'Generate the visual assets',
+            modal_gpu_30s: 'Render the final media',
+            heygen_avatar_render: 'Render the on-camera avatar',
+            heygen_voiceover: 'Add the finished voiceover',
+            openai_image: 'Create the supporting images',
+            elevenlabs_tts: 'Generate the voice track',
+            e2b_sandbox: 'Package the result in a clean workspace'
+          };
+          return apiLabels[step.api] || titleCase(step.api || 'service step');
+        }
+        if (step.role) return titleCase(step.role);
+        return 'Complete workflow step ' + (index + 1);
+      }
+      function perfectFor() {
+        var results = [];
+        var tags = listing.tags || [];
+        for (var index = 0; index < tags.length && results.length < 4; index++) {
+          var tag = titleCase(tags[index]);
+          if (tag && results.indexOf(tag) === -1) results.push(tag);
+        }
+        var haystack = [listing.name, listing.promise, listing.desc].join(' ').toLowerCase();
+        var inferred = [];
+        if (/ugc|ad|creative|commercial/.test(haystack)) inferred.push('Ecommerce creative teams', 'Performance marketers');
+        if (/shopify|product page|storefront/.test(haystack)) inferred.push('Shopify operators');
+        if (/seo|discover|recommend/.test(haystack)) inferred.push('Growth and SEO teams');
+        if (/video|reel|animation/.test(haystack)) inferred.push('Content creators');
+        if (/relationship|book|story/.test(haystack)) inferred.push('Thoughtful gift makers');
+        if (!inferred.length) inferred.push(categoryLabel(listing.category) + ' teams', 'Solo operators');
+        for (var inferredIndex = 0; inferredIndex < inferred.length && results.length < 5; inferredIndex++) {
+          if (results.indexOf(inferred[inferredIndex]) === -1) results.push(inferred[inferredIndex]);
+        }
+        return results;
+      }
+      function renderList(id, items, emoji, formatter) {
+        el(id).innerHTML = items.map(function (item, index) {
+          return '<li><span aria-hidden="true">' + emoji + '</span><span>' + esc(formatter ? formatter(item, index) : item) + '</span></li>';
+        }).join('');
+      }
+      function metaHTML(label, value) {
+        return '<div class="meta-item"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>';
+      }
+      function statHTML(value, label) {
+        return '<div class="media-stat"><strong>' + esc(value) + '</strong><span>' + esc(label) + '</span></div>';
+      }
+      function offerStatHTML(value, label) {
+        return '<div class="offer-stat"><strong>' + esc(value) + '</strong><span>' + esc(label) + '</span></div>';
+      }
+
+      var ownPrice = isFree() ? 'Free' : formatPrice(listing.priceOwn);
+      var perRun = formatRunPrice(listing.runPrice != null ? listing.runPrice : listing.priceRun);
+      var workflowSteps = listing.workflow && Array.isArray(listing.workflow.steps) ? listing.workflow.steps : [];
+      var niche = listing.niche || ((listing.tags || [])[0]) || categoryLabel(listing.category);
+      var maker = listing.makerName || listing.maker || 'Independent maker';
+      var displayUrl = 'omo.space/workflow.html?slug=' + listing.slug;
+      var workflowScope = scopeStat();
+
+      document.title = listing.name + ' | Omo';
+      var metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) metaDescription.setAttribute('content', listing.promise || listing.desc || 'Omo workflow');
+      el('breadcrumb-name').textContent = listing.name;
+      el('hero-eyebrow').textContent = categoryLabel(listing.category) + ' · by ' + maker;
+      el('listing-title').textContent = listing.name;
+      el('listing-promise').textContent = listing.promise;
+      el('listing-intro').textContent = listing.desc || listing.promise;
+
+      var mediaHTML = '';
+      if (listing.embedHtml && reelShortcode()) {
+        mediaHTML = '<button class="media-poster" id="media-poster" type="button" aria-label="Play the creator reel">' +
+          coverHTML('') + '<span class="play-button" aria-hidden="true">▶</span><span class="watch-label">Watch the creator’s reel</span></button>';
+      } else {
+        mediaHTML = '<div class="media-fallback">' + coverHTML(listing.name + ' cover') + '</div>';
+      }
+      el('hero-media').innerHTML = mediaHTML;
+      var poster = el('media-poster');
+      if (poster) {
+        poster.addEventListener('click', function () {
+          el('hero-media').innerHTML = '<iframe class="reel-frame" src="https://www.instagram.com/reel/' + esc(reelShortcode()) + '/embed/" title="Creator reel for ' + esc(listing.name) + '" allow="autoplay; fullscreen; encrypted-media" allowfullscreen loading="eager"></iframe>';
+        });
+      }
+
+      el('media-stats').innerHTML =
+        statHTML(workflowScope.value, workflowScope.label) +
+        statHTML(workflowSteps.length + (workflowSteps.length === 1 ? ' step' : ' steps'), 'Workflow') +
+        statHTML(perRun + ' / run', 'Cloud price');
+      el('metadata').innerHTML =
+        metaHTML('Maker', maker) +
+        metaHTML('Category', categoryLabel(listing.category)) +
+        metaHTML('Niche', titleCase(niche)) +
+        metaHTML('Upvotes', String(listing.upvotes || 0)) +
+        metaHTML('Version', listing.version || 'Current');
+
+      if (!workflowSteps.length) workflowSteps = [{ label: 'Follow the included workflow from input to finished result' }];
+      renderList('steps-list', workflowSteps, '✅', workflowStepLabel);
+      renderList('inputs-list', listing.inputs || ['Your brief and the details you want the workflow to use'], '📦');
+      el('perfect-list').innerHTML = perfectFor().map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('');
+      renderList('outputs-list', listing.outputs || ['A finished, ready-to-use result'], '✅');
+
+      var bonuses = [];
+      if (isFree()) bonuses.push('The complete download is free—no card and no subscription.');
+      else bonuses.push('One-time download option. Pay once, then keep the workflow and prompts.');
+      if (listing.exampleIn || (listing.exampleOut || []).length) bonuses.push('A real input-and-output example so you can see the shape of a good run.');
+      if (listing.demoCap) bonuses.push(listing.demoCap + '.');
+      bonuses.push('Cloud option when you want Omo to handle the setup and service keys.');
+      renderList('bonuses-list', bonuses, '🎁');
+
+      el('pain-intro').textContent = 'If “' + listing.promise.replace(/[.!?]+$/, '') + '” keeps getting pushed back, this gives you a much shorter path.';
+      renderList('pain-list', [
+        'Stop stitching together the same setup every time you need another result.',
+        'Skip another monthly tool bill just to use one useful process.',
+        'Keep the workflow in your hands, or let Omo run it when speed matters.'
+      ], '→');
+      el('own-price').textContent = ownPrice + (isFree() ? '' : ' one-time');
+      el('run-price').textContent = '≈ ' + perRun + ' / run';
+      el('cta-copy').textContent = listing.promise + ' Bring your inputs; the workflow takes it from there.';
+
+      el('offer-cover').innerHTML = coverHTML(listing.name + ' cover');
+      el('offer-title').textContent = listing.name;
+      el('offer-url').textContent = displayUrl;
+      el('offer-desc').textContent = listing.promise;
+      el('offer-stats').innerHTML =
+        offerStatHTML(String(listing.upvotes || 0), 'Upvotes') +
+        offerStatHTML(ownPrice, 'Own it') +
+        offerStatHTML(categoryLabel(listing.category), 'Category');
+      el('buy-button').textContent = isFree() ? 'Get it — Free' : 'Buy — ' + ownPrice + ' once';
+
+      function syncAuthLinks() {
+        var signedIn = !!(window.ClerkAuth && typeof window.ClerkAuth.isSignedIn === 'function' && window.ClerkAuth.isSignedIn());
+        var target = runTarget();
+        el('run-link').href = target;
+        el('body-run-link').href = target;
+        el('run-link').textContent = 'Run on our cloud — ≈ ' + perRun + ' / run';
+        el('login-link').href = signedIn ? 'dashboard.html' : 'signup.html';
+        el('login-link').textContent = signedIn ? 'DASHBOARD' : 'LOG IN';
+      }
+      syncAuthLinks();
+      if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') window.ClerkAuth.onAuthChange(syncAuthLinks);
+
+      el('buy-button').addEventListener('click', function () {
+        var signedIn = !!(window.ClerkAuth && typeof window.ClerkAuth.isSignedIn === 'function' && window.ClerkAuth.isSignedIn());
+        if (!signedIn) {
+          window.location.assign('signup.html?open=' + encodeURIComponent(listing.slug));
+          return;
+        }
+        if (!window.StripePay || typeof window.StripePay.checkout !== 'function') {
+          el('offer-note').textContent = 'Checkout could not start right now. Please try again.';
+          return;
+        }
+        el('buy-button').disabled = true;
+        el('offer-note').textContent = 'Opening checkout…';
+        window.StripePay.checkout(listing.slug, listing, window.ClerkAuth.getUser(), {
+          onSuccess: function () {
+            el('buy-button').disabled = false;
+            el('buy-button').textContent = isFree() ? 'Added to your library ✓' : 'It’s yours ✓';
+            el('offer-note').dataset.state = 'success';
+            el('offer-note').textContent = 'Saved to your Omo library.';
+          },
+          onError: function (message) {
+            el('buy-button').disabled = false;
+            el('offer-note').textContent = message || 'Checkout could not start. Please try again.';
+          }
+        });
+      });
+
+      el('workflow-layout').hidden = false;
+    })();
+  </script>
+</body>
+</html>

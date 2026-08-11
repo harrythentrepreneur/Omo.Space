@@ -1318,7 +1318,7 @@
           : (p.cover
               ? '<div class="listing-cover" aria-hidden="true"><img src="' + ESC(p.cover) + '" alt="" loading="lazy"><span class="cover-emoji">' + p.emoji + '</span></div>'
               : '<div class="listing-cover" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:52px;line-height:1">' + p.emoji + '</span></div>');
-        return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + p.slug + '" tabindex="0" role="button" aria-haspopup="dialog" aria-label="View details for ' + ESC(p.name) + '">' +
+        return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + p.slug + '" tabindex="0" role="link" aria-label="Open the workflow page for ' + ESC(p.name) + ' in a new tab">' +
           visual +
           upvoteBtnHTML(p) +
           '<div class="listing-body">' +
@@ -1330,7 +1330,7 @@
             '<p class="listing-price">' + ownLabel + ' <span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
             '<div class="listing-actions">' +
               '<button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Run it</button>' +
-              '<button class="details-link" type="button" data-action="details" aria-haspopup="dialog">View details</button>' +
+              '<button class="details-link" type="button" data-action="details">View details ↗</button>' +
             '</div>' +
           '</div>' +
           '</div>' +
@@ -1588,6 +1588,10 @@
         window.location.assign(target);
       }
 
+      function openWorkflowPage(slug) {
+        window.open('workflow.html?slug=' + encodeURIComponent(slug), '_blank', 'noopener');
+      }
+
       function openDialog(p, focusDemo) {
         currentSlug = p.slug;
         lastTrigger = document.activeElement;
@@ -1624,7 +1628,7 @@
           openDialog(p, true);
           return;
         }
-        openDialog(p, false);
+        openWorkflowPage(p.slug);
       });
       feed.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -1632,7 +1636,7 @@
         var card = e.target.closest('[data-slug]');
         if (!card) return;
         e.preventDefault();
-        openDialog(PRODUCTS[card.dataset.slug], false);
+        openWorkflowPage(card.dataset.slug);
       });
 
       dialogBody.addEventListener('click', function (e) {
