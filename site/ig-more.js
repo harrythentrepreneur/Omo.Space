@@ -401,5 +401,50 @@ window.COGNITION_IG_MORE = [
     },
     runPrice: 0.1,
     icon: null
+  },
+  {
+    slug: 'woven-relationship-book-maker',
+    name: 'Woven Relationship Book Maker',
+    emoji: '💞',
+    category: 'content',
+    niche: 'copy',
+    tags: ['books', 'copy', 'relationship', 'story', 'storytelling', 'personalized', 'love'],
+    free: false,
+    priceOwn: 29,
+    priceMaintain: 8,
+    promise: 'Turn your love story into a beautiful keepsake book.',
+    maker: 'Woven',
+    makerName: 'Woven Studio',
+    version: 'v1.0.0 · 2026-08-11',
+    demoCap: 'Hosted demo: narrative draft + PDF-ready page plan',
+    desc: 'Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted demo delivers a Markdown book draft and PDF-ready page plan; download the workflow once or run the drafting preview on our cloud for about ten cents.',
+    cover: 'covers/woven-relationship-book-maker.svg',
+    upvotes: 84,
+    inputs: [
+      'how_you_met: a line about how you met',
+      'favorite_moments: milestones and memories you want included',
+      'inside_jokes: favorite jokes, phrases, and tiny details',
+      'style: warm, playful, or poetic',
+      'length: short or long'
+    ],
+    outputs: [
+      'book — a chaptered relationship story in Markdown',
+      'page_plan — a PDF-ready page plan with chapter breaks and keepsake prompts'
+    ],
+    exampleIn: 'We met after reaching for the same book at a rainy-day shop · seven years, two cities, and one badly behaved corgi · warm and playful · short',
+    exampleOut: [
+      'A warm chaptered story that carries the rainy bookshop meeting through seven years together',
+      'A PDF-ready page plan with chapter breaks, memory prompts, and the corgi joke woven through'
+    ],
+    workflow: {
+      steps: [
+        { type: 'llm', role: 'write', model: 'deepseek-v4-flash', max_output: 900, system: 'Write a personalized relationship keepsake from only the details supplied. Return EXACTLY this JSON shape: {"book":"a warm chaptered relationship story in Markdown","page_plan":["PDF-ready page or chapter note"]}. Keep the couple\'s facts accurate, weave in their own phrases and inside jokes naturally, and give the story a beginning, middle, and hopeful close. HARD RULES: page_plan is a flat array of STRINGS, never invent names, dates, events, or quotations, and output ONLY the JSON object.' },
+        { type: 'pipeline', role: 'weave', label: 'Weave supplied memories into a coherent chapter arc' },
+        { type: 'pipeline', role: 'polish', label: 'Polish the story in the requested style without changing facts' },
+        { type: 'pipeline', role: 'deliver', label: 'Deliver Markdown book and PDF-ready page plan' }
+      ]
+    },
+    runPrice: 0.1,
+    icon: null
   }
 ];

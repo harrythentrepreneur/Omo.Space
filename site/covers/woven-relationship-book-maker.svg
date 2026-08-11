@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Woven Relationship Book Maker</title>
+  <desc id="desc">A warm open keepsake book with two joined hearts and a coral ribbon weaving through its pages.</desc>
+
+  <rect width="1200" height="675" fill="#F2F6F1"/>
+  <circle cx="164" cy="126" r="78" fill="#BDEFD4"/>
+  <circle cx="1068" cy="548" r="102" fill="#BDEFD4"/>
+  <path d="M0 560c178-68 328-44 455 30 151 88 334 92 745-22v107H0z" fill="#FFFFFF"/>
+
+  <!-- Open keepsake book. -->
+  <path d="M180 190c147-36 285-10 420 82v318c-135-92-273-118-420-82z" fill="#FFFFFF" stroke="#17352C" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M1020 190c-147-36-285-10-420 82v318c135-92 273-118 420-82z" fill="#FFFFFF" stroke="#17352C" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M600 272v318" fill="none" stroke="#17352C" stroke-width="8" stroke-linecap="round"/>
+  <path d="M230 248c111-19 213 2 306 63M230 304c102-14 199 8 289 64M230 446c95-10 185 10 270 57" fill="none" stroke="#D9E2DC" stroke-width="12" stroke-linecap="round"/>
+  <path d="M970 248c-111-19-213 2-306 63M970 304c-102-14-199 8-289 64M970 446c-95-10-185 10-270 57" fill="none" stroke="#D9E2DC" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- The couple, held in the two pages. -->
+  <circle cx="414" cy="374" r="40" fill="#BDEFD4" stroke="#17352C" stroke-width="6"/>
+  <path d="M346 461c13-56 42-84 68-84s55 28 68 84" fill="#BDEFD4" stroke="#17352C" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="786" cy="374" r="40" fill="#BDEFD4" stroke="#17352C" stroke-width="6"/>
+  <path d="M718 461c13-56 42-84 68-84s55 28 68 84" fill="#BDEFD4" stroke="#17352C" stroke-width="6" stroke-linejoin="round"/>
+
+  <!-- A single story ribbon weaves both pages together. -->
+  <path d="M116 422c118 66 200 70 286 30 83-39 129-112 198-112s115 73 198 112c86 40 168 36 286-30" fill="none" stroke="#FF6B3D" stroke-width="18" stroke-linecap="round"/>
+  <path d="M116 422c118 66 200 70 286 30 83-39 129-112 198-112s115 73 198 112c86 40 168 36 286-30" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-dasharray="2 25"/>
+
+  <!-- Joined heart at the centre of the story. -->
+  <path d="M600 458c-67-43-108-81-108-126 0-35 25-59 58-59 22 0 40 11 50 28 10-17 28-28 50-28 33 0 58 24 58 59 0 45-41 83-108 126z" fill="#FF6B3D" stroke="#17352C" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M573 331c10-16 35-20 53-2" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Small chapter markers make the cover read at card size. -->
+  <circle cx="126" cy="258" r="12" fill="#FF6B3D"/>
+  <circle cx="1074" cy="258" r="12" fill="#FF6B3D"/>
+  <path d="M92 296h68M1040 296h68" stroke="#17352C" stroke-width="10" stroke-linecap="round"/>
+</svg>
