@@ -662,19 +662,15 @@
       var VOTE_KEY = 'cognition_votes_v1';
 
       var PRODUCTS = {};
-      /* TEMPORARY DELIST GATE — only these slugs render until re-enabled.
-         To re-enable a listing: add its slug to this array. Nothing else needed.
-         The listing data in ig-workflows.js / ig-more.js is untouched. */
-      var LIVE_SLUGS = ['japanese-style-story-video', 'woven-relationship-book-maker'];
       var igWorkflows = window.COGNITION_IG_WORKFLOWS || [];
       var igMore = window.COGNITION_IG_MORE || [];
       var i;
       for (i = 0; i < igWorkflows.length; i++) {
-        if (!igWorkflows[i] || !igWorkflows[i].slug || LIVE_SLUGS.indexOf(igWorkflows[i].slug) === -1) continue;
+        if (!igWorkflows[i] || !igWorkflows[i].slug) continue;
         if (!PRODUCTS[igWorkflows[i].slug]) PRODUCTS[igWorkflows[i].slug] = igWorkflows[i];
       }
       for (i = 0; i < igMore.length; i++) {
-        if (!igMore[i] || !igMore[i].slug || LIVE_SLUGS.indexOf(igMore[i].slug) === -1) continue;
+        if (!igMore[i] || !igMore[i].slug) continue;
         if (!PRODUCTS[igMore[i].slug]) PRODUCTS[igMore[i].slug] = igMore[i];
       }
       var slugs = Object.keys(PRODUCTS);
