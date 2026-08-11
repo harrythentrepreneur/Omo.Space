@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#F2F6F1">
+  <meta name="robots" content="index,follow">
+  <meta name="description" content="Sell the skill.md files and AI workflows you already built on the Omo marketplace.">
+  <link rel="canonical" href="https://omo.space/sell.html">
+  <meta property="og:title" content="Sell Your Workflow on Omo">
+  <meta property="og:description" content="List the workflows you already built, let buyers download or run them, and earn on every sale.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://omo.space/sell.html">
+  <meta property="og:site_name" content="Omo">
+  <meta property="og:image" content="https://omo.space/favicon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sell Your Workflow on Omo">
+  <meta name="twitter:description" content="List the workflows you already built, let buyers download or run them, and earn on every sale.">
+  <meta name="twitter:image" content="https://omo.space/favicon-512.png">
+  <title>Sell Your Workflow on Omo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; overflow-x: hidden; background: var(--canvas); }
+    body {
+      min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0; overflow-x: hidden;
+      background:
+        radial-gradient(circle at 86% 16%, rgba(189, 239, 212, .55) 0 9%, transparent 9.2%),
+        var(--canvas);
+      color: var(--pine); font-family: var(--body); line-height: 1.58; text-rendering: optimizeLegibility;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    img { display: block; max-width: 100%; }
+    :where(a, button, input):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+    .page-shell {
+      width: min(100% - 48px, 1040px); min-height: 100vh; min-height: 100dvh; margin-inline: auto;
+      padding: 28px 0 max(48px, env(safe-area-inset-bottom)); display: grid; grid-template-rows: auto 1fr;
+    }
+    .sell-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark-logo { width: auto; height: 34px; }
+    .back-link {
+      min-height: 44px; display: inline-flex; align-items: center; color: var(--moss); font-size: 14px;
+      font-weight: 700; text-underline-offset: 4px;
+    }
+    .back-link:hover { color: var(--pine); }
+    .sell-main { display: grid; place-items: center; padding: 76px 0 84px; }
+    .sell-copy { width: min(100%, 690px); text-align: center; }
+    .eyebrow {
+      display: inline-flex; margin-bottom: 22px; padding: 6px 13px; border: 1px solid var(--rule);
+      border-radius: 999px; background: var(--surface); color: var(--moss); font-size: 12px;
+      font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    }
+    h1 {
+      margin: 0 0 28px; font: 600 clamp(46px, 8vw, 76px)/.99 var(--display);
+      letter-spacing: -.035em; text-wrap: balance;
+    }
+    h1 em { color: var(--orange); font-style: italic; }
+    .sell-body { max-width: 600px; margin: 0 auto; color: var(--moss); font-size: clamp(17px, 2vw, 19px); text-wrap: pretty; }
+    .sell-body p { margin: 0 0 18px; }
+    .sell-body strong { color: var(--pine); }
+    .signup-button {
+      min-height: 56px; margin-top: 20px; padding: 0 28px; border: 1px solid var(--pine); border-radius: 11px;
+      background: var(--pine); color: #fff; font-weight: 700; transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .signup-button:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(23, 53, 44, .2); }
+    .login-note { margin: 18px 0 0; color: var(--moss); font-size: 14px; }
+    .login-link { padding: 0; border: 0; background: transparent; color: var(--pine); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+
+    body.auth-modal-open { overflow: hidden; }
+    .auth-modal[hidden], .auth-modal__view[hidden], .signup-only[hidden] { display: none; }
+    .auth-modal {
+      position: fixed; z-index: 1000; inset: 0; padding: 24px 16px; display: grid; place-items: center;
+      overflow-y: auto; background: rgba(24, 28, 27, .58);
+    }
+    .auth-modal__card {
+      position: relative; width: min(100%, 430px); margin: auto; padding: 38px 36px 32px;
+      border: 1px solid rgba(32, 32, 32, .08); border-radius: 18px; background: #fff; color: #202020;
+      box-shadow: 0 26px 80px rgba(12, 22, 19, .25); animation: auth-modal-in .18s ease-out both;
+    }
+    .auth-modal__close {
+      position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; padding: 0; display: grid;
+      place-items: center; border: 0; border-radius: 50%; background: transparent; color: #6c6c6c;
+      font-size: 27px; font-weight: 400; line-height: 1;
+    }
+    .auth-modal__close:hover { background: #f5f5f5; color: #202020; }
+    .auth-modal__logo { width: auto; height: 72px; margin: 0 auto 24px; }
+    .auth-modal__heading { margin: 0 40px 5px 0; font-size: 25px; line-height: 1.22; letter-spacing: -.025em; }
+    .auth-modal__subheading { margin: 0 32px 27px 0; color: #717171; font-size: 14px; line-height: 1.5; }
+    .auth-modal__form { display: grid; gap: 14px; }
+    .auth-modal__field { position: relative; }
+    .auth-modal__input {
+      width: 100%; height: 58px; padding: 20px 14px 6px; border: 1px solid #cfcfcf; border-radius: 7px;
+      outline: 0; background: #fff; color: #202020; font: 500 16px/1.2 var(--body);
+      transition: border-color .14s ease, box-shadow .14s ease;
+    }
+    .auth-modal__input:hover { border-color: #a7a7a7; }
+    .auth-modal__input:focus { border-color: #3f6fff; box-shadow: 0 0 0 3px rgba(63, 111, 255, .12); }
+    .auth-modal__label {
+      position: absolute; top: 8px; left: 14px; pointer-events: none; color: #757575; font-size: 11px;
+      font-weight: 700; letter-spacing: .035em; transform-origin: left top; transition: all .12s ease;
+    }
+    .auth-modal__input:placeholder-shown:not(:focus) + .auth-modal__label { top: 19px; font-size: 15px; font-weight: 500; letter-spacing: 0; }
+    .auth-modal__input:focus + .auth-modal__label { color: #3f6fff; }
+    .auth-modal__submit {
+      width: 100%; min-height: 54px; margin-top: 4px; padding: 0 20px; border: 0; border-radius: 7px;
+      background: var(--pine); color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    }
+    .auth-modal__submit:not(:disabled):hover { background: #21483d; }
+    .auth-modal__submit:disabled { background: #e4e4e4; color: #9b9b9b; cursor: not-allowed; }
+    .auth-modal__submit[aria-busy="true"] { cursor: wait; }
+    .auth-modal__message { margin: 0; color: #bd2f2f; font-size: 13px; line-height: 1.45; }
+    .auth-modal__message[hidden] { display: none; }
+    .auth-modal__fine-print { margin: 3px 4px 0; color: #858585; font-size: 11px; line-height: 1.5; text-align: center; }
+    .auth-modal__fine-print a, .auth-modal__switch-button, .auth-modal__resend { color: #3f6fff; text-decoration: none; }
+    .auth-modal__fine-print a:hover, .auth-modal__switch-button:hover, .auth-modal__resend:hover { text-decoration: underline; }
+    .auth-modal__switch { margin: 8px 0 0; color: #5f5f5f; font-size: 14px; text-align: center; }
+    .auth-modal__switch-button, .auth-modal__resend { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; }
+    .auth-modal__verification-copy { margin: 0 0 22px; color: #666; font-size: 14px; line-height: 1.55; }
+    .auth-modal__verification-copy strong { color: #202020; overflow-wrap: anywhere; }
+    .auth-modal__resend-row { margin: 1px 0 0; color: #858585; font-size: 12px; text-align: center; }
+    @keyframes auth-modal-in {
+      from { opacity: 0; transform: translateY(8px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @media (max-width: 600px) {
+      .page-shell { width: calc(100% - 32px); padding-top: max(18px, env(safe-area-inset-top)); }
+      .sell-header { gap: 16px; }
+      .back-link { font-size: 13px; }
+      .sell-main { padding: 54px 0 64px; place-items: start center; }
+      h1 { font-size: clamp(42px, 13vw, 58px); }
+      .sell-body { font-size: 17px; }
+      .signup-button { width: 100%; }
+    }
+    @media (max-width: 420px) {
+      .wordmark-logo { height: 30px; }
+      .auth-modal { padding: 12px; }
+      .auth-modal__card { padding: 34px 22px 26px; border-radius: 15px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="sell-header">
+      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+      <a class="back-link" href="index.html#feed">← Back to store</a>
+    </header>
+
+    <main class="sell-main">
+      <section class="sell-copy" aria-labelledby="sell-title">
+        <p class="eyebrow">Sell on Omo</p>
+        <h1 id="sell-title">Sell your workflow on the <em>marketplace.</em></h1>
+        <div class="sell-body">
+          <p>You built a skill.md or workflow that already does useful work. List it on Omo so other people can find it without setting up GitHub, payments, or hosting.</p>
+          <p>Buyers can download the files and run them themselves, or run the workflow on our cloud while Omo handles the API keys and billing.</p>
+          <p>You keep <strong>85% of every store sale</strong>, <strong>95% when the buyer comes from your own link</strong>, and <strong>85% of the positive margin on API runs</strong>.</p>
+        </div>
+        <button class="signup-button" id="create-account" type="button">Create your account</button>
+        <p class="login-note">Already have an account? <a class="login-link" id="sell-login" href="signup.html">Log in</a></p>
+      </section>
+    </main>
+  </div>
+
+  <div class="auth-modal" id="signup-modal" hidden>
+    <section class="auth-modal__card" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" aria-describedby="auth-modal-subtitle">
+      <button class="auth-modal__close" id="auth-modal-close" type="button" aria-label="Close">×</button>
+      <img class="auth-modal__logo" src="logo-sweet-pastel.svg" alt="Omo">
+
+      <div class="auth-modal__view" id="auth-form-view">
+        <h2 class="auth-modal__heading" id="auth-modal-title">Create your Omo account</h2>
+        <p class="auth-modal__subheading" id="auth-modal-subtitle">to sell workflows and keep what you earn</p>
+        <form class="auth-modal__form" id="auth-form" novalidate>
+          <div class="auth-modal__field signup-only">
+            <input class="auth-modal__input" id="auth-first-name" name="firstName" type="text" autocomplete="given-name" placeholder=" " maxlength="80" required>
+            <label class="auth-modal__label" for="auth-first-name">First name</label>
+          </div>
+          <div class="auth-modal__field signup-only">
+            <input class="auth-modal__input" id="auth-last-name" name="lastName" type="text" autocomplete="family-name" placeholder=" " maxlength="80" required>
+            <label class="auth-modal__label" for="auth-last-name">Last name</label>
+          </div>
+          <div class="auth-modal__field">
+            <input class="auth-modal__input" id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder=" " maxlength="254" required>
+            <label class="auth-modal__label" for="auth-email">Email</label>
+          </div>
+          <div class="auth-modal__field">
+            <input class="auth-modal__input" id="auth-password" name="password" type="password" autocomplete="new-password" placeholder=" " minlength="8" maxlength="128" required>
+            <label class="auth-modal__label" for="auth-password">Password</label>
+          </div>
+          <p class="auth-modal__message" id="auth-error" role="alert" hidden></p>
+          <button class="auth-modal__submit" id="auth-submit" type="submit" disabled>Sign up</button>
+          <p class="auth-modal__fine-print signup-only">By signing up, you agree to our <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+        </form>
+        <p class="auth-modal__switch"><span id="auth-switch-copy">Already have an account?</span> <button class="auth-modal__switch-button" id="auth-switch" type="button">Log in</button></p>
+      </div>
+
+      <div class="auth-modal__view" id="auth-verification-view" hidden>
+        <h2 class="auth-modal__heading" id="auth-verification-title">Check your email</h2>
+        <p class="auth-modal__verification-copy">Enter the verification code sent to <strong id="auth-verification-email"></strong>.</p>
+        <form class="auth-modal__form" id="auth-verification-form" novalidate>
+          <div class="auth-modal__field">
+            <input class="auth-modal__input" id="auth-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder=" " minlength="6" maxlength="6" required>
+            <label class="auth-modal__label" for="auth-code">Verification code</label>
+          </div>
+          <p class="auth-modal__message" id="auth-verification-error" role="alert" hidden></p>
+          <button class="auth-modal__submit" id="auth-verify" type="submit" disabled>Verify email</button>
+          <p class="auth-modal__resend-row">Didn't get it? <button class="auth-modal__resend" id="auth-resend" type="button">Send a new code</button></p>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <script src="key-config.js"></script>
+  <script src="clerk.js"></script>
+  <script src="signup-modal.js"></script>
+  <script>
+    (function () {
+      var loginLink = document.getElementById('sell-login');
+      if (!loginLink) return;
+      loginLink.addEventListener('click', function (event) {
+        if (!window.OmoSignupModal || typeof window.OmoSignupModal.openSignIn !== 'function') return;
+        event.preventDefault();
+        window.OmoSignupModal.openSignIn();
+      });
+    })();
+  </script>
+</body>
+</html>

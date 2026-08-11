@@ -355,7 +355,9 @@
       .shell { width: calc(100% - 24px); }
       .nav-row { gap: 10px; }
       .wordmark-logo { height: 28px; }
-      .nav-actions { gap: 10px; }
+      .nav-actions { gap: 10px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-inline: contain; }
+      .nav-actions::-webkit-scrollbar { display: none; }
+      .nav-actions > * { flex: 0 0 auto; }
       .nav-link { font-size: 12px; }
       .login-link { padding-inline: 11px; }
       .page { padding-bottom: 48px; }
@@ -385,6 +387,8 @@
       </a>
       <nav class="nav-actions" aria-label="Primary">
         <a class="nav-link" href="index.html#feed">← Back to store</a>
+        <a class="nav-link" href="about.html">About</a>
+        <a class="nav-link" href="sell.html">Sell</a>
         <a class="nav-link login-link" id="login-link" href="signup.html">LOG IN</a>
       </nav>
     </div>

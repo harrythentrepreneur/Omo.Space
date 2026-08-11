@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#17352C">
+  <meta name="robots" content="index,follow">
+  <meta name="description" content="See how Omo runs AI workflows in the cloud, handles setup and API keys, and keeps pricing simple.">
+  <link rel="canonical" href="https://omo.space/about.html">
+  <meta property="og:title" content="How Omo Works — About Omo">
+  <meta property="og:description" content="See how Omo runs AI workflows in the cloud, handles setup and API keys, and keeps pricing simple.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://omo.space/about.html">
+  <meta property="og:site_name" content="Omo">
+  <meta property="og:image" content="https://omo.space/favicon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="How Omo Works — About Omo">
+  <meta name="twitter:description" content="See how Omo runs AI workflows in the cloud, handles setup and API keys, and keeps pricing simple.">
+  <meta name="twitter:image" content="https://omo.space/favicon-512.png">
+  <title>How Omo Works — About Omo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; overflow-x: hidden; scroll-behavior: smooth; }
+    body {
+      min-width: 320px; margin: 0; overflow-x: hidden; background: var(--canvas); color: var(--pine);
+      font-family: var(--body); font-size: 16px; line-height: 1.58; text-rendering: optimizeLegibility;
+    }
+    img { display: block; max-width: 100%; }
+    a { color: inherit; }
+    p, h1, h2, h3 { margin-top: 0; overflow-wrap: break-word; }
+    :where(a, button):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+    .skip-link {
+      position: fixed; z-index: 100; top: 8px; left: 8px; padding: 10px 14px; border-radius: 8px;
+      background: var(--surface); transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+    .sig-cut { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
+
+    .site-header { border-bottom: 1px solid var(--rule); background: var(--canvas); }
+    .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; flex: 0 0 auto; text-decoration: none; }
+    .wordmark-logo { width: auto; height: 34px; }
+    .nav-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
+    .nav-link {
+      min-height: 44px; display: inline-flex; align-items: center; flex: 0 0 auto;
+      font-size: 14px; font-weight: 700; text-decoration: none; text-underline-offset: 4px;
+    }
+    .nav-link:hover, .nav-link[aria-current="page"] { text-decoration: underline; }
+    .button {
+      min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 20px;
+      border: 1px solid transparent; border-radius: 10px; font-weight: 700; text-decoration: none; line-height: 1.2;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .button:hover { transform: translateY(-1px); }
+    .button-primary { background: var(--pine); color: #fff; }
+    .button-primary:hover { box-shadow: 0 6px 18px rgba(23, 53, 44, .18); }
+    .button-accent { background: var(--orange); color: var(--pine); }
+    .button-small { min-height: 40px; padding-inline: 16px; font-size: 14px; }
+
+    .about-hero { padding: 88px 0 84px; }
+    .about-hero-inner { max-width: 820px; }
+    .eyebrow {
+      display: inline-flex; margin-bottom: 18px; padding: 6px 13px; border: 1px solid var(--rule);
+      border-radius: 999px; background: var(--surface); color: var(--moss); font-size: 12px;
+      font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    }
+    .about-title {
+      max-width: 760px; margin-bottom: 22px; font: 600 clamp(48px, 8vw, 76px)/.99 var(--display);
+      letter-spacing: -.035em; text-wrap: balance;
+    }
+    .about-title em { color: var(--orange); font-style: italic; }
+    .about-intro { max-width: 660px; margin: 0; color: var(--moss); font-size: clamp(18px, 2.2vw, 21px); text-wrap: pretty; }
+
+    .section-head { max-width: 680px; margin-bottom: 42px; }
+    .section-title { margin-bottom: 14px; font: 600 clamp(32px, 5vw, 44px)/1.06 var(--display); letter-spacing: -.015em; }
+    .section-title em { font-style: italic; color: var(--orange); }
+    .section-copy { margin: 0; color: var(--moss); font-size: 17px; text-wrap: pretty; }
+
+    .cloud-section { padding: 92px 0; background: var(--pine); color: #F2F6F1; }
+    .cloud-section .section-title em { color: var(--mint); }
+    .cloud-section .section-copy { color: rgba(242, 246, 241, .78); }
+    .step-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+    .step-card {
+      min-width: 0; padding: 28px; border: 1px solid rgba(242, 246, 241, .22); border-radius: 14px;
+      background: rgba(255, 255, 255, .06);
+    }
+    .step-number {
+      width: 34px; height: 34px; margin-bottom: 24px; display: grid; place-items: center;
+      border-radius: 50%; background: var(--mint); color: var(--pine); font-weight: 700;
+    }
+    .step-card h3 { margin-bottom: 8px; font-size: 20px; }
+    .step-card p { margin: 0; color: rgba(242, 246, 241, .78); font-size: 15px; }
+    .use-doors { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+    .door-pill {
+      padding: 6px 10px; border: 1px solid rgba(242, 246, 241, .25); border-radius: 999px;
+      color: #F2F6F1; font-size: 12px; font-weight: 700;
+    }
+    .step-card .cloud-note { margin-top: 16px; font-size: 13.5px; line-height: 1.55; }
+    .cloud-note strong { color: var(--mint); }
+
+    .ops-section { padding: 92px 0; background: var(--mint); }
+    .ops-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .ops-card {
+      min-width: 0; display: flex; gap: 20px; padding: 23px 25px; border: 1px solid rgba(23, 53, 44, .18);
+      border-radius: 14px; background: rgba(255, 255, 255, .55);
+    }
+    .ops-card h3 { flex: 0 0 112px; margin: 0; color: var(--orange); font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
+    .ops-card p { margin: 0; font-size: 15px; }
+    .ops-close { margin: 24px 0 0; font: 600 20px/1.3 var(--display); }
+
+    .pricing-section { padding: 92px 0; background: var(--surface); border-block: 1px solid var(--rule); }
+    .pricing-section .section-head { margin-inline: auto; text-align: center; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .pricing-card { min-width: 0; padding: 28px; border: 1px solid var(--rule); border-radius: 14px; background: var(--canvas); }
+    .pricing-name { margin-bottom: 4px; font: 600 22px/1.2 var(--display); }
+    .pricing-price { margin-bottom: 12px; color: var(--orange); font-weight: 700; }
+    .pricing-card > p:last-child { margin: 0; color: var(--moss); font-size: 15px; }
+    .pricing-note { margin: 30px 0 0; color: var(--moss); font-size: 13.5px; text-align: center; }
+
+    .economics-section { padding: 92px 0; }
+    .economics-card {
+      max-width: 900px; padding: clamp(30px, 5vw, 54px); border: 1px solid var(--pine);
+      border-radius: 20px; background: var(--surface);
+    }
+    .economics-card h2 { margin-bottom: 16px; font: 600 clamp(30px, 5vw, 42px)/1.08 var(--display); }
+    .economics-card p { max-width: 720px; color: var(--moss); }
+    .economics-card p:last-of-type { margin-bottom: 26px; }
+
+    .bottom-cta { padding: 0 0 96px; }
+    .bottom-card {
+      padding: clamp(36px, 6vw, 64px); border-radius: 20px; background: var(--pine); color: #F2F6F1; text-align: center;
+    }
+    .bottom-card h2 { margin-bottom: 12px; font: 600 clamp(31px, 5vw, 44px)/1.08 var(--display); }
+    .bottom-card p { max-width: 520px; margin: 0 auto 26px; color: rgba(242, 246, 241, .76); }
+    .bottom-card .button { background: var(--orange); color: var(--pine); }
+
+    .site-footer { padding: 36px 0 44px; border-top: 1px solid var(--rule); }
+    .footer-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
+    .footer-tagline { max-width: 350px; margin: 8px 0 0; color: var(--moss); font-size: 13.5px; }
+    .footer-links { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+    .footer-links a { min-height: 44px; display: inline-flex; align-items: center; color: var(--moss); font-size: 14px; font-weight: 700; text-decoration: none; }
+    .footer-links a:hover { color: var(--pine); text-decoration: underline; }
+
+    @media (max-width: 760px) {
+      .shell { width: min(var(--shell), calc(100% - 32px)); }
+      .nav-row { min-height: auto; align-items: flex-start; flex-direction: column; gap: 10px; padding: 14px 0 10px; }
+      .nav-actions {
+        width: calc(100% + 32px); margin-inline: -16px; padding: 0 16px 4px; justify-content: flex-start;
+        gap: 8px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-inline: contain;
+      }
+      .nav-actions::-webkit-scrollbar { display: none; }
+      .nav-link { font-size: 13px; }
+      .button-small { min-height: 44px; padding-inline: 12px; }
+      .about-hero { padding: 58px 0 62px; }
+      .about-title { font-size: clamp(44px, 14vw, 60px); }
+      .cloud-section, .ops-section, .pricing-section, .economics-section { padding: 68px 0; }
+      .section-head { margin-bottom: 30px; }
+      .step-grid, .pricing-grid { grid-template-columns: 1fr; }
+      .step-card, .pricing-card { padding: 22px; }
+      .ops-grid { grid-template-columns: 1fr; }
+      .ops-card { display: block; padding: 21px; }
+      .ops-card h3 { margin-bottom: 6px; }
+      .bottom-cta { padding-bottom: 68px; }
+      .site-footer { padding-bottom: max(40px, calc(24px + env(safe-area-inset-bottom))); }
+    }
+    @media (max-width: 460px) {
+      .footer-links { width: 100%; gap: 8px 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="nav-link" href="index.html#feed">Store</a>
+        <a class="nav-link" href="about.html" aria-current="page">About</a>
+        <a class="nav-link" href="host.html">Host yours</a>
+        <a class="nav-link" href="dashboard.html">Dashboard</a>
+        <a class="button button-accent button-small" href="sell.html">Sell yours</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="about-hero" aria-labelledby="about-title">
+      <div class="shell about-hero-inner">
+        <p class="eyebrow">About Omo</p>
+        <h1 class="about-title" id="about-title">How Omo <em>works.</em></h1>
+        <p class="about-intro">A store for proven AI helpers. Try one, own the files, or let Omo run it for you in the cloud.</p>
+      </div>
+    </section>
+
+    <section class="cloud-section" aria-labelledby="cloud-title">
+      <div class="shell">
+        <header class="section-head">
+          <h2 class="section-title" id="cloud-title">We run it in the cloud. <em>You</em> choose how to use it.</h2>
+          <p class="section-copy">Run a proven workflow with one API call, or download the files and run it locally. You get the same result either way, and you are never locked in.</p>
+        </header>
+        <div class="step-grid">
+          <article class="step-card">
+            <span class="step-number">1</span>
+            <h3>Find one</h3>
+            <p>Look through the store. Pick an AI helper that does a job you need.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-number">2</span>
+            <h3>Try it free</h3>
+            <p>Give it one job for free. See what it does before you buy.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-number">3</span>
+            <h3>Use it your way</h3>
+            <p>Choose one of two ways: run it through our API on our cloud, or download the files and run them locally.</p>
+            <div class="use-doors">
+              <span class="door-pill">🔑 API</span>
+              <span class="door-pill">☁️ No setup</span>
+              <span class="door-pill">💻 Download</span>
+            </div>
+            <p class="cloud-note">For API runs, we execute each helper in a <strong>sandboxed environment</strong> on our servers and hold the keys to services like HeyGen. You pay per use, with no installs or setup. Or download the workflow and prompts and run them on your own computer. You are never locked in.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="ops-section" aria-labelledby="ops-title">
+      <div class="shell">
+        <header class="section-head">
+          <h2 class="section-title" id="ops-title">Omo handles the <em>boring stuff.</em></h2>
+          <p class="section-copy">The APIs, servers, setup, and billing are already handled. You just run the helper.</p>
+        </header>
+        <div class="ops-grid">
+          <article class="ops-card sig-cut"><h3>API keys</h3><p>We hold the keys for HeyGen, image models, voice tools, and more — you never sign up or paste one.</p></article>
+          <article class="ops-card"><h3>Hosting</h3><p>Our cloud runs every job in a sandboxed container — no servers, Docker, or installs; cold start to result in seconds.</p></article>
+          <article class="ops-card"><h3>Setup</h3><p>There is none: no dashboard to learn, prompt to write, or config to touch. Paste your product or topic and hit run.</p></article>
+          <article class="ops-card"><h3>Billing</h3><p>We handle the service bills — pay per run, usually cents, or buy the files once. No subscriptions.</p></article>
+          <article class="ops-card"><h3>Your part</h3><p>Pick a helper, type what you need, press run, and get the result. That’s it.</p></article>
+        </div>
+        <p class="ops-close">No setup. No overthinking required.</p>
+      </div>
+    </section>
+
+    <section class="pricing-section" aria-labelledby="pricing-title">
+      <div class="shell">
+        <header class="section-head">
+          <h2 class="section-title" id="pricing-title">Simple prices. Nothing hidden.</h2>
+          <p class="section-copy">No subscriptions. Pay per use — usually cents to a few dollars. Or buy the files once and run them locally.</p>
+        </header>
+        <div class="pricing-grid">
+          <article class="pricing-card sig-cut">
+            <h3 class="pricing-name">FREE</h3>
+            <p class="pricing-price">Try it free</p>
+            <p>Some helpers are free; we give you the prompts and how-to. No card needed.</p>
+          </article>
+          <article class="pricing-card">
+            <h3 class="pricing-name">ONE-TIME</h3>
+            <p class="pricing-price">$3–$200 one-time</p>
+            <p>Own it: pay once, download the workflow + prompts, and run them on your machine forever.</p>
+          </article>
+          <article class="pricing-card">
+            <h3 class="pricing-name">PER-USE</h3>
+            <p class="pricing-price">Use the API</p>
+            <p>For API runs, everything happens on our cloud. We handle keys for tools like HeyGen. Pay per run — usually cents to a few dollars.</p>
+          </article>
+        </div>
+        <p class="pricing-note">Free prompts, one-time ownership, or simple per-run API pricing.</p>
+      </div>
+    </section>
+
+    <section class="economics-section" aria-labelledby="economics-title">
+      <div class="shell">
+        <div class="economics-card sig-cut">
+          <h2 id="economics-title">Pay only when a helper runs.</h2>
+          <p>Each run price covers the services the workflow uses — such as image, video, voice, or language models — plus Omo’s cloud execution. The price is shown before you run it, and failed validations cost nothing.</p>
+          <p>Every new account gets <strong>$5 in free credits</strong> to try real workflows before topping up. No card is needed to start.</p>
+          <a class="button button-primary" href="index.html#feed">See what you can run</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="bottom-cta" aria-labelledby="store-title">
+      <div class="shell">
+        <div class="bottom-card sig-cut">
+          <h2 id="store-title">Find a helper for the job.</h2>
+          <p>Browse the catalogue, try a real workflow, and choose whether to download it or run it on Omo.</p>
+          <a class="button" href="index.html#feed">Browse the store</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-row">
+      <div>
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <p class="footer-tagline">The store for AI helpers. Try a free demo, then download or run by API.</p>
+      </div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="index.html#feed">Store</a>
+        <a href="sell.html">Sell yours</a>
+        <a href="creators.html">Creator details</a>
+        <a href="host.html">Host yours</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

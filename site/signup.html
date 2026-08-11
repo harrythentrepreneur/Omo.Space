@@ -70,6 +70,13 @@
       text-decoration: none;
     }
     .wordmark-logo { display: block; width: auto; height: 34px; }
+    .signup-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .signup-nav { display: flex; align-items: center; gap: 18px; }
+    .signup-nav a {
+      min-height: 44px; display: inline-flex; align-items: center; color: var(--pine);
+      font-size: 14px; font-weight: 700; text-underline-offset: 4px;
+    }
+    .signup-nav a:hover { color: var(--orange); }
     .sig-cut {
       clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%);
     }
@@ -230,6 +237,9 @@
     @media (max-width: 420px) {
       .signup-card { border-radius: 20px 20px 0 20px; }
       .eyebrow { margin-bottom: 18px; }
+      .signup-header { gap: 12px; }
+      .signup-nav { gap: 12px; }
+      .signup-nav a { font-size: 13px; }
       .auth-modal { padding: 12px; }
       .auth-modal__card { padding: 34px 22px 26px; border-radius: 15px; }
     }
@@ -241,7 +251,13 @@
 </head>
 <body>
   <main class="page-shell">
-    <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+    <header class="signup-header">
+      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+      <nav class="signup-nav" aria-label="Primary">
+        <a href="about.html">About</a>
+        <a href="sell.html">Sell</a>
+      </nav>
+    </header>
 
     <section class="signup-card sig-cut" aria-labelledby="signup-title">
       <div class="intro">
