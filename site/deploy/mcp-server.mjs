@@ -19,7 +19,7 @@ const SERVER_NAME = 'omo-marketplace';
 const SERVER_VERSION = '1.0.0';
 const LATEST_PROTOCOL = '2025-06-18';
 const SUPPORTED_PROTOCOLS = new Set([LATEST_PROTOCOL, '2025-03-26']);
-const TOPUP_URL = 'https://omo.best/dashboard.html?topup=needed';
+const TOPUP_URL = 'https://omo.space/dashboard.html?topup=needed';
 const MAX_INPUT_CHARS = 12_000;
 const DEMELLO_SLUG = 'japanese-style-story-video';
 const fetchedCatalogues = new Map();
@@ -122,7 +122,7 @@ const TOOLS = [
       properties: {
         slug: { type: 'string', description: 'The exact helper slug.' },
         inputs: { type: 'object', description: 'Input names and values described by omo_get_helper.', additionalProperties: true },
-        api_key: { type: 'string', description: 'Your secret omo_ API key from omo.best/api.html.' },
+        api_key: { type: 'string', description: 'Your secret omo_ API key from omo.space/api.html.' },
         idempotency_key: { type: 'string', description: 'Required for the hosted video workflow: an 8–128 character retry key. Reuse it only for the same inputs.' },
       },
       required: ['slug', 'inputs'],
@@ -856,7 +856,7 @@ async function toolRunHelper(request, env, args) {
   if (apiKey) {
     if (!isApiKey(apiKey)) throw new RpcFault(-32602, 'api_key must be an Omo key beginning with omo_.');
     account = await getAccount(env, apiKey, false);
-    if (!account) throw new RpcFault(-32000, 'That Omo API key was not found. Get your key at https://omo.best/api.html.');
+    if (!account) throw new RpcFault(-32000, 'That Omo API key was not found. Get your key at https://omo.space/api.html.');
     reservation = await reserveCredits(env, account, costCents, runId);
     if (!reservation.ok) {
       const check = debitForRun(safeNumber(reservation.balance_cents) / 100, costUsd);
@@ -895,7 +895,7 @@ async function toolGetBalance(_request, env, args) {
   const identity = requireString(args.api_key, 'api_key');
   if (!isApiKey(identity)) throw new RpcFault(-32602, 'Use the owning secret omo_ API key. Clerk user ids are not accepted by this public tool.');
   const account = await getAccount(env, identity, false);
-  if (!account) throw new RpcFault(-32000, 'That Omo account was not found. Get your API key at https://omo.best/api.html.');
+  if (!account) throw new RpcFault(-32000, 'That Omo account was not found. Get your API key at https://omo.space/api.html.');
   const runs = await recentRuns(env, account.user_id, 20);
   return {
     ok: true,
@@ -918,7 +918,7 @@ function toolTopupOptions() {
     currency: 'usd',
     suggested_amounts_usd: topupAmounts(),
     minimum_topup_usd: MIN_TOPUP_USD,
-    checkout_url: 'https://omo.best/dashboard.html',
+    checkout_url: 'https://omo.space/dashboard.html',
     note: 'Top-ups happen securely via Stripe on the Omo dashboard. MCP takes no payments in v1.',
   };
 }
@@ -973,7 +973,7 @@ async function dispatchRpc(message, request, env) {
           protocolVersion: chooseProtocol(params),
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
-          instructions: 'Search Omo helpers, inspect exact inputs, then run with an optional omo_ API key. Payments always happen on omo.best, never inside MCP.',
+          instructions: 'Search Omo helpers, inspect exact inputs, then run with an optional omo_ API key. Payments always happen on omo.space, never inside MCP.',
         },
       };
     }
@@ -1098,7 +1098,7 @@ async function runSelfTest() {
     if (id !== undefined) body.id = id;
     if (params !== undefined) body.params = params;
     const headers = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
-    const response = await handleMcpRequest(new Request('https://omo.best/mcp', { method: 'POST', headers, body: JSON.stringify(body) }), env);
+    const response = await handleMcpRequest(new Request('https://omo.space/mcp', { method: 'POST', headers, body: JSON.stringify(body) }), env);
     const json = response.status === 202 ? null : await response.json();
     return { id, response, json };
   }

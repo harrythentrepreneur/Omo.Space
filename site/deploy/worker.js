@@ -1046,8 +1046,8 @@ async function handleCheckout(request, env) {
   if (email.length > 254) return json({ error: 'invalid email' }, 400, cors());
   const params = new URLSearchParams();
   params.set('mode', 'payment');
-  params.set('success_url', `https://omo.best/?purchased=${encodeURIComponent(slug)}`);
-  params.set('cancel_url', 'https://omo.best/?purchased=cancelled');
+  params.set('success_url', `https://omo.space/?purchased=${encodeURIComponent(slug)}`);
+  params.set('cancel_url', 'https://omo.space/?purchased=cancelled');
   params.set('line_items[0][quantity]', '1');
   params.set('line_items[0][price_data][currency]', 'usd');
   params.set('line_items[0][price_data][product_data][name]', listing.name);
@@ -1170,8 +1170,8 @@ async function handleTopup(request, env) {
 
   const params = new URLSearchParams();
   params.set('mode', 'payment');
-  params.set('success_url', 'https://omo.best/dashboard.html?topup=success');
-  params.set('cancel_url', 'https://omo.best/dashboard.html?topup=cancelled');
+  params.set('success_url', 'https://omo.space/dashboard.html?topup=success');
+  params.set('cancel_url', 'https://omo.space/dashboard.html?topup=cancelled');
   params.set('client_reference_id', userId);
   params.set('metadata[user_id]', userId);
   params.set('metadata[type]', 'credits_topup');
@@ -2480,7 +2480,9 @@ function toStrArray(v) {
 }
 
 function isAllowedStorefrontOrigin(origin) {
-  return origin === 'https://omo.best' || /^http:\/\/localhost(?::\d{1,5})?$/.test(origin);
+  return origin === 'https://omo.space' ||
+    origin === 'https://omo.best' ||
+    /^http:\/\/localhost(?::\d{1,5})?$/.test(origin);
 }
 
 function cors(request, env) {

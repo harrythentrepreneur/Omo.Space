@@ -80,7 +80,7 @@
     if (!user) {
       user = {
         id: 'demo-' + Math.random().toString(36).slice(2, 10),
-        email: 'demo@omo.best',
+        email: 'demo@omo.space',
         name: 'Demo Shopper',
         firstName: 'Demo',
         lastName: 'Shopper',
@@ -88,7 +88,7 @@
         demo: true
       };
     }
-    user.email = user.email || 'demo@omo.best';
+    user.email = user.email || 'demo@omo.space';
     user.name = user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Demo Shopper';
     try { localStorage.setItem(USER_KEY, JSON.stringify(user)); } catch (e) {}
     fire();

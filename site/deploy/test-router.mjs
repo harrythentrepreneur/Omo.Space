@@ -27,7 +27,7 @@ async function clerkToken(userId) {
   const now = Math.floor(Date.now() / 1000);
   const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
   const header = encode({ alg: 'RS256', typ: 'JWT', kid: 'test-kid' });
-  const payload = encode({ sub: userId, iss: `https://${clerkFrontendApi}`, azp: 'https://omo.best', iat: now, nbf: now - 1, exp: now + 60 });
+  const payload = encode({ sub: userId, iss: `https://${clerkFrontendApi}`, azp: 'https://omo.space', iat: now, nbf: now - 1, exp: now + 60 });
   const input = `${header}.${payload}`;
   const signature = await webcrypto.subtle.sign('RSASSA-PKCS1-v1_5', clerkKeyPair.privateKey, new TextEncoder().encode(input));
   return `${input}.${Buffer.from(signature).toString('base64url')}`;
@@ -221,7 +221,7 @@ check('router: bad photo style returns 400', badStyle.status === 400);
 
 const stripeEnv = { ...realEnv, STRIPE_SECRET_KEY: 'sk_test_fake_secret' };
 const user111Token = await clerkToken('user_111');
-const user111Headers = { Authorization: `Bearer ${user111Token}`, Origin: 'https://omo.best' };
+const user111Headers = { Authorization: `Bearer ${user111Token}`, Origin: 'https://omo.space' };
 
 const co = await worker.fetch(mkReq('POST', '/api/checkout', { slug: 'ugc-script-studio', priceUsd: 25, email: 'buyer@example.com' }), env);
 check('checkout: no secret key returns 501', co.status === 501);

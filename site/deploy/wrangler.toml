@@ -27,7 +27,7 @@ compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
 # [[routes]]
-# pattern = "omo.best/api/*"
+# pattern = "omo.space/api/*"
 # custom_domain = true
 
 # Optional: per-IP daily caps need a KV namespace (without it the worker runs uncapped).

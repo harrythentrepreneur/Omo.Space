@@ -4,12 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="apple-touch-icon" href="favicon.svg">
-  <meta name="description" content="Omo dashboard — browse every AI helper, manage credits, and copy your API key.">
-  <meta property="og:title" content="Omo — Your helper catalogue">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#4F3F59">
+  <meta name="robots" content="index,follow">
+  <meta name="description" content="Browse your Omo AI helper catalogue, run workflows, manage credits, view usage, and copy your API key from one simple dashboard.">
+  <link rel="canonical" href="https://omo.space/dashboard.html">
+  <meta property="og:title" content="Your Catalogue — Run &amp; Manage AI Helpers | Omo">
+  <meta property="og:description" content="Browse your Omo AI helper catalogue, run workflows, manage credits, view usage, and copy your API key from one simple dashboard.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://omo.best/dashboard.html">
-  <title>Omo — Your helper catalogue</title>
+  <meta property="og:url" content="https://omo.space/dashboard.html">
+  <meta property="og:site_name" content="Omo">
+  <meta property="og:image" content="https://omo.space/favicon-512.png">
+  <meta property="og:image:alt" content="Omo AI helper catalogue dashboard">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Your Catalogue — Run &amp; Manage AI Helpers | Omo">
+  <meta name="twitter:description" content="Browse your Omo AI helper catalogue, run workflows, manage credits, view usage, and copy your API key from one simple dashboard.">
+  <meta name="twitter:image" content="https://omo.space/favicon-512.png">
+  <meta name="twitter:image:alt" content="Omo AI helper catalogue dashboard">
+  <title>Your Catalogue — Run &amp; Manage AI Helpers | Omo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
@@ -72,10 +87,11 @@
       justify-content: space-between; gap: 16px; padding-block: 10px;
     }
     .wordmark {
-      flex: 0 0 auto; font-family: var(--display); font-size: 28px; font-weight: 600;
-      line-height: 1; text-decoration: none; letter-spacing: -.01em;
+      min-height: 44px; display: inline-flex; align-items: center;
+      text-decoration: none;
     }
-    .wordmark-dot { color: var(--orange); }
+    .wordmark-logo { display: block; width: auto; height: 34px; }
+    .footer-brand .wordmark-logo { height: 36px; }
     .nav-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
     .balance-pill {
       display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
@@ -535,7 +551,7 @@
 
   <header class="site-header">
     <div class="dash-shell nav-row">
-      <a class="wordmark" href="index.html">Omo<span class="wordmark-dot">.</span></a>
+      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
       <nav class="nav-actions" aria-label="Account">
         <a class="api-link" href="host.html" title="Upload and host your workflow">Host</a>
         <span class="balance-pill auth-only" id="balance-pill" title="Credits balance">Balance …</span>
@@ -615,7 +631,10 @@
 
   <footer class="site-footer">
     <div class="dash-shell footer-row">
-      <p class="footer-note">Omo — useful AI helpers, ready to run.</p>
+      <div class="footer-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <p class="footer-note">Omo — useful AI helpers, ready to run.</p>
+      </div>
       <nav class="footer-links" aria-label="Footer">
         <a href="index.html">Store</a>
         <a href="host.html">Host yours</a>
@@ -956,7 +975,7 @@
 
       var VIDEO_SLUG = 'japanese-style-story-video';
       var activeVideoRun = null;
-      function workerBase() { return API_BASE || 'https://cognition-demo.pages.dev'; }
+      function workerBase() { return API_BASE || 'https://omo.space'; }
       function cancelActiveVideoRun() {
         if (!activeVideoRun) return;
         activeVideoRun.cancelled = true;
@@ -1554,7 +1573,7 @@
               return;
             }
             (account.mode === 'mock' ? Promise.resolve({ 'Content-Type': 'application/json' }) : authenticatedRunHeaders(newIdempotencyKey())).then(function (headers) {
-              return fetch((API_BASE || 'https://cognition-demo.pages.dev') + '/api/run', { method: 'POST', headers: headers, body: JSON.stringify(payload) });
+              return fetch((API_BASE || 'https://omo.space') + '/api/run', { method: 'POST', headers: headers, body: JSON.stringify(payload) });
             })
               .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { status: response.status, data: data }; }); })
               .then(function (result) {

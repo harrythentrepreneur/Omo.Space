@@ -93,7 +93,7 @@ Repeat deliveries do not credit twice.
 - Run prompt, model, token cap, workflow metadata, and price are resolved by
   slug from the Worker catalog. Unknown real-mode slugs are rejected.
 - `/api/checkout` ignores client prices and uses catalog slug/name/price.
-- Real CORS allows `https://omo.best` and `http://localhost:<port>` only.
+- Real CORS allows `https://omo.space`, the temporary compatibility origin `https://omo.best`, and `http://localhost:<port>` only.
 
 ## Verify before launch
 

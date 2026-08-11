@@ -14,7 +14,7 @@ import { handleMcpRequest } from './mcp-server.mjs';
 
 If MCP is deployed as a separate Worker, bind `OMO_API` as a Cloudflare service binding to the Omo API Worker. `OMO_API_BASE_URL` is the network fallback for non-Workers runtimes. Do not point MCP at Modal: it must call the buyer-facing Worker contract so reservation, idempotency, ownership, progress, settlement, and refunds remain centralized.
 
-In Cloudflare, attach this Worker to the narrow production route `omo.best/mcp*` (or create an equivalent Vercel rewrite to the Worker). The narrow route lets Vercel continue serving the rest of `site/`, including the two catalogue JavaScript files and the discovery document.
+In Cloudflare, attach this Worker to the narrow production route `omo.space/mcp*` (or create an equivalent Vercel rewrite to the Worker). The narrow route lets Vercel continue serving the rest of `site/`, including the two catalogue JavaScript files and the discovery document.
 
 The MCP module uses the same environment bindings as the REST routes:
 
@@ -22,13 +22,13 @@ The MCP module uses the same environment bindings as the REST routes:
 - `BALANCE_KEY_SECRET` and `SIGNUP_GRANT_USD`
 - `LLM_API_KEY`, with optional `LLM_BASE_URL` and `LLM_MODEL`
 - `OMO_API` (recommended service binding for a separate MCP Worker), or `OMO_API_BASE_URL`
-- optional Workers Static Assets binding `ASSETS`, or `OMO_SITE_ORIGIN=https://omo.best`, to refresh catalogue data from `/ig-workflows.js` and `/ig-more.js`
+- optional Workers Static Assets binding `ASSETS`, or `OMO_SITE_ORIGIN=https://omo.space`, to refresh catalogue data from `/ig-workflows.js` and `/ig-more.js`
 
 If static catalogue fetches are unavailable, the module uses its server-owned runtime-safe snapshot. Client prompts, workflows, and prices are never trusted.
 
 ## Discovery file
 
-The discovery document lives at `site/.well-known/mcp.json`, which is the correct path under this repository's Vercel `outputDirectory: "site"`. After deployment, verify that `https://omo.best/.well-known/mcp.json` returns JSON rather than a clean-URL rewrite or 404.
+The discovery document lives at `site/.well-known/mcp.json`, which is the correct path under this repository's Vercel `outputDirectory: "site"`. After deployment, verify that `https://omo.space/.well-known/mcp.json` returns JSON rather than a clean-URL rewrite or 404.
 
 Vercel normally serves files inside `.well-known` from the output directory. If a deployment pipeline strips dot-directories, explicitly copy `site/.well-known/mcp.json` into the final `site/.well-known/` output during the build (or add an equivalent Vercel rewrite to a non-dot static copy). Do not move the public URL: MCP clients expect `/.well-known/mcp.json`.
 
@@ -58,7 +58,7 @@ Use `omo_get_run_result` with the same owner credentials. Before completion it r
 Initialize. The response intentionally does not include `Mcp-Session-Id`:
 
 ```sh
-curl -i https://omo.best/mcp \
+curl -i https://omo.space/mcp \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
@@ -67,7 +67,7 @@ curl -i https://omo.best/mcp \
 Each request is independent, so list tools without a session header:
 
 ```sh
-curl https://omo.best/mcp \
+curl https://omo.space/mcp \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   --data '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
@@ -76,7 +76,7 @@ curl https://omo.best/mcp \
 Also verify discovery:
 
 ```sh
-curl -i https://omo.best/.well-known/mcp.json
+curl -i https://omo.space/.well-known/mcp.json
 ```
 
-`omo_get_balance` requires possession of the owning `omo_` key. It does not accept arbitrary Clerk user IDs, create accounts, or return any raw/hashed credential. Top-ups are deliberately outside MCP v1. `omo_topup_options` returns the supported amounts and sends users to `https://omo.best/dashboard.html` for authenticated Stripe Checkout.
+`omo_get_balance` requires possession of the owning `omo_` key. It does not accept arbitrary Clerk user IDs, create accounts, or return any raw/hashed credential. Top-ups are deliberately outside MCP v1. `omo_topup_options` returns the supported amounts and sends users to `https://omo.space/dashboard.html` for authenticated Stripe Checkout.
