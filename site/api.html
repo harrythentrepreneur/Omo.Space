@@ -203,20 +203,28 @@
       .foot a { min-height: 44px; display: inline-flex; align-items: center; }
     }
   </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <script defer src="nav.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <header class="site-header">
-    <div class="dash-shell nav-row">
-      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
-      <nav class="nav-actions" aria-label="Account">
-        <a class="button button-secondary button-small" href="about.html">About</a>
-        <a class="button button-secondary button-small" href="sell.html">Sell</a>
-        <span class="balance-pill" id="balance-pill" title="Credits balance">Balance …</span>
-        <a class="button button-secondary button-small" href="dashboard.html">Dashboard</a>
-        <button class="button button-accent button-small" id="sign-out-btn" type="button" hidden>Sign out</button>
-      </nav>
+  <header class="site-header omo-site-header">
+    <div class="dash-shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <div class="omo-nav-menu">
+          <button class="omo-nav-menu-toggle" type="button" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true">Menu <span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell your own workflow.md</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+          </nav>
+        </div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
+      <span id="balance-pill" hidden aria-hidden="true">Balance …</span>
     </div>
   </header>
 
@@ -272,8 +280,21 @@
       <p class="hint">You only pay for runs that start. Failed validations cost nothing.</p>
     </section>
 
-    <p class="foot"><a href="dashboard.html">← Back to the catalogue</a> · <a href="index.html">Omo store</a> · <a href="about.html">About</a> · <a href="sell.html">Sell yours</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a> · <a href="support.html">Support</a></p>
   </main>
+
+  <footer class="omo-footer">
+    <div class="dash-shell footer-row">
+      <p>Omo API · one key for every helper.</p>
+      <nav class="omo-footer-links" aria-label="Footer">
+        <a href="about.html">About</a>
+        <a href="sell.html">Sell yours</a>
+        <a href="creators.html">For creators</a>
+        <a href="terms.html">Terms</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+      </nav>
+    </div>
+  </footer>
 
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
@@ -304,11 +325,9 @@
           el('curl-key').textContent = currentKey();
           el('curl-key2').textContent = currentKey();
           el('auth-notice').hidden = true;
-          el('sign-out-btn').hidden = false;
         } else {
           el('api-key-value').textContent = '••••••••••••••••';
           el('auth-notice').hidden = false;
-          el('sign-out-btn').hidden = true;
         }
       }
 
@@ -360,11 +379,6 @@
           });
         }
       });
-      el('sign-out-btn').addEventListener('click', function () {
-        if (window.ClerkAuth && window.ClerkAuth.signOut) window.ClerkAuth.signOut();
-        setTimeout(render, 150);
-      });
-
       if (window.ClerkAuth && window.ClerkAuth.onAuthChange) {
         window.ClerkAuth.onAuthChange(render);
       }

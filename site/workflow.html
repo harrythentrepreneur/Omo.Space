@@ -636,20 +636,26 @@
       *, *::before, *::after { transition: none !important; }
     }
   </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <script defer src="nav.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="shell nav-row">
-      <a class="wordmark" href="index.html" aria-label="Omo home">
-        <img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo">
-      </a>
-      <nav class="nav-actions" aria-label="Primary">
-        <a class="nav-link" href="index.html#feed">← Back to store</a>
-        <a class="nav-link" href="about.html">About</a>
-        <a class="nav-link" href="sell.html">Sell</a>
-        <a class="nav-link login-link" id="login-link" href="signup.html">LOG IN</a>
-      </nav>
+  <header class="site-header omo-site-header">
+    <div class="shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo"></a>
+        <div class="omo-nav-menu">
+          <button class="omo-nav-menu-toggle" type="button" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true">Menu <span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell your own workflow.md</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+          </nav>
+        </div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
     </div>
   </header>
 
@@ -735,6 +741,20 @@
       </section>
     </div>
   </main>
+
+  <footer class="omo-footer">
+    <div class="shell footer-row">
+      <p>Omo — useful AI helpers, ready to run.</p>
+      <nav class="omo-footer-links" aria-label="Footer">
+        <a href="about.html">About</a>
+        <a href="sell.html">Sell yours</a>
+        <a href="creators.html">For creators</a>
+        <a href="terms.html">Terms</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+      </nav>
+    </div>
+  </footer>
 
   <script src="ig-workflows.js"></script>
   <script src="ig-more.js"></script>
@@ -1106,15 +1126,6 @@
         });
       }
       document.addEventListener('click', function () { closeInfoTooltips(); });
-
-      function syncAuthLinks() {
-        el('login-link').href = signedIn() ? 'dashboard.html' : 'signup.html';
-        el('login-link').textContent = signedIn() ? 'DASHBOARD' : 'LOG IN';
-      }
-      syncAuthLinks();
-      if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') {
-        window.ClerkAuth.onAuthChange(syncAuthLinks);
-      }
 
       el('buy-button').addEventListener('click', function () {
         var button = el('buy-button');

@@ -186,21 +186,27 @@
       .footer-row { flex-direction: column; }
     }
   </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <script defer src="nav.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <header class="site-header">
-    <div class="shell nav-row">
-      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
-      <nav class="nav-actions" aria-label="Primary navigation">
-        <a class="nav-link" href="dashboard.html">Dashboard</a>
-        <a class="nav-link" href="about.html">About</a>
-        <a class="nav-link" href="sell.html">Sell</a>
-        <a class="nav-link" href="api.html">API</a>
-        <a class="nav-link" href="mcp.html" aria-current="page">MCP</a>
-        <a class="nav-link nav-cta" href="api.html">Get API key</a>
-      </nav>
+  <header class="site-header omo-site-header">
+    <div class="shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <div class="omo-nav-menu">
+          <button class="omo-nav-menu-toggle" type="button" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true">Menu <span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell your own workflow.md</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+          </nav>
+        </div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
     </div>
   </header>
 
@@ -312,10 +318,17 @@
     </section>
   </main>
 
-  <footer>
+  <footer class="omo-footer">
     <div class="shell footer-row">
       <p>Omo MCP · tools for the work, not more busywork.</p>
-      <p><a href="dashboard.html">Catalogue</a> · <a href="api.html">REST API</a> · <a href="index.html">Omo store</a> · <a href="about.html">About</a> · <a href="sell.html">Sell yours</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a> · <a href="support.html">Support</a></p>
+      <nav class="omo-footer-links" aria-label="Footer">
+        <a href="about.html">About</a>
+        <a href="sell.html">Sell yours</a>
+        <a href="creators.html">For creators</a>
+        <a href="terms.html">Terms</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+      </nav>
     </div>
   </footer>
 

@@ -9,20 +9,20 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#4F3F59">
-  <title>Sell Your AI Workflow — Get Paid for Every Run | Omo</title>
-  <meta name="description" content="Sell AI workflows on Omo and earn 85% from every sale or hosted run. We handle the marketplace, API keys, billing, and payouts. Become a creator today.">
+  <title>Creator Waitlist — Sell AI Workflows on Omo</title>
+  <meta name="description" content="Omo is currently open to select creators by invitation. Join the creator waitlist to be ready when submissions open more broadly.">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="https://omo.space/creators.html">
-  <meta property="og:title" content="Sell Your AI Workflow — Get Paid for Every Run | Omo">
-  <meta property="og:description" content="Sell AI workflows on Omo and earn 85% from every sale or hosted run. We handle the marketplace, API keys, billing, and payouts. Become a creator today.">
+  <meta property="og:title" content="Creator Waitlist — Sell AI Workflows on Omo">
+  <meta property="og:description" content="Omo is currently open to select creators by invitation. Join the waitlist to be ready when submissions open more broadly.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Omo">
   <meta property="og:url" content="https://omo.space/creators.html">
   <meta property="og:image" content="https://omo.space/favicon-512.png">
   <meta property="og:image:alt" content="Omo">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Sell Your AI Workflow — Get Paid for Every Run | Omo">
-  <meta name="twitter:description" content="Sell AI workflows on Omo and earn 85% from every sale or hosted run. We handle the marketplace, API keys, billing, and payouts. Become a creator today.">
+  <meta name="twitter:title" content="Creator Waitlist — Sell AI Workflows on Omo">
+  <meta name="twitter:description" content="Omo is currently open to select creators by invitation. Join the waitlist to be ready when submissions open more broadly.">
   <meta name="twitter:image" content="https://omo.space/favicon-512.png">
   <meta name="twitter:image:alt" content="Omo">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -269,19 +269,27 @@
       .footer-links { width: 100%; flex-direction: column; align-items: flex-start; gap: 0; }
     }
   </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <script defer src="nav.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <header class="site-header">
-    <div class="shell nav-row">
-      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
-      <nav class="nav-actions" aria-label="Primary">
-        <a class="nav-link" href="index.html">See the store</a>
-        <a class="nav-link" href="about.html">About</a>
-        <a class="nav-link" href="host.html">Host</a>
-        <a class="button button-accent button-small" href="sell.html">Sell yours</a>
-      </nav>
+  <header class="site-header omo-site-header">
+    <div class="shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <div class="omo-nav-menu">
+          <button class="omo-nav-menu-toggle" type="button" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true">Menu <span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell your own workflow.md</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+          </nav>
+        </div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
     </div>
   </header>
 
@@ -290,8 +298,8 @@
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="shell hero-inner">
         <p class="eyebrow">Creators · Invite-only</p>
-        <h1 class="hero-title" id="hero-title">Omo is open to <em>select creators</em> right now.</h1>
-        <p class="hero-sub">We’re inviting a small group while we get the creator experience right. Join the waitlist now and you’ll be ready when we open submissions more broadly.</p>
+        <h1 class="hero-title" id="hero-title">Omo is now only open to <em>select creators</em>.</h1>
+        <p class="hero-sub">Join the waitlist to be ready for when we open submissions more broadly.</p>
         <form class="creator-waitlist" id="creator-waitlist" data-waitlist-form data-source="creators" novalidate>
           <div class="creator-waitlist-row">
             <input class="creator-waitlist-input" id="creator-waitlist-email" type="email" name="email" placeholder="you@example.com" aria-label="Email address" aria-describedby="creator-waitlist-note" autocomplete="email" required>
@@ -391,18 +399,16 @@
     </section>
   </main>
 
-  <footer class="site-footer">
+  <footer class="site-footer omo-footer">
     <div class="shell footer-row">
       <div class="footer-brand">
         <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
         <p class="footer-tagline">The store for AI helpers. Try it. Buy it. Use it anywhere.</p>
       </div>
-      <nav class="footer-links" aria-label="Footer">
-        <a href="index.html">Back to the store</a>
+      <nav class="footer-links omo-footer-links" aria-label="Footer">
         <a href="about.html">About</a>
         <a href="sell.html">Sell yours</a>
-        <a href="host.html">Host yours</a>
-        <a href="mailto:partners@omo.space">partners@omo.space</a>
+        <a href="creators.html" aria-current="page">For creators</a>
         <a href="terms.html">Terms</a>
         <a href="privacy.html">Privacy</a>
         <a href="support.html">Support</a>

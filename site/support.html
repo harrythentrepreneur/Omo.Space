@@ -110,20 +110,27 @@
     }
     @media (max-width: 460px) { .footer-links { width: 100%; gap: 8px 16px; } }
   </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <script defer src="nav.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <header class="site-header">
-    <div class="shell nav-row">
-      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
-      <nav class="nav-actions" aria-label="Primary">
-        <a class="nav-link" href="index.html#feed">Store</a>
-        <a class="nav-link" href="about.html">About</a>
-        <a class="nav-link" href="host.html">Host yours</a>
-        <a class="nav-link" href="dashboard.html">Dashboard</a>
-        <a class="nav-link nav-cta" href="sell.html">Sell yours</a>
-      </nav>
+  <header class="site-header omo-site-header">
+    <div class="shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <div class="omo-nav-menu">
+          <button class="omo-nav-menu-toggle" type="button" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true">Menu <span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell your own workflow.md</a>
+            <a href="about.html">About</a>
+            <a href="dashboard.html">Dashboard</a>
+          </nav>
+        </div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
     </div>
   </header>
 
@@ -165,14 +172,16 @@
     </div>
   </main>
 
-  <footer class="site-footer">
+  <footer class="site-footer omo-footer">
     <div class="shell footer-row">
       <div>
         <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
         <p class="footer-tagline">The store for AI helpers. Try a free demo, then download or run by API.</p>
       </div>
-      <nav class="footer-links" aria-label="Footer">
-        <a href="index.html#feed">Store</a>
+      <nav class="footer-links omo-footer-links" aria-label="Footer">
+        <a href="about.html">About</a>
+        <a href="sell.html">Sell yours</a>
+        <a href="creators.html">For creators</a>
         <a href="terms.html">Terms</a>
         <a href="privacy.html">Privacy</a>
         <a href="support.html" aria-current="page">Support</a>
