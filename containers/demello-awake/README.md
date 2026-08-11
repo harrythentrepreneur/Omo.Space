@@ -58,7 +58,11 @@ evidence, exact providers/models, and explicit director/image fallback use.
   adapter. Each image gets at most two retries.
 - Procedural sumi-e fallback is release-enabled for milestone resilience only.
   A fallback result says `generation_provider=procedural-fallback` and reports
-  zero OpenAI image spend; it is never described as OpenAI-generated.
+  zero OpenAI image spend; it is never described as OpenAI-generated. The
+  fallback renders every 3 fps semantic cell as native-size supersampled,
+  tapered black-ink geometry. Delivery holds each completed redraw for ten
+  output frames rather than dissolving between bitmaps; this preserves exactly
+  one moving sweetness mark and cannot introduce gray ghost ink.
 
 The OpenAI endpoint/model declarations were checked against the official
 [GPT Image 2 model page](https://developers.openai.com/api/docs/models/gpt-image-2)

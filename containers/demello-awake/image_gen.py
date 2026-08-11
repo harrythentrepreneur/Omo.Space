@@ -651,154 +651,281 @@ def generate_keyframes(
 
 
 class ProceduralSumiEGenerator:
-    """Deterministic, disclosed fallback; it never impersonates model output."""
+    """Deterministic, disclosed fallback; it never impersonates model output.
+
+    The fallback is authored as geometry at the semantic 3 fps cadence.  It is
+    rendered on a supersampled delivery canvas and flattened back to two ink
+    values, so brush edges are smooth without introducing gray wash.  Motion
+    is a redraw of the geometry: in particular, the sweetness mark has exactly
+    one position in every frame and is never represented by two cross-faded
+    circles.
+    """
 
     provider_name = "procedural-fallback"
 
-    def __init__(self, *, width: int = 1024, height: int = 1536) -> None:
+    def __init__(
+        self,
+        *,
+        width: int = 1080,
+        height: int = 1920,
+        supersample: int = 2,
+    ) -> None:
+        if width < 540 or height < 960:
+            raise ValueError("procedural canvas must be at least 540x960")
+        if supersample not in {1, 2, 3}:
+            raise ValueError("supersample must be 1, 2, or 3")
         self.width = width
         self.height = height
+        self.supersample = supersample
 
     def render(self, spec: Mapping[str, Any], index: int, total: int) -> bytes:
-        image = Image.new("RGB", (self.width, self.height), "white")
+        if total < 1 or not 0 <= index < total:
+            raise ValueError("procedural frame index is outside the sequence")
+        ss = self.supersample
+        canvas_width, canvas_height = self.width * ss, self.height * ss
+        image = Image.new("RGB", (canvas_width, canvas_height), "white")
         draw = ImageDraw.Draw(image)
-        scale = self.width / 1024.0
         phase = index / max(total - 1, 1)
-        # After the taste lands, the predicament recedes as one continuous ink
-        # wash while the sweetness mark remains fully black. At 90% of the clip
-        # the established drawing has faded completely to a dot-only white field.
-        recede = min(1.0, max(0.0, (phase - 0.62) / 0.28))
-        scene_value = round(22 + (255 - 22) * recede)
-        ink = (scene_value, scene_value, scene_value)
-        final_ink = (22, 22, 22)
-        thin = max(2, round(2 * scale))
-        strong = max(4, round(7 * scale))
+        ink = (26, 26, 26)
+
+        def point(value: tuple[float, float]) -> tuple[int, int]:
+            return round(value[0] * canvas_width), round(value[1] * canvas_height)
+
+        def quadratic(
+            start: tuple[float, float],
+            control: tuple[float, float],
+            end: tuple[float, float],
+            *,
+            steps: int = 24,
+        ) -> list[tuple[float, float]]:
+            return [
+                (
+                    (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * control[0] + t**2 * end[0],
+                    (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * control[1] + t**2 * end[1],
+                )
+                for t in (value / steps for value in range(steps + 1))
+            ]
 
         def brush_line(
-            points: Sequence[tuple[int, int]],
-            width: int = strong,
-            end_width: int | None = None,
+            points: Sequence[tuple[float, float]],
+            width: float = 8.0,
+            end_width: float | None = None,
         ) -> None:
-            """Paint a tapered, slightly irregular dry-brush polyline."""
+            """Paint a smooth, tapered brush path with rounded ink bristles."""
             if len(points) < 2:
                 return
-            target = max(1, end_width if end_width is not None else max(1, width // 2))
-            for segment, (start, end) in enumerate(zip(points, points[1:])):
-                ratio = segment / max(len(points) - 2, 1)
-                segment_width = max(1, round(width + (target - width) * ratio))
-                draw.line((start, end), fill=ink, width=segment_width)
-                # A single-offset bristle gives the contour an organic edge but
-                # preserves a flat monochrome field and deterministic geometry.
-                if segment_width >= 4:
-                    offset = -1 if (index + segment) % 2 else 1
-                    draw.line(
-                        ((start[0], start[1] + offset), (end[0], end[1] + offset)),
-                        fill=ink,
-                        width=max(1, segment_width // 3),
+            target = end_width if end_width is not None else max(1.0, width * 0.24)
+            samples: list[tuple[float, float]] = [points[0]]
+            for start, end in zip(points, points[1:]):
+                distance = math.hypot(
+                    (end[0] - start[0]) * self.width,
+                    (end[1] - start[1]) * self.height,
+                )
+                count = max(2, min(36, math.ceil(distance / 8)))
+                samples.extend(
+                    (
+                        start[0] + (end[0] - start[0]) * step / count,
+                        start[1] + (end[1] - start[1]) * step / count,
                     )
+                    for step in range(1, count + 1)
+                )
+            for segment, (start, end) in enumerate(zip(samples, samples[1:])):
+                ratio = segment / max(len(samples) - 2, 1)
+                segment_width = max(1, round((width + (target - width) * ratio) * ss))
+                start_px, end_px = point(start), point(end)
+                draw.line((start_px, end_px), fill=ink, width=segment_width)
+                radius = max(1, segment_width // 2)
+                draw.ellipse(
+                    (
+                        end_px[0] - radius,
+                        end_px[1] - radius,
+                        end_px[0] + radius,
+                        end_px[1] + radius,
+                    ),
+                    fill=ink,
+                )
 
-        def brush_arc(box: tuple[int, int, int, int], start: int, end: int, width: int) -> None:
-            draw.arc(box, start, end, fill=ink, width=width)
-            inset = max(1, width // 3)
-            shifted = (box[0] + 1, box[1] - 1, box[2] - inset, box[3] + 1)
-            draw.arc(shifted, start + 2, end - 1, fill=ink, width=max(1, width // 3))
-
-        # Keep one continuous composition for all thirty frames. Motion happens
-        # inside the drawing: berry rises, taste ripples, sweetness travels.
-        y = int(self.height * 0.43)
-        branch_left, branch_right = int(self.width * 0.12), int(self.width * 0.86)
-        brush_line([(branch_left, y + 8), (int(self.width * 0.46), y), (branch_right, y - 13)], strong, thin)
-        brush_line(
-            [(int(self.width * 0.05), y - 155), (int(self.width * 0.13), y - 48), (branch_left + 45, y + 3)],
-            strong + 2,
-            thin,
-        )
-
-        # A readable tiger mask peers from the cliff: ears, brow, eyes, muzzle,
-        # whiskers, and three unmistakable stripes in sparse brush language.
-        tx, ty = int(self.width * 0.22), y - 215
-        brush_arc((tx - 105, ty - 85, tx + 120, ty + 105), 188, 353, strong)
-        brush_line([(tx - 80, ty - 46), (tx - 54, ty - 90), (tx - 24, ty - 53)], strong, thin)
-        brush_line([(tx + 42, ty - 54), (tx + 73, ty - 94), (tx + 94, ty - 42)], strong, thin)
-        brush_line([(tx - 58, ty + 4), (tx - 30, ty - 4)], thin, 1)
-        brush_line([(tx + 25, ty - 4), (tx + 53, ty + 4)], thin, 1)
-        draw.polygon([(tx - 8, ty + 20), (tx + 8, ty + 20), (tx, ty + 32)], fill=ink)
-        brush_arc((tx - 38, ty + 10, tx + 40, ty + 72), 12, 168, thin)
-        for stripe_x in (-45, 0, 45):
-            brush_line([(tx + stripe_x, ty - 55), (tx + stripe_x // 2, ty - 20)], strong, 1)
-        for whisker_y in (35, 48):
-            brush_line([(tx - 12, ty + whisker_y), (tx - 100, ty + whisker_y + 12)], thin, 1)
-            brush_line([(tx + 12, ty + whisker_y), (tx + 105, ty + whisker_y + 8)], thin, 1)
-
-        # Exactly two large mice face inward and gnaw the branch.
-        for mx, direction in ((int(self.width * 0.37), 1), (int(self.width * 0.66), -1)):
-            draw.ellipse((mx - 30, y - 45, mx + 30, y + 7), outline=ink, width=strong)
-            ear_x = mx + direction * 12
-            draw.ellipse((ear_x - 12, y - 58, ear_x + 12, y - 34), outline=ink, width=thin)
-            nose_x = mx + direction * 32
-            draw.ellipse((nose_x - 4, y - 19, nose_x + 4, y - 11), fill=ink)
-            brush_arc(
-                (mx - 78, y - 30, mx + 78, y + 56),
-                190 if direction > 0 else 350,
-                342 if direction > 0 else 502,
-                thin,
-            )
-            brush_line([(nose_x, y - 13), (nose_x + direction * 24, y - 4)], thin, 1)
-
-        # One hanging person, with a filled brush robe instead of a stick body.
-        fx, head_y = int(self.width * 0.51), y + 132
-        draw.ellipse((fx - 30, head_y - 30, fx + 30, head_y + 30), outline=ink, width=strong)
-        brush_line([(fx - 12, head_y + 28), (fx - 28, head_y + 165)], strong + 2, thin)
-        brush_line([(fx + 12, head_y + 28), (fx + 30, head_y + 165)], strong, thin)
-        brush_line([(fx - 18, head_y + 50), (fx - 76, y + 2), (fx - 53, y - 8)], strong, thin)
-        brush_line([(fx - 28, head_y + 165), (fx - 78, head_y + 235), (fx - 48, head_y + 250)], strong, thin)
-        brush_line([(fx + 30, head_y + 165), (fx + 82, head_y + 235), (fx + 50, head_y + 252)], strong, thin)
-
-        berry_progress = min(1.0, phase / 0.46)
-        berry_x = fx + int(112 - 68 * berry_progress)
-        berry_y = head_y + int(63 - 58 * berry_progress)
-        brush_line([(fx + 16, head_y + 62), (berry_x - 18, berry_y + 25)], strong, thin)
-        berry = [
-            (berry_x, berry_y + 27),
-            (berry_x - 23, berry_y - 4),
-            (berry_x - 12, berry_y - 22),
-            (berry_x, berry_y - 11),
-            (berry_x + 12, berry_y - 22),
-            (berry_x + 23, berry_y - 4),
-        ]
-        brush_line(berry + [berry[0]], strong, thin)
-        brush_line([(berry_x, berry_y - 14), (berry_x - 18, berry_y - 35)], thin, 1)
-        brush_line([(berry_x, berry_y - 14), (berry_x + 22, berry_y - 34)], thin, 1)
-
-        # One deliberately broken ripple expands and vanishes; it never becomes
-        # a closed target/bubble and never survives into the dot-only ending.
-        if 0.34 <= phase <= 0.68:
-            pulse_phase = min(1.0, (phase - 0.34) / 0.34)
-            pulse_radius = int(28 + 48 * math.sin(math.pi * pulse_phase))
-            brush_arc(
-                (berry_x - pulse_radius, berry_y - pulse_radius, berry_x + pulse_radius, berry_y + pulse_radius),
-                205,
-                430,
-                thin,
+        def brush_arc(
+            box: tuple[float, float, float, float],
+            start: float,
+            end: float,
+            width: float = 6.0,
+            end_width: float = 1.5,
+        ) -> None:
+            cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+            rx, ry = (box[2] - box[0]) / 2, (box[3] - box[1]) / 2
+            steps = max(12, round(abs(end - start) / 6))
+            brush_line(
+                [
+                    (
+                        cx + rx * math.cos(math.radians(start + (end - start) * step / steps)),
+                        cy + ry * math.sin(math.radians(start + (end - start) * step / steps)),
+                    )
+                    for step in range(steps + 1)
+                ],
+                width,
+                end_width,
             )
 
-        # Sweetness is born at the mouth and rises into protected central white
-        # space; it cannot be confused with either mouse on the branch.
-        if phase >= 0.52:
-            sweet = min(1.0, (phase - 0.52) / 0.36)
-            dot_x = int(berry_x + (self.width * 0.54 - berry_x) * sweet)
-            dot_y = int(berry_y + (self.height * 0.29 - berry_y) * sweet)
-            radius = int(7 + 25 * sweet)
-            if phase > 0.88:
-                radius = max(20, int(32 - 10 * ((phase - 0.88) / 0.12)))
-            draw.ellipse(
-                (dot_x - radius, dot_y - radius, dot_x + radius, dot_y + radius),
-                fill=final_ink,
-            )
+        def ink_dot(center: tuple[float, float], radius_px: float) -> None:
+            cx, cy = point(center)
+            radius = round(radius_px * ss)
+            draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=ink)
 
+        def leaf(center: tuple[float, float], direction: float, size: float = 0.028) -> None:
+            dx, dy = math.cos(direction) * size, math.sin(direction) * size * 0.58
+            px, py = -dy * 0.45, dx * 0.45
+            start = center
+            end = (center[0] + dx, center[1] + dy)
+            brush_line(quadratic(start, (center[0] + dx * 0.5 + px, center[1] + dy * 0.5 + py), end), 4.6, 1.2)
+            brush_line(quadratic(end, (center[0] + dx * 0.5 - px, center[1] + dy * 0.5 - py), start), 3.0, 1.0)
+            brush_line([start, end], 2.0, 0.8)
+
+        def render_berry(center: tuple[float, float], radius: float = 0.019) -> None:
+            cx, cy = center
+            brush_arc((cx - radius, cy - radius, cx + radius, cy + radius), 20, 350, 6.0, 2.0)
+            brush_line([(cx, cy - radius * 0.75), (cx - 0.006, cy - radius * 1.35)], 4.0, 1.0)
+            leaf((cx - 0.004, cy - radius * 1.20), 3.72, radius * 1.25)
+            leaf((cx - 0.003, cy - radius * 1.20), 5.68, radius * 1.12)
+
+        def transformed(
+            values: Sequence[tuple[float, float]],
+            scale: float,
+            shift_y: float,
+        ) -> list[tuple[float, float]]:
+            cx, cy = 0.54, 0.48
+            return [
+                (cx + (x - cx) * scale, cy + (y - cy) * scale + shift_y)
+                for x, y in values
+            ]
+
+        def wide_scene(*, berry_progress: float | None, scale: float, shift_y: float) -> None:
+            def scene(values: Sequence[tuple[float, float]]) -> list[tuple[float, float]]:
+                return transformed(values, scale, shift_y)
+
+            weight = max(3.5, 8.5 * scale)
+            hairline = max(1.2, 3.2 * scale)
+
+            # Crag and a full striped tiger silhouette, visually separate from
+            # the branch. The animal faces the hanging figure across the gap.
+            brush_line(scene([(0.055, 0.43), (0.11, 0.34), (0.17, 0.31), (0.235, 0.35), (0.285, 0.43)]), weight + 2, 1.5)
+            brush_line(scene(quadratic((0.075, 0.43), (0.13, 0.50), (0.20, 0.56))), weight, 1.5)
+            brush_line(scene(quadratic((0.12, 0.275), (0.20, 0.225), (0.292, 0.272))), weight, 2.0)
+            brush_line(scene(quadratic((0.292, 0.272), (0.33, 0.245), (0.355, 0.278))), weight, 1.5)
+            brush_line(scene([(0.355, 0.278), (0.382, 0.292), (0.349, 0.306), (0.292, 0.31), (0.205, 0.318), (0.125, 0.292)]), weight, 2.0)
+            brush_line(scene([(0.314, 0.262), (0.326, 0.235), (0.341, 0.265)]), weight, 1.0)
+            brush_line(scene([(0.23, 0.313), (0.226, 0.349)]), weight, 1.0)
+            brush_line(scene([(0.30, 0.307), (0.304, 0.345)]), weight, 1.0)
+            brush_line(scene(quadratic((0.13, 0.278), (0.052, 0.22), (0.085, 0.145))), weight, 1.0)
+            brush_line(scene(quadratic((0.085, 0.145), (0.12, 0.13), (0.13, 0.165))), hairline, 1.0)
+            for stripe in (0.18, 0.215, 0.25):
+                brush_line(scene([(stripe, 0.252), (stripe + 0.014, 0.285)]), weight, 1.0)
+            brush_line(scene([(0.343, 0.281), (0.354, 0.283)]), hairline, 1.0)
+            ink_dot(scene([(0.348, 0.277)])[0], max(2.2, 3.2 * scale))
+            for offset in (-0.006, 0.004):
+                brush_line(scene([(0.358, 0.294 + offset), (0.402, 0.286 + offset)]), hairline, 0.8)
+
+            # A cut branch crosses the composition. Two mouse silhouettes face
+            # their separate gnaw points; ears, eyes, pointed noses, and tails
+            # keep them distinct from decorative blobs.
+            brush_line(scene([(0.285, 0.372), (0.51, 0.364), (0.705, 0.375), (0.91, 0.351)]), weight + 3, 2.0)
+            brush_line(scene([(0.90, 0.351), (0.938, 0.326)]), 5.0 * scale, 1.0)
+            for mx, direction in ((0.42, 1), (0.71, -1)):
+                body = scene(quadratic((mx - 0.042 * direction, 0.352), (mx, 0.316), (mx + 0.039 * direction, 0.348)))
+                belly = scene(quadratic((mx + 0.039 * direction, 0.348), (mx, 0.373), (mx - 0.042 * direction, 0.352)))
+                brush_line(body, weight, 1.6)
+                brush_line(belly, weight * 0.75, 1.2)
+                ear = mx + 0.010 * direction
+                brush_arc(tuple(scene([(ear - 0.014, 0.313), (ear + 0.014, 0.343)])[0] + scene([(ear - 0.014, 0.313), (ear + 0.014, 0.343)])[1]), 10, 345, hairline, 1.0)
+                nose = scene([(mx + 0.043 * direction, 0.349)])[0]
+                eye = scene([(mx + 0.020 * direction, 0.335)])[0]
+                ink_dot(nose, max(2.0, 2.6 * scale))
+                ink_dot(eye, max(1.5, 2.0 * scale))
+                brush_line(scene(quadratic((mx - 0.04 * direction, 0.351), (mx - 0.09 * direction, 0.325), (mx - 0.105 * direction, 0.365))), hairline, 0.8)
+                brush_line(scene([(mx + 0.041 * direction, 0.353), (mx + 0.061 * direction, 0.363)]), hairline, 0.8)
+
+            # A robed figure hangs below the branch. Three curved fingers wrap
+            # the branch; the other articulated hand lifts the leafed berry.
+            head_center = scene([(0.605, 0.485)])[0]
+            head_rx, head_ry = 0.027 * scale, 0.032 * scale
+            brush_arc((head_center[0] - head_rx, head_center[1] - head_ry, head_center[0] + head_rx, head_center[1] + head_ry), 70, 420, weight, 1.5)
+            brush_line(scene(quadratic((0.578, 0.515), (0.505, 0.455), (0.538, 0.374))), weight, 1.5)
+            brush_line(scene([(0.518, 0.374), (0.558, 0.374)]), weight * 0.72, 1.2)
+            for finger_x in (0.528, 0.539, 0.550):
+                brush_arc(tuple(scene([(finger_x - 0.010, 0.356), (finger_x + 0.010, 0.384)])[0] + scene([(finger_x - 0.010, 0.356), (finger_x + 0.010, 0.384)])[1]), 175, 375, hairline, 0.8)
+            brush_line(scene([(0.574, 0.516), (0.525, 0.675), (0.602, 0.702), (0.640, 0.522)]), weight + 1, 2.0)
+            brush_line(scene([(0.548, 0.577), (0.616, 0.585)]), hairline, 1.0)
+            brush_line(scene([(0.538, 0.674), (0.488, 0.775), (0.466, 0.786)]), weight, 1.0)
+            brush_line(scene([(0.593, 0.695), (0.653, 0.774), (0.680, 0.779)]), weight, 1.0)
+
+            if berry_progress is not None:
+                eased = berry_progress * berry_progress * (3 - 2 * berry_progress)
+                berry = (
+                    0.755 + (0.652 - 0.755) * eased,
+                    0.620 + (0.488 - 0.620) * eased,
+                )
+                hand = (berry[0] + 0.012, berry[1] + 0.026)
+                brush_line(scene(quadratic((0.632, 0.535), (0.70, 0.57 - 0.08 * eased), hand)), weight, 1.5)
+                for finger in (0.0, 0.008, 0.016):
+                    brush_line(scene([(hand[0] + finger, hand[1]), (berry[0] + 0.010 + finger * 0.25, berry[1] + 0.010)]), hairline, 0.8)
+                berry_scene = scene([berry])[0]
+                render_berry(berry_scene, 0.019 * scale)
+                # A short mouth stroke keeps berry-to-lips contact legible.
+                brush_line(scene([(0.628, 0.486), (0.647, 0.488)]), hairline, 0.8)
+
+        def closeup(close_progress: float) -> None:
+            # Editorial side-profile insert: recognizable forehead, nose, open
+            # lips, chin, eye, fingers, and a leafed berry at the lip line.
+            brush_line(quadratic((0.275, 0.29), (0.47, 0.16), (0.61, 0.315)), 13.0, 2.0)
+            brush_line(quadratic((0.61, 0.315), (0.64, 0.355), (0.60, 0.395)), 8.0, 1.5)
+            brush_line([(0.60, 0.395), (0.635, 0.425), (0.595, 0.438)], 7.5, 1.5)
+            brush_line(quadratic((0.595, 0.438), (0.64, 0.455), (0.595, 0.472)), 7.0, 1.2)
+            brush_line(quadratic((0.595, 0.472), (0.56, 0.56), (0.43, 0.585)), 10.0, 1.5)
+            brush_line(quadratic((0.43, 0.585), (0.30, 0.54), (0.275, 0.29)), 11.0, 2.0)
+            brush_line(quadratic((0.47, 0.36), (0.525, 0.34), (0.56, 0.368)), 6.0, 1.0)
+            ink_dot((0.535, 0.363), 3.2)
+            brush_line([(0.60, 0.438), (0.626, 0.438)], 5.0, 1.0)
+            berry_x = 0.705 + (0.635 - 0.705) * min(1.0, close_progress * 2.5)
+            berry = (berry_x, 0.445)
+            render_berry(berry, 0.025)
+            for finger, y in enumerate((0.48, 0.50, 0.522)):
+                brush_line(quadratic((0.86, 0.59 + finger * 0.015), (0.76, y + 0.02), (berry_x + 0.018, y)), 8.0 - finger, 1.3)
+            brush_line(quadratic((0.82, 0.63), (0.74, 0.59), (berry_x + 0.025, 0.535)), 10.0, 1.5)
+            if 0.16 <= close_progress <= 0.82:
+                pulse = (close_progress - 0.16) / 0.66
+                radius = 0.035 + 0.035 * math.sin(math.pi * pulse)
+                # Exactly one deliberately broken taste ripple.
+                brush_arc((0.615 - radius, 0.445 - radius, 0.615 + radius, 0.445 + radius), 215, 432, 5.5, 1.0)
+
+        if phase < 0.29:
+            wide_scene(berry_progress=min(1.0, phase / 0.25), scale=1.0, shift_y=0.0)
+        elif phase < 0.51:
+            closeup((phase - 0.29) / 0.22)
+        else:
+            recede = min(1.0, max(0.0, (phase - 0.53) / 0.29))
+            if phase < 0.84:
+                wide_scene(
+                    berry_progress=None,
+                    scale=1.0 - 0.42 * recede,
+                    shift_y=-0.055 * recede,
+                )
+
+            # One mouth-born mark is redrawn at one continuous geometric
+            # position per authored cell. It is the only ink in the last beat.
+            sweet = min(1.0, max(0.0, (phase - 0.51) / 0.34))
+            eased = sweet * sweet * (3 - 2 * sweet)
+            dot_x = 0.650 + (0.52 - 0.650) * eased
+            dot_y = 0.485 + (0.31 - 0.485) * eased
+            radius = 9.0 + 30.0 * eased
+            if phase > 0.90:
+                radius -= 9.0 * ((phase - 0.90) / 0.10)
+            ink_dot((dot_x, dot_y), radius)
+
+        if ss > 1:
+            image = image.resize((self.width, self.height), Image.Resampling.LANCZOS)
         buffer = io.BytesIO()
         image.save(buffer, format="PNG", optimize=True)
-        return buffer.getvalue()
+        return normalize_sumi_e_bytes(buffer.getvalue())
 
 
 def generate_procedural_keyframes(
@@ -895,10 +1022,10 @@ def expand_semantic_frames(
 ) -> list[dict[str, Any]]:
     """Expand sparse accepted anchors into exactly three authored cells/second.
 
-    Adjacent anchors are blended with a non-decreasing progress value.  The
-    director's slot metadata remains attached to each cell, so the renderer and
-    contact sheet can show the intended settle/change/land decision separately
-    from paid image count.
+    A dense 3 fps authored chain is copied cell-for-cell. Sparse provider
+    anchors retain the legacy difference interpolation here, but procedural
+    frames never pass through a crossfade that could duplicate moved topology.
+    The director's slot metadata remains attached to each cell.
     """
     if duration_seconds <= 0:
         raise ValueError("duration_seconds must be positive")
@@ -916,6 +1043,10 @@ def expand_semantic_frames(
             path = Path(str(item["path"]))
         anchors.append((second, frame_id, _fit_delivery(Image.open(path), (width, height))))
     anchors.sort(key=lambda value: value[0])
+    dense_authored = len(anchors) == semantic_count and all(
+        abs(anchor[0] - index / 3.0) <= 1e-6
+        for index, anchor in enumerate(anchors)
+    )
     if anchors[0][0] > 0.0:
         anchors.insert(0, (0.0, anchors[0][1], anchors[0][2].copy()))
     if anchors[-1][0] < duration_seconds:
@@ -924,16 +1055,21 @@ def expand_semantic_frames(
     results: list[dict[str, Any]] = []
     for index in range(semantic_count):
         timestamp = index / 3.0
-        left = anchors[0]
-        right = anchors[-1]
-        for candidate in anchors[1:]:
-            if candidate[0] >= timestamp:
-                right = candidate
-                break
-            left = candidate
-        span = max(right[0] - left[0], 1e-9)
-        progress = min(1.0, max(0.0, (timestamp - left[0]) / span))
-        image = Image.blend(left[2], right[2], progress)
+        if dense_authored:
+            left = right = anchors[index]
+            progress = 0.0
+            image = left[2].copy()
+        else:
+            left = anchors[0]
+            right = anchors[-1]
+            for candidate in anchors[1:]:
+                if candidate[0] >= timestamp:
+                    right = candidate
+                    break
+                left = candidate
+            span = max(right[0] - left[0], 1e-9)
+            progress = min(1.0, max(0.0, (timestamp - left[0]) / span))
+            image = Image.blend(left[2], right[2], progress)
         # Reassert exact white after interpolation and remove chromatic residue.
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
@@ -968,6 +1104,7 @@ def expand_semantic_frames(
                 "source_anchor": left[1],
                 "target_anchor": right[1],
                 "blend_progress": round(progress, 8),
+                "transition_mode": "authored-redraw" if dense_authored else "anchor-blend",
                 "sha256": report.sha256,
                 "visual": asdict(report),
             }

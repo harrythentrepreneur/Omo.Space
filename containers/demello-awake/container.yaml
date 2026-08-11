@@ -280,6 +280,9 @@ steps:
     timeout_seconds: 180
     retries: 0
     semantic_fps: 3
+    dense_authored_policy:
+      procedural_fallback: render_every_cell_at_1080x1920_supersampled
+      crossfade_prohibited_for_moved_topology: true
     output_binding: $.steps.expand-semantic-frames.output
     output_schema: schemas/internal.json#/$defs/semantic_frames
 
@@ -300,8 +303,15 @@ steps:
       pixel_format: yuv420p
       audio_codec: aac
       faststart: true
-      blend_frames_per_cell: 6
-      landing_frames_per_cell: 4
+      transition_modes:
+        provider_anchor_chain:
+          mode: difference_blend
+          blend_frames_per_cell: 6
+          landing_frames_per_cell: 4
+        procedural_fallback:
+          mode: topology_preserving_authored_redraw
+          semantic_hold_frames: 10
+          dissolve: false
     output_binding: $.steps.assemble.output
     output_schema: schemas/internal.json#/$defs/assembled_video
 

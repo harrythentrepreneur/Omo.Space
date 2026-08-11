@@ -1,7 +1,7 @@
 {
   "name": "Omo",
   "short_name": "Omo",
-  "description": "The AI helper store. Try it. Buy it. Use it your way.",
+  "description": "Discover and run proven AI workflows from independent makers. Pay per run, use the Omo API, or download an AI helper to keep.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F2F6F1",

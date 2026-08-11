@@ -7,13 +7,17 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from image_gen import ProceduralSumiEGenerator, validate_image_path  # noqa: E402
+from image_gen import (  # noqa: E402
+    ProceduralSumiEGenerator,
+    expand_semantic_frames,
+    validate_image_path,
+)
 from workflow import (  # noqa: E402
     PipelineConfig,
     PipelineDependencies,
@@ -42,14 +46,59 @@ def test_real_audio_fixture_is_bounded_and_has_audio() -> None:
 
 def test_procedural_story_finishes_as_one_ink_dot_on_white() -> None:
     generator = ProceduralSumiEGenerator()
-    first = Image.open(BytesIO(generator.render({}, 0, 30))).convert("L")
-    last = Image.open(BytesIO(generator.render({}, 29, 30))).convert("L")
+    frames = [
+        Image.open(BytesIO(generator.render({}, index, 30))).convert("L")
+        for index in range(30)
+    ]
+    first, last = frames[0], frames[-1]
     first_box = first.point(lambda value: 255 if value < 100 else 0).getbbox()
     last_box = last.point(lambda value: 255 if value < 100 else 0).getbbox()
     assert first_box is not None and last_box is not None
     assert first_box[2] - first_box[0] > 700
     assert last_box[2] - last_box[0] < 80
     assert last_box[3] - last_box[1] < 80
+    assert all(set(frame.get_flattened_data()) == {26, 255} for frame in frames)
+
+    # Wide topology has separate tiger, mice/branch, hanging figure, and berry;
+    # the middle insert replaces it with a readable face/berry contact crop.
+    def dark_pixels(frame: Image.Image, box: tuple[int, int, int, int]) -> int:
+        return sum(value < 100 for value in frame.crop(box).get_flattened_data())
+
+    assert dark_pixels(first, (45, 220, 440, 700)) > 3_000  # tiger + cliff
+    assert dark_pixels(first, (310, 550, 850, 790)) > 2_000  # two mice + branch
+    assert dark_pixels(first, (440, 680, 820, 1550)) > 3_000  # grip + robe
+    assert dark_pixels(first, (730, 1050, 900, 1320)) > 350  # leafed berry
+    assert dark_pixels(frames[10], (260, 360, 820, 1320)) > 5_000  # profile/contact
+
+
+def test_dense_authored_frames_never_crossfade_one_moving_dot(tmp_path: Path) -> None:
+    anchors = tmp_path / "anchors"
+    anchors.mkdir()
+    generated: list[dict[str, object]] = []
+    for index, x in enumerate((260, 540, 820)):
+        image = Image.new("RGB", (1080, 1920), (255, 255, 255))
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((x - 22, 600 - 22, x + 22, 600 + 22), fill=(26, 26, 26))
+        path = anchors / f"G{index:03d}.png"
+        image.save(path)
+        generated.append(
+            {"frame_id": f"G{index:03d}", "second": index / 3, "path": str(path)}
+        )
+
+    frames = expand_semantic_frames(
+        generated,
+        [],
+        1.0,
+        tmp_path / "semantic",
+    )
+    assert [frame["transition_mode"] for frame in frames] == ["authored-redraw"] * 3
+    for frame, expected_x in zip(frames, (260, 540, 820)):
+        image = Image.open(str(frame["path"])).convert("L")
+        box = image.point(lambda value: 255 if value < 100 else 0).getbbox()
+        assert box is not None
+        assert box[2] - box[0] < 60
+        assert abs((box[0] + box[2]) / 2 - expected_x) <= 2
+        assert set(image.get_flattened_data()) == {26, 255}
 
 
 def test_five_second_procedural_pipeline_produces_delivery_contract(tmp_path: Path) -> None:
@@ -84,7 +133,9 @@ def test_five_second_procedural_pipeline_produces_delivery_contract(tmp_path: Pa
     video = tmp_path / "artifacts" / "runs" / request["run_id"] / "video.mp4"
     contact = tmp_path / "artifacts" / "runs" / request["run_id"] / "contact-sheet.jpg"
     assert result["generation_provider"] == "procedural-fallback"
-    assert result["frames_used"] == {"generated": 3, "semantic": 15, "output": 150}
+    assert result["frames_used"] == {"generated": 15, "semantic": 15, "output": 150}
+    assert result["assembly"]["pair_count"] == 0
+    assert "no dissolve" in result["assembly"]["filter_method"]
     assert result["media"]["video_codec"] == "h264"
     assert result["media"]["audio_codec"] == "aac"
     assert result["qa"]["checks"]["audio_duration"] is True

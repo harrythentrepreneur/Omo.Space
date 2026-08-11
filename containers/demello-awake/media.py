@@ -468,12 +468,21 @@ def assemble_video(
     runner: CommandRunner = subprocess.run,
     encoder_preset: str = "fast",
     crf: int = 20,
+    transition_mode: str = "difference-blend",
 ) -> AssemblyResult:
-    """Render 3fps cells as six-frame changed-pixel blends + four-frame holds."""
+    """Render 3 fps authored cells using a declared topology policy.
+
+    ``topology-step`` holds each fully redrawn semantic cell for ten delivery
+    frames. It is intentionally used for procedural geometry: unlike a pixel
+    crossfade, it cannot create two spatial copies of one moving story mark or
+    gray ghost ink between them.
+    """
     if not semantic_frames:
         raise ValueError("semantic frames are required")
     if duration_seconds <= 0:
         raise ValueError("duration_seconds must be positive")
+    if transition_mode not in {"difference-blend", "topology-step"}:
+        raise ValueError("unsupported transition_mode")
     paths: list[Path] = []
     for value in semantic_frames:
         path = Path(str(value["path"])) if isinstance(value, Mapping) else Path(value)
@@ -488,13 +497,19 @@ def assemble_video(
     work_dir.mkdir(parents=True, exist_ok=True)
     pair_dir = work_dir / "pairs"
     cells: list[Path] = []
-    for index, source in enumerate(paths[:-1]):
-        cell = pair_dir / f"{index:03d}.mkv"
-        _render_pair(source, paths[index + 1], cell, runner=runner)
-        cells.append(cell)
-    final_hold = pair_dir / f"{len(paths) - 1:03d}-hold.mkv"
-    _render_hold(paths[-1], final_hold, runner=runner)
-    cells.append(final_hold)
+    if transition_mode == "topology-step":
+        for index, source in enumerate(paths):
+            cell = pair_dir / f"{index:03d}-redraw.mkv"
+            _render_hold(source, cell, runner=runner)
+            cells.append(cell)
+    else:
+        for index, source in enumerate(paths[:-1]):
+            cell = pair_dir / f"{index:03d}.mkv"
+            _render_pair(source, paths[index + 1], cell, runner=runner)
+            cells.append(cell)
+        final_hold = pair_dir / f"{len(paths) - 1:03d}-hold.mkv"
+        _render_hold(paths[-1], final_hold, runner=runner)
+        cells.append(final_hold)
 
     concat_path = work_dir / "semantic.ffconcat"
     concat_lines = ["ffconcat version 1.0"]
@@ -560,11 +575,16 @@ def assemble_video(
         video_path=str(output),
         frame_count=target_frames,
         duration_seconds=quantized_duration,
-        pair_count=max(0, len(paths) - 1),
+        pair_count=0 if transition_mode == "topology-step" else max(0, len(paths) - 1),
         mezzanine_path=str(mezzanine),
         filter_method=(
-            f"difference-preserving custom xfade: {BLEND_FRAMES} blend frames + "
-            f"{HOLD_FRAMES} target landing frames; fixed camera"
+            "topology-preserving authored redraw: 10-frame semantic hold; "
+            "no dissolve; fixed camera"
+            if transition_mode == "topology-step"
+            else (
+                f"difference-preserving custom xfade: {BLEND_FRAMES} blend frames + "
+                f"{HOLD_FRAMES} target landing frames; fixed camera"
+            )
         ),
     )
 

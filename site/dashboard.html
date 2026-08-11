@@ -560,18 +560,10 @@
             </form>
             <div class="filter-row" id="outcome-filters" role="group" aria-label="Filter helpers by outcome"></div>
           </div>
-          <div class="niche-strip">
-            <div class="niche-strip-head">
-              <p class="niche-strip-title">Browse by niche</p>
-              <p class="niche-strip-hint">Scroll to see every category</p>
-            </div>
-            <nav class="niche-nav" id="niche-nav" aria-label="Filter helpers by niche"></nav>
-          </div>
         </header>
 
         <p class="dash-notice" id="dash-notice" role="status" aria-live="polite" hidden></p>
-        <div class="results-bar">
-          <p class="results-label" id="results-label" aria-live="polite">Showing all helpers</p>
+        <div class="results-bar" id="results-bar" hidden>
           <button class="clear-filters" id="clear-filters" type="button" hidden>Clear filters</button>
         </div>
         <div class="feed-grid" id="listing-feed"></div>
@@ -706,13 +698,6 @@
         for (var j = 0; j < slugs.length; j++) if (filter.match(PRODUCTS[slugs[j]])) count++;
         return count;
       }
-      function nicheButtonHTML(filter) {
-        var active = filter.key === currentScope;
-        return '<button class="niche-item' + (active ? ' is-active' : '') + '" type="button" data-niche="' + filter.key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
-          '<span class="niche-icon" aria-hidden="true">' + filter.icon + '</span>' +
-          '<span class="niche-name">' + esc(filter.label) + '</span>' +
-          '<span class="niche-count">' + filterCount(filter) + '</span></button>';
-      }
       function outcomeButtonHTML(filter) {
         var active = currentScope === 'all' && filter.key === currentOutcome;
         var label = filter.key === 'all' ? 'All' : filter.label;
@@ -726,16 +711,12 @@
       var currentQuery = '';
 
       function renderSidebar() {
-        var nav = el('niche-nav');
         var outcome = el('outcome-filters');
         var outcomeHtml = outcomeButtonHTML(FILTERS[0]);
-        var nicheHtml = '';
         for (var j = 1; j < FILTERS.length; j++) {
           if (FILTERS[j].group === 'outcome') outcomeHtml += outcomeButtonHTML(FILTERS[j]);
-          if (FILTERS[j].group === 'niche') nicheHtml += nicheButtonHTML(FILTERS[j]);
         }
         if (outcome) outcome.innerHTML = outcomeHtml;
-        if (nav) nav.innerHTML = nicheHtml;
       }
 
       var votes = {};
@@ -788,16 +769,11 @@
         }
         var empty = el('feed-empty');
         if (empty) empty.hidden = visible.length > 0;
-        var active = filterByKey(currentScope);
-        var label = el('results-label');
-        if (label) {
-          var context = active.key !== 'all'
-            ? active.label
-            : (currentOutcome !== 'all' ? filterByKey(currentOutcome).label : 'All');
-          label.innerHTML = 'Showing <strong>' + visible.length + '</strong> ' + (visible.length === 1 ? 'helper' : 'helpers') + ' in <strong>' + esc(context) + '</strong>';
-        }
+        var hasFilters = currentScope !== 'all' || currentOutcome !== 'all' || !!currentQuery;
         var clear = el('clear-filters');
-        if (clear) clear.hidden = currentScope === 'all' && currentOutcome === 'all' && !currentQuery;
+        if (clear) clear.hidden = !hasFilters;
+        var resultsBar = el('results-bar');
+        if (resultsBar) resultsBar.hidden = !hasFilters;
       }
       function setOutcome(key) {
         currentOutcome = key || 'all';
@@ -1498,11 +1474,6 @@
       }
 
       function wire() {
-        var nav = el('niche-nav');
-        if (nav) nav.addEventListener('click', function (event) {
-          var button = event.target.closest('[data-niche]');
-          if (button) selectScope(button.getAttribute('data-niche'));
-        });
         var searchForm = el('search-form'); var searchInput = el('search-input');
         if (searchForm) searchForm.addEventListener('submit', function (event) { event.preventDefault(); currentQuery = searchInput.value.trim().toLowerCase(); renderFeed(); });
         if (searchInput) searchInput.addEventListener('input', function () { currentQuery = searchInput.value.trim().toLowerCase(); renderFeed(); });

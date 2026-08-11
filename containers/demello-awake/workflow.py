@@ -22,6 +22,7 @@ try:  # Support both package imports and direct ``python workflow.py`` loading.
         ImageGenerationError,
         OpenAIImageAdapter,
         expand_semantic_frames,
+        generate_procedural_keyframes,
         generate_with_fallback,
         generation_result_dict,
         validate_image_path,
@@ -42,6 +43,7 @@ except ImportError:  # pragma: no cover - exercised by container runner usage.
         ImageGenerationError,
         OpenAIImageAdapter,
         expand_semantic_frames,
+        generate_procedural_keyframes,
         generate_with_fallback,
         generation_result_dict,
         validate_image_path,
@@ -712,6 +714,17 @@ def run_pipeline(
             allow_procedural_fallback=config.allow_procedural_fallback,
             max_retries=config.max_image_retries,
         )
+        if generation.provider == "procedural-fallback":
+            # Procedural motion is authored at the binding 3 fps cadence. If a
+            # provider-sized sparse anchor plan fell back, replace it with the
+            # full deterministic redraw chain instead of interpolating bitmaps.
+            dense_specs = select_semantic_specs(plan, audio_info.duration_seconds)
+            if len(generation.frames) != len(dense_specs):
+                generation = generate_procedural_keyframes(
+                    dense_specs,
+                    job_dir / "generated",
+                    fallback_reason=generation.fallback_reason,
+                )
         _phase(telemetry, "generate_seconds", started, deps.clock)
 
         _mark_phase(final_dir, "semantic")
@@ -734,6 +747,11 @@ def run_pipeline(
             job_dir / "render",
             duration_seconds=audio_info.duration_seconds,
             runner=deps.command_runner,
+            transition_mode=(
+                "topology-step"
+                if generation.provider == "procedural-fallback"
+                else "difference-blend"
+            ),
         )
         _phase(telemetry, "assemble_seconds", started, deps.clock)
 
