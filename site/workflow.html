@@ -111,9 +111,11 @@
     .page { padding: 32px 0 80px; }
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-columns: minmax(0, 1fr) 300px;
       align-items: start;
-      gap: 36px;
+      gap: 32px;
+      max-width: 1120px;
+      margin-inline: auto;
     }
     .story,
     .offer-card,
@@ -153,8 +155,10 @@
       width: 100%;
       aspect-ratio: 16 / 9;
       overflow: hidden;
+      border: 1px solid var(--rule);
       border-radius: 11px 11px 4px 11px;
-      background: var(--mint);
+      background: #EEF3EF;
+      box-shadow: 0 8px 24px rgba(23, 53, 44, .06);
       isolation: isolate;
     }
     .media-slide {
@@ -205,14 +209,14 @@
       left: 50%;
       top: 50%;
       z-index: 2;
-      width: 64px;
-      height: 64px;
+      width: 70px;
+      height: 70px;
       display: grid;
       place-items: center;
       border: 2px solid rgba(255, 255, 255, .9);
       border-radius: 50%;
       background: var(--orange);
-      box-shadow: 0 8px 24px rgba(23, 53, 44, .22);
+      box-shadow: 0 10px 28px rgba(23, 53, 44, .28);
       color: var(--pine);
       font-size: 23px;
       line-height: 1;
@@ -236,38 +240,38 @@
       position: absolute;
       top: 50%;
       z-index: 3;
-      width: 42px;
-      height: 42px;
+      width: 50px;
+      height: 50px;
       display: grid;
       place-items: center;
       padding: 0 0 3px;
-      border: 1px solid rgba(255, 255, 255, .72);
+      border: 2px solid rgba(255, 255, 255, .86);
       border-radius: 50%;
-      background: rgba(23, 53, 44, .78);
-      box-shadow: 0 4px 14px rgba(23, 53, 44, .18);
+      background: rgba(23, 53, 44, .76);
+      box-shadow: 0 5px 18px rgba(23, 53, 44, .26);
       color: #fff;
-      font: 500 30px/1 var(--body);
+      font: 500 36px/1 var(--body);
       transform: translateY(-50%);
       transition: background .15s ease, transform .15s ease;
     }
     .media-nav:hover { background: var(--pine); transform: translateY(-50%) scale(1.04); }
-    .media-prev { left: 13px; }
-    .media-next { right: 13px; }
+    .media-prev { left: 16px; }
+    .media-next { right: 16px; }
     .media-dots {
       position: absolute;
       left: 50%;
       bottom: 12px;
       z-index: 3;
       display: flex;
-      gap: 7px;
-      padding: 6px 8px;
+      gap: 8px;
+      padding: 7px 10px;
       border-radius: 999px;
       background: rgba(23, 53, 44, .48);
       transform: translateX(-50%);
     }
     .media-dot {
-      width: 8px;
-      height: 8px;
+      width: 9px;
+      height: 9px;
       padding: 0;
       border: 0;
       border-radius: 50%;
@@ -276,29 +280,45 @@
     }
     .media-dot.is-active { background: #fff; transform: scale(1.22); }
     .media-thumbnails {
-      display: flex;
-      gap: 9px;
+      --thumbnail-count: 1;
+      display: grid;
+      grid-template-columns: repeat(var(--thumbnail-count), minmax(92px, 1fr));
+      gap: 10px;
+      width: 100%;
       margin-top: 12px;
-      padding: 2px;
+      padding: 4px;
       overflow-x: auto;
       overscroll-behavior-inline: contain;
+      scroll-padding-inline: 4px;
       scrollbar-width: thin;
     }
+    .media-thumbnails.is-single { grid-template-columns: 112px; }
     .media-thumbnail {
       position: relative;
-      width: 76px;
-      aspect-ratio: 16 / 10;
-      flex: 0 0 auto;
+      width: auto;
+      min-width: 92px;
+      aspect-ratio: 16 / 9;
       overflow: hidden;
       padding: 0;
-      border: 2px solid transparent;
-      border-radius: 7px;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
       background: var(--mint);
-      opacity: .65;
-      transition: border-color .15s ease, opacity .15s ease, transform .15s ease;
+      box-shadow: 0 2px 8px rgba(23, 53, 44, .06);
+      opacity: .72;
+      transition: border-color .15s ease, box-shadow .15s ease, opacity .15s ease;
     }
-    .media-thumbnail:hover { opacity: .88; transform: translateY(-1px); }
-    .media-thumbnail.is-active { border-color: var(--orange); opacity: 1; }
+    .media-thumbnail:hover { opacity: 1; }
+    .media-thumbnail.is-active {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--orange);
+      opacity: 1;
+    }
+    .media-thumbnails.is-single .media-thumbnail {
+      border-color: #BFCBC4;
+      box-shadow: none;
+      cursor: default;
+      opacity: .72;
+    }
     .media-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
     .media-thumbnail .media-emoji { font-size: 23px; }
     .thumbnail-play {
@@ -312,10 +332,21 @@
       text-shadow: 0 1px 5px rgba(23, 53, 44, .45);
     }
     .quiet-line {
-      margin: 14px 0 0;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 14px 2px 0;
       color: var(--moss);
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.5;
+    }
+    .metadata-item { display: inline-flex; align-items: center; }
+    .metadata-item:first-child { color: #365349; font-weight: 500; }
+    .metadata-item:not(:last-child)::after {
+      content: "\00b7";
+      margin-inline: 8px;
+      color: #A7B2AC;
+      font-weight: 400;
     }
     .sr-only {
       position: absolute;
@@ -329,40 +360,72 @@
       border: 0;
     }
 
-    .story-copy { padding: 8px 36px 50px; }
+    .story-copy { padding: 16px 36px 54px; }
     .intro {
       max-width: 720px;
-      margin: 28px 0 0;
+      margin: 24px 0 34px;
       font-size: 17px;
+      line-height: 1.72;
       text-wrap: pretty;
     }
-    .copy-section { max-width: 720px; margin-top: 38px; }
+    .copy-section {
+      max-width: 720px;
+      margin: 0;
+      padding: 28px 0 30px;
+      border-top: 1px solid var(--rule);
+    }
     .copy-section h2 {
-      margin-bottom: 12px;
+      margin-bottom: 17px;
       font-family: var(--display);
-      font-size: 27px;
+      font-size: 29px;
       font-weight: 600;
       letter-spacing: -.01em;
       line-height: 1.2;
     }
     .plain-list {
+      display: grid;
+      gap: 11px;
       margin: 0;
-      padding-left: 24px;
+      padding: 0;
+      list-style: none;
     }
-    .plain-list li { margin: 7px 0; padding-left: 4px; }
-    .plain-list li::marker { color: var(--orange); font-weight: 700; }
+    .plain-list li {
+      position: relative;
+      margin: 0;
+      padding-left: 34px;
+      line-height: 1.58;
+    }
+    .plain-list li::before {
+      content: "\2713";
+      position: absolute;
+      top: .18em;
+      left: 0;
+      width: 21px;
+      height: 21px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--mint);
+      color: var(--pine);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+    }
     .closing-copy {
       max-width: 720px;
-      margin: 40px 0 0;
-      padding-top: 28px;
-      border-top: 1px solid var(--rule);
+      margin: 12px 0 0;
+      padding: 20px 22px;
+      border-left: 3px solid var(--orange);
+      border-radius: 0 8px 8px 0;
+      background: #F2F6F1;
       color: #365349;
+      line-height: 1.65;
       text-wrap: pretty;
     }
 
     .sidebar {
       position: sticky;
-      top: 24px;
+      top: 20px;
       min-width: 0;
     }
     .offer-card {
@@ -373,14 +436,14 @@
     .offer-cover {
       position: relative;
       width: 100%;
-      aspect-ratio: 16 / 10;
+      aspect-ratio: 16 / 9;
       overflow: hidden;
       border-radius: 9px;
       background: var(--mint);
     }
     .offer-cover img { width: 100%; height: 100%; object-fit: cover; }
     .offer-cover .media-emoji { font-size: 46px; }
-    .offer-body { padding: 18px 7px 6px; }
+    .offer-body { padding: 20px 9px 8px; }
     .offer-title {
       margin-bottom: 8px;
       font-family: var(--display);
@@ -389,12 +452,17 @@
       line-height: 1.2;
     }
     .offer-desc {
-      margin-bottom: 17px;
+      margin-bottom: 18px;
       color: var(--moss);
-      font-size: 14px;
-      line-height: 1.5;
+      font-size: 15px;
+      line-height: 1.55;
     }
-    .offer-actions { display: grid; gap: 13px; }
+    .offer-actions {
+      display: grid;
+      gap: 13px;
+      padding-top: 18px;
+      border-top: 1px solid var(--rule);
+    }
     .offer-choice { position: relative; }
     .button {
       min-height: 50px;
@@ -544,16 +612,24 @@
       .listing-title { font-size: clamp(32px, 10vw, 40px); }
       .listing-promise { font-size: 16px; }
       .media-gallery { width: calc(100% - 40px); margin-inline: 20px; }
-      .media-nav { width: 38px; height: 38px; font-size: 27px; }
+      .media-nav { width: 40px; height: 40px; font-size: 29px; }
       .media-prev { left: 9px; }
       .media-next { right: 9px; }
-      .media-thumbnail { width: 68px; }
+      .media-thumbnails {
+        grid-template-columns: repeat(var(--thumbnail-count), minmax(64px, 1fr));
+        gap: 8px;
+      }
+      .media-thumbnails.is-single { grid-template-columns: 96px; }
+      .media-thumbnail { min-width: 64px; }
       .play-button { width: 56px; height: 56px; font-size: 20px; }
-      .story-copy { padding: 5px 20px 38px; }
-      .intro { margin-top: 24px; font-size: 16px; }
-      .copy-section { margin-top: 32px; }
-      .copy-section h2 { font-size: 25px; }
-      .closing-copy { margin-top: 34px; padding-top: 24px; }
+      .quiet-line { margin-top: 12px; font-size: 13px; }
+      .story-copy { padding: 14px 20px 38px; }
+      .intro { margin: 20px 0 28px; font-size: 16px; }
+      .copy-section { padding: 25px 0 27px; }
+      .copy-section h2 { margin-bottom: 15px; font-size: 25px; }
+      .plain-list { gap: 10px; }
+      .plain-list li { padding-left: 31px; }
+      .closing-copy { margin-top: 8px; padding: 18px; }
       .not-found { margin: 28px auto; padding: 38px 20px; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -588,7 +664,7 @@
 
           <div class="media-gallery">
             <div class="media-shell sig-cut" id="hero-media" role="region" aria-roledescription="carousel" tabindex="0"></div>
-            <div class="media-thumbnails" id="media-thumbnails" aria-label="Choose a slide"></div>
+            <div class="media-thumbnails" id="media-thumbnails" role="tablist" aria-label="Choose a slide"></div>
             <p class="quiet-line" id="quiet-line"></p>
           </div>
 
@@ -805,7 +881,9 @@
         var versionLabel = String(listing.version).split('·')[0].trim();
         infoParts.push(/^v/i.test(versionLabel) ? versionLabel : 'v' + versionLabel);
       }
-      el('quiet-line').textContent = infoParts.join(' · ');
+      el('quiet-line').innerHTML = infoParts.map(function (part) {
+        return '<span class="metadata-item">' + esc(part) + '</span>';
+      }).join('');
       el('listing-intro').textContent = listing.desc || listing.promise;
 
       function imageSource(candidate) {
@@ -817,9 +895,7 @@
       function mediaAssets() {
         var assets = [];
         var imageUrls = {};
-        if (listing.embedHtml || listing.embed || listing.reelUrl) {
-          assets.push({ type: 'video', label: 'Creator reel' });
-        }
+        var hasCreatorReel = !!(listing.embedHtml || listing.embed || listing.reelUrl);
         function addImage(candidate, label) {
           if (Array.isArray(candidate)) {
             for (var arrayIndex = 0; arrayIndex < candidate.length; arrayIndex++) {
@@ -843,7 +919,13 @@
             }
           }
         }
-        addImage(listing.cover, 'Cover');
+        if (hasCreatorReel) {
+          var posterSource = imageSource(listing.cover);
+          if (posterSource) imageUrls[posterSource] = true;
+          assets.push({ type: 'video', src: posterSource, label: 'Creator reel' });
+        } else {
+          addImage(listing.cover, 'Cover');
+        }
         if (listing.icon && /[/.]/.test(String(listing.icon))) addImage(listing.icon, 'Artwork');
         var collectionKeys = ['media', 'gallery', 'images', 'frames', 'art', 'assets'];
         for (var keyIndex = 0; keyIndex < collectionKeys.length; keyIndex++) {
@@ -867,14 +949,17 @@
       heroMedia.innerHTML = slides.map(function (asset, index) {
         var activeClass = index === 0 ? ' is-active' : '';
         var hidden = index === 0 ? 'false' : 'true';
+        var slideAttributes = ' id="media-slide-' + index + '" data-slide-index="' + index +
+          '" role="group" aria-roledescription="slide" aria-label="' + (index + 1) + ' of ' + slides.length +
+          ': ' + esc(asset.label) + '" aria-hidden="' + hidden + '"';
         if (asset.type === 'video') {
-          return '<div class="media-slide' + activeClass + '" data-slide-index="' + index + '" aria-hidden="' + hidden + '">' +
+          return '<div class="media-slide' + activeClass + '"' + slideAttributes + '>' +
             '<button class="media-poster" type="button" data-play-index="' + index + '" aria-label="Play the creator reel">' +
-            coverHTML('') +
+            assetImageHTML(asset, '') +
             '<span class="play-button" aria-hidden="true">▶</span>' +
             '<span class="watch-label">Watch the creator’s reel</span></button></div>';
         }
-        return '<div class="media-slide' + activeClass + '" data-slide-index="' + index + '" aria-hidden="' + hidden + '">' +
+        return '<div class="media-slide' + activeClass + '"' + slideAttributes + '>' +
           '<div class="media-fallback">' + assetImageHTML(asset, listing.name + ' ' + asset.label.toLowerCase()) + '</div></div>';
       }).join('') +
         (slides.length > 1
@@ -887,16 +972,20 @@
           : '') +
         '<span class="sr-only" id="media-status" aria-live="polite"></span>';
 
-      thumbnailRow.innerHTML = slides.length > 1 ? slides.map(function (asset, index) {
+      thumbnailRow.style.setProperty('--thumbnail-count', String(slides.length));
+      thumbnailRow.classList.toggle('is-single', slides.length === 1);
+      thumbnailRow.innerHTML = slides.map(function (asset, index) {
         var thumbnailAsset = asset.type === 'video'
-          ? { src: listing.cover || '', label: asset.label }
+          ? { src: asset.src || '', label: asset.label }
           : asset;
         return '<button class="media-thumbnail' + (index === 0 ? ' is-active' : '') + '" type="button" data-thumbnail-index="' + index +
-          '" aria-label="Show ' + esc(asset.label.toLowerCase()) + '" aria-current="' + (index === 0 ? 'true' : 'false') + '">' +
+          '" role="tab" aria-controls="media-slide-' + index + '" aria-label="Show ' + esc(asset.label.toLowerCase()) +
+          '" aria-selected="' + (index === 0 ? 'true' : 'false') + '" aria-current="' + (index === 0 ? 'true' : 'false') +
+          '" tabindex="' + (index === 0 ? '0' : '-1') + '">' +
           assetImageHTML(thumbnailAsset, '') +
           (asset.type === 'video' ? '<span class="thumbnail-play" aria-hidden="true">▶</span>' : '') + '</button>';
-      }).join('') : '';
-      thumbnailRow.hidden = slides.length <= 1;
+      }).join('');
+      el('media-status').textContent = 'Slide 1 of ' + slides.length;
 
       function showSlide(nextIndex) {
         var normalizedIndex = (nextIndex + slides.length) % slides.length;
@@ -914,6 +1003,8 @@
           if (thumbnailElements[slideIndex]) {
             thumbnailElements[slideIndex].classList.toggle('is-active', isActive);
             thumbnailElements[slideIndex].setAttribute('aria-current', isActive ? 'true' : 'false');
+            thumbnailElements[slideIndex].setAttribute('aria-selected', isActive ? 'true' : 'false');
+            thumbnailElements[slideIndex].setAttribute('tabindex', isActive ? '0' : '-1');
           }
         }
         currentSlide = normalizedIndex;
@@ -962,11 +1053,17 @@
         var thumbnail = event.target.closest('[data-thumbnail-index]');
         if (thumbnail) showSlide(Number(thumbnail.getAttribute('data-thumbnail-index')));
       });
-      heroMedia.addEventListener('keydown', function (event) {
+      function handleGalleryKeydown(event) {
         if (slides.length <= 1 || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
         event.preventDefault();
         showSlide(currentSlide + (event.key === 'ArrowLeft' ? -1 : 1));
-      });
+        if (event.currentTarget === thumbnailRow) {
+          var activeThumbnail = thumbnailRow.querySelector('.media-thumbnail.is-active');
+          if (activeThumbnail) activeThumbnail.focus();
+        }
+      }
+      heroMedia.addEventListener('keydown', handleGalleryKeydown);
+      thumbnailRow.addEventListener('keydown', handleGalleryKeydown);
 
       if (!workflowSteps.length) {
         workflowSteps = [{ label: 'Follow the included process from your input to a finished result' }];
