@@ -1078,16 +1078,21 @@
       /* ── Live products ───────────────────────────────────────── */
       var PRODUCTS = {}; // real IG workflows merge in below
 
+      /* TEMPORARY DELIST GATE — only these slugs render until re-enabled.
+         To re-enable a listing: add its slug to this array. Nothing else needed.
+         The listing data in ig-workflows.js / ig-more.js is untouched. */
+      var LIVE_SLUGS = ['japanese-style-story-video', 'woven-relationship-book-maker'];
+
       // Instagram-verified workflows (ig-workflows.js, optional)
       var igExtra = window.COGNITION_IG_WORKFLOWS || [];
       igExtra.forEach(function (s) {
-        if (!s || !s.slug) return;
+        if (!s || !s.slug || LIVE_SLUGS.indexOf(s.slug) === -1) return;
         if (!PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
       });
       // More Instagram-verified workflows (ig-more.js, optional)
       var igMore = window.COGNITION_IG_MORE || [];
       igMore.forEach(function (s) {
-        if (!s || !s.slug) return;
+        if (!s || !s.slug || LIVE_SLUGS.indexOf(s.slug) === -1) return;
         if (!PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
       });
 
