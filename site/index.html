@@ -365,7 +365,7 @@
     .button-block { width: 100%; }
 
     /* ── Hero ───────────────────────────────────────────────────── */
-    .hero { padding: 44px 0 48px; }
+    .hero { padding: 44px 0 32px; }
     .hero-inner { max-width: 760px; margin-inline: auto; text-align: center; }
     .hero-title {
       margin-bottom: 14px;
@@ -414,27 +414,23 @@
     .hero-note { margin: 0; font-size: 14px; line-height: 1.45; color: var(--moss); }
 
     /* ── Feed ───────────────────────────────────────────────────── */
-    .feed-section { padding: 32px 0 96px; }
-    .feed-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
-    .feed-title { font-family: var(--display); font-size: clamp(28px, 4.5vw, 36px); font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; margin-bottom: 6px; }
-    .feed-sub { margin: 0; color: var(--moss); font-size: 15px; line-height: 1.45; }
-    .feed-tools { display: flex; flex-direction: column; align-items: flex-end; }
-    .filter-row { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .feed-section { padding: 0 0 96px; }
+    .feed-head { display: flex; justify-content: center; margin-bottom: 24px; }
+    .feed-tools { display: flex; width: 100%; flex-direction: column; align-items: center; }
+    .filter-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
     .filter-chip {
-      min-height: 40px; padding: 0 16px; border-radius: 999px;
+      min-height: 42px; display: inline-flex; align-items: center; gap: 7px;
+      padding: 0 13px; border-radius: 999px;
       border: 1px solid var(--rule); background: var(--surface);
-      color: var(--pine); font-size: 14px; font-weight: 700;
+      color: var(--pine); font-size: 13px; font-weight: 700; white-space: nowrap;
     }
     .filter-chip:hover { border-color: var(--pine); }
     .filter-chip.is-active { background: var(--pine); border-color: var(--pine); color: #fff; }
 
     @media (max-width: 639px) {
-      .hero { padding: 44px 0 42px; }
+      .hero { padding: 44px 0 30px; }
       .hero-sub { margin-bottom: 24px; font-size: 17px; }
-      .feed-section { padding-top: 28px; }
-      .feed-head { align-items: flex-start; gap: 16px; }
-      .feed-tools { width: 100%; align-items: flex-start; }
-      .filter-row { justify-content: flex-start; }
+      .feed-tools { width: 100%; }
     }
 
     .feed-grid {
@@ -894,9 +890,9 @@
       .search-input { padding-inline: 15px 10px; }
       .search-submit { padding-inline: 16px; }
 
-      .feed-section { padding: 30px 0 68px; }
+      .feed-section { padding: 0 0 68px; }
       .feed-head { display: block; margin-bottom: 22px; }
-      .feed-tools { width: 100%; margin-top: 18px; }
+      .feed-tools { width: 100%; margin-top: 0; }
       .filter-row {
         width: calc(100% + 32px); margin-inline: -16px; padding: 0 16px 8px;
         flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto;
@@ -1001,13 +997,9 @@
     </section>
 
     <!-- ── Feed ─────────────────────────────────────────────── -->
-    <section class="feed-section" id="feed" aria-labelledby="feed-title">
+    <section class="feed-section" id="feed" aria-label="AI helpers">
       <div class="shell">
         <div class="feed-head">
-          <div>
-            <h2 class="feed-title" id="feed-title">Fresh from the makers</h2>
-            <p class="feed-sub" id="feed-sub">2 real helpers. Choose one to own or run in your dashboard.</p>
-          </div>
           <div class="feed-tools">
             <div class="filter-row" role="group" aria-label="Filter by outcome">
               <button class="filter-chip is-active" type="button" data-filter="all" aria-pressed="true">All</button>
@@ -1130,13 +1122,6 @@
           itemListOrder: 'https://schema.org/ItemListUnordered',
           itemListElement: catalogItems
         });
-      }
-
-      /* ── Feed subtitle: dynamic helper count ─────────────────── */
-      var feedSub = document.getElementById('feed-sub');
-      if (feedSub) {
-        var totalHelpers = Object.keys(PRODUCTS).length;
-        feedSub.textContent = (totalHelpers >= 100 ? '100+' : totalHelpers) + ' real helpers. Choose one to own or run in your dashboard.';
       }
 
       /* ── Render the feed ─────────────────────────────────────── */
