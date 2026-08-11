@@ -301,25 +301,26 @@
     .button-run { border-color: var(--pine); background: var(--surface); color: var(--pine); }
     .button:hover:not(:disabled) { filter: brightness(.98); transform: translateY(-1px); }
     .offer-note {
-      min-height: 18px;
-      margin: 9px 0 0;
+      margin: 8px 0 0;
       color: var(--moss);
       font-size: 12px;
       line-height: 1.45;
       text-align: center;
     }
-    .offer-logo {
-      display: block;
-      width: auto;
-      height: 32px;
-      margin: 13px auto 0;
-    }
     .offer-powered {
-      margin: 8px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 10px 0 0;
       color: var(--moss);
       font-size: 11px;
       line-height: 1.4;
       text-align: center;
+    }
+    .offer-logo {
+      width: auto;
+      height: 22px;
     }
 
     .not-found {
@@ -438,11 +439,13 @@
                 <button class="button button-buy" id="buy-button" type="button"></button>
                 <button class="button button-run" id="run-button" type="button"></button>
               </div>
-              <p class="offer-note" id="offer-note" role="status" aria-live="polite"></p>
-              <img class="offer-logo" src="logo-sweet-pastel.svg" alt="Omo" width="128" height="40">
-              <p class="offer-powered">Powered by Omo</p>
             </div>
           </div>
+          <div class="offer-powered">
+            <span>Powered by Omo</span>
+            <img class="offer-logo" src="logo-sweet-pastel.svg" alt="" width="128" height="40">
+          </div>
+          <p class="offer-note" id="offer-note" role="status" aria-live="polite"></p>
         </aside>
       </div>
 
