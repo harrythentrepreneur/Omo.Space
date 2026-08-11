@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <meta name="theme-color" content="#1E3A34">
+  <meta name="theme-color" content="#4F3F59">
   <meta name="robots" content="index,follow">
   <meta name="description" content="Browse proven AI workflows and helpers for content, sales, and operations. Try a demo, buy once, or pay per run through the Omo marketplace.">
   <link rel="canonical" href="https://omo.space/">
@@ -31,7 +31,13 @@
       "@type": "WebSite",
       "name": "Omo",
       "url": "https://omo.space/",
-      "description": "A marketplace for proven AI workflows and helpers you can try, buy, or run through an API."
+      "description": "A marketplace for proven AI workflows and helpers you can try, buy, or run through an API.",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Omo",
+        "url": "https://omo.space/",
+        "logo": "https://omo.space/logo-sweet-pastel.svg"
+      }
     }
   </script>
   <script type="application/ld+json">
@@ -331,10 +337,9 @@
     }
     .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
     .wordmark {
-      font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1;
-      text-decoration: none; letter-spacing: -0.01em;
+      min-height: 44px; display: inline-flex; align-items: center; text-decoration: none;
     }
-    .wordmark-dot { color: var(--orange); }
+    .wordmark-logo { display: block; width: auto; height: 34px; }
     .nav-actions { display: flex; align-items: center; gap: 16px; }
     .nav-link {
       min-height: 44px; display: inline-flex; align-items: center;
@@ -653,7 +658,7 @@
     /* ── Footer ─────────────────────────────────────────────────── */
     .site-footer { border-top: 1px solid var(--rule); padding: 40px 0 56px; }
     .footer-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
-    .footer-brand .wordmark { font-size: 24px; }
+    .footer-brand .wordmark-logo { height: 36px; }
     .footer-tagline { margin: 8px 0 0; color: var(--moss); font-size: 14px; }
     .footer-links { display: flex; gap: 8px; flex-wrap: wrap; }
     .footer-links a {
@@ -965,7 +970,7 @@
 
   <header class="site-header">
     <div class="shell nav-row">
-      <a class="wordmark" href="#top">Omo<span class="wordmark-dot">.</span></a>
+      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
       <nav class="nav-actions" aria-label="Primary">
         <a class="nav-link" href="#feed">Browse helpers</a>
         <a class="nav-link" href="host.html">Host yours</a>
@@ -1186,7 +1191,7 @@
   <footer class="site-footer">
     <div class="shell footer-row">
       <div class="footer-brand">
-        <a class="wordmark" href="#top">Omo<span class="wordmark-dot">.</span></a>
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
         <p class="footer-tagline">The store for AI helpers. Try a free demo, then download or run by API.</p>
       </div>
       <nav class="footer-links" aria-label="Footer">

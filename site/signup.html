@@ -4,8 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-  <meta name="theme-color" content="#1E3A34">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#4F3F59">
   <title>Create Your Free Account — Run AI Helpers Today | Omo</title>
   <meta name="description" content="Create your free Omo account, claim $5 in credits, and run proven AI helpers from the marketplace. No card needed—choose a workflow and get started.">
   <meta name="robots" content="index,follow">
@@ -64,10 +67,9 @@
     }
     .wordmark {
       width: max-content; min-height: 44px; display: inline-flex; align-items: center;
-      font-family: var(--display); font-size: 30px; font-weight: 600;
-      line-height: 1; letter-spacing: -.02em; text-decoration: none;
+      text-decoration: none;
     }
-    .wordmark-dot { color: var(--orange); }
+    .wordmark-logo { display: block; width: auto; height: 34px; }
     .sig-cut {
       clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%);
     }
@@ -180,7 +182,7 @@
 </head>
 <body>
   <main class="page-shell">
-    <a class="wordmark" href="index.html" aria-label="Omo home">Omo<span class="wordmark-dot">.</span></a>
+    <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
 
     <section class="signup-card sig-cut" aria-labelledby="signup-title">
       <div class="intro">

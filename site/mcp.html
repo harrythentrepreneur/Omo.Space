@@ -4,7 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="apple-touch-icon" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#4F3F59">
   <meta name="robots" content="index,follow">
   <meta name="description" content="Connect Omo MCP to your AI assistant to find and run proven AI helpers in chat with clear pay-per-run pricing. Get your API key and start in minutes.">
   <link rel="canonical" href="https://omo.space/mcp.html">
@@ -58,8 +62,8 @@
     }
     .shell { width: min(100% - 48px, var(--shell)); margin-inline: auto; }
     .nav-row { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-    .wordmark { font-family: var(--display); font-size: 24px; font-weight: 600; color: var(--pine); text-decoration: none; }
-    .wordmark-dot { color: var(--orange); }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark-logo { display: block; width: auto; height: 34px; }
     .nav-actions { display: flex; align-items: center; gap: 8px; }
     .nav-link {
       min-height: 40px; display: inline-flex; align-items: center; padding: 0 14px;
@@ -188,7 +192,7 @@
 
   <header class="site-header">
     <div class="shell nav-row">
-      <a class="wordmark" href="dashboard.html">Omo<span class="wordmark-dot">.</span></a>
+      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
       <nav class="nav-actions" aria-label="Primary navigation">
         <a class="nav-link" href="dashboard.html">Dashboard</a>
         <a class="nav-link" href="api.html">API</a>
