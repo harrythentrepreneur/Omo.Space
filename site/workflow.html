@@ -282,7 +282,8 @@
       font-size: 14px;
       line-height: 1.5;
     }
-    .offer-actions { display: grid; gap: 9px; }
+    .offer-actions { display: grid; gap: 13px; }
+    .offer-choice { display: grid; gap: 5px; }
     .button {
       min-height: 50px;
       width: 100%;
@@ -300,6 +301,13 @@
     .button-buy { background: var(--orange); color: var(--pine); }
     .button-run { border-color: var(--pine); background: var(--surface); color: var(--pine); }
     .button:hover:not(:disabled) { filter: brightness(.98); transform: translateY(-1px); }
+    .offer-choice-copy {
+      margin: 0 4px;
+      color: var(--moss);
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: center;
+    }
     .offer-note {
       margin: 8px 0 0;
       color: var(--moss);
@@ -440,13 +448,19 @@
               <h2 class="offer-title" id="offer-title"></h2>
               <p class="offer-desc" id="offer-desc"></p>
               <div class="offer-actions">
-                <button class="button button-buy" id="buy-button" type="button"></button>
-                <button class="button button-run" id="run-button" type="button"></button>
+                <div class="offer-choice">
+                  <button class="button button-buy" id="buy-button" type="button" aria-describedby="buy-copy"></button>
+                  <p class="offer-choice-copy" id="buy-copy">Workflow + prompts. Run them on your computer.</p>
+                </div>
+                <div class="offer-choice">
+                  <button class="button button-run" id="run-button" type="button" aria-describedby="run-copy"></button>
+                  <p class="offer-choice-copy" id="run-copy">Per run. Omo handles the setup and sends back the finished result.</p>
+                </div>
               </div>
             </div>
           </div>
           <div class="offer-powered">
-            <span>Powered by Omo</span>
+            <span>Powered by</span>
             <img class="offer-logo" src="logo-sweet-pastel.svg" alt="" width="128" height="40">
           </div>
           <p class="offer-note" id="offer-note" role="status" aria-live="polite"></p>
@@ -637,8 +651,8 @@
       el('offer-cover').innerHTML = coverHTML(listing.name + ' cover');
       el('offer-title').textContent = listing.name;
       el('offer-desc').textContent = listing.promise;
-      el('buy-button').textContent = 'Buy — ' + ownPrice + ' once';
-      el('run-button').textContent = 'Run on our cloud — ≈ ' + perRun + ' / run';
+      el('buy-button').textContent = 'Download & keep — ' + ownPrice + ' once';
+      el('run-button').textContent = 'Run it for me — about ' + perRun;
 
       function syncAuthLinks() {
         el('login-link').href = signedIn() ? 'dashboard.html' : 'signup.html';
