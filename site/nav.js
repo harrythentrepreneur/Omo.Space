@@ -15,13 +15,40 @@
   }
 
   function syncLoginLinks() {
-    var href = isSignedIn() ? 'dashboard.html' : 'signup.html';
+    var signedIn = isSignedIn();
+    var href = signedIn ? 'dashboard.html' : 'signup.html';
+    var label = signedIn ? 'Dashboard' : 'Log in';
     var links = document.querySelectorAll('[data-omo-login]');
     for (var i = 0; i < links.length; i += 1) {
       links[i].href = href;
-      links[i].textContent = 'Log in';
+      links[i].textContent = label;
       links[i].hidden = false;
     }
+  }
+
+  function subscribeToAuthChanges() {
+    if (!window.ClerkAuth || typeof window.ClerkAuth.onAuthChange !== 'function') return false;
+    window.ClerkAuth.onAuthChange(syncLoginLinks);
+    return true;
+  }
+
+  function loadAuthAdapter() {
+    function loadScript(src, onLoad) {
+      var script = document.createElement('script');
+      script.src = src;
+      script.onload = onLoad;
+      document.head.appendChild(script);
+    }
+
+    function loadClerk() {
+      loadScript('clerk.js', function () {
+        syncLoginLinks();
+        subscribeToAuthChanges();
+      });
+    }
+
+    if (typeof window.CLERK_PUBLISHABLE_KEY === 'string') loadClerk();
+    else loadScript('key-config.js', loadClerk);
   }
 
   function initMenu(menu) {
@@ -60,9 +87,11 @@
     for (var i = 0; i < menus.length; i += 1) initMenu(menus[i]);
 
     syncLoginLinks();
-    if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') {
-      window.ClerkAuth.onAuthChange(syncLoginLinks);
-    }
+    if (!subscribeToAuthChanges()) loadAuthAdapter();
+
+    window.addEventListener('storage', function (event) {
+      if (event.key === 'cognition_user') syncLoginLinks();
+    });
   }
 
   if (document.readyState === 'loading') {
