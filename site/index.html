@@ -443,10 +443,12 @@
     .listing-card {
       display: flex; flex-direction: column;
       background: var(--surface); border: 1px solid var(--rule); border-radius: 14px;
-      padding: 0 0 20px; overflow: hidden; transition: transform .12s ease, box-shadow .12s ease;
+      padding: 0 0 20px; overflow: hidden; cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease;
     }
     @media (max-width: 639px) { .listing-card { padding: 0 0 16px; } }
     .listing-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(23,53,44,.08); }
+    .listing-card:focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; }
     .listing-card.sig-cut { border-radius: 14px 14px 0 14px; }
 
     .listing-cover {
@@ -469,25 +471,15 @@
       overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
     }
     .listing-promise {
-      margin-bottom: 12px; color: var(--pine); font-size: 15px; text-wrap: pretty;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-      overflow: hidden; min-height: 2.7em;
+      margin-bottom: 12px; color: var(--pine); font-size: 15px; line-height: 1.4; text-wrap: pretty;
+      display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+      overflow: hidden; min-height: 1.4em;
     }
-    .listing-maker { margin-bottom: 4px; font-size: 14px; font-weight: 700; color: var(--moss); }
+    .listing-maker { margin-bottom: 16px; font-size: 14px; font-weight: 700; color: var(--moss); }
     .listing-maker .maker-handle { color: var(--pine); }
-    .listing-meta { font-size: 13px; color: var(--moss); margin-bottom: 16px; }
     .listing-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--rule); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .listing-price { font-size: 20px; font-weight: 700; line-height: 1.2; min-width: 140px; }
     .listing-price .price-note { display: block; font-size: 12.5px; font-weight: 500; color: var(--moss); }
-    .listing-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
-    .demo-link, .details-link {
-      min-height: 40px; padding: 0 14px; border-radius: 10px; font-size: 14px; font-weight: 700;
-      text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
-    }
-    .demo-link { background: var(--pine); color: #fff; border: 1px solid var(--pine); }
-    .demo-link:hover { box-shadow: 0 4px 12px rgba(23,53,44,.2); }
-    .details-link { background: var(--surface); color: var(--pine); border: 1px solid var(--pine); }
-    .details-link:hover { background: var(--canvas); }
 
     /* ── Upvotes ──────────────────────────────────────────────── */
     .upvote-btn {
@@ -910,10 +902,8 @@
       .listing-name {
         white-space: normal; -webkit-line-clamp: 2; font-size: clamp(21px, 6vw, 24px);
       }
-      .listing-promise { -webkit-line-clamp: 3; min-height: 0; }
+      .listing-promise { -webkit-line-clamp: 1; min-height: 1.4em; }
       .listing-footer { align-items: center; }
-      .listing-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .demo-link, .details-link { min-height: 44px; padding-inline: 10px; }
       .listing-card .upvote-btn { top: 12px; right: 12px; min-height: 44px; padding-inline: 12px; }
 
       .moat-section, .maker-section, .pricing-section { padding: 68px 0; }
@@ -1190,15 +1180,10 @@
           upvoteBtnHTML(p) +
           '<div class="listing-body">' +
           '<h3 class="listing-name">' + ESC(p.name) + '</h3>' +
-          '<p class="listing-promise">' + ESC(p.promise) + '</p>' +
+          '<p class="listing-promise">' + ESC(p.promise || p.desc || '') + '</p>' +
           '<p class="listing-maker">by <span class="maker-handle">' + ESC(p.maker) + '</span></p>' +
-          '<p class="listing-meta">' + ESC(p.version) + '</p>' +
           '<div class="listing-footer">' +
             '<p class="listing-price">' + ownLabel + ' <span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
-            '<div class="listing-actions">' +
-              '<button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Run it</button>' +
-              '<button class="details-link" type="button" data-action="details">View details ↗</button>' +
-            '</div>' +
           '</div>' +
           '</div>' +
         '</article>';

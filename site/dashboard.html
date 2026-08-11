@@ -221,10 +221,11 @@
     .listing-card {
       position: relative; min-width: 0; display: flex; flex-direction: column;
       background: var(--surface); border: 1px solid var(--rule); border-radius: 14px;
-      padding: 0 0 20px; overflow: hidden;
+      padding: 0 0 20px; overflow: hidden; cursor: pointer;
       transition: transform .12s ease, box-shadow .12s ease;
     }
     .listing-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(23,53,44,.08); }
+    .listing-card:focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; }
     .listing-card.sig-cut { border-radius: 14px 14px 0 14px; }
     .listing-cover {
       width: 100%; aspect-ratio: 16 / 9; margin-bottom: 16px;
@@ -243,28 +244,18 @@
       font-family: var(--display); font-size: 21px; font-weight: 600; line-height: 1.15;
     }
     .listing-promise {
-      min-height: 2.7em; margin-bottom: 12px; overflow: hidden; color: var(--pine);
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      min-height: 1.4em; margin-bottom: 12px; overflow: hidden; color: var(--pine);
+      display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
       font-size: 14.5px; line-height: 1.4; text-wrap: pretty;
     }
-    .listing-maker { margin-bottom: 4px; color: var(--moss); font-size: 13.5px; font-weight: 700; }
+    .listing-maker { margin-bottom: 14px; color: var(--moss); font-size: 13.5px; font-weight: 700; }
     .listing-maker .maker-handle { color: var(--pine); }
-    .listing-meta { margin-bottom: 14px; color: var(--moss); font-size: 12px; }
     .listing-footer {
       margin-top: auto; padding-top: 14px; border-top: 1px solid var(--rule);
       display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     }
     .listing-price { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.2; min-width: 130px; }
     .listing-price .price-note { display: block; color: var(--moss); font-size: 11.5px; font-weight: 500; }
-    .listing-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin-left: auto; }
-    .demo-link, .details-link {
-      min-height: 36px; padding: 0 11px; border-radius: 9px; font-size: 12.5px; font-weight: 700;
-      text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
-    }
-    .demo-link { background: var(--pine); color: #fff; border: 1px solid var(--pine); }
-    .demo-link:hover { box-shadow: 0 4px 12px rgba(23,53,44,.2); }
-    .details-link { background: var(--surface); color: var(--pine); border: 1px solid var(--pine); }
-    .details-link:hover { background: var(--canvas); }
     .upvote-btn {
       display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px;
       border: 1px solid var(--rule); border-radius: 999px; background: rgba(255,255,255,.92);
@@ -525,10 +516,8 @@
       .listing-cover.icon-cover { aspect-ratio: 16 / 10; margin-bottom: 18px; }
       .listing-body { padding-inline: 18px; }
       .listing-name { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: clamp(21px, 6vw, 24px); }
-      .listing-promise { min-height: 0; -webkit-line-clamp: 3; }
+      .listing-promise { min-height: 1.4em; -webkit-line-clamp: 1; }
       .listing-footer { align-items: center; }
-      .listing-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .demo-link, .details-link { min-height: 44px; padding-inline: 10px; }
       .listing-card > .upvote-btn { top: 12px; right: 12px; min-height: 44px; padding-inline: 12px; }
       .credits-summary { min-height: 76px; padding-inline: 16px; }
       .amount-chip, .clear-filters { min-height: 44px; }
@@ -772,12 +761,9 @@
         return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + esc(p.slug) + '" tabindex="0" role="link" aria-label="Open the workflow page for ' + esc(p.name) + ' in a new tab">' +
           visual + upvoteBtnHTML(p) + '<div class="listing-body">' +
           '<h3 class="listing-name">' + esc(p.name) + '</h3>' +
-          '<p class="listing-promise">' + esc(p.promise) + '</p>' +
+          '<p class="listing-promise">' + esc(p.promise || p.desc || '') + '</p>' +
           '<p class="listing-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +
-          '<p class="listing-meta">' + esc(p.version) + '</p>' +
-          '<div class="listing-footer"><p class="listing-price">' + ownLabel + '<span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
-          '<div class="listing-actions"><button class="demo-link" type="button" data-action="demo" aria-haspopup="dialog">Run it</button>' +
-          '<button class="details-link" type="button" data-action="details">View details ↗</button></div></div></div></article>';
+          '<div class="listing-footer"><p class="listing-price">' + ownLabel + ' <span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p></div></div></article>';
       }
       function matches(p) {
         if (!filterByKey(currentScope).match(p)) return false;
