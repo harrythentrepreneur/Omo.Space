@@ -1,0 +1,54 @@
+.omo-nav-workflows {
+  margin-top: 6px;
+  padding: 10px 4px 3px;
+  border-top: 1px solid var(--rule, #D9E2DC);
+}
+
+.omo-nav-workflows-label {
+  margin: 0 7px 6px;
+  color: var(--moss, #6F7E77);
+  font: 700 10.5px/1.2 var(--body, "DM Sans", Inter, system-ui, sans-serif);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.omo-nav-workflows-list {
+  max-height: min(228px, 48vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.omo-nav-popover .omo-nav-workflow-link {
+  min-height: 36px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 7px;
+  font-size: 12.5px;
+}
+
+.omo-nav-workflow-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.omo-nav-workflow-status {
+  flex: 0 0 auto;
+  color: var(--moss, #6F7E77);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.omo-nav-workflows-empty {
+  margin: 0;
+  padding: 5px 7px 7px;
+  color: var(--moss, #6F7E77);
+  font: 500 12px/1.4 var(--body, "DM Sans", Inter, system-ui, sans-serif);
+}
+
+@media (max-width: 400px) {
+  .omo-nav-workflows-list { max-height: min(210px, 44vh); }
+}

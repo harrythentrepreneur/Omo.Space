@@ -100,3 +100,15 @@
     init();
   }
 })();
+
+/* Keep personalized menu content isolated from the shared nav/auth behavior. */
+(function (doc) {
+  var style = doc.createElement('link');
+  style.rel = 'stylesheet';
+  style.href = 'menu-workflows.css';
+  doc.head.appendChild(style);
+
+  var script = doc.createElement('script');
+  script.src = 'menu-workflows.js';
+  doc.head.appendChild(script);
+})(document);
