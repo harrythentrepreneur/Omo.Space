@@ -419,6 +419,11 @@ window.COGNITION_IG_MORE = [
     demoCap: 'Hosted demo: narrative draft + PDF-ready page plan',
     desc: 'Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted demo delivers a Markdown book draft and PDF-ready page plan; download the workflow once or run the drafting preview on our cloud for about ten cents.',
     cover: 'covers/woven-relationship-book-maker.svg',
+    images: [
+      'covers/woven-2-chapters.png',
+      'covers/woven-3-pages.png',
+      'covers/woven-4-couple.png'
+    ],
     upvotes: 84,
     inputs: [
       'how_you_met: a line about how you met',
