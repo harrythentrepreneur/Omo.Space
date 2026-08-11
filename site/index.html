@@ -40,12 +40,12 @@
       }
     }
   </script>
-  <script type="application/ld+json">
+  <script type="application/ld+json" id="catalog-jsonld">
     {
       "@context": "https://schema.org",
       "@type": "ItemList",
       "name": "AI helpers on Omo",
-      "numberOfItems": 22,
+      "numberOfItems": 2,
       "itemListOrder": "https://schema.org/ItemListUnordered",
       "itemListElement": [
         {
@@ -1005,7 +1005,7 @@
         <div class="feed-head">
           <div>
             <h2 class="feed-title" id="feed-title">Fresh from the makers</h2>
-            <p class="feed-sub" id="feed-sub">21 real helpers. Choose one to own or run in your dashboard.</p>
+            <p class="feed-sub" id="feed-sub">2 real helpers. Choose one to own or run in your dashboard.</p>
           </div>
           <div class="feed-tools">
             <div class="filter-row" role="group" aria-label="Filter by outcome">
@@ -1241,19 +1241,59 @@
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       };
 
-      /* ── The three real products ─────────────────────────────── */
+      /* ── Live products ───────────────────────────────────────── */
       var PRODUCTS = {}; // real IG workflows merge in below
+
+      /* TEMPORARY DELIST GATE — only these slugs render until re-enabled.
+         To re-enable a listing: add its slug to this array. Nothing else needed.
+         The listing data in ig-workflows.js / ig-more.js is untouched. */
+      var LIVE_SLUGS = ['japanese-style-story-video', 'woven-relationship-book-maker'];
 
       // Instagram-verified workflows (ig-workflows.js, optional)
       var igExtra = window.COGNITION_IG_WORKFLOWS || [];
       igExtra.forEach(function (s) {
-        if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
+        if (!s || !s.slug || LIVE_SLUGS.indexOf(s.slug) === -1) return;
+        if (!PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
       });
       // More Instagram-verified workflows (ig-more.js, optional)
       var igMore = window.COGNITION_IG_MORE || [];
       igMore.forEach(function (s) {
-        if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
+        if (!s || !s.slug || LIVE_SLUGS.indexOf(s.slug) === -1) return;
+        if (!PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
       });
+
+      /* Keep structured catalogue data aligned with the live product gate. */
+      var catalogJsonLd = document.getElementById('catalog-jsonld');
+      if (catalogJsonLd) {
+        var catalogItems = Object.keys(PRODUCTS).map(function (slug, index) {
+          var p = PRODUCTS[slug];
+          return {
+            '@type': 'ListItem',
+            position: index + 1,
+            item: {
+              '@type': 'Product',
+              name: p.name,
+              description: p.promise,
+              offers: {
+                '@type': 'Offer',
+                name: 'Pay per run',
+                price: String(p.runPrice || p.priceRun),
+                priceCurrency: 'USD',
+                availability: 'https://schema.org/InStock',
+                url: 'https://omo.space/#feed'
+              }
+            }
+          };
+        });
+        catalogJsonLd.textContent = JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'ItemList',
+          name: 'AI helpers on Omo',
+          numberOfItems: catalogItems.length,
+          itemListOrder: 'https://schema.org/ItemListUnordered',
+          itemListElement: catalogItems
+        });
+      }
 
       /* ── Feed subtitle: dynamic helper count ─────────────────── */
       var feedSub = document.getElementById('feed-sub');
