@@ -49,6 +49,7 @@ type media struct {
 
 type usage struct {
 	ProviderCostsUSD      map[string]float64 `json:"provider_costs_usd"`
+	ProviderCostsComplete bool               `json:"provider_costs_complete"`
 	ModalCPUCoreSeconds   float64            `json:"modal_cpu_core_seconds"`
 	ModalMemoryGiBSeconds float64            `json:"modal_memory_gib_seconds"`
 	ArtifactStorageUSD    float64            `json:"artifact_storage_usd"`
@@ -151,7 +152,7 @@ func validateResult(path, expectedRunID string) error {
 		result.Media.Height != 1920 || result.Media.FPS != 30 {
 		return errors.New("workflow media contract is invalid")
 	}
-	if result.GenerationProvider != "openai" && result.GenerationProvider != "procedural-fallback" {
+	if result.GenerationProvider != "openai" && result.GenerationProvider != "openai-codex-subscription" && result.GenerationProvider != "procedural-fallback" {
 		return errors.New("workflow generation provider is invalid")
 	}
 	return nil
@@ -253,4 +254,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

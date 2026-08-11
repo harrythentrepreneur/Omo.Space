@@ -8,7 +8,7 @@
   <meta name="description" content="One Omo API key for every proven workflow. Send one request, pay per use, and get the result with no extra setup.">
   <meta property="og:title" content="Omo — API">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://omo.best/api.html">
+  <meta property="og:url" content="https://omo.space/api.html">
   <meta name="theme-color" content="#1E3A34">
   <title>Omo — API</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -213,15 +213,15 @@
       <p>Send a POST to the run endpoint with the helper's slug and its inputs. You'll get a <strong>run_id</strong> back, then poll for the result.</p>
       <h3>Base URL</h3>
       <pre><code><span class="c"># Base URL — every helper lives here</span>
-<span class="k">const</span> BASE = <span class="s">"https://api.omo.best"</span>;</code></pre>
+<span class="k">const</span> BASE = <span class="s">"https://api.omo.space"</span>;</code></pre>
       <h3>1 · Start a run</h3>
-      <pre><code>curl -X POST <span class="s">"https://api.omo.best/v1/runs"</span> \
+      <pre><code>curl -X POST <span class="s">"https://api.omo.space/v1/runs"</span> \
   -H <span class="s">"Authorization: Bearer <span id="curl-key">YOUR_KEY</span>"</span> \
   -H <span class="s">"Content-Type: application/json"</span> \
   -d <span class="s">'{"slug": "arcads-node-ugc-builder", "inputs": {"product_description": "Silk pillowcase set"}}'</span></code></pre>
       <p class="hint">Response: <code>{"run_id": "run_1ab2", "status": "accepted"}</code></p>
       <h3>2 · Poll for the result</h3>
-      <pre><code>curl <span class="s">"https://api.omo.best/v1/runs/run_1ab2"</span> \
+      <pre><code>curl <span class="s">"https://api.omo.space/v1/runs/run_1ab2"</span> \
   -H <span class="s">"Authorization: Bearer <span id="curl-key2">YOUR_KEY</span>"</span></code></pre>
       <p class="hint">Response: <code>{"status": "completed", "result": {...}, "usage": {"cost_usd": 1.40}}</code></p>
     </section>

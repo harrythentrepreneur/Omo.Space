@@ -132,6 +132,20 @@ RUN_TIMEOUT_SECONDS = 20 * 60
 SIGNED_URL_TTL_SECONDS = 5 * 60
 MAX_SIGNED_URL_TTL_SECONDS = 15 * 60
 
+# Public progress is monotonic even though the workflow has more detailed
+# internal phase names. Checkpoints are derived from files written by the real
+# subprocess, never from a dashboard timer.
+PHASE_PROGRESS: dict[str, tuple[str, int]] = {
+    "acquire": ("preparing", 8),
+    "transcribe": ("transcribing", 20),
+    "direct": ("directing", 36),
+    "generate": ("generating", 52),
+    "semantic": ("generating", 70),
+    "assemble": ("assembling", 82),
+    "qa": ("validating", 94),
+    "contract": ("finalizing", 98),
+}
+
 RELEASE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,96}$")
 IDEMPOTENCY_KEY_RE = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
@@ -237,6 +251,7 @@ ARTIFACT_SCHEMA: dict[str, Any] = {
 USAGE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
+    "required": ["provider_costs_usd", "provider_costs_complete"],
     "properties": {
         "provider_costs_usd": {
             "type": "object",
@@ -247,6 +262,7 @@ USAGE_SCHEMA: dict[str, Any] = {
                 "image_generation": {"type": "number", "minimum": 0},
             },
         },
+        "provider_costs_complete": {"type": "boolean"},
         "modal_cpu_core_seconds": {"type": "number", "minimum": 0},
         "modal_memory_gib_seconds": {"type": "number", "minimum": 0},
         "artifact_storage_usd": {"type": "number", "minimum": 0},
@@ -333,7 +349,7 @@ PIPELINE_RESULT_SCHEMA: dict[str, Any] = {
         "media": MEDIA_SCHEMA,
         "generation_provider": {
             "type": "string",
-            "enum": ["openai", "procedural-fallback"],
+            "enum": ["openai", "openai-codex-subscription", "procedural-fallback"],
         },
     },
 }
@@ -497,10 +513,22 @@ class FileRunStore:
         return self.root / "runs" / _safe_run_id(run_id) / "status.json"
 
     def get_status(self, run_id: str) -> dict[str, Any] | None:
-        return self._read_json(self.status_path(run_id))
+        status = self._read_json(self.status_path(run_id))
+        if not status or status.get("status") != "running":
+            return status
+        # This also makes local/offline status reads useful if a test or an
+        # older executor writes only workflow.py's diagnostic checkpoint.
+        marker = self._read_json(self.diagnostic_path(run_id))
+        checkpoint = PHASE_PROGRESS.get(str((marker or {}).get("phase", "")))
+        if checkpoint and checkpoint[1] >= int(status.get("progress_pct", 0) or 0):
+            status["phase"], status["progress_pct"] = checkpoint
+        return status
 
     def set_status(self, run_id: str, value: Mapping[str, Any]) -> None:
         self._write_json(self.status_path(run_id), value)
+
+    def diagnostic_path(self, run_id: str) -> Path:
+        return self.root / "runs" / _safe_run_id(run_id) / "diagnostic.json"
 
     def claim(
         self, idempotency_key: str, request_hash: str, envelope: Mapping[str, Any]
@@ -535,6 +563,8 @@ class FileRunStore:
         accepted = {
             "run_id": envelope["run_id"],
             "status": "accepted",
+            "phase": "queued",
+            "progress_pct": 2,
             "release_hash": RELEASE_DIGEST,
             "request_hash": request_hash,
             "platform": MILESTONE_SECURITY,
@@ -600,6 +630,7 @@ def run_go_adapter(
     runner_command: Sequence[str] = (GO_RUNNER_BINARY,),
     python_entrypoint: str = PYTHON_ENTRYPOINT,
     timeout_seconds: int = RUN_TIMEOUT_SECONDS - 20,
+    progress_callback: Callable[[str, int], None] | None = None,
 ) -> dict[str, Any]:
     """Invoke the Go boundary without placing secrets or payloads in argv/logs."""
 
@@ -637,16 +668,37 @@ def run_go_adapter(
             stderr=subprocess.DEVNULL,
             close_fds=True,
         )
-        try:
-            return_code = process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired as exc:
-            process.terminate()
+        deadline = time.monotonic() + timeout_seconds
+        last_internal_phase: str | None = None
+        while True:
+            return_code = process.poll()
+            diagnostic = run_artifacts / "diagnostic.json"
             try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-            raise TimeoutError("workflow runner timed out") from exc
+                marker = json.loads(diagnostic.read_text(encoding="utf-8"))
+                internal_phase = str(marker.get("phase", ""))
+            except Exception:
+                internal_phase = ""
+            if internal_phase != last_internal_phase and internal_phase in PHASE_PROGRESS:
+                last_internal_phase = internal_phase
+                if progress_callback is not None:
+                    phase, progress_pct = PHASE_PROGRESS[internal_phase]
+                    try:
+                        progress_callback(phase, progress_pct)
+                    except Exception:
+                        # Delivery should not leave a paid provider subprocess
+                        # orphaned merely because a milestone checkpoint failed.
+                        pass
+            if return_code is not None:
+                break
+            if time.monotonic() >= deadline:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                raise TimeoutError("workflow runner timed out")
+            time.sleep(0.2)
         if return_code != 0:
             raise RuntimeError("workflow runner failed")
         raw = result_path.read_bytes()
@@ -681,7 +733,13 @@ runtime_image = (
         "-o /usr/local/bin/demello-runner ."
     )
     .add_local_dir(LOCAL_ROOT, IMAGE_ROOT, copy=True)
-    .env({"DEMELLO_RELEASE_HASH": RELEASE_HASH})
+    .env(
+        {
+            "DEMELLO_RELEASE_HASH": RELEASE_HASH,
+            "DEMELLO_PROCEDURAL_FALLBACK_ENABLED": "1",
+            "DEMELLO_PROVIDER_LANE_ENABLED": "0",
+        }
+    )
 )
 
 app = modal.App(APP_NAME)
@@ -710,19 +768,41 @@ def execute_run(envelope: dict[str, Any]) -> None:
         {
             "run_id": run_id,
             "status": "running",
+            "phase": "starting",
+            "progress_pct": 5,
             "release_hash": RELEASE_DIGEST,
             "request_hash": envelope.get("request_hash"),
             "platform": MILESTONE_SECURITY,
         },
     )
     try:
-        result = run_go_adapter(envelope, artifact_root=ARTIFACT_ROOT)
+        def checkpoint(phase: str, progress_pct: int) -> None:
+            store.set_status(
+                run_id,
+                {
+                    "run_id": run_id,
+                    "status": "running",
+                    "phase": phase,
+                    "progress_pct": progress_pct,
+                    "release_hash": RELEASE_DIGEST,
+                    "request_hash": envelope.get("request_hash"),
+                    "platform": MILESTONE_SECURITY,
+                },
+            )
+
+        result = run_go_adapter(
+            envelope,
+            artifact_root=ARTIFACT_ROOT,
+            progress_callback=checkpoint,
+        )
         cost = guarded_price_evidence(result["usage"], result["pricing_history"])
         if cost["measured_usd"] > float(envelope["max_cost_usd"]):
             raise PricingError("measured cost exceeds the server execution ceiling")
         completed = {
             "run_id": run_id,
             "status": "completed",
+            "phase": "delivered",
+            "progress_pct": 100,
             "release_hash": RELEASE_DIGEST,
             "request_hash": envelope["request_hash"],
             "artifacts": result["artifacts"],
@@ -745,11 +825,14 @@ def execute_run(envelope: dict[str, Any]) -> None:
                 error_code = f"RUN_FAILED_{phase.upper()}"
         except Exception:
             pass
+        previous = store.get_status(run_id) or {}
         store.set_status(
             run_id,
             {
                 "run_id": run_id,
                 "status": "failed",
+                "phase": "failed",
+                "progress_pct": int(previous.get("progress_pct", 0) or 0),
                 "release_hash": RELEASE_DIGEST,
                 "error": {"code": error_code},
                 "platform": MILESTONE_SECURITY,
@@ -792,7 +875,16 @@ def _public_status(
     status: Mapping[str, Any], base_url: str, secret_key: str, now: float
 ) -> dict[str, Any]:
     public = {key: value for key, value in status.items() if key != "artifacts"}
-    if status.get("status") == "completed":
+    state = status.get("status")
+    if state == "accepted":
+        public.setdefault("phase", "queued")
+        public.setdefault("progress_pct", 2)
+    elif state == "running":
+        public.setdefault("phase", "starting")
+        public.setdefault("progress_pct", 5)
+    elif state == "completed":
+        public.setdefault("phase", "delivered")
+        public.setdefault("progress_pct", 100)
         run_id = str(status["run_id"])
         public["video_url"] = _signed_artifact_url(
             base_url, secret_key, run_id, "video.mp4", now
@@ -878,6 +970,8 @@ def create_fastapi_app(
             {
                 "run_id": run_id,
                 "status": "accepted",
+                "phase": "queued",
+                "progress_pct": 2,
                 "status_url": f"/v1/runs/{run_id}",
                 "idempotent_replay": not created,
                 "platform": MILESTONE_SECURITY,

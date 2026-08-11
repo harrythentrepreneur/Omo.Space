@@ -27,6 +27,14 @@
 //                       falls back to LLM_API_KEY, then a dev constant.
 //   SIGNUP_GRANT_USD  — optional override of the $5 signup grant (tests).
 //   NEON_DATABASE_URL — pooled Neon Postgres connection string (recommended).
+//   DEMELLO_MODAL_BEARER — private Modal API bearer (SECRET, required for the
+//                       japanese-style-story-video runner).
+//   DEMELLO_MODAL_URL / DEMELLO_RELEASE_HASH — optional pinned release
+//                       overrides; defaults match the deployed bdab144b977a app.
+//   DEMELLO_MAX_COST_USD — provider/compute ceiling, default 0.003.
+//   DEMELLO_EXPECTED_RUN_SECONDS — derived-progress horizon, default 90.
+//   DEMELLO_RUN_TIMEOUT_SECONDS — terminal refund timeout, default 1300.
+//   DEMELLO_PROGRESS_WEBHOOK_SECRET — optional independent checkpoint bearer.
 //
 // Bindings:
 //   BALANCE_DB (D1) — optional fallback after Neon. Without either database the
@@ -48,6 +56,7 @@
 import { Pool } from '@neondatabase/serverless';
 import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts, MIN_TOPUP_USD } from './balance.mjs';
 import { runPrice, llmWorkflow } from './cost-model.mjs';
+import { handleMcpRequest } from './mcp-server.mjs';
 
 // ── System prompts (hardened: exact JSON shape, flat string arrays, no fences) ──
 
@@ -128,6 +137,15 @@ const LISTING_COPY_SYSTEM_PROMPT = `You write marketplace listing copy from buye
 Return EXACTLY this JSON shape: {"title":"SEO-aware title","bullets":["benefit 1","benefit 2","benefit 3"],"description":"2-3 sentence description"}.
 HARD RULES: bullets is a flat array of STRINGS; never invent claims; output ONLY the JSON object.`;
 
+const DEMELLO_SLUG = 'japanese-style-story-video';
+const DEMELLO_STYLE = 'sumi-e-awake-v3';
+const DEMELLO_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--omo-demello-awake-bdab144b977a-api.modal.run';
+const DEMELLO_DEFAULT_RELEASE_HASH = 'sha256:bdab144b977aee48ecb383041cd4eaa2a7ea454ea7577c15ece41f7d7f59861d';
+const DEMELLO_QUOTED_RUN_CENTS = 10;
+const DEMELLO_PAID_TRAFFIC_READY = false;
+const DEMELLO_PHASES = ['reserved', 'running', 'transcribing', 'directing', 'generating', 'assembling', 'delivered', 'failed'];
+const DEMELLO_PHASE_RANK = new Map(DEMELLO_PHASES.map((phase, index) => [phase, index]));
+
 // Server-owned catalog. The Instagram tuples mirror site/ig-workflows.js and
 // site/ig-more.js, but intentionally include only runtime-safe fields. Client
 // system_prompt, model, max_tokens, workflow, and price values are ignored in
@@ -137,6 +155,7 @@ const CATALOG_ROWS = [
   ['meta-ads-analyser', 'Meta Ads Analyser', 49, 0.10, 'deepseek-v4-flash', 5000, META_SYSTEM_PROMPT],
   ['product-photo-generator', 'Product Photo Generator', 29, 0.10, 'deepseek-v4-flash', 4000, PHOTO_SYSTEM_PROMPT],
   ['listing-copy-engine', 'Listing Copy Engine', 19, 0.10, 'deepseek-v4-flash', 600, LISTING_COPY_SYSTEM_PROMPT],
+  [DEMELLO_SLUG, 'Japanese Style Story Video', 29, 0.10, 'deepseek-v4-flash', 500, 'Turn supplied audio into a vertical sumi-e drawing animation. This listing is executed by its pinned Modal release, not by this prompt.'],
   ['ugc-actor-maker', 'UGC Actor Maker', 49, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
   ['ugc-heygen-editor', 'UGC HeyGen Editor', 39, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
   ['tiktok-ad-script-writer', 'TikTok Ad Script Writer', 29, 0.10, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
@@ -194,14 +213,31 @@ const ROUTES = {
   '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $5 grant
 };
 
-export default {
-  async fetch(request, env) {
+function dynamicRoute(pathname) {
+  const progress = /^\/api\/run\/(run_[A-Za-z0-9_-]{4,91})\/progress$/.exec(pathname);
+  if (progress) return { handler: handleRunProgressWebhook, methods: ['POST'], params: { runId: progress[1] } };
+  const status = /^\/api\/run\/(run_[A-Za-z0-9_-]{4,91})$/.exec(pathname);
+  if (status) return { handler: handleRunStatus, methods: ['GET'], params: { runId: status[1] } };
+  return null;
+}
+
+async function handleWorkerFetch(request, env) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: cors(request, env) });
     }
 
     const url = new URL(request.url);
-    const route = ROUTES[url.pathname];
+    if (url.pathname === '/mcp') {
+      // Keep MCP a client of the exact REST contract without a same-zone
+      // network loop. An explicit OMO_API service binding still wins when the
+      // MCP module is deployed separately.
+      const mcpEnv = {
+        ...env,
+        OMO_API: env.OMO_API || { fetch: (nestedRequest) => handleWorkerFetch(nestedRequest, env) },
+      };
+      return handleMcpRequest(request, mcpEnv);
+    }
+    const route = ROUTES[url.pathname] || dynamicRoute(url.pathname);
     if (!route) {
       return json({ error: `Unknown route: ${url.pathname}`, routes: Object.keys(ROUTES) }, 404, cors(request, env));
     }
@@ -210,14 +246,15 @@ export default {
       return json({ error: 'Method not allowed', methods }, 405, cors(request, env));
     }
     try {
-      return applyCors(await route.handler(request, env, url), request, env);
+      return applyCors(await route.handler(request, env, url, route.params || {}), request, env);
     } catch (e) {
       const body = { error: 'internal_error' };
       if (env.DEBUG_ERRORS === 'true') body.detail = String(e && e.message || e).slice(0, 200);
       return json(body, 500, cors(request, env));
     }
-  },
-};
+}
+
+export default { fetch: handleWorkerFetch };
 
 // ── Route: UGC Script Studio ───────────────────────────────────────────────
 
@@ -343,7 +380,10 @@ async function handleGenericRun(request, env) {
   try { body = await request.json(); } catch { body = {}; }
   const slug = String(body.slug || '').trim();
   const fields = body.fields && typeof body.fields === 'object' && !Array.isArray(body.fields) ? body.fields : {};
-  const real = isRealMode(env);
+  const isDemello = slug === DEMELLO_SLUG;
+  // The video workflow can spend Modal/provider budget and is never anonymous,
+  // including in otherwise zero-config local mode.
+  const real = isRealMode(env) || isDemello;
   const listing = SERVER_CATALOG.get(slug);
   if (!slug) return json({ error: 'Send slug.' }, 400, cors());
   if (real && !listing) return json({ error: 'unknown_catalog_slug' }, 404, cors());
@@ -359,6 +399,17 @@ async function handleGenericRun(request, env) {
     userId = validUserId(body.user_id) ? String(body.user_id).trim() : '';
   }
 
+  let demelloInput = null;
+  let demelloInputNotice = '';
+  if (isDemello) {
+    const configError = demelloConfigError(env);
+    if (configError) return json({ error: configError }, 503, cors());
+    const normalized = normalizeDemelloInput(fields);
+    if (normalized.error) return json({ error: normalized.error, detail: normalized.detail }, 400, cors());
+    demelloInput = normalized.input;
+    demelloInputNotice = normalized.input_notice || '';
+  }
+
   const systemPrompt = listing ? listing.systemPrompt : String(body.system_prompt || '').trim();
   const maxTokens = listing
     ? listing.maxTokens
@@ -366,39 +417,45 @@ async function handleGenericRun(request, env) {
   const model = listing ? listing.model : (env.LLM_MODEL || 'deepseek-v4-flash');
   if (!systemPrompt) return json({ error: 'Send slug and system_prompt.' }, 400, cors());
 
-  // Flatten fields into the user prompt, rejecting oversized payloads.
+  // Flatten fields into the user prompt, rejecting oversized payloads. The
+  // de Mello branch validates and hashes a typed server-owned input instead.
   let userPrompt = '';
-  for (const [k, v] of Object.entries(fields)) {
-    if (!/^[A-Za-z0-9 _.-]{1,80}$/.test(k)) return json({ error: 'Invalid field name.' }, 400, cors());
-    const s = String(v == null ? '' : v).trim();
-    if (s.length > Number(env.DEMO_MAX_INPUT_RUN || 3000)) {
-      return json({ error: `"${k}" is too long for the free demo.` }, 400, cors());
+  if (!isDemello) {
+    for (const [k, v] of Object.entries(fields)) {
+      if (!/^[A-Za-z0-9 _.-]{1,80}$/.test(k)) return json({ error: 'Invalid field name.' }, 400, cors());
+      const s = String(v == null ? '' : v).trim();
+      if (s.length > Number(env.DEMO_MAX_INPUT_RUN || 3000)) {
+        return json({ error: `"${k}" is too long for the free demo.` }, 400, cors());
+      }
+      userPrompt += `${k}: ${s}\n`;
     }
-    userPrompt += `${k}: ${s}\n`;
+    if (!userPrompt.trim()) {
+      return json({ error: 'Send at least one field value.' }, 400, cors());
+    }
+    userPrompt += '\nRun the skill now and return your output.';
   }
-  if (!userPrompt.trim()) {
-    return json({ error: 'Send at least one field value.' }, 400, cors());
-  }
-  userPrompt += '\nRun the skill now and return your output.';
 
   // Real calls must have a durable, account-scoped idempotency key. A row is
   // claimed before debit, so concurrent retries cannot both spend credits.
   let idempotencyKey = '';
   let requestHash = '';
   let runRequest = null;
+  const runCostCents = isDemello && !DEMELLO_PAID_TRAFFIC_READY ? 0 : (listing ? listing.runPriceCents : 0);
   if (real) {
     idempotencyKey = String(request.headers.get('idempotency-key') || body.idempotency_key || '').trim();
     if (!IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {
       return json({ error: 'invalid_idempotency_key' }, 400, cors());
     }
-    requestHash = await sha256Hex(stableStringify({ slug, fields }));
+    requestHash = await sha256Hex(stableStringify(isDemello
+      ? { slug, input: demelloInput, input_notice: demelloInputNotice }
+      : { slug, input: fields }));
     await getUserRecord(env, userId);
     await reconcileStaleReservations(env, userId);
     runRequest = await claimRunRequest(
       env, userId, idempotencyKey, requestHash, slug,
-      listing.runPriceCents, makeId('run')
+      runCostCents, makeId('run')
     );
-    if (!runRequest.created) return replayRunResponse(runRequest.row, requestHash);
+    if (!runRequest.created) return replayRunResponse(env, runRequest.row, requestHash);
   }
 
   // Paid path: reserve the catalog price before spending LLM budget.
@@ -410,11 +467,13 @@ async function handleGenericRun(request, env) {
   if (userId) {
     billing = (await getUserRecord(env, userId)).record;
     reservedCents = listing
-      ? listing.runPriceCents
+      ? runCostCents
       : Math.round(runPrice(llmWorkflow(systemPrompt, maxTokens, model)) * 100);
     costUsd = reservedCents / 100;
     if (!runId) runId = makeId('run');
-    const reservation = await reserveRunCredits(env, userId, reservedCents, runId);
+    const reservation = reservedCents === 0
+      ? { ok: true, balance_cents: billing.balance_cents }
+      : await reserveRunCredits(env, userId, reservedCents, runId);
     if (!reservation.ok) {
       const check = debitForRun(reservation.balance_cents / 100, costUsd);
       const response = {
@@ -433,7 +492,22 @@ async function handleGenericRun(request, env) {
       return json(response, 402, cors());
     }
     balanceAfterDebit = reservation.balance_cents;
+    if (runRequest && isDemello) {
+      await putRunProgress(env, {
+        run_id: runId, user_id: userId, phase: 'reserved', progress_pct: 1,
+        progress_source: 'derived', modal_status: 'reserved',
+        modal_status_url: demelloModalStatusUrl(env, runId),
+        input_notice: demelloInputNotice,
+      });
+    }
     if (runRequest) await setRunRunning(env, runId);
+  }
+
+  if (isDemello) {
+    return dispatchDemelloRun(env, {
+      runRequest, runId, userId, idempotencyKey, demelloInput,
+      demelloInputNotice, reservedCents, costUsd, balanceAfterDebit, authMethod,
+    });
   }
 
   // Anonymous runs stay capped per IP; paid runs skip the free-demo cap.
@@ -481,6 +555,473 @@ async function handleGenericRun(request, env) {
     }
     return json(response, 500, cors());
   }
+}
+
+// ── Async de Mello / Modal run ────────────────────────────────────────────
+
+function demelloEndpoint(env) {
+  return String(env.DEMELLO_MODAL_URL || DEMELLO_DEFAULT_ENDPOINT).replace(/\/+$/, '');
+}
+
+function demelloReleaseHash(env) {
+  return String(env.DEMELLO_RELEASE_HASH || DEMELLO_DEFAULT_RELEASE_HASH).trim();
+}
+
+function demelloModalStatusUrl(env, runId) {
+  return `${demelloEndpoint(env)}/v1/runs/${encodeURIComponent(runId)}`;
+}
+
+async function demelloModalIdempotencyKey(userId, callerKey) {
+  // Modal's idempotency namespace is global, while Omo's durable key is scoped
+  // by account. Hash the scope into an opaque downstream key: deterministic
+  // for retries, collision-isolated across owners, and free of tenant IDs.
+  const digest = await sha256Hex(`omo-demello-modal-idempotency-v1\u0000${userId}\u0000${callerKey}`);
+  return `omo-${digest}`;
+}
+
+function demelloConfigError(env) {
+  if (!String(env.DEMELLO_MODAL_BEARER || '').trim()) return 'demello_modal_auth_not_configured';
+  try {
+    const endpoint = new URL(demelloEndpoint(env));
+    if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) return 'demello_modal_url_invalid';
+  } catch { return 'demello_modal_url_invalid'; }
+  if (!/^sha256:[0-9a-f]{64}$/.test(demelloReleaseHash(env))) return 'demello_release_hash_invalid';
+  return '';
+}
+
+function normalizeDemelloInput(fields) {
+  const allowed = new Set([
+    'audio_ref', 'audio_url', 'audio', 'topic', 'style', 'style_hint',
+    'duration_bounds', 'min_seconds', 'max_seconds', 'duration_seconds', 'duration',
+  ]);
+  const unknown = Object.keys(fields).filter((key) => !allowed.has(key));
+  if (unknown.length) {
+    return { error: 'invalid_demello_input', detail: `Unsupported field: ${unknown[0]}` };
+  }
+
+  let rawAudioUrl = String(fields.audio_url || '').trim();
+  let audioRef = String(fields.audio_ref || '').trim();
+  const looseAudio = String(fields.audio || '').trim();
+  const topic = String(fields.topic || '').trim();
+  let inputNotice = '';
+  if (!rawAudioUrl && !audioRef && looseAudio) {
+    if (looseAudio === 'sample-demello-10s') audioRef = looseAudio;
+    else if (/^https:\/\//i.test(looseAudio)) rawAudioUrl = looseAudio;
+    else {
+      audioRef = 'sample-demello-10s';
+      inputNotice = 'Topic text was not synthesized into audio; this milestone run uses the bundled sample-demello-10s audio.';
+    }
+  }
+  if (!rawAudioUrl && !audioRef && topic) {
+    audioRef = 'sample-demello-10s';
+    inputNotice = 'Topic text was not synthesized into audio; this milestone run uses the bundled sample-demello-10s audio.';
+  }
+  if (!!rawAudioUrl === !!audioRef) {
+    return { error: 'invalid_demello_input', detail: 'Send exactly one of audio_url (HTTPS) or audio_ref.' };
+  }
+  if (audioRef && audioRef !== 'sample-demello-10s') {
+    return { error: 'invalid_demello_input', detail: 'The only bundled audio_ref is sample-demello-10s.' };
+  }
+  if (rawAudioUrl) {
+    return {
+      error: 'demello_provider_lane_not_enabled',
+      detail: 'Hosted milestone runs accept only audio_ref=sample-demello-10s. Arbitrary audio is gated until provider benchmarks and pre-spend controls pass.',
+    };
+  }
+
+  const styleHint = String(fields.style || fields.style_hint || DEMELLO_STYLE).trim().toLowerCase();
+  if (![DEMELLO_STYLE, 'sumi-e', 'japanese ink', 'japanese-style'].includes(styleHint)) {
+    return { error: 'invalid_demello_input', detail: `This release is pinned to ${DEMELLO_STYLE}.` };
+  }
+  const bounds = fields.duration_bounds && typeof fields.duration_bounds === 'object' && !Array.isArray(fields.duration_bounds)
+    ? fields.duration_bounds : {};
+  const durationMatches = String(fields.duration == null ? '' : fields.duration).match(/\d+(?:\.\d+)?/g) || [];
+  const duration = Number(fields.duration_seconds ?? (durationMatches.length ? durationMatches[durationMatches.length - 1] : NaN));
+  const durationMin = durationMatches.length > 1 ? Number(durationMatches[0]) : Math.min(5, duration);
+  const minSeconds = Number(bounds.min_seconds ?? fields.min_seconds ?? (Number.isFinite(duration) ? durationMin : 5));
+  const maxSeconds = Number(bounds.max_seconds ?? fields.max_seconds ?? (Number.isFinite(duration) ? duration : 10));
+  if (!Number.isFinite(minSeconds) || !Number.isFinite(maxSeconds) || minSeconds < 5 || maxSeconds > 20 || minSeconds > maxSeconds) {
+    return { error: 'invalid_demello_input', detail: 'Duration bounds must satisfy 5 <= min_seconds <= max_seconds <= 20.' };
+  }
+  const input = {
+    ...(audioRef ? { audio_ref: audioRef } : { audio_url: rawAudioUrl }),
+    style: DEMELLO_STYLE,
+    duration_bounds: { min_seconds: minSeconds, max_seconds: maxSeconds },
+  };
+  if (topic && !inputNotice) {
+    inputNotice = 'The topic hint is not consumed by this pinned release; direction follows the supplied audio.';
+  }
+  return { input, input_notice: inputNotice };
+}
+
+function demelloPublicRunning(row, progress, extra = {}) {
+  const phase = progress && progress.phase || 'running';
+  const pct = Math.max(1, Math.min(99, Number(progress && progress.progress_pct) || 2));
+  return {
+    ok: true,
+    slug: DEMELLO_SLUG,
+    run_id: row.run_id,
+    status: 'running',
+    state: row.state,
+    phase,
+    progress_pct: pct,
+    progress_source: progress && progress.progress_source || 'derived',
+    status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
+    quoted_cost_usd: DEMELLO_QUOTED_RUN_CENTS / 100,
+    billed_amount_usd: Number(row.cost_cents) / 100,
+    billing_mode: DEMELLO_PAID_TRAFFIC_READY ? 'credits' : 'nonpaid_milestone',
+    paid_traffic_ready: DEMELLO_PAID_TRAFFIC_READY,
+    ...(progress && progress.input_notice ? { input_notice: progress.input_notice } : {}),
+    ...extra,
+  };
+}
+
+async function dispatchDemelloRun(env, context) {
+  const {
+    runRequest, runId, userId, idempotencyKey, demelloInput,
+    demelloInputNotice, reservedCents, costUsd, balanceAfterDebit, authMethod,
+  } = context;
+  const requestHash = await sha256Hex(stableStringify(demelloInput));
+  const modalIdempotencyKey = await demelloModalIdempotencyKey(userId, idempotencyKey);
+  const envelope = {
+    run_id: runId,
+    release_hash: demelloReleaseHash(env),
+    request_hash: requestHash,
+    input: demelloInput,
+    max_cost_usd: boundedNumber(env.DEMELLO_MAX_COST_USD, 0.0001, 100, 0.003),
+  };
+  await putRunProgress(env, {
+    run_id: runId, user_id: userId, phase: 'running', progress_pct: 3,
+    progress_source: 'derived', modal_status: 'dispatching',
+    modal_status_url: demelloModalStatusUrl(env, runId),
+    input_notice: demelloInputNotice,
+  });
+
+  let response;
+  try {
+    response = await fetch(`${demelloEndpoint(env)}/v1/runs`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${String(env.DEMELLO_MODAL_BEARER).trim()}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': modalIdempotencyKey,
+      },
+      body: JSON.stringify(envelope),
+    });
+  } catch {
+    // The request may have reached Modal. Keep the reservation and let the
+    // deterministic status URL/reconciler resolve this unknown outcome.
+    const progress = await getRunProgress(env, runId);
+    return json(demelloPublicRunning(runRequest.row, progress, {
+      auth: authMethod,
+      cost_usd: costUsd,
+      balance: +(balanceAfterDebit / 100).toFixed(2),
+      dispatch_uncertain: true,
+      ...(demelloInputNotice ? { input_notice: demelloInputNotice } : {}),
+    }), 202, cors());
+  }
+
+  let upstream = {};
+  try { upstream = await response.json(); } catch { upstream = {}; }
+  if (!response.ok || String(upstream.run_id || '') !== runId) {
+    const detail = response.ok ? 'modal_run_id_mismatch' : `modal_dispatch_${response.status}`;
+    return failDemelloRun(env, runRequest.row, detail, response.ok ? 502 : 502);
+  }
+
+  await putRunProgress(env, {
+    run_id: runId, user_id: userId, phase: 'running', progress_pct: 4,
+    progress_source: 'derived', modal_status: String(upstream.status || 'accepted'),
+    modal_status_url: demelloModalStatusUrl(env, runId),
+    input_notice: demelloInputNotice,
+  });
+  const progress = await getRunProgress(env, runId);
+  return json(demelloPublicRunning(runRequest.row, progress, {
+    auth: authMethod,
+    cost_usd: costUsd,
+    balance: +(balanceAfterDebit / 100).toFixed(2),
+    idempotent_replay: !!upstream.idempotent_replay,
+    platform: upstream.platform,
+    ...(demelloInputNotice ? { input_notice: demelloInputNotice } : {}),
+  }), 202, cors());
+}
+
+async function handleRunStatus(request, env, _url, params) {
+  const auth = await authenticateAccount(request, env, true);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
+  const row = await getRunRequestById(env, params.runId);
+  if (!row || row.user_id !== auth.userId) return json({ error: 'run_not_found' }, 404, cors());
+  if (row.slug === DEMELLO_SLUG) {
+    const result = await refreshDemelloRun(env, row);
+    return json(result.body, result.status, cors());
+  }
+  if (row.state === 'succeeded' || row.state === 'refunded') {
+    let body = {};
+    try { body = JSON.parse(row.response_json || '{}'); } catch { body = {}; }
+    return json({ ...body, run_id: row.run_id, state: row.state }, Number(row.http_status) || 200, cors());
+  }
+  return json({ ok: true, run_id: row.run_id, slug: row.slug, status: 'running', state: row.state }, 202, cors());
+}
+
+function derivedDemelloProgress(row, existing, env) {
+  // Once a signed checkpoint or Modal-native checkpoint exists, elapsed time
+  // never replaces it or relabels it as observed telemetry.
+  if (existing && (existing.progress_source === 'webhook' || existing.progress_source === 'modal')) {
+    return {
+      phase: existing.phase,
+      progress_pct: Number(existing.progress_pct) || 1,
+      progress_source: existing.progress_source,
+    };
+  }
+  const expected = boundedInt(env.DEMELLO_EXPECTED_RUN_SECONDS, 30, 1200, 90);
+  const elapsed = Math.max(0, (Date.now() - Date.parse(row.created_at)) / 1000);
+  const ratio = elapsed / expected;
+  let phase = 'running';
+  let pct = 4 + Math.floor(Math.min(ratio / 0.12, 1) * 12);
+  if (ratio >= 0.12) { phase = 'transcribing'; pct = 16 + Math.floor(Math.min((ratio - 0.12) / 0.16, 1) * 14); }
+  if (ratio >= 0.28) { phase = 'directing'; pct = 30 + Math.floor(Math.min((ratio - 0.28) / 0.14, 1) * 12); }
+  if (ratio >= 0.42) { phase = 'generating'; pct = 42 + Math.floor(Math.min((ratio - 0.42) / 0.40, 1) * 40); }
+  if (ratio >= 0.82) { phase = 'assembling'; pct = 82 + Math.floor(Math.min((ratio - 0.82) / 0.18, 1) * 13); }
+  pct = Math.max(Number(existing && existing.progress_pct) || 0, Math.min(95, pct));
+  return { phase, progress_pct: pct, progress_source: 'derived' };
+}
+
+function normalizeModalProgress(upstream) {
+  if (!upstream || typeof upstream !== 'object') return null;
+  const rawPhase = String(upstream.phase || upstream.progress && upstream.progress.phase || '').trim().toLowerCase();
+  const pct = Number(upstream.progress_pct ?? (upstream.progress && upstream.progress.progress_pct));
+  const phaseMap = {
+    accepted: 'running', queued: 'running', reserved: 'reserved', running: 'running', starting: 'running',
+    acquire: 'running', acquiring: 'running', preparing: 'running',
+    transcribe: 'transcribing', transcription: 'transcribing', transcribing: 'transcribing',
+    direct: 'directing', director: 'directing', directing: 'directing',
+    generate: 'generating', generation: 'generating', generating: 'generating', semantic: 'generating',
+    assemble: 'assembling', assembly: 'assembling', assembling: 'assembling',
+    qa: 'assembling', validating: 'assembling', contract: 'assembling', finalizing: 'assembling',
+  };
+  const phase = phaseMap[rawPhase];
+  if (!phase || !Number.isFinite(pct) || pct < 1 || pct > 99) return null;
+  return { phase, progress_pct: Math.floor(pct), progress_source: 'modal' };
+}
+
+async function refreshDemelloRun(env, row) {
+  let progress = await getRunProgress(env, row.run_id);
+  let upstream = null;
+  let pollWarning = '';
+  if (!demelloConfigError(env)) {
+    try {
+      const response = await fetch(demelloModalStatusUrl(env, row.run_id), {
+        headers: { Authorization: `Bearer ${String(env.DEMELLO_MODAL_BEARER).trim()}`, Accept: 'application/json' },
+      });
+      if (response.ok) upstream = await response.json();
+      else pollWarning = `modal_status_${response.status}`;
+    } catch { pollWarning = 'modal_status_unavailable'; }
+  } else {
+    pollWarning = 'modal_status_not_configured';
+  }
+
+  if (upstream && upstream.status === 'completed') {
+    const delivered = await settleDemelloSuccess(env, row, upstream, 'modal');
+    if (delivered) return delivered;
+    if (row.state !== 'succeeded') return failDemelloRun(env, row, 'invalid_modal_artifact', 502, true);
+  }
+  if (upstream && upstream.status === 'failed' && row.state !== 'succeeded') {
+    const code = String(upstream.error && upstream.error.code || 'modal_run_failed').slice(0, 80);
+    return failDemelloRun(env, row, code, 502, true);
+  }
+
+  const modalProgress = normalizeModalProgress(upstream);
+  if (modalProgress && row.state !== 'succeeded' && row.state !== 'refunded') {
+    await putRunProgress(env, {
+      run_id: row.run_id, user_id: row.user_id, ...modalProgress,
+      modal_status: String(upstream.status || 'running'),
+      modal_status_url: demelloModalStatusUrl(env, row.run_id),
+    });
+    await touchRunRequest(env, row.run_id);
+    progress = await getRunProgress(env, row.run_id);
+  }
+
+  // A terminal response remains readable even if Modal is temporarily down;
+  // successful status polls normally refresh its five-minute signed URL.
+  if (row.state === 'succeeded' || row.state === 'refunded') {
+    let terminal = {};
+    try { terminal = JSON.parse(row.response_json || '{}'); } catch { terminal = {}; }
+    return { status: row.state === 'succeeded' ? 200 : Number(row.http_status) || 502, body: terminal };
+  }
+
+  const timeoutSeconds = boundedInt(env.DEMELLO_RUN_TIMEOUT_SECONDS, 60, 3600, 1300);
+  if (Date.now() - Date.parse(row.created_at) > timeoutSeconds * 1000) {
+    return failDemelloRun(env, row, 'modal_run_timeout', 504, true);
+  }
+  if (!modalProgress) {
+    const derived = derivedDemelloProgress(row, progress, env);
+    await putRunProgress(env, {
+      run_id: row.run_id, user_id: row.user_id, ...derived,
+      modal_status: String(upstream && upstream.status || progress && progress.modal_status || 'running'),
+      modal_status_url: demelloModalStatusUrl(env, row.run_id),
+    });
+    await touchRunRequest(env, row.run_id);
+    progress = await getRunProgress(env, row.run_id);
+  }
+  return { status: 202, body: demelloPublicRunning(row, progress, pollWarning ? { poll_warning: pollWarning } : {}) };
+}
+
+async function verifiedDemelloArtifactUrl(env, runId, value, objectName) {
+  try {
+    const candidate = new URL(String(value || ''));
+    const endpoint = new URL(demelloEndpoint(env));
+    const expectedPath = `/v1/artifacts/${runId}/${objectName}`;
+    const keys = Array.from(candidate.searchParams.keys());
+    const expiresValues = candidate.searchParams.getAll('expires');
+    const signatureValues = candidate.searchParams.getAll('signature');
+    if (candidate.protocol !== 'https:' || candidate.username || candidate.password ||
+        candidate.origin !== endpoint.origin || candidate.pathname !== expectedPath ||
+        keys.length !== 2 || expiresValues.length !== 1 || signatureValues.length !== 1 ||
+        !keys.includes('expires') || !keys.includes('signature')) return '';
+    const expiresRaw = expiresValues[0];
+    const signature = signatureValues[0];
+    if (!/^\d{10}$/.test(expiresRaw) || !/^[0-9a-f]{64}$/.test(signature)) return '';
+    const expires = Number(expiresRaw);
+    const now = Math.floor(Date.now() / 1000);
+    const minTtl = boundedInt(env.DEMELLO_ARTIFACT_MIN_TTL_SECONDS, 0, 120, 15);
+    const maxTtl = boundedInt(env.DEMELLO_ARTIFACT_MAX_TTL_SECONDS, 60, 900, 900);
+    if (!Number.isSafeInteger(expires) || expires < now + minTtl || expires > now + maxTtl) return '';
+    const message = `GET\n${runId}\n${objectName}\n${expires}`;
+    const mac = await hmacSha256(new TextEncoder().encode(String(env.DEMELLO_MODAL_BEARER || '')), message);
+    if (!timingSafeEqual(signature, bytesToHex(mac))) return '';
+    return candidate.toString();
+  } catch { return ''; }
+}
+
+async function settleDemelloSuccess(env, row, upstream, source) {
+  const current = await getRunRequestById(env, row.run_id);
+  if (!current) return null;
+  if (current.state === 'refunded') return terminalRunResult(current);
+  row = current;
+  const videoUrl = await verifiedDemelloArtifactUrl(env, row.run_id, upstream.video_url, 'video.mp4');
+  if (!videoUrl) return null;
+  const contactSheetUrl = upstream.contact_sheet_url
+    ? await verifiedDemelloArtifactUrl(env, row.run_id, upstream.contact_sheet_url, 'contact-sheet.jpg') : '';
+  if (!contactSheetUrl) return null;
+  const storedProgress = await getRunProgress(env, row.run_id);
+  const response = {
+    ok: true,
+    slug: DEMELLO_SLUG,
+    run_id: row.run_id,
+    status: 'delivered',
+    upstream_status: 'completed',
+    state: 'succeeded',
+    phase: 'delivered',
+    progress_pct: 100,
+    progress_source: source,
+    status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
+    video_url: videoUrl,
+    ...(contactSheetUrl ? { contact_sheet_url: contactSheetUrl } : {}),
+    output: { video_url: videoUrl, ...(contactSheetUrl ? { contact_sheet_url: contactSheetUrl } : {}) },
+    quoted_cost_usd: DEMELLO_QUOTED_RUN_CENTS / 100,
+    cost_usd: Number(row.cost_cents) / 100,
+    billed_amount_usd: Number(row.cost_cents) / 100,
+    billing_mode: DEMELLO_PAID_TRAFFIC_READY ? 'credits' : 'nonpaid_milestone',
+    paid_traffic_ready: DEMELLO_PAID_TRAFFIC_READY,
+    settlement: { status: 'settled', charged_usd: Number(row.cost_cents) / 100 },
+    result: upstream,
+    ...(storedProgress && storedProgress.input_notice ? { input_notice: storedProgress.input_notice } : {}),
+  };
+  const firstSettlement = await finishRunRequest(env, row.run_id, 'succeeded', response, 200);
+  let authoritative = await getRunRequestById(env, row.run_id);
+  if (!firstSettlement) {
+    if (!authoritative || authoritative.state !== 'succeeded') return authoritative ? terminalRunResult(authoritative) : null;
+    await replaceSuccessfulRunResponse(env, row.run_id, response);
+    authoritative = await getRunRequestById(env, row.run_id);
+  }
+  await putRunProgress(env, {
+    run_id: row.run_id, user_id: row.user_id, phase: 'delivered', progress_pct: 100,
+    progress_source: source, modal_status: 'completed', modal_status_url: demelloModalStatusUrl(env, row.run_id),
+    video_url: videoUrl, contact_sheet_url: contactSheetUrl, result_json: JSON.stringify(upstream),
+  });
+  return authoritative && authoritative.state === 'succeeded'
+    ? { status: 200, body: response }
+    : (authoritative ? terminalRunResult(authoritative) : null);
+}
+
+function terminalRunResult(row) {
+  let body = {};
+  try { body = JSON.parse(row.response_json || '{}'); } catch { body = {}; }
+  return {
+    status: row.state === 'succeeded' ? 200 : Number(row.http_status) || 502,
+    body: { ...body, run_id: row.run_id, state: row.state },
+  };
+}
+
+async function failDemelloRun(env, row, reason, httpStatus = 502, returnObject = false) {
+  const current = await getRunRequestById(env, row.run_id);
+  if (current && current.state === 'succeeded') {
+    const terminal = terminalRunResult(current);
+    return returnObject ? terminal : json(terminal.body, terminal.status, cors());
+  }
+  if (current) row = current;
+  const existingProgress = await getRunProgress(env, row.run_id);
+  const progressSource = existingProgress && existingProgress.progress_source || 'derived';
+  const response = {
+    ok: false, error: 'run_failed', reason, slug: DEMELLO_SLUG,
+    run_id: row.run_id, status: 'failed', state: 'refunded', phase: 'failed',
+    progress_pct: Number(existingProgress && existingProgress.progress_pct) || 0,
+    progress_source: progressSource, status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
+    quoted_cost_usd: DEMELLO_QUOTED_RUN_CENTS / 100,
+    billed_amount_usd: 0,
+    billing_mode: DEMELLO_PAID_TRAFFIC_READY ? 'credits' : 'nonpaid_milestone',
+    paid_traffic_ready: DEMELLO_PAID_TRAFFIC_READY,
+    ...(existingProgress && existingProgress.input_notice ? { input_notice: existingProgress.input_notice } : {}),
+  };
+  const ownsRefund = await finishRunRequest(env, row.run_id, 'refunded', response, httpStatus);
+  if (ownsRefund && await runDebitExists(env, row.run_id)) {
+    await refundRunCredits(env, row.user_id, Number(row.cost_cents), row.run_id);
+  }
+  if (ownsRefund) {
+    await putRunProgress(env, {
+      run_id: row.run_id, user_id: row.user_id, phase: 'failed',
+      progress_pct: response.progress_pct, progress_source: progressSource, modal_status: 'failed',
+      modal_status_url: demelloModalStatusUrl(env, row.run_id), result_json: JSON.stringify({ error: reason }),
+      input_notice: existingProgress && existingProgress.input_notice || '',
+    });
+  }
+  const authoritative = await getRunRequestById(env, row.run_id);
+  const terminal = authoritative ? terminalRunResult(authoritative) : { status: httpStatus, body: response };
+  return returnObject ? terminal : json(terminal.body, terminal.status, cors());
+}
+
+async function handleRunProgressWebhook(request, env, _url, params) {
+  const secret = String(env.DEMELLO_PROGRESS_WEBHOOK_SECRET || '').trim();
+  if (!secret) return json({ error: 'progress_webhook_not_configured' }, 503, cors());
+  const bearer = /^Bearer\s+(.+)$/i.exec(String(request.headers.get('authorization') || '').trim());
+  if (!bearer || !timingSafeEqual(bearer[1], secret)) return json({ error: 'invalid_progress_webhook_auth' }, 401, cors());
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const row = await getRunRequestById(env, params.runId);
+  if (!row || row.slug !== DEMELLO_SLUG) return json({ error: 'run_not_found' }, 404, cors());
+  if (body.run_id && body.run_id !== row.run_id) return json({ error: 'run_id_mismatch' }, 400, cors());
+  if (row.state === 'succeeded' || row.state === 'refunded') {
+    let terminal = {};
+    try { terminal = JSON.parse(row.response_json || '{}'); } catch { terminal = {}; }
+    return json(terminal, row.state === 'succeeded' ? 200 : Number(row.http_status) || 409, cors());
+  }
+  const status = String(body.status || 'running').trim().toLowerCase();
+  if (status === 'completed' || status === 'delivered') {
+    const delivered = await settleDemelloSuccess(env, row, body, 'webhook');
+    return delivered ? json(delivered.body, delivered.status, cors()) : json({ error: 'invalid_artifact_url' }, 400, cors());
+  }
+  if (status === 'failed') return failDemelloRun(env, row, String(body.error_code || 'modal_run_failed').slice(0, 80));
+  const phase = String(body.phase || '').trim().toLowerCase();
+  const pct = Number(body.progress_pct);
+  if (!DEMELLO_PHASE_RANK.has(phase) || ['delivered', 'failed'].includes(phase) || !Number.isFinite(pct) || pct < 1 || pct > 99) {
+    return json({ error: 'invalid_progress_payload' }, 400, cors());
+  }
+  await putRunProgress(env, {
+    run_id: row.run_id, user_id: row.user_id, phase, progress_pct: Math.floor(pct),
+    progress_source: 'webhook', modal_status: 'running', modal_status_url: demelloModalStatusUrl(env, row.run_id),
+  });
+  await touchRunRequest(env, row.run_id);
+  const progress = await getRunProgress(env, row.run_id);
+  return json(demelloPublicRunning(row, progress), 202, cors());
 }
 
 // ── Route: Stripe Checkout session ────────────────────────────────────────
@@ -779,6 +1320,7 @@ const mockTopups = new Set();
 const mockStripeEvents = new Set();
 const mockApiKeys = new Map();
 const mockRunRequests = new Map();
+const mockRunProgress = new Map();
 const mockPendingTopups = new Map();
 const clerkJwksCache = new Map();
 
@@ -1146,7 +1688,7 @@ async function claimRunRequest(env, userId, idempotencyKey, requestHash, slug, c
   return { created: true, row };
 }
 
-function replayRunResponse(row, requestHash) {
+async function replayRunResponse(env, row, requestHash) {
   if (!row || row.request_hash !== requestHash) {
     return json({ error: 'idempotency_key_conflict' }, 409, cors());
   }
@@ -1158,9 +1700,142 @@ function replayRunResponse(row, requestHash) {
     body.run_id = row.run_id;
     return json(body, Number(row.http_status) || (row.state === 'succeeded' ? 200 : 500), cors());
   }
+  if (row.slug === DEMELLO_SLUG) {
+    const progress = await getRunProgress(env, row.run_id);
+    return json(demelloPublicRunning(row, progress, { idempotent_replay: true }), 202, cors());
+  }
   return json({
     ok: true, idempotent_replay: true, run_id: row.run_id, state: row.state,
   }, 202, cors());
+}
+
+async function getRunRequestById(env, runId) {
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-run-request-by-id-v1', 'SELECT * FROM run_requests WHERE run_id = $1', [runId]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return env.BALANCE_DB.prepare('SELECT * FROM run_requests WHERE run_id = ?').bind(runId).first();
+  }
+  for (const row of mockRunRequests.values()) if (row.run_id === runId) return row;
+  return null;
+}
+
+async function touchRunRequest(env, runId) {
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-run-request-touch-v1', "UPDATE run_requests SET updated_at = $1 WHERE run_id = $2 AND state = 'running'", [now, runId]
+    ));
+  } else if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare("UPDATE run_requests SET updated_at = ? WHERE run_id = ? AND state = 'running'").bind(now, runId).run();
+  } else {
+    const row = await getRunRequestById(env, runId);
+    if (row && row.state === 'running') row.updated_at = now;
+  }
+}
+
+async function replaceSuccessfulRunResponse(env, runId, response) {
+  const now = new Date().toISOString();
+  const responseJson = JSON.stringify(response);
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-run-request-refresh-result-v1',
+      "UPDATE run_requests SET response_json = $1, http_status = 200, updated_at = $2 WHERE run_id = $3 AND state = 'succeeded'",
+      [responseJson, now, runId]
+    ));
+  } else if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare("UPDATE run_requests SET response_json = ?, http_status = 200, updated_at = ? WHERE run_id = ? AND state = 'succeeded'").bind(responseJson, now, runId).run();
+  } else {
+    const row = await getRunRequestById(env, runId);
+    if (row && row.state === 'succeeded') {
+      row.response_json = responseJson;
+      row.http_status = 200;
+      row.updated_at = now;
+    }
+  }
+}
+
+async function getRunProgress(env, runId) {
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-run-progress-get-v1', 'SELECT * FROM run_progress WHERE run_id = $1', [runId]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return env.BALANCE_DB.prepare('SELECT * FROM run_progress WHERE run_id = ?').bind(runId).first();
+  }
+  return mockRunProgress.get(runId) || null;
+}
+
+async function putRunProgress(env, value) {
+  const candidatePct = Math.max(0, Math.min(100, Math.floor(Number(value.progress_pct) || 0)));
+  const candidateRank = DEMELLO_PHASE_RANK.get(value.phase) ?? -1;
+  const sourceRank = { derived: 0, webhook: 1, modal: 2 }[value.progress_source] ?? 0;
+  const terminal = value.phase === 'delivered' || value.phase === 'failed';
+  const now = new Date().toISOString();
+  const candidate = {
+    run_id: value.run_id,
+    user_id: value.user_id || '',
+    phase: value.phase,
+    progress_pct: value.phase === 'delivered' ? 100 : candidatePct,
+    progress_source: value.progress_source || 'derived',
+    modal_status: value.modal_status || 'running',
+    modal_status_url: value.modal_status_url || '',
+    video_url: value.video_url || null,
+    contact_sheet_url: value.contact_sheet_url || null,
+    result_json: value.result_json || null,
+    input_notice: value.input_notice || null,
+    started_at: now,
+    updated_at: now,
+    terminal_at: terminal ? now : null,
+  };
+
+  if (databaseKind(env) === 'mock') {
+    const existing = mockRunProgress.get(candidate.run_id);
+    if (existing && (existing.phase === 'delivered' || existing.phase === 'failed')) return existing;
+    const existingRank = DEMELLO_PHASE_RANK.get(existing && existing.phase) ?? -1;
+    const existingSourceRank = { derived: 0, webhook: 1, modal: 2 }[existing && existing.progress_source] ?? 0;
+    const wins = !existing || candidate.progress_pct > Number(existing.progress_pct) ||
+      (candidate.progress_pct === Number(existing.progress_pct) && (candidateRank > existingRank ||
+        (candidateRank === existingRank && sourceRank > existingSourceRank)));
+    const row = !existing ? candidate : {
+      ...existing,
+      ...(wins ? candidate : {}),
+      user_id: existing.user_id,
+      input_notice: existing.input_notice || candidate.input_notice,
+      started_at: existing.started_at,
+      updated_at: now,
+      terminal_at: wins && terminal ? existing.terminal_at || now : existing.terminal_at,
+    };
+    mockRunProgress.set(row.run_id, row);
+    return row;
+  }
+
+  const values = [
+    candidate.run_id, candidate.user_id, candidate.phase, candidate.progress_pct, candidate.progress_source,
+    candidate.modal_status, candidate.modal_status_url, candidate.video_url, candidate.contact_sheet_url,
+    candidate.result_json, candidate.input_notice, candidate.started_at, candidate.updated_at, candidate.terminal_at,
+  ];
+  const pgPhaseExcluded = "CASE EXCLUDED.phase WHEN 'reserved' THEN 0 WHEN 'running' THEN 1 WHEN 'transcribing' THEN 2 WHEN 'directing' THEN 3 WHEN 'generating' THEN 4 WHEN 'assembling' THEN 5 WHEN 'delivered' THEN 6 WHEN 'failed' THEN 7 ELSE -1 END";
+  const pgPhaseCurrent = "CASE run_progress.phase WHEN 'reserved' THEN 0 WHEN 'running' THEN 1 WHEN 'transcribing' THEN 2 WHEN 'directing' THEN 3 WHEN 'generating' THEN 4 WHEN 'assembling' THEN 5 WHEN 'delivered' THEN 6 WHEN 'failed' THEN 7 ELSE -1 END";
+  const pgSourceExcluded = "CASE EXCLUDED.progress_source WHEN 'derived' THEN 0 WHEN 'webhook' THEN 1 WHEN 'modal' THEN 2 ELSE -1 END";
+  const pgSourceCurrent = "CASE run_progress.progress_source WHEN 'derived' THEN 0 WHEN 'webhook' THEN 1 WHEN 'modal' THEN 2 ELSE -1 END";
+  const pgWins = `(EXCLUDED.progress_pct > run_progress.progress_pct OR (EXCLUDED.progress_pct = run_progress.progress_pct AND (${pgPhaseExcluded} > ${pgPhaseCurrent} OR (${pgPhaseExcluded} = ${pgPhaseCurrent} AND ${pgSourceExcluded} > ${pgSourceCurrent}))))`;
+  const sqliteWins = pgWins.replaceAll('EXCLUDED.', 'excluded.');
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-run-progress-upsert-v2',
+      `INSERT INTO run_progress (run_id,user_id,phase,progress_pct,progress_source,modal_status,modal_status_url,video_url,contact_sheet_url,result_json,input_notice,started_at,updated_at,terminal_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (run_id) DO UPDATE SET phase=CASE WHEN ${pgWins} THEN EXCLUDED.phase ELSE run_progress.phase END,progress_pct=CASE WHEN ${pgWins} THEN EXCLUDED.progress_pct ELSE run_progress.progress_pct END,progress_source=CASE WHEN ${pgWins} THEN EXCLUDED.progress_source ELSE run_progress.progress_source END,modal_status=CASE WHEN ${pgWins} THEN EXCLUDED.modal_status ELSE run_progress.modal_status END,modal_status_url=CASE WHEN ${pgWins} THEN EXCLUDED.modal_status_url ELSE run_progress.modal_status_url END,video_url=CASE WHEN ${pgWins} THEN COALESCE(EXCLUDED.video_url,run_progress.video_url) ELSE run_progress.video_url END,contact_sheet_url=CASE WHEN ${pgWins} THEN COALESCE(EXCLUDED.contact_sheet_url,run_progress.contact_sheet_url) ELSE run_progress.contact_sheet_url END,result_json=CASE WHEN ${pgWins} THEN COALESCE(EXCLUDED.result_json,run_progress.result_json) ELSE run_progress.result_json END,input_notice=COALESCE(run_progress.input_notice,EXCLUDED.input_notice),updated_at=EXCLUDED.updated_at,terminal_at=CASE WHEN ${pgWins} THEN COALESCE(EXCLUDED.terminal_at,run_progress.terminal_at) ELSE run_progress.terminal_at END WHERE run_progress.phase NOT IN ('delivered','failed')`,
+      values
+    ));
+  } else if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare(`INSERT INTO run_progress (run_id,user_id,phase,progress_pct,progress_source,modal_status,modal_status_url,video_url,contact_sheet_url,result_json,input_notice,started_at,updated_at,terminal_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(run_id) DO UPDATE SET phase=CASE WHEN ${sqliteWins} THEN excluded.phase ELSE run_progress.phase END,progress_pct=CASE WHEN ${sqliteWins} THEN excluded.progress_pct ELSE run_progress.progress_pct END,progress_source=CASE WHEN ${sqliteWins} THEN excluded.progress_source ELSE run_progress.progress_source END,modal_status=CASE WHEN ${sqliteWins} THEN excluded.modal_status ELSE run_progress.modal_status END,modal_status_url=CASE WHEN ${sqliteWins} THEN excluded.modal_status_url ELSE run_progress.modal_status_url END,video_url=CASE WHEN ${sqliteWins} THEN COALESCE(excluded.video_url,run_progress.video_url) ELSE run_progress.video_url END,contact_sheet_url=CASE WHEN ${sqliteWins} THEN COALESCE(excluded.contact_sheet_url,run_progress.contact_sheet_url) ELSE run_progress.contact_sheet_url END,result_json=CASE WHEN ${sqliteWins} THEN COALESCE(excluded.result_json,run_progress.result_json) ELSE run_progress.result_json END,input_notice=COALESCE(run_progress.input_notice,excluded.input_notice),updated_at=excluded.updated_at,terminal_at=CASE WHEN ${sqliteWins} THEN COALESCE(excluded.terminal_at,run_progress.terminal_at) ELSE run_progress.terminal_at END WHERE run_progress.phase NOT IN ('delivered','failed')`).bind(...values).run();
+  }
+  return getRunProgress(env, candidate.run_id);
 }
 
 async function setRunRunning(env, runId) {
@@ -1214,16 +1889,18 @@ async function finishRunRequest(env, runId, state, response, httpStatus) {
 async function reconcileStaleReservations(env, userId) {
   const ttlSeconds = boundedInt(env.RUN_RESERVATION_TTL_SECONDS, 60, 3600, 300);
   const cutoff = new Date(Date.now() - ttlSeconds * 1000).toISOString();
+  const demelloTtlSeconds = boundedInt(env.DEMELLO_RUN_TIMEOUT_SECONDS, 60, 3600, 1300);
+  const demelloCutoff = new Date(Date.now() - demelloTtlSeconds * 1000).toISOString();
   let rows = [];
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-run-request-stale-v1',
-      "SELECT run_id, cost_cents FROM run_requests WHERE user_id = $1 AND state IN ('reserved','running') AND updated_at < $2 ORDER BY updated_at LIMIT 20",
+      "SELECT run_id, cost_cents, slug, updated_at FROM run_requests WHERE user_id = $1 AND state IN ('reserved','running') AND updated_at < $2 ORDER BY updated_at LIMIT 20",
       [userId, cutoff]
     ));
     rows = result.rows || [];
   } else if (databaseKind(env) === 'd1') {
-    const result = await env.BALANCE_DB.prepare("SELECT run_id, cost_cents FROM run_requests WHERE user_id = ? AND state IN ('reserved','running') AND updated_at < ? ORDER BY updated_at LIMIT 20").bind(userId, cutoff).all();
+    const result = await env.BALANCE_DB.prepare("SELECT run_id, cost_cents, slug, updated_at FROM run_requests WHERE user_id = ? AND state IN ('reserved','running') AND updated_at < ? ORDER BY updated_at LIMIT 20").bind(userId, cutoff).all();
     rows = result.results || [];
   } else {
     rows = Array.from(mockRunRequests.values()).filter((row) =>
@@ -1231,8 +1908,9 @@ async function reconcileStaleReservations(env, userId) {
     ).slice(0, 20);
   }
   for (const row of rows) {
+    if (row.slug === DEMELLO_SLUG && row.updated_at >= demelloCutoff) continue;
     const response = { error: 'stale_reservation_refunded', run_id: row.run_id, state: 'refunded' };
-    const claimed = await claimStaleRunRefund(env, row.run_id, cutoff, response);
+    const claimed = await claimStaleRunRefund(env, row.run_id, row.slug === DEMELLO_SLUG ? demelloCutoff : cutoff, response);
     if (claimed && await runDebitExists(env, row.run_id)) {
       await refundRunCredits(env, userId, Number(row.cost_cents), row.run_id);
     }

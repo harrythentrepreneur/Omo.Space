@@ -9,6 +9,8 @@
     "release_hash",
     "request_hash",
     "status",
+    "phase",
+    "progress_pct",
     "video_url",
     "contact_sheet_url",
     "frames_used",
@@ -31,6 +33,8 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "status": {"const": "completed"},
+    "phase": {"const": "delivered"},
+    "progress_pct": {"const": 100},
     "video_url": {
       "type": "string",
       "format": "uri",
@@ -92,7 +96,7 @@
       }
     },
     "generation_provider": {
-      "enum": ["openai", "procedural-fallback"]
+      "enum": ["openai", "openai-codex-subscription", "procedural-fallback"]
     },
     "platform": {
       "type": "object",

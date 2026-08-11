@@ -26,12 +26,12 @@
         "optional": true
       },
       {
-        "provider": "openai",
-        "operation": "images.generate_then_chained_edit",
-        "model": "gpt-image-2-2026-04-21",
-        "host": "api.openai.com",
-        "paths": ["/v1/images/generations", "/v1/images/edits"],
-        "secret_binding": "OPENAI_API_KEY",
+        "provider": "openai_codex_subscription",
+        "operation": "responses.image_generation_tool",
+        "model": "gpt-5.6-terra",
+        "host": "chatgpt.com",
+        "paths": ["/backend-api/codex/responses"],
+        "secret_bindings": ["OPENAI_CODEX_ACCESS_TOKEN", "OPENAI_CODEX_ACCOUNT_ID", "OPENAI_CODEX_REFRESH_TOKEN"],
         "max_generated_images": 8,
         "max_attempts_per_image": 3
       }
@@ -43,7 +43,7 @@
       {"library": "Pillow", "operations": ["semantic_frame_expansion", "contact_sheet", "visual_qa"]}
     ],
     "network": {
-      "fixed_hosts": ["api.openai.com", "opencode.ai"],
+      "fixed_hosts": ["api.openai.com", "auth.openai.com", "chatgpt.com", "opencode.ai"],
       "dynamic_audio_https": {
         "milestone_only": true,
         "max_bytes": 20971520,
@@ -63,6 +63,9 @@
     },
     "secrets": [
       {"binding": "API_SERVER_KEY", "scope": "milestone_ingress_bearer"},
+      {"binding": "OPENAI_CODEX_ACCESS_TOKEN", "scope": "private_staging_codex_responses"},
+      {"binding": "OPENAI_CODEX_ACCOUNT_ID", "scope": "private_staging_codex_account_routing"},
+      {"binding": "OPENAI_CODEX_REFRESH_TOKEN", "scope": "optional_memory_only_codex_refresh"},
       {"binding": "OPENAI_API_KEY", "scope": "transcription_and_image_provider"},
       {"binding": "OPENCODE_GO_API_KEY", "scope": "optional_director_provider"}
     ],
@@ -85,7 +88,7 @@
       {
         "id": "procedural_sumi_e",
         "enabled": true,
-        "condition": "bounded GPT Image 2 failure after release budget checks",
+        "condition": "bounded Codex Responses or GPT Image provider failure after release budget checks",
         "result_generation_provider": "procedural-fallback",
         "image_provider_spend_usd": 0,
         "disclosure_required": true
@@ -110,6 +113,7 @@
     "r2_upload_finalize_and_authorized_download",
     "retention_deletion_and_quarantine_policy",
     "reconciled_provider_rate_registry_and_hard_budget",
+    "durable_serialized_codex_oauth_refresh_and_billable_image_usage_meter",
     "canonical_release_hash_and_signed_qa",
     "manual_promotion_and_rollback_drill"
   ]

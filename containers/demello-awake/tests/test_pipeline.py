@@ -6,6 +6,7 @@ import sys
 from io import BytesIO
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 
@@ -17,7 +18,10 @@ from workflow import (  # noqa: E402
     PipelineConfig,
     PipelineDependencies,
     Transcript,
+    WorkflowError,
+    _provider_cost_evidence,
     run_pipeline,
+    run_from_files,
 )
 
 
@@ -90,3 +94,43 @@ def test_five_second_procedural_pipeline_produces_delivery_contract(tmp_path: Pa
     assert contact.read_bytes().startswith(b"\xff\xd8")
     report = validate_image_path(contact)
     assert report.portrait is False
+
+
+def test_provider_lane_is_rejected_before_any_external_effect(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("DEMELLO_PROVIDER_LANE_ENABLED", raising=False)
+    run_id = "run_provider_gate_001"
+    artifact_root = tmp_path / "artifacts"
+    request_path = tmp_path / "request.json"
+    result_path = tmp_path / "result.json"
+    request_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "input": {
+                    "audio_url": "https://media.example/customer.m4a",
+                    "style": "sumi-e-awake-v3",
+                    "duration_bounds": {"min_seconds": 5, "max_seconds": 10},
+                },
+                "max_cost_usd": 5,
+                "artifact_root": str(artifact_root),
+                "run_artifact_dir": str(artifact_root / "runs" / run_id),
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(WorkflowError, match="provider-backed input lane"):
+        run_from_files(request_path, result_path)
+    assert not result_path.exists()
+    assert not artifact_root.exists()
+
+
+def test_every_used_provider_component_must_have_cost_evidence() -> None:
+    rich = {
+        "generation_provider": "chatgpt-codex-image-generation",
+        "transcription": {"usage": {"cost_usd": 0.01}},
+        "director": {"provider": "deepseek-v4-flash", "usage": {}},
+        "image_generation": {"usage": {"cost_complete": False}},
+    }
+    costs, complete = _provider_cost_evidence(rich)
+    assert costs == {"transcription": 0.01}
+    assert complete is False

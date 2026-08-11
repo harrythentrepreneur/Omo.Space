@@ -17,6 +17,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 try:  # Support both package imports and direct ``python workflow.py`` loading.
     from .image_gen import (
+        CodexSubscriptionImageAdapter,
         GeneratedFrame,
         ImageGenerationError,
         OpenAIImageAdapter,
@@ -36,6 +37,7 @@ try:  # Support both package imports and direct ``python workflow.py`` loading.
     )
 except ImportError:  # pragma: no cover - exercised by container runner usage.
     from image_gen import (
+        CodexSubscriptionImageAdapter,
         GeneratedFrame,
         ImageGenerationError,
         OpenAIImageAdapter,
@@ -107,7 +109,7 @@ class PipelineDependencies:
     downloader: Callable[..., Path] | None = None
     transcriber: Callable[[Path], Transcript | Mapping[str, Any]] | None = None
     director: Callable[[Transcript, float], Mapping[str, Any]] | None = None
-    image_adapter: OpenAIImageAdapter | None = None
+    image_adapter: OpenAIImageAdapter | CodexSubscriptionImageAdapter | None = None
     clock: Callable[[], float] = time.perf_counter
 
 
@@ -696,8 +698,13 @@ def run_pipeline(
                 config.anchor_interval_seconds,
             )
         image_adapter = deps.image_adapter
-        if image_adapter is None and transcript_ref is None and os.environ.get("OPENAI_API_KEY"):
-            image_adapter = OpenAIImageAdapter()
+        if image_adapter is None and transcript_ref is None:
+            if os.environ.get("OPENAI_CODEX_ACCESS_TOKEN") and os.environ.get(
+                "OPENAI_CODEX_ACCOUNT_ID"
+            ):
+                image_adapter = CodexSubscriptionImageAdapter()
+            elif os.environ.get("OPENAI_API_KEY"):
+                image_adapter = OpenAIImageAdapter()
         generation = generate_with_fallback(
             anchor_specs,
             job_dir / "generated",
@@ -874,17 +881,50 @@ def _artifact_evidence(path: Path, key: str) -> dict[str, Any]:
     return {"key": key, "sha256": _sha256_file(path), "bytes": path.stat().st_size}
 
 
+def _provider_cost_evidence(rich: Mapping[str, Any]) -> tuple[dict[str, float], bool]:
+    """Return only known component costs and an explicit completeness bit."""
+    image = rich.get("image_generation", {})
+    transcript = rich.get("transcription", {})
+    director = rich.get("director", {})
+    image_usage = image.get("usage", {}) if isinstance(image, Mapping) else {}
+    transcript_usage = transcript.get("usage", {}) if isinstance(transcript, Mapping) else {}
+    director_usage = director.get("usage", {}) if isinstance(director, Mapping) else {}
+    image_cost = _explicit_usage_cost(image_usage) if isinstance(image_usage, Mapping) else None
+    transcript_cost = _transcription_cost(transcript_usage) if isinstance(transcript_usage, Mapping) else None
+    director_cost = _explicit_usage_cost(director_usage) if isinstance(director_usage, Mapping) else None
+    image_provider = str(rich.get("generation_provider", ""))
+    director_provider = str(director.get("provider", "")) if isinstance(director, Mapping) else ""
+
+    costs: dict[str, float] = {}
+    if transcript_cost is not None:
+        costs["transcription"] = round(float(transcript_cost), 8)
+    if director_provider == "deterministic-fallback":
+        costs["director"] = 0.0
+        director_complete = True
+    else:
+        director_complete = director_cost is not None
+        if director_cost is not None:
+            costs["director"] = round(float(director_cost), 8)
+    if image_provider == "procedural-fallback":
+        costs["image_generation"] = 0.0
+        image_complete = True
+    else:
+        image_complete = (
+            image_cost is not None
+            and isinstance(image_usage, Mapping)
+            and image_usage.get("cost_complete") is True
+        )
+        if image_cost is not None:
+            costs["image_generation"] = round(float(image_cost), 8)
+    return costs, bool(transcript_cost is not None and director_complete and image_complete)
+
+
 def _typed_runner_result(envelope: Mapping[str, Any], rich: Mapping[str, Any], config: PipelineConfig) -> dict[str, Any]:
     run_id = str(rich["run_id"])
     final_dir = config.artifact_root / "runs" / run_id
     video_key = f"runs/{run_id}/video.mp4"
     contact_key = f"runs/{run_id}/contact-sheet.jpg"
-    image_usage = rich.get("image_generation", {}).get("usage", {})
-    transcript_usage = rich.get("transcription", {}).get("usage", {})
-    director_usage = rich.get("director", {}).get("usage", {})
-    image_cost = _explicit_usage_cost(image_usage) if isinstance(image_usage, Mapping) else None
-    transcript_cost = _transcription_cost(transcript_usage) if isinstance(transcript_usage, Mapping) else None
-    director_cost = _explicit_usage_cost(director_usage) if isinstance(director_usage, Mapping) else None
+    provider_costs, provider_costs_complete = _provider_cost_evidence(rich)
     wall_seconds = float(rich.get("telemetry", {}).get("total_seconds", 0) or 0)
     provider = str(rich.get("generation_provider"))
     return {
@@ -896,11 +936,8 @@ def _typed_runner_result(envelope: Mapping[str, Any], rich: Mapping[str, Any], c
         },
         "frames_used": dict(rich["frames_used"]),
         "usage": {
-            "provider_costs_usd": {
-                "transcription": round(float(transcript_cost or 0), 8),
-                "director": round(float(director_cost or 0), 8),
-                "image_generation": round(float(image_cost or 0), 8),
-            },
+            "provider_costs_usd": provider_costs,
+            "provider_costs_complete": provider_costs_complete,
             "modal_cpu_core_seconds": round(wall_seconds, 6),
             "modal_memory_gib_seconds": round(wall_seconds * 2.0, 6),
             "artifact_storage_usd": 0.0,
@@ -916,7 +953,13 @@ def _typed_runner_result(envelope: Mapping[str, Any], rich: Mapping[str, Any], c
             key: rich["media"][key]
             for key in ("duration_seconds", "video_codec", "audio_codec", "width", "height", "fps")
         },
-        "generation_provider": "procedural-fallback" if provider == "procedural-fallback" else "openai",
+        "generation_provider": (
+            "procedural-fallback"
+            if provider == "procedural-fallback"
+            else "openai-codex-subscription"
+            if provider == "chatgpt-codex-image-generation"
+            else "openai"
+        ),
     }
 
 
@@ -941,6 +984,11 @@ def run_from_files(request_path: Path, result_path: Path) -> None:
         isinstance(workflow_input, Mapping)
         and workflow_input.get("audio_ref") == "sample-demello-10s"
     )
+    if not is_bundled_fixture and os.environ.get("DEMELLO_PROVIDER_LANE_ENABLED", "0") != "1":
+        # Admission happens before audio download, transcription, direction, or
+        # image generation. The staging endpoint exposes only the measured
+        # bundled/procedural lane until provider pricing and durable auth exist.
+        raise WorkflowError("provider-backed input lane is disabled for this milestone")
     config = PipelineConfig(
         artifact_root=artifact_root,
         audio_refs={"sample-demello-10s": root / "assets" / "sample-demello-10s.m4a"},

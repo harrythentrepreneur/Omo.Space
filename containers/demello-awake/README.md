@@ -6,10 +6,10 @@ drawing schedule, generates a bounded chain of GPT Image 2 anchors, expands
 authored sumi-e changes, assembles a 30 fps H.264/AAC portrait MP4, validates
 the media, and commits the video and contact sheet under `runs/<run_id>/...`.
 
-It is a milestone candidate, not a paid or public release. Its final App name
-must be `omo-demello-awake-<release_hash_short>`, but the release hash remains
-pending until a deterministic compiler performs two byte-identical clean
-builds. Deployment or QA success cannot move traffic.
+It is a private staging milestone, not a paid or public release. Its App name
+is `omo-demello-awake-<release_hash_short>`; `release_hash.py` compiles the
+normalized release tree and `release-manifest.json` records the twice-reproduced
+digest. Deployment or QA success cannot move traffic.
 
 ## Contracts
 
@@ -48,11 +48,14 @@ evidence, exact providers/models, and explicit director/image fallback use.
   `gpt-4o-mini-transcribe-2025-12-15` at
   `/v1/audio/transcriptions`.
 - Preferred director: OpenCode Go `deepseek-v4-flash`; the deterministic local
-  director is disclosed when used.
-- Image anchors: `gpt-image-2-2026-04-21` at
-  `/v1/images/generations`, then `/v1/images/edits` from the last accepted
-  parent. A rejected image never becomes a parent. Each image gets at most two
-  retries.
+  director is disclosed when used. A redaction-safe tiny probe returned HTTP
+  200, model `deepseek-v4-flash`, exact output `OK`, stop finish, and usage.
+- Preferred image anchors in private staging: the ChatGPT-subscription Codex
+  Responses `image_generation` tool at
+  `https://chatgpt.com/backend-api/codex/responses`. Chained requests include
+  the last accepted parent as an input image; a rejected image never becomes a
+  parent. A scoped API key can still use the pinned GPT Image 2 generation/edit
+  adapter. Each image gets at most two retries.
 - Procedural sumi-e fallback is release-enabled for milestone resilience only.
   A fallback result says `generation_provider=procedural-fallback` and reports
   zero OpenAI image spend; it is never described as OpenAI-generated.
@@ -65,8 +68,22 @@ on 2026-08-11.
 ## Secrets and artifacts
 
 The milestone Modal Secret is named `omo-demello-awake` and binds
-`API_SERVER_KEY`, `OPENAI_API_KEY`, and optional `OPENCODE_GO_API_KEY`. Values
-must never appear in source, images, fixtures, responses, or logs.
+`API_SERVER_KEY`; optional provider bindings are `OPENAI_CODEX_ACCESS_TOKEN`,
+`OPENAI_CODEX_ACCOUNT_ID`, `OPENAI_CODEX_REFRESH_TOKEN`, `OPENAI_API_KEY`, and
+`OPENCODE_GO_API_KEY`. Values must never appear in source, images, fixtures,
+responses, or logs. Subscription token refresh is memory-only, so a controlled
+external rotation owner remains required after scale-to-zero.
+
+The tested request/auth matrix and exact secret-safe recipe are in
+`research/codex-subscription-auth.md`. Subscription image output is real, but
+the response has no billable USD meter and arbitrary audio transcription still
+requires a valid public API credential. Those gaps keep
+`paid_traffic_ready:false`.
+
+The deployed milestone sets `DEMELLO_PROVIDER_LANE_ENABLED=0` and admits only
+the bundled `sample-demello-10s` procedural lane. Non-bundled input is rejected
+before download or any provider call. Enabling that flag requires a new release
+with reconciled provider pricing, durable credentials, and accepted-output QA.
 
 Milestone artifacts use the named `omo-demello-awake-artifacts` Modal Volume
 and an expiring signed download route. That is not the durable paid artifact

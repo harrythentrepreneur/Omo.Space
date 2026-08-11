@@ -10,6 +10,12 @@
   },
   "sources": [
     {
+      "url": "https://github.com/openai/codex/blob/main/codex-rs/login/src/auth/manager.rs",
+      "retrieved_on": "2026-08-11",
+      "role": "Codex ChatGPT OAuth bearer, account routing, and refresh request evidence",
+      "confidence": "high"
+    },
+    {
       "path": "research/demello-deploy-plan.md",
       "role": "authoritative deployment boundary, run contract, DAG, runtime, release, cost, and milestone gaps",
       "confidence": "high"

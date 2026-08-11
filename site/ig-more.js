@@ -355,5 +355,51 @@ window.COGNITION_IG_MORE = [
     workflow: {"steps": [{"type": "llm", "role": "script", "model": "deepseek-v4-flash", "max_output": 500, "system": "You are a specialist AI workflow operator. An ecom optimization workflow: make product pages structured and descriptive enough for AI assistants to understand and recommend them \u2014 since AI chat is becoming a discovery channel, products that AI can't parse stop existing for buyers. Free eStore mockup design as the DM lead magnet. Return EXACTLY this JSON shape: {\"output\":[\"key result 1\",\"key result 2\",\"key result 3\"],\"summary\":\"one plain sentence of what was produced\"} HARD RULES: output is a flat array of STRINGS, never nest objects, never invent facts, output ONLY the JSON object."}, {"type": "api", "api": "replicate_run", "qty": 2}, {"type": "api", "api": "e2b_sandbox", "qty": 1}]},
     runPrice: 0.9,
     icon: null,
+  },
+  {
+    slug: 'japanese-style-story-video',
+    name: 'Japanese Style Story Video',
+    emoji: '🎋',
+    category: 'content',
+    niche: 'video',
+    tags: ['video', 'animation', 'japanese', 'sumi-e', 'storytelling', 'audio'],
+    free: false,
+    priceOwn: 29,
+    priceMaintain: 8,
+    promise: 'Turn short audio into a vertical sumi-e drawing animation.',
+    maker: 'de Mello',
+    makerName: 'de Mello Studio',
+    version: 'v1.0.0 · 2026-08-11',
+    demoCap: 'Hosted milestone: bundled 10-second sample',
+    desc: 'Turn short audio into a directed Japanese-style drawing animation. The downloadable workflow supports your own audio; the current hosted milestone is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It transcribes the source, plans semantic ink-drawing beats, generates and expands the frames, then delivers a validated portrait MP4 with its frame artifacts.',
+    cover: 'covers/japanese-style-story-video.svg',
+    upvotes: 118,
+    inputs: [
+      'audio: hosted milestone requires sample-demello-10s (the downloaded workflow supports your own short audio)',
+      'style: sumi-e Japanese ink (pinned for this release)',
+      'duration: 5–20 seconds'
+    ],
+    outputs: [
+      'video — 1080×1920 H.264/AAC MP4',
+      'frames — generated drawing frames and contact sheet'
+    ],
+    exampleIn: 'A 10-second reflection about waking up to the present moment · quiet sumi-e · 10 seconds',
+    exampleOut: [
+      'Portrait MP4 with the original audio and progressive ink-drawing animation',
+      'Run-scoped frame set and visual contact sheet'
+    ],
+    workflow: {
+      // The guarded deterministic/Modal lane costs at most $0.003. The shared
+      // store model prices this light orchestration at its honest $0.10 floor.
+      steps: [
+        { type: 'pipeline', role: 'transcribe', label: 'Transcribe audio' },
+        { type: 'llm', role: 'direct', model: 'deepseek-v4-flash', max_output: 300, system: 'Direct a short spoken story into a sparse, coherent sequence of Japanese sumi-e drawing beats. Preserve the source meaning and return only the bounded shot plan.' },
+        { type: 'pipeline', role: 'generate', label: 'Generate drawing frames' },
+        { type: 'pipeline', role: 'assemble', label: 'Assemble and validate portrait video' },
+        { type: 'pipeline', role: 'deliver', label: 'Sign and deliver artifacts' }
+      ]
+    },
+    runPrice: 0.1,
+    icon: null
   }
 ];

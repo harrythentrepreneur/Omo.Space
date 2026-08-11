@@ -52,6 +52,30 @@ CREATE INDEX IF NOT EXISTS idx_run_requests_user_updated
 CREATE INDEX IF NOT EXISTS idx_run_requests_stale
   ON run_requests (state, updated_at);
 
+-- Async execution telemetry is separate from the billing state machine so
+-- existing installations can add it without rewriting run_requests. Progress
+-- is monotonic; progress_source distinguishes elapsed estimates from signed
+-- webhook checkpoints and Modal terminal status.
+CREATE TABLE IF NOT EXISTS run_progress (
+  run_id            TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL,
+  phase             TEXT NOT NULL CHECK (phase IN ('reserved', 'running', 'transcribing', 'directing', 'generating', 'assembling', 'delivered', 'failed')),
+  progress_pct      INTEGER NOT NULL CHECK (progress_pct >= 0 AND progress_pct <= 100),
+  progress_source   TEXT NOT NULL CHECK (progress_source IN ('derived', 'webhook', 'modal')),
+  modal_status      TEXT NOT NULL,
+  modal_status_url  TEXT NOT NULL,
+  video_url         TEXT,
+  contact_sheet_url TEXT,
+  result_json       TEXT,
+  input_notice      TEXT,
+  started_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  terminal_at       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_run_progress_user_updated
+  ON run_progress (user_id, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS credits_ledger (
   event_id      TEXT PRIMARY KEY,             -- signup:…, run:…, stripe:…
   user_id       TEXT NOT NULL,

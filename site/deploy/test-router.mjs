@@ -33,6 +33,24 @@ async function clerkToken(userId) {
   return `${input}.${Buffer.from(signature).toString('base64url')}`;
 }
 
+async function modalArtifactUrl(runId, objectName, ttlSeconds = 300) {
+  const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
+  const key = await webcrypto.subtle.importKey(
+    'raw', new TextEncoder().encode('private-modal-test-secret'),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const signature = await webcrypto.subtle.sign(
+    'HMAC', key, new TextEncoder().encode(`GET\n${runId}\n${objectName}\n${expires}`),
+  );
+  return `https://modal.invalid/v1/artifacts/${runId}/${objectName}?expires=${expires}&signature=${Buffer.from(signature).toString('hex')}`;
+}
+
+async function expectedModalIdempotencyKey(userId, callerKey) {
+  const input = new TextEncoder().encode(`omo-demello-modal-idempotency-v1\u0000${userId}\u0000${callerKey}`);
+  const digest = await webcrypto.subtle.digest('SHA-256', input);
+  return `omo-${Buffer.from(digest).toString('hex')}`;
+}
+
 // worker.js imports balance.mjs + cost-model.mjs (bundled at deploy time).
 // The vm sandbox can't resolve imports, so concatenate them first with the
 // `export`/`import` keywords stripped — they are dependency-free modules, so
@@ -60,9 +78,29 @@ const canned = {
 // Calls made to the real Stripe API (captured by the fetch stub below).
 const stripeCalls = [];
 const llmCalls = [];
+const modalCalls = [];
+const modalStatuses = new Map();
+let modalDispatchStatus = 202;
 
 const sandbox = {
   fetch: async (url, opts) => {
+    if (String(url).startsWith('https://modal.invalid')) {
+      const target = new URL(String(url));
+      modalCalls.push({ url: String(url), method: opts && opts.method || 'GET', headers: opts && opts.headers, body: opts && opts.body });
+      if (target.pathname === '/v1/runs' && opts && opts.method === 'POST') {
+        const envelope = JSON.parse(opts.body);
+        if (modalDispatchStatus !== 202) {
+          return { ok: false, status: modalDispatchStatus, json: async () => ({ detail: 'dispatch_failed' }) };
+        }
+        modalStatuses.set(envelope.run_id, { run_id: envelope.run_id, status: 'running' });
+        return { ok: true, status: 202, json: async () => ({ run_id: envelope.run_id, status: 'accepted', platform: { paid_traffic_ready: false } }) };
+      }
+      const runId = target.pathname.split('/').at(-1);
+      const status = modalStatuses.get(runId);
+      return status
+        ? { ok: true, status: 200, json: async () => status }
+        : { ok: false, status: 404, json: async () => ({ detail: 'run_not_found' }) };
+    }
     if (String(url).includes('/.well-known/jwks.json')) {
       return { ok: true, status: 200, json: async () => ({ keys: [clerkJwk] }) };
     }
@@ -117,6 +155,13 @@ function check(name, cond) {
   if (cond) { pass += 1; console.log(`PASS  ${name}`); }
   else { fail += 1; console.log(`FAIL  ${name}`); }
 }
+
+const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
+check('dashboard: server account loads /api/me with a Clerk session bearer', dashboardSource.includes('window.Clerk.session.getToken()') && dashboardSource.includes("fetch(API_BASE + '/api/me', { headers: { Authorization: 'Bearer ' + token"));
+check('dashboard: cloud-run network errors never fall back to a mock after POST', (dashboardSource.match(/startMockVideoRun\(form, product\);/g) || []).length === 1 && dashboardSource.includes('The submission outcome is unknown') && dashboardSource.includes('Reconcile run'));
+check('dashboard: terminal 5xx run states are handled before indefinite retry', dashboardSource.includes("terminalStatus === 'failed' || terminalStatus === 'refunded'") && dashboardSource.includes("status === 'failed' || status === 'refunded'"));
+check('dashboard: server top-ups post to /api/topup with authenticated headers', dashboardSource.includes("fetch((API_BASE || '') + '/api/topup'") && dashboardSource.includes("authenticatedRunHeaders('').then(function (headers)"));
+check('dashboard: hosted video form exposes the sample-only provider gate', dashboardSource.includes('Hosted staging currently accepts only sample-demello-10s'));
 
 const mkReq = (method, pathname, body, extraHeaders = {}) => ({
   method,
@@ -198,6 +243,9 @@ check('checkout: success_url carries the slug', (scParams.get('success_url') || 
 check('checkout: cancel_url set', (scParams.get('cancel_url') || '').includes('purchased=cancelled'));
 check('checkout: buyer email forwarded', scParams.get('customer_email') === 'buyer@example.com');
 check('checkout: bearer auth uses the secret (never logged)', (sc.headers.Authorization || '') === 'Bearer sk_test_fake_secret');
+await worker.fetch(mkReq('POST', '/api/checkout', { slug: 'japanese-style-story-video', priceUsd: 99 }), stripeEnv);
+const demelloCheckoutParams = new URLSearchParams(stripeCalls.at(-1).body);
+check('checkout: Japanese Style Story Video own price is server-pinned at $29', demelloCheckoutParams.get('line_items[0][price_data][unit_amount]') === '2900');
 
 // Cap enforcement via fake KV
 let kvStore = {};
@@ -273,6 +321,155 @@ const idem1 = await (await worker.fetch(mkReq('POST', '/api/run', idemBody, idem
 const idem2 = await (await worker.fetch(mkReq('POST', '/api/run', idemBody, idemHeaders), realEnv)).json();
 const idemAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_idem', {}), env)).json();
 check('run: idempotency replay returns prior run and charges owner once', idem1.ok === true && idem2.idempotent_replay === true && idem2.run_id === idem1.run_id && idemAfter.balance_usd === 4.9 && llmCalls.length === callsBeforeIdem + 1);
+
+// ── Japanese Style Story Video → private Modal + async progress ───────────
+
+const demelloEnv = {
+  ...realEnv,
+  DEMELLO_MODAL_URL: 'https://modal.invalid',
+  DEMELLO_MODAL_BEARER: 'private-modal-test-secret',
+  DEMELLO_PROGRESS_WEBHOOK_SECRET: 'progress-webhook-test-secret',
+};
+const demelloMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello', {}), env)).json();
+const demelloHeaders = { Authorization: `Bearer ${demelloMe.api_key}`, 'Idempotency-Key': 'demello-router-0001' };
+const demelloInput = {
+  slug: 'japanese-style-story-video',
+  fields: {
+    audio_ref: 'sample-demello-10s',
+    style_hint: 'sumi-e',
+    duration_bounds: { min_seconds: 5, max_seconds: 10 },
+  },
+};
+const modalCallsBefore = modalCalls.length;
+const demelloStartResponse = await worker.fetch(mkReq('POST', '/api/run', demelloInput, demelloHeaders), demelloEnv);
+const demelloStart = await demelloStartResponse.json();
+check('demello: dispatch returns progress + explicit quoted-but-zero-bill contract', demelloStartResponse.status === 202 && /^run_/.test(demelloStart.run_id) && demelloStart.status === 'running' && demelloStart.phase === 'running' && demelloStart.progress_pct >= 1 && demelloStart.status_url === `/api/run/${demelloStart.run_id}` && demelloStart.quoted_cost_usd === 0.1 && demelloStart.billed_amount_usd === 0 && demelloStart.billing_mode === 'nonpaid_milestone' && demelloStart.paid_traffic_ready === false);
+const modalSubmit = modalCalls.at(-1);
+const modalEnvelope = JSON.parse(modalSubmit.body);
+const primaryModalKey = modalSubmit.headers['Idempotency-Key'];
+check('demello: dispatch uses private bearer + final pinned canonical envelope', modalSubmit.headers.Authorization === 'Bearer private-modal-test-secret' && modalEnvelope.run_id === demelloStart.run_id && modalEnvelope.release_hash === 'sha256:bdab144b977aee48ecb383041cd4eaa2a7ea454ea7577c15ece41f7d7f59861d' && /^[0-9a-f]{64}$/.test(modalEnvelope.request_hash) && modalEnvelope.input.style === 'sumi-e-awake-v3' && modalEnvelope.max_cost_usd === 0.003);
+check('demello: downstream idempotency key is deterministic and opaque', primaryModalKey === await expectedModalIdempotencyKey('user_demello', 'demello-router-0001') && /^omo-[0-9a-f]{64}$/.test(primaryModalKey) && primaryModalKey !== 'demello-router-0001' && !primaryModalKey.includes('user_demello'));
+
+const demelloReplayResponse = await worker.fetch(mkReq('POST', '/api/run', demelloInput, demelloHeaders), demelloEnv);
+const demelloReplay = await demelloReplayResponse.json();
+check('demello: idempotent retry neither dispatches nor debits twice', demelloReplayResponse.status === 202 && demelloReplay.idempotent_replay === true && demelloReplay.run_id === demelloStart.run_id && modalCalls.length === modalCallsBefore + 1);
+check('demello: same-owner retry retains the same derived Modal scope key', primaryModalKey === await expectedModalIdempotencyKey('user_demello', 'demello-router-0001'));
+
+const scopeAMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_scope_a', {}), env)).json();
+const scopeBMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_scope_b', {}), env)).json();
+const sharedCallerKey = 'demello-shared-scope-001';
+const scopeCallsBefore = modalCalls.length;
+const scopeAStart = await (await worker.fetch(mkReq('POST', '/api/run', demelloInput, {
+  Authorization: `Bearer ${scopeAMe.api_key}`, 'Idempotency-Key': sharedCallerKey,
+}), demelloEnv)).json();
+const scopeBStart = await (await worker.fetch(mkReq('POST', '/api/run', demelloInput, {
+  Authorization: `Bearer ${scopeBMe.api_key}`, 'Idempotency-Key': sharedCallerKey,
+}), demelloEnv)).json();
+const scopeACall = modalCalls[scopeCallsBefore];
+const scopeBCall = modalCalls[scopeCallsBefore + 1];
+const scopeAKey = scopeACall && scopeACall.headers['Idempotency-Key'];
+const scopeBKey = scopeBCall && scopeBCall.headers['Idempotency-Key'];
+check('demello: two owners may reuse a caller key without a global Modal collision', scopeAStart.run_id !== scopeBStart.run_id && scopeAKey !== scopeBKey && scopeAKey === await expectedModalIdempotencyKey('user_scope_a', sharedCallerKey) && scopeBKey === await expectedModalIdempotencyKey('user_scope_b', sharedCallerKey) && !scopeAKey.includes('user_scope_a') && !scopeBKey.includes('user_scope_b'));
+const scopeAReplay = await (await worker.fetch(mkReq('POST', '/api/run', demelloInput, {
+  Authorization: `Bearer ${scopeAMe.api_key}`, 'Idempotency-Key': sharedCallerKey,
+}), demelloEnv)).json();
+check('demello: scoped owner retry replays without a second Modal dispatch', scopeAReplay.run_id === scopeAStart.run_id && scopeAReplay.idempotent_replay === true && modalCalls.length === scopeCallsBefore + 2 && scopeAKey === await expectedModalIdempotencyKey('user_scope_a', sharedCallerKey));
+
+const demelloPoll1Response = await worker.fetch(mkReq('GET', `/api/run/${demelloStart.run_id}`, {}, { Authorization: `Bearer ${demelloMe.api_key}` }), demelloEnv);
+const demelloPoll1 = await demelloPoll1Response.json();
+check('demello: GET status returns explicit derived progress while Modal only says running', demelloPoll1Response.status === 202 && demelloPoll1.status === 'running' && demelloPoll1.progress_pct >= demelloStart.progress_pct && demelloPoll1.progress_source === 'derived');
+
+modalStatuses.set(demelloStart.run_id, { run_id: demelloStart.run_id, status: 'running', phase: 'semantic', progress_pct: 64 });
+const demelloModalProgress = await (await worker.fetch(mkReq('GET', `/api/run/${demelloStart.run_id}`, {}, { Authorization: `Bearer ${demelloMe.api_key}` }), demelloEnv)).json();
+check('demello: Modal semantic checkpoint maps to observed generating progress', demelloModalProgress.phase === 'generating' && demelloModalProgress.progress_pct === 64 && demelloModalProgress.progress_source === 'modal');
+modalStatuses.set(demelloStart.run_id, { run_id: demelloStart.run_id, status: 'running', phase: 'validating', progress_pct: 94 });
+const demelloQaProgress = await (await worker.fetch(mkReq('GET', `/api/run/${demelloStart.run_id}`, {}, { Authorization: `Bearer ${demelloMe.api_key}` }), demelloEnv)).json();
+check('demello: Modal validating checkpoint maps to public assembling phase', demelloQaProgress.phase === 'assembling' && demelloQaProgress.progress_pct === 94 && demelloQaProgress.progress_source === 'modal');
+
+modalStatuses.set(demelloStart.run_id, {
+  run_id: demelloStart.run_id,
+  status: 'completed',
+  video_url: await modalArtifactUrl(demelloStart.run_id, 'video.mp4'),
+  contact_sheet_url: await modalArtifactUrl(demelloStart.run_id, 'contact-sheet.jpg'),
+  media: { width: 1080, height: 1920, video_codec: 'h264', audio_codec: 'aac' },
+  platform: { paid_traffic_ready: false },
+});
+const demelloDoneResponse = await worker.fetch(mkReq('GET', `/api/run/${demelloStart.run_id}`, {}, { Authorization: `Bearer ${demelloMe.api_key}` }), demelloEnv);
+const demelloDone = await demelloDoneResponse.json();
+check('demello: completed Modal poll settles and exposes zero-billed video delivery', demelloDoneResponse.status === 200 && demelloDone.status === 'delivered' && demelloDone.phase === 'delivered' && demelloDone.progress_pct === 100 && /video\.mp4\?/.test(demelloDone.video_url) && demelloDone.settlement.charged_usd === 0 && demelloDone.quoted_cost_usd === 0.1 && demelloDone.billed_amount_usd === 0);
+const demelloAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello', {}), env)).json();
+const demelloUsage = demelloAfter.runs.filter((entry) => entry.slug === 'japanese-style-story-video');
+check('demello: nonpaid milestone records usage without charging credits', demelloAfter.balance_usd === 5 && demelloUsage.length === 1 && demelloUsage[0].cost_usd === 0);
+const lateFailure = await worker.fetch(mkReq('POST', `/api/run/${demelloStart.run_id}/progress`, {
+  run_id: demelloStart.run_id, status: 'failed', error_code: 'LATE_CHECKPOINT',
+}, { Authorization: 'Bearer progress-webhook-test-secret' }), demelloEnv);
+const lateFailureBody = await lateFailure.json();
+const demelloAfterLate = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello', {}), env)).json();
+check('demello: delivered success is immutable against a late failed webhook', lateFailure.status === 200 && lateFailureBody.status === 'delivered' && demelloAfterLate.balance_usd === 5);
+
+const progressMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_progress', {}), env)).json();
+const progressHeaders = { Authorization: `Bearer ${progressMe.api_key}`, 'Idempotency-Key': 'demello-router-progress-001' };
+const progressStart = await (await worker.fetch(mkReq('POST', '/api/run', demelloInput, progressHeaders), demelloEnv)).json();
+const badProgressAuth = await worker.fetch(mkReq('POST', `/api/run/${progressStart.run_id}/progress`, { phase: 'generating', progress_pct: 70 }, { Authorization: 'Bearer wrong' }), demelloEnv);
+check('demello: progress webhook rejects the wrong bearer', badProgressAuth.status === 401);
+const checkpointResponse = await worker.fetch(mkReq('POST', `/api/run/${progressStart.run_id}/progress`, { run_id: progressStart.run_id, status: 'running', phase: 'assembling', progress_pct: 95 }, { Authorization: 'Bearer progress-webhook-test-secret' }), demelloEnv);
+const checkpoint = await checkpointResponse.json();
+check('demello: authenticated checkpoint records real phase + percent', checkpointResponse.status === 202 && checkpoint.phase === 'assembling' && checkpoint.progress_pct === 95 && checkpoint.progress_source === 'webhook');
+modalStatuses.set(progressStart.run_id, { run_id: progressStart.run_id, status: 'running', phase: 'transcribing', progress_pct: 20 });
+const checkpointPoll = await (await worker.fetch(mkReq('GET', `/api/run/${progressStart.run_id}`, {}, { Authorization: `Bearer ${progressMe.api_key}` }), demelloEnv)).json();
+check('demello: lower Modal poll cannot relabel a winning atomic checkpoint', checkpointPoll.phase === 'assembling' && checkpointPoll.progress_pct === 95 && checkpointPoll.progress_source === 'webhook');
+
+const invalidMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello_invalid', {}), env)).json();
+const invalidBefore = modalCalls.length;
+const invalidDemello = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'japanese-style-story-video', fields: { audio_url: 'http://unsafe.example/audio.mp3' },
+}, { Authorization: `Bearer ${invalidMe.api_key}`, 'Idempotency-Key': 'demello-invalid-0001' }), demelloEnv);
+check('demello: invalid typed input is rejected before reservation or dispatch', invalidDemello.status === 400 && modalCalls.length === invalidBefore);
+
+const gatedHttps = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'japanese-style-story-video', fields: { audio_url: 'https://audio.example/short.mp3' },
+}, { Authorization: `Bearer ${invalidMe.api_key}`, 'Idempotency-Key': 'demello-provider-gate-001' }), demelloEnv);
+const gatedHttpsBody = await gatedHttps.json();
+check('demello: arbitrary HTTPS audio is gated before reservation or Modal spend', gatedHttps.status === 400 && gatedHttpsBody.error === 'demello_provider_lane_not_enabled' && modalCalls.length === invalidBefore);
+
+const topicMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello_topic', {}), env)).json();
+const topicRun = await (await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'japanese-style-story-video', fields: { audio: 'A quiet story about waking up', duration: '10 seconds' },
+}, { Authorization: `Bearer ${topicMe.api_key}`, 'Idempotency-Key': 'demello-topic-fallback-001' }), demelloEnv)).json();
+const topicEnvelope = JSON.parse(modalCalls.at(-1).body);
+check('demello: topic fallback is explicit and only runs the bundled sample audio', topicRun.status === 'running' && /not synthesized/i.test(topicRun.input_notice) && topicEnvelope.input.audio_ref === 'sample-demello-10s' && !topicEnvelope.input.topic);
+
+const failedMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello_fail', {}), env)).json();
+modalDispatchStatus = 503;
+const failedDispatch = await worker.fetch(mkReq('POST', '/api/run', demelloInput, {
+  Authorization: `Bearer ${failedMe.api_key}`, 'Idempotency-Key': 'demello-failed-dispatch-001',
+}), demelloEnv);
+modalDispatchStatus = 202;
+const failedBody = await failedDispatch.json();
+const failedAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello_fail', {}), env)).json();
+check('demello: explicit Modal dispatch failure refunds exactly once', failedDispatch.status === 502 && failedBody.status === 'failed' && failedBody.state === 'refunded' && failedAfter.balance_usd === 5);
+const lateCompletion = await worker.fetch(mkReq('POST', `/api/run/${failedBody.run_id}/progress`, {
+  run_id: failedBody.run_id, status: 'completed', video_url: 'https://modal.invalid/late', contact_sheet_url: 'https://modal.invalid/late-sheet',
+}, { Authorization: 'Bearer progress-webhook-test-secret' }), demelloEnv);
+const lateCompletionBody = await lateCompletion.json();
+check('demello: refunded failure is authoritative against a late completion race', lateCompletion.status === 502 && lateCompletionBody.status === 'failed' && lateCompletionBody.state === 'refunded');
+
+const artifactMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello_artifact', {}), env)).json();
+const artifactRun = await (await worker.fetch(mkReq('POST', '/api/run', demelloInput, {
+  Authorization: `Bearer ${artifactMe.api_key}`, 'Idempotency-Key': 'demello-bad-artifact-001',
+}), demelloEnv)).json();
+modalStatuses.set(artifactRun.run_id, {
+  run_id: artifactRun.run_id, status: 'completed',
+  video_url: `https://modal.invalid/v1/artifacts/${artifactRun.run_id}/video.mp4?expires=9999999999&signature=test&signature=duplicate`,
+  contact_sheet_url: await modalArtifactUrl(artifactRun.run_id, 'contact-sheet.jpg'),
+});
+const badArtifactResponse = await worker.fetch(mkReq('GET', `/api/run/${artifactRun.run_id}`, {}, { Authorization: `Bearer ${artifactMe.api_key}` }), demelloEnv);
+const artifactAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_demello_artifact', {}), env)).json();
+check('demello: malformed/overlong artifact signatures fail closed before settlement', badArtifactResponse.status === 502 && artifactAfter.balance_usd === 5);
+
+const wrongOwnerMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_wrong_owner', {}), env)).json();
+const wrongOwner = await worker.fetch(mkReq('GET', `/api/run/${demelloStart.run_id}`, {}, { Authorization: `Bearer ${wrongOwnerMe.api_key}` }), demelloEnv);
+check('demello: run polling is owner-scoped', wrongOwner.status === 404);
 
 // ── /api/topup (Stripe Checkout for credits) ──────────────────────────────
 

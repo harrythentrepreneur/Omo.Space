@@ -29,6 +29,7 @@ PROVIDER_COMPONENTS = frozenset(
 TOP_LEVEL_USAGE_FIELDS = frozenset(
     {
         "provider_costs_usd",
+        "provider_costs_complete",
         "modal_cpu_core_seconds",
         "modal_memory_gib_seconds",
         "artifact_storage_usd",
@@ -70,6 +71,8 @@ def measured_usage_usd(usage: Mapping[str, Any]) -> float:
     if not isinstance(usage, Mapping):
         raise PricingError("usage must be an object")
     _reject_unknown(usage, TOP_LEVEL_USAGE_FIELDS, "usage fields")
+    if usage.get("provider_costs_complete") is not True:
+        raise PricingError("provider cost evidence is incomplete")
 
     provider = usage.get("provider_costs_usd", {})
     if not isinstance(provider, Mapping):
@@ -159,4 +162,3 @@ def guarded_price_evidence(
         "tail_reserve": TAIL_RESERVE,
         "successful_sample_size": len(samples) + 1,
     }
-

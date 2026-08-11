@@ -71,6 +71,8 @@ def test_output_artifact_schema_matches_completed_status_contract() -> None:
         "release_hash": modal_app.RELEASE_DIGEST,
         "request_hash": "1" * 64,
         "status": "completed",
+        "phase": "delivered",
+        "progress_pct": 100,
         "video_url": "https://private.example/video.mp4",
         "contact_sheet_url": "https://private.example/contact.jpg",
         "frames_used": {"generated": 30, "semantic": 30, "output": 300},
@@ -150,6 +152,8 @@ def test_bearer_auth_alias_and_idempotent_submit(tmp_path: Path) -> None:
     replay = call(app, "POST", "/v1/runs", json=direct_input(), headers=headers)
     assert first.status_code == replay.status_code == 202
     assert first.json()["run_id"] == replay.json()["run_id"]
+    assert first.json()["phase"] == "queued"
+    assert first.json()["progress_pct"] == 2
     assert replay.json()["idempotent_replay"] is True
     assert len(spawned) == 1
     assert "fc-hidden" not in first.text
@@ -201,17 +205,45 @@ def test_status_and_signed_expiring_artifacts(tmp_path: Path) -> None:
     assert call(app, "GET", expired).status_code == 403
     assert response.json()["platform"]["modal_proxy_token"] is False
     assert response.json()["platform"]["omo_r2_artifacts"] is False
+    assert response.json()["phase"] == "delivered"
+    assert response.json()["progress_pct"] == 100
+
+
+def test_running_status_reads_real_monotonic_diagnostic_checkpoint(tmp_path: Path) -> None:
+    store = modal_app.FileRunStore(tmp_path)
+    run_id = "run_progress_abcdefgh"
+    store.set_status(
+        run_id,
+        {
+            "run_id": run_id,
+            "status": "running",
+            "phase": "starting",
+            "progress_pct": 5,
+            "release_hash": modal_app.RELEASE_DIGEST,
+            "platform": modal_app.MILESTONE_SECURITY,
+        },
+    )
+    marker = store.diagnostic_path(run_id)
+    marker.write_text('{"phase":"generate"}\n', encoding="utf-8")
+    status = store.get_status(run_id)
+    assert status and status["phase"] == "generating"
+    assert status["progress_pct"] == 52
+    assert [value[1] for value in modal_app.PHASE_PROGRESS.values()] == sorted(
+        value[1] for value in modal_app.PHASE_PROGRESS.values()
+    )
 
 
 def test_provider_mocked_runner_protocol_and_media_contract(monkeypatch, tmp_path: Path) -> None:
     for key in ("OPENAI_API_KEY", "OPENCODE_GO_API_KEY", "LLM_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     envelope = modal_app.normalize_submission(direct_input())
+    checkpoints: list[tuple[str, int]] = []
     result = modal_app.run_go_adapter(
         envelope,
         artifact_root=tmp_path,
         runner_command=(sys.executable, str(Path(__file__).with_name("stub_go_adapter.py"))),
         python_entrypoint=str(Path(__file__).with_name("stub_workflow.py")),
+        progress_callback=lambda phase, progress: checkpoints.append((phase, progress)),
     )
     modal_app.validate_schema(result, modal_app.PIPELINE_RESULT_SCHEMA)
     assert result["generation_provider"] == "procedural-fallback"
@@ -225,6 +257,7 @@ def test_provider_mocked_runner_protocol_and_media_contract(monkeypatch, tmp_pat
         "fps": 30,
     }
     assert result["frames_used"] == {"generated": 2, "semantic": 15, "output": 150}
+    assert checkpoints == [("generating", 52)]
 
 
 def test_go_adapter_is_dependency_free_and_propagates_signals() -> None:

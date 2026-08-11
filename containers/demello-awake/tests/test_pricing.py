@@ -21,6 +21,7 @@ def usage(**overrides):
             "director": 0.01,
             "image_generation": 0.08,
         },
+        "provider_costs_complete": True,
         "modal_cpu_core_seconds": 10,
         "modal_memory_gib_seconds": 20,
         "artifact_storage_usd": 0.001,
@@ -55,7 +56,7 @@ def test_round_five_guard_tail_margin_and_upward_cent() -> None:
 
 def test_price_floor_and_provisional_p95_max() -> None:
     evidence = pricing.guarded_price_evidence(
-        {"provider_costs_usd": {}},
+        {"provider_costs_usd": {}, "provider_costs_complete": True},
         {"static_estimate_usd": 0, "successful_delivered_usd": [0.001, 0.002]},
     )
     assert evidence["success_p95_usd"] == 0.002
@@ -74,3 +75,11 @@ def test_price_floor_and_provisional_p95_max() -> None:
 def test_unknown_or_invalid_usage_fails_closed(bad_usage) -> None:
     with pytest.raises(pricing.PricingError):
         pricing.measured_usage_usd(bad_usage)
+
+
+def test_incomplete_subscription_provider_cost_fails_closed() -> None:
+    with pytest.raises(pricing.PricingError, match="incomplete"):
+        pricing.guarded_price_evidence(
+            usage(provider_costs_complete=False),
+            {"static_estimate_usd": 0.25},
+        )

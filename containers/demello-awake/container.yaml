@@ -50,6 +50,10 @@ resources:
   max_inputs_per_container: 1
   region: null
 
+environment:
+  DEMELLO_PROCEDURAL_FALLBACK_ENABLED: "1"
+  DEMELLO_PROVIDER_LANE_ENABLED: "0"
+
 endpoint:
   mode: async_job
   public_buyer_endpoint: false
@@ -83,9 +87,12 @@ secret_bindings:
     ingress:
       - API_SERVER_KEY
     workflow:
+      - OPENAI_CODEX_ACCESS_TOKEN
+      - OPENAI_CODEX_ACCOUNT_ID
+      - OPENAI_CODEX_REFRESH_TOKEN
       - OPENAI_API_KEY
       - OPENCODE_GO_API_KEY
-  gap: Split ingress and provider credentials into least-privilege versioned bindings before paid traffic.
+  gap: Split ingress and provider credentials into least-privilege versioned bindings, and add one durable serialized OAuth refresh/rotation owner, before paid traffic.
 
 immutable_provider_config:
   transcription:
@@ -101,19 +108,22 @@ immutable_provider_config:
     endpoint: https://opencode.ai/zen/go/v1/chat/completions
     fallback: deterministic_transcript_director
   image_generation:
-    provider: openai
-    model_alias: gpt-image-2
-    model_snapshot: gpt-image-2-2026-04-21
-    generation:
-      method: POST
-      endpoint: https://api.openai.com/v1/images/generations
-    edit:
-      method: POST
-      endpoint: https://api.openai.com/v1/images/edits
+    preferred_provider: openai_codex_subscription
+    responses_model: gpt-5.6-terra
+    operation: responses.image_generation_tool
+    method: POST
+    endpoint: https://chatgpt.com/backend-api/codex/responses
+    api_key_alternative:
+      provider: openai
+      model_snapshot: gpt-image-2-2026-04-21
+      generation_endpoint: https://api.openai.com/v1/images/generations
+      edit_endpoint: https://api.openai.com/v1/images/edits
     fallback: procedural_sumi_e
 
 egress:
   fixed_host_allowlist:
+    - auth.openai.com
+    - chatgpt.com
     - api.openai.com
     - opencode.ai
   dynamic_audio_url:

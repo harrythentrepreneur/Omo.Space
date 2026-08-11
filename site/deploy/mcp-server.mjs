@@ -20,9 +20,8 @@ const SERVER_VERSION = '1.0.0';
 const LATEST_PROTOCOL = '2025-06-18';
 const SUPPORTED_PROTOCOLS = new Set([LATEST_PROTOCOL, '2025-03-26']);
 const TOPUP_URL = 'https://omo.best/dashboard.html?topup=needed';
-const SESSION_TTL_MS = 60 * 60 * 1000;
 const MAX_INPUT_CHARS = 12_000;
-const sessions = new Map();
+const DEMELLO_SLUG = 'japanese-style-story-video';
 const fetchedCatalogues = new Map();
 
 // ig-more's newer helpers share this intentionally simple interface.
@@ -41,6 +40,7 @@ const GENERIC_SYSTEM = 'You are a specialist AI workflow operator. Use only the 
 // snapshot mirrors the runtime-safe fields so MCP still works if static asset
 // fetching is unavailable (including the zero-network self-test).
 const FALLBACK_ROWS = [
+  [DEMELLO_SLUG, 'Japanese Style Story Video', 'content', 'Turn spoken audio into a vertical Japanese sumi-e drawing animation.', 29, 0.10, 'Transcribe audio, direct the story, generate ink-wash frames, assemble a 1080×1920 MP4, and deliver the video.', ['audio_ref: sample-demello-10s (required by the hosted milestone)', 'style_hint: sumi-e', 'duration_seconds: 5–20'], ['video_url — delivered vertical MP4', 'contact_sheet_url — generated frame contact sheet'], GENERIC_SYSTEM, 500, [['api', 'modal_demello_run', 1]]],
   ['arcads-node-ugc-builder', 'Arcads Node UGC Builder', 'content', 'Turn a product brief into a batch of consistent UGC-style videos without a shoot.', 49, 1.40, 'Turn a product brief into scene images, connect the start and end frames in Arcads, and render a complete UGC-style video.', ['brief: product + hook + audience', 'scenes: how many scene frames', 'style: product style hint'], ['scene_prompts — per-frame generation prompts', 'video — rendered UGC-style ad'], 'You turn a product brief into scene prompts for UGC video generation. Return EXACTLY this JSON shape: {"scene_prompts":["prompt 1","prompt 2","prompt 3"],"hook":"first 2 seconds","cta":"one call to action"} HARD RULES: scene_prompts is a flat array of STRINGS, never invent claims, output ONLY the JSON object.', 400, [['api', 'replicate_run', 3], ['api', 'modal_gpu_30s', 2]]],
   ['product-link-to-meta-ugc-ad', 'Product Link → Meta UGC Ad', 'leads', 'Paste a product URL and get a ready-to-test UGC ad for Meta.', 49, 0.60, 'Paste the product link, generate a UGC video prompt, make the video, and prepare it for a Meta ad.', ['product_url: the product page link', 'claim: the main selling point'], ['ad_prompt — the UGC video generation prompt', 'video — avatar-rendered UGC ad', 'script — what the ad says'], 'You summarize an ecommerce product page for ad creation. Return EXACTLY this JSON shape: {"product":"what it is","claims":["supported claims only"],"audience":"who buys it"}. Never invent claims. Output JSON only.', 300, [['llm', 'prompt', 1], ['api', 'heygen_avatar_render', 1], ['api', 'heygen_voiceover', 1]]],
   ['one-photo-ecom-creative-factory', 'One-Photo Creative Factory', 'save', 'Make a full set of ecommerce photos, marketing creatives, and product videos from one source photo.', 39, 1.10, 'Create the full asset pack from one product photo: image variants, marketing creatives, and short product videos.', ['photo_desc: describe your product photo', 'usages: PDP, paid social, organic'], ['variants — angle/background/usage matrix', 'creatives — marketing-ready images'], 'You turn a product photo description into a creative variant matrix. Return JSON with variants as a flat array of angle, background, and usage objects. Output JSON only.', 400, [['api', 'openai_image', 4], ['api', 'replicate_run', 1]]],
@@ -81,6 +81,15 @@ function fallbackCatalogue() {
   });
 }
 
+function withPinnedRuntimeHelpers(helpers) {
+  const output = helpers.slice();
+  if (!output.some((helper) => helper.slug === DEMELLO_SLUG)) {
+    const pinned = fallbackCatalogue().find((helper) => helper.slug === DEMELLO_SLUG);
+    if (pinned) output.push(pinned);
+  }
+  return output;
+}
+
 const TOOLS = [
   {
     name: 'omo_search_helpers',
@@ -114,18 +123,45 @@ const TOOLS = [
         slug: { type: 'string', description: 'The exact helper slug.' },
         inputs: { type: 'object', description: 'Input names and values described by omo_get_helper.', additionalProperties: true },
         api_key: { type: 'string', description: 'Your secret omo_ API key from omo.best/api.html.' },
+        idempotency_key: { type: 'string', description: 'Required for the hosted video workflow: an 8–128 character retry key. Reuse it only for the same inputs.' },
       },
       required: ['slug', 'inputs'],
       additionalProperties: false,
     },
   },
   {
-    name: 'omo_get_balance',
-    description: 'Get an Omo credit balance and recent run usage by API key or Clerk user id.',
+    name: 'omo_get_run_progress',
+    description: 'Get the current phase and monotonic progress percentage for an Omo run.',
     inputSchema: {
       type: 'object',
-      properties: { api_key_or_user: { type: 'string', description: 'An omo_ API key or user_ id.' } },
-      required: ['api_key_or_user'],
+      properties: {
+        run_id: { type: 'string', description: 'The run_id returned by omo_run_helper.' },
+        api_key: { type: 'string', description: 'The owning omo_ API key.' },
+      },
+      required: ['run_id', 'api_key'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'omo_get_run_result',
+    description: 'Get a completed run result, including its video URL when delivery is ready.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        run_id: { type: 'string', description: 'The run_id returned by omo_run_helper.' },
+        api_key: { type: 'string', description: 'The owning omo_ API key.' },
+      },
+      required: ['run_id', 'api_key'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'omo_get_balance',
+    description: 'Get the owning Omo account credit balance and recent run usage. Possession of its secret omo_ API key is required.',
+    inputSchema: {
+      type: 'object',
+      properties: { api_key: { type: 'string', description: 'The owning secret omo_ API key.' } },
+      required: ['api_key'],
       additionalProperties: false,
     },
   },
@@ -341,12 +377,12 @@ async function fetchCatalogueSource(url, env) {
 async function loadCatalogue(request, env = {}) {
   if (Array.isArray(env.MCP_CATALOG)) {
     const supplied = env.MCP_CATALOG.map(normalizeHelper).filter(Boolean);
-    return supplied.length ? supplied : fallbackCatalogue();
+    return withPinnedRuntimeHelpers(supplied.length ? supplied : fallbackCatalogue());
   }
 
   if (Array.isArray(env.MCP_CATALOG_SOURCES)) {
     const supplied = env.MCP_CATALOG_SOURCES.flatMap(parseCatalogueSource).map(normalizeHelper).filter(Boolean);
-    return supplied.length ? supplied : fallbackCatalogue();
+    return withPinnedRuntimeHelpers(supplied.length ? supplied : fallbackCatalogue());
   }
 
   const origin = String(env.OMO_SITE_ORIGIN || new URL(request.url).origin).replace(/\/+$/, '');
@@ -358,9 +394,9 @@ async function loadCatalogue(request, env = {}) {
           fetchCatalogueSource(`${origin}/ig-more.js`, env),
         ]);
         const helpers = sources.flatMap(parseCatalogueSource).map(normalizeHelper).filter(Boolean);
-        return helpers.length ? helpers : fallbackCatalogue();
+        return withPinnedRuntimeHelpers(helpers.length ? helpers : fallbackCatalogue());
       } catch {
-        return fallbackCatalogue();
+        return withPinnedRuntimeHelpers(fallbackCatalogue());
       }
     })());
   }
@@ -436,11 +472,13 @@ function balanceSecret(env) {
 }
 
 function isApiKey(identity) {
-  return /^omo_[A-Za-z0-9_-]{8,128}$/.test(identity);
+  return /^omo_[0-9a-f]{32}$/.test(identity);
 }
 
-function validIdentity(identity) {
-  return isApiKey(identity) || /^user_[A-Za-z0-9_-]{1,80}$/.test(identity);
+async function sha256Hex(value) {
+  const bytes = new TextEncoder().encode(String(value));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 async function insertD1Ledger(env, values) {
@@ -458,7 +496,8 @@ async function getAccount(env, identity, createUser = true) {
   if (kind === 'neon') {
     const pool = getNeonPool(env);
     if (keyLookup) {
-      const result = await pool.query(prepared('omo-mcp-user-key-v1', 'SELECT user_id, balance_cents, api_key, created_at FROM users WHERE api_key = $1 LIMIT 1', [identity]));
+      const keyHash = await sha256Hex(identity);
+      const result = await pool.query(prepared('omo-mcp-user-key-v2', 'SELECT u.user_id, u.balance_cents, u.created_at FROM api_keys k JOIN users u ON u.user_id = k.user_id WHERE k.key_hash = $1 LIMIT 1', [keyHash]));
       return result.rows[0] || null;
     }
     let selected = await pool.query(prepared('omo-mcp-user-id-v1', 'SELECT user_id, balance_cents, api_key, created_at FROM users WHERE user_id = $1', [identity]));
@@ -476,7 +515,8 @@ async function getAccount(env, identity, createUser = true) {
 
   if (kind === 'd1') {
     if (keyLookup) {
-      return env.BALANCE_DB.prepare('SELECT user_id, balance_cents, api_key, created_at FROM users WHERE api_key = ? LIMIT 1').bind(identity).first();
+      const keyHash = await sha256Hex(identity);
+      return env.BALANCE_DB.prepare('SELECT u.user_id, u.balance_cents, u.created_at FROM api_keys k JOIN users u ON u.user_id = k.user_id WHERE k.key_hash = ? LIMIT 1').bind(keyHash).first();
     }
     let selected = await env.BALANCE_DB.prepare('SELECT user_id, balance_cents, api_key, created_at FROM users WHERE user_id = ?').bind(identity).first();
     if (selected || !createUser) return selected || null;
@@ -493,11 +533,7 @@ async function getAccount(env, identity, createUser = true) {
 
   if (keyLookup) {
     for (const record of mockUsers.values()) if (record.api_key === identity) return record;
-    const userId = `user_mcp_${identity.slice(4, 20)}`;
-    const record = { user_id: userId, balance_cents: signupGrantCents(env), api_key: identity, created_at: new Date().toISOString() };
-    mockUsers.set(userId, record);
-    mockLedger.set(`signup:${userId}`, { user_id: userId, kind: 'signup_grant', amount_cents: record.balance_cents });
-    return record;
+    return null;
   }
   if (!mockUsers.has(identity) && createUser) {
     mockUsers.set(identity, {
@@ -687,6 +723,117 @@ async function toolGetHelper(request, env, args) {
   };
 }
 
+function workerApiUrl(request, env, path) {
+  const base = String(env.OMO_API_BASE_URL || new URL(request.url).origin).replace(/\/+$/, '');
+  return `${base}${path}`;
+}
+
+async function callWorkerApi(request, env, path, options) {
+  const target = new Request(workerApiUrl(request, env, path), options);
+  if (env.OMO_API && typeof env.OMO_API.fetch === 'function') return env.OMO_API.fetch(target);
+  return fetch(target);
+}
+
+async function workerJson(response) {
+  let body = {};
+  try { body = await response.json(); } catch { body = {}; }
+  if (!response.ok) {
+    const reason = String(body.error || body.reason || `http_${response.status}`);
+    throw new RpcFault(-32000, body.message || `Omo could not complete the request (${reason}).`, {
+      reason,
+      http_status: response.status,
+      ...body,
+    });
+  }
+  return body;
+}
+
+async function runDemelloViaWorker(request, env, helper, inputs, apiKey, idempotencyKey) {
+  if (!apiKey || !isApiKey(apiKey)) {
+    throw new RpcFault(-32602, 'This video workflow requires the owning omo_ API key so its run can be authorized and polled safely.');
+  }
+  if (!idempotencyKey) throw new RpcFault(-32602, 'idempotency_key is required for this hosted workflow. Reuse the same key when retrying the same inputs.');
+  const key = idempotencyKey;
+  if (!/^[A-Za-z0-9._:-]{8,128}$/.test(key)) throw new RpcFault(-32602, 'idempotency_key must be 8–128 letters, numbers, dots, underscores, colons, or hyphens.');
+  const response = await callWorkerApi(request, env, '/api/run', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      'Idempotency-Key': key,
+    },
+    body: JSON.stringify({ slug: helper.slug, fields: inputs }),
+  });
+  const body = await workerJson(response);
+  return {
+    ok: body.ok !== false,
+    slug: helper.slug,
+    run_id: body.run_id,
+    status: body.status || 'running',
+    phase: body.phase || 'running',
+    progress_pct: safeNumber(body.progress_pct),
+    progress_source: body.progress_source || 'derived',
+    status_url: body.status_url || `/api/run/${body.run_id}`,
+    listed_run_price_usd: safeNumber(helper.runPrice, 0.10),
+    quoted_cost_usd: safeNumber(body.quoted_cost_usd, 0.10),
+    billed_amount_usd: safeNumber(body.billed_amount_usd, 0),
+    balance_usd: body.balance == null ? null : safeNumber(body.balance),
+    billing_mode: body.billing_mode || 'nonpaid_milestone',
+    paid_traffic_ready: body.paid_traffic_ready === true,
+    input_notice: body.input_notice || null,
+    mock: false,
+    idempotent_replay: !!body.idempotent_replay,
+  };
+}
+
+async function getWorkerRun(request, env, args) {
+  const runId = requireString(args.run_id, 'run_id');
+  const apiKey = requireString(args.api_key, 'api_key');
+  if (!/^run_[A-Za-z0-9_-]{4,91}$/.test(runId)) throw new RpcFault(-32602, 'run_id is invalid.');
+  if (!isApiKey(apiKey)) throw new RpcFault(-32602, 'api_key must be an Omo key beginning with omo_.');
+  const response = await callWorkerApi(request, env, `/api/run/${encodeURIComponent(runId)}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+  });
+  return workerJson(response);
+}
+
+async function toolGetRunProgress(request, env, args) {
+  const body = await getWorkerRun(request, env, args);
+  return {
+    ok: body.ok !== false,
+    run_id: body.run_id,
+    status: body.status,
+    phase: body.phase,
+    progress_pct: safeNumber(body.progress_pct),
+    progress_source: body.progress_source || null,
+    input_notice: body.input_notice || null,
+    billing_mode: body.billing_mode || null,
+    paid_traffic_ready: body.paid_traffic_ready === true,
+    ready: body.status === 'delivered' || body.status === 'completed',
+  };
+}
+
+async function toolGetRunResult(request, env, args) {
+  const body = await getWorkerRun(request, env, args);
+  const delivered = body.status === 'delivered' || body.status === 'completed';
+  return {
+    ok: body.ok !== false,
+    ready: delivered,
+    run_id: body.run_id,
+    status: body.status,
+    phase: body.phase,
+    progress_pct: safeNumber(body.progress_pct),
+    input_notice: body.input_notice || null,
+    quoted_cost_usd: body.quoted_cost_usd == null ? null : safeNumber(body.quoted_cost_usd),
+    billed_amount_usd: body.billed_amount_usd == null ? null : safeNumber(body.billed_amount_usd),
+    billing_mode: body.billing_mode || null,
+    paid_traffic_ready: body.paid_traffic_ready === true,
+    video_url: delivered ? body.video_url || body.output && body.output.video_url || null : null,
+    contact_sheet_url: delivered ? body.contact_sheet_url || body.output && body.output.contact_sheet_url || null : null,
+  };
+}
+
 async function toolRunHelper(request, env, args) {
   const slug = requireString(args.slug, 'slug');
   const inputs = requireObject(args.inputs, 'inputs');
@@ -695,6 +842,11 @@ async function toolRunHelper(request, env, args) {
   if (!helper) throw new RpcFault(-32000, `I couldn't find “${slug}”. Search the catalogue and try the exact slug.`);
 
   const apiKey = args.api_key == null || args.api_key === '' ? '' : requireString(args.api_key, 'api_key');
+  if (slug === DEMELLO_SLUG) {
+    const idempotencyKey = args.idempotency_key == null || args.idempotency_key === ''
+      ? '' : requireString(args.idempotency_key, 'idempotency_key');
+    return runDemelloViaWorker(request, env, helper, inputs, apiKey, idempotencyKey);
+  }
   const costUsd = safeNumber(helper.runPrice, calculateRunPrice(helper.workflow));
   const costCents = Math.round(costUsd * 100);
   let account = null;
@@ -740,9 +892,9 @@ async function toolRunHelper(request, env, args) {
 }
 
 async function toolGetBalance(_request, env, args) {
-  const identity = requireString(args.api_key_or_user, 'api_key_or_user');
-  if (!validIdentity(identity)) throw new RpcFault(-32602, 'Use an omo_ API key or user_ id.');
-  const account = await getAccount(env, identity, !isApiKey(identity));
+  const identity = requireString(args.api_key, 'api_key');
+  if (!isApiKey(identity)) throw new RpcFault(-32602, 'Use the owning secret omo_ API key. Clerk user ids are not accepted by this public tool.');
+  const account = await getAccount(env, identity, false);
   if (!account) throw new RpcFault(-32000, 'That Omo account was not found. Get your API key at https://omo.best/api.html.');
   const runs = await recentRuns(env, account.user_id, 20);
   return {
@@ -752,7 +904,6 @@ async function toolGetBalance(_request, env, args) {
     balance_usd: +(safeNumber(account.balance_cents) / 100).toFixed(2),
     balance_cents: safeNumber(account.balance_cents),
     currency: 'usd',
-    api_key: account.api_key,
     mock: databaseKind(env) === 'mock',
     runs: runs.map((run) => ({
       slug: run.slug,
@@ -779,6 +930,8 @@ async function callTool(request, env, params) {
   if (name === 'omo_search_helpers') return toolSearch(request, env, args);
   if (name === 'omo_get_helper') return toolGetHelper(request, env, args);
   if (name === 'omo_run_helper') return toolRunHelper(request, env, args);
+  if (name === 'omo_get_run_progress') return toolGetRunProgress(request, env, args);
+  if (name === 'omo_get_run_result') return toolGetRunResult(request, env, args);
   if (name === 'omo_get_balance') return toolGetBalance(request, env, args);
   if (name === 'omo_topup_options') return toolTopupOptions();
   throw new RpcFault(-32602, `Unknown tool “${name}”. Call tools/list for available Omo tools.`);
@@ -843,8 +996,8 @@ function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Accept, Mcp-Session-Id, MCP-Protocol-Version, Authorization',
-    'Access-Control-Expose-Headers': 'Mcp-Session-Id, MCP-Protocol-Version',
+    'Access-Control-Allow-Headers': 'Content-Type, Accept, MCP-Protocol-Version, Authorization',
+    'Access-Control-Expose-Headers': 'MCP-Protocol-Version',
     'Cache-Control': 'no-store',
   };
 }
@@ -856,20 +1009,9 @@ function jsonResponse(body, status = 200, extraHeaders = {}) {
   });
 }
 
-function pruneSessions() {
-  const cutoff = Date.now() - SESSION_TTL_MS;
-  for (const [id, session] of sessions) if (session.touchedAt < cutoff) sessions.delete(id);
-}
-
-function newSession(protocolVersion) {
-  pruneSessions();
-  const id = makeId('mcp');
-  sessions.set(id, { protocolVersion, touchedAt: Date.now() });
-  return id;
-}
-
 /**
- * Handle an MCP Streamable HTTP request.
+ * Handle a stateless MCP Streamable HTTP request. A Worker instance may be
+ * replaced between calls, so no in-memory Mcp-Session-Id is issued or required.
  * @param {Request} request
  * @param {Record<string, any>} env Cloudflare Worker bindings and secrets.
  * @returns {Promise<Response>}
@@ -877,21 +1019,12 @@ function newSession(protocolVersion) {
 export async function handleMcpRequest(request, env = {}) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders() });
 
-  const suppliedSession = request.headers.get('Mcp-Session-Id');
   if (request.method === 'DELETE') {
-    if (suppliedSession) sessions.delete(suppliedSession);
     return new Response(null, { status: 204, headers: corsHeaders() });
   }
   if (request.method !== 'POST') {
     return jsonResponse({ error: 'MCP uses POST for JSON-RPC messages.' }, 405, { Allow: 'POST, DELETE, OPTIONS' });
   }
-  if (suppliedSession) {
-    pruneSessions();
-    const session = sessions.get(suppliedSession);
-    if (!session) return jsonResponse(rpcError(null, new RpcFault(-32000, 'MCP session expired. Initialize a new session.')), 404);
-    session.touchedAt = Date.now();
-  }
-
   let payload;
   try { payload = await request.json(); } catch {
     return jsonResponse(rpcError(null, new RpcFault(-32700, 'Parse error: send valid JSON.')), 400);
@@ -900,17 +1033,12 @@ export async function handleMcpRequest(request, env = {}) {
   if (!messages.length) return jsonResponse(rpcError(null, new RpcFault(-32600, 'An empty JSON-RPC batch is invalid.')), 400);
 
   const responses = [];
-  let createdSession = '';
   for (const message of messages) {
     const response = await dispatchRpc(message, request, env);
     if (response) responses.push(response);
-    if (!createdSession && message && message.method === 'initialize' && Object.prototype.hasOwnProperty.call(message, 'id') && response && response.result) {
-      createdSession = newSession(response.result.protocolVersion);
-    }
   }
   if (!responses.length) return new Response(null, { status: 202, headers: corsHeaders() });
   const headers = { 'MCP-Protocol-Version': LATEST_PROTOCOL };
-  if (createdSession) headers['Mcp-Session-Id'] = createdSession;
   return jsonResponse(Array.isArray(payload) ? responses : responses[0], 200, headers);
 }
 
@@ -920,9 +1048,42 @@ async function runSelfTest() {
     readFile(new URL('../ig-workflows.js', import.meta.url), 'utf8'),
     readFile(new URL('../ig-more.js', import.meta.url), 'utf8'),
   ]);
-  const env = { MCP_CATALOG_SOURCES: sources, SIGNUP_GRANT_USD: 5 };
+  let demelloPolls = 0;
+  const demelloRunId = 'run_mcpdemelloselftest0001';
+  const env = {
+    MCP_CATALOG_SOURCES: sources,
+    SIGNUP_GRANT_USD: 5,
+    OMO_API: {
+      fetch: async (workerRequest) => {
+        const url = new URL(workerRequest.url);
+        if (workerRequest.method === 'POST' && url.pathname === '/api/run') {
+          const body = await workerRequest.json();
+          return jsonResponse({
+            ok: true, slug: body.slug, run_id: demelloRunId, status: 'running',
+            phase: 'running', progress_pct: 4, progress_source: 'derived',
+            status_url: `/api/run/${demelloRunId}`, balance: 5,
+            quoted_cost_usd: 0.10, billed_amount_usd: 0,
+            billing_mode: 'nonpaid_milestone', paid_traffic_ready: false,
+            input_notice: 'Hosted milestone sample input.',
+          }, 202);
+        }
+        if (workerRequest.method === 'GET' && url.pathname === `/api/run/${demelloRunId}`) {
+          demelloPolls += 1;
+          if (demelloPolls === 1) {
+            return jsonResponse({ ok: true, run_id: demelloRunId, status: 'running', phase: 'generating', progress_pct: 61, progress_source: 'webhook', input_notice: 'Hosted milestone sample input.' }, 202);
+          }
+          return jsonResponse({
+            ok: true, run_id: demelloRunId, status: 'delivered', phase: 'delivered', progress_pct: 100,
+            video_url: 'https://artifacts.example/video.mp4', contact_sheet_url: 'https://artifacts.example/contact-sheet.jpg',
+            quoted_cost_usd: 0.10, billed_amount_usd: 0, billing_mode: 'nonpaid_milestone',
+            paid_traffic_ready: false, input_notice: 'Hosted milestone sample input.',
+          });
+        }
+        return jsonResponse({ error: 'not_found' }, 404);
+      },
+    },
+  };
   let nextId = 1;
-  let sessionId = '';
   let passed = 0;
   let failed = 0;
 
@@ -937,23 +1098,21 @@ async function runSelfTest() {
     if (id !== undefined) body.id = id;
     if (params !== undefined) body.params = params;
     const headers = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
-    if (sessionId) headers['Mcp-Session-Id'] = sessionId;
     const response = await handleMcpRequest(new Request('https://omo.best/mcp', { method: 'POST', headers, body: JSON.stringify(body) }), env);
-    if (!sessionId && response.headers.get('Mcp-Session-Id')) sessionId = response.headers.get('Mcp-Session-Id');
     const json = response.status === 202 ? null : await response.json();
     return { id, response, json };
   }
 
   const initialized = await send('initialize', { protocolVersion: LATEST_PROTOCOL, capabilities: {}, clientInfo: { name: 'omo-selftest', version: '1' } });
   check('initialize negotiates protocol and matches id', initialized.json && initialized.json.id === initialized.id && initialized.json.result.protocolVersion === LATEST_PROTOCOL);
-  check('initialize returns a session id', /^mcp_/.test(sessionId));
+  check('initialize is stateless and does not issue an instance-local session id', !initialized.response.headers.get('Mcp-Session-Id'));
 
   const notification = await send('notifications/initialized', {}, { notification: true });
   check('initialized notification is accepted', notification.response.status === 202);
 
   const listed = await send('tools/list', {});
   const toolNames = listed.json && listed.json.result.tools.map((tool) => tool.name);
-  check('tools/list exposes all five tools', Array.isArray(toolNames) && TOOLS.every((tool) => toolNames.includes(tool.name)));
+  check('tools/list exposes all tools', Array.isArray(toolNames) && TOOLS.every((tool) => toolNames.includes(tool.name)));
 
   const search = await send('tools/call', { name: 'omo_search_helpers', arguments: { query: 'UGC video', category_or_niche: 'content' } });
   check('omo_search_helpers returns catalogue matches', search.json && search.json.result.structuredContent.count > 0);
@@ -961,19 +1120,43 @@ async function runSelfTest() {
 
   const detail = await send('tools/call', { name: 'omo_get_helper', arguments: { slug } });
   check('omo_get_helper returns inputs and workflow', detail.json && detail.json.result.structuredContent.inputs.length && detail.json.result.structuredContent.workflow.steps.length);
+  const demelloDetail = await send('tools/call', { name: 'omo_get_helper', arguments: { slug: DEMELLO_SLUG } });
+  check('omo_get_helper pins video own/run prices at $29/$0.10', demelloDetail.json && demelloDetail.json.result.structuredContent.priceOwn === 29 && demelloDetail.json.result.structuredContent.runPrice === 0.10);
 
   const run = await send('tools/call', { name: 'omo_run_helper', arguments: { slug, inputs: { brief: 'Self-test product', style: 'clean', length: '15 seconds' } } });
   check('omo_run_helper returns a mock result without service keys', run.json && run.json.result.structuredContent.ok && run.json.result.structuredContent.mock === true);
 
-  const balance = await send('tools/call', { name: 'omo_get_balance', arguments: { api_key_or_user: 'user_selftest' } });
-  check('omo_get_balance mirrors /api/me fields', balance.json && balance.json.result.structuredContent.balance_cents === 500 && /^omo_/.test(balance.json.result.structuredContent.api_key));
+  const demelloKey = `omo_${'a'.repeat(32)}`;
+  const demelloRun = await send('tools/call', { name: 'omo_run_helper', arguments: {
+    slug: DEMELLO_SLUG, inputs: { audio_ref: 'sample-demello-10s', duration_seconds: 10 },
+    api_key: demelloKey, idempotency_key: 'mcp-demello-selftest-001',
+  } });
+  const demelloStarted = demelloRun.json && demelloRun.json.result.structuredContent;
+  check('omo_run_helper returns async video run + zero-bill milestone metadata', demelloStarted && demelloStarted.run_id === demelloRunId && demelloStarted.progress_pct === 4 && demelloStarted.quoted_cost_usd === 0.10 && demelloStarted.billed_amount_usd === 0 && demelloStarted.input_notice);
 
-  const selftestKey = balance.json.result.structuredContent.api_key;
+  const demelloMissingIdempotency = await send('tools/call', { name: 'omo_run_helper', arguments: {
+    slug: DEMELLO_SLUG, inputs: { audio_ref: 'sample-demello-10s', duration_seconds: 10 }, api_key: demelloKey,
+  } });
+  check('hosted video run requires caller-owned idempotency key', demelloMissingIdempotency.json && demelloMissingIdempotency.json.error.code === -32602);
+
+  const demelloProgress = await send('tools/call', { name: 'omo_get_run_progress', arguments: { run_id: demelloRunId, api_key: demelloKey } });
+  check('omo_get_run_progress returns phase + monotonic percent + notice', demelloProgress.json && demelloProgress.json.result.structuredContent.phase === 'generating' && demelloProgress.json.result.structuredContent.progress_pct === 61 && demelloProgress.json.result.structuredContent.input_notice);
+
+  const demelloResult = await send('tools/call', { name: 'omo_get_run_result', arguments: { run_id: demelloRunId, api_key: demelloKey } });
+  check('omo_get_run_result returns delivered video + zero-bill metadata', demelloResult.json && demelloResult.json.result.structuredContent.ready === true && /video\.mp4$/.test(demelloResult.json.result.structuredContent.video_url) && demelloResult.json.result.structuredContent.billed_amount_usd === 0 && demelloResult.json.result.structuredContent.input_notice);
+
+  const provisioned = await getAccount(env, 'user_selftest', true);
+  const selftestKey = provisioned.api_key;
+  const balance = await send('tools/call', { name: 'omo_get_balance', arguments: { api_key: selftestKey } });
+  check('omo_get_balance requires key possession and never returns a credential', balance.json && balance.json.result.structuredContent.balance_cents === 500 && !Object.prototype.hasOwnProperty.call(balance.json.result.structuredContent, 'api_key'));
+
+  const arbitraryUserBalance = await send('tools/call', { name: 'omo_get_balance', arguments: { api_key: 'user_attacker' } });
+  check('omo_get_balance rejects arbitrary Clerk ids without provisioning', arbitraryUserBalance.json && arbitraryUserBalance.json.error.code === -32602 && !mockUsers.has('user_attacker'));
   const paidRun = await send('tools/call', { name: 'omo_run_helper', arguments: { slug, inputs: { brief: 'Credit debit test', style: 'clean', length: '15 seconds' }, api_key: selftestKey } });
   const paidResult = paidRun.json && paidRun.json.result && paidRun.json.result.structuredContent;
   check('omo_run_helper debits keyed runs', paidResult && paidResult.cost_debited_usd > 0 && paidResult.balance_usd === +(5 - paidResult.cost_debited_usd).toFixed(2));
 
-  const balanceAfter = await send('tools/call', { name: 'omo_get_balance', arguments: { api_key_or_user: selftestKey } });
+  const balanceAfter = await send('tools/call', { name: 'omo_get_balance', arguments: { api_key: selftestKey } });
   check('omo_get_balance reports debited credits and usage', balanceAfter.json && balanceAfter.json.result.structuredContent.balance_usd === paidResult.balance_usd && balanceAfter.json.result.structuredContent.runs.length === 1);
 
   const topup = await send('tools/call', { name: 'omo_topup_options', arguments: {} });

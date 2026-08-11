@@ -423,6 +423,23 @@
     .credit-empty .button { min-height: 42px; }
     .demo-result { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--rule); }
     .demo-raw { max-height: 320px; margin: 0; overflow: auto; white-space: pre-wrap; padding: 14px; border-radius: 12px; background: var(--canvas); font: 12.5px/1.5 ui-monospace, monospace; }
+    .run-progress { margin-top: 16px; padding: 15px; border: 1px solid var(--rule); border-radius: 12px; background: var(--canvas); }
+    .run-progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
+    .run-phase { font-size: 13.5px; font-weight: 700; }
+    .run-percent { color: var(--moss); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    .run-progress-track { height: 9px; overflow: hidden; border-radius: 999px; background: #DCE6DF; }
+    .run-progress-bar { width: 0; height: 100%; border-radius: inherit; background: var(--orange); transition: width .45s ease; }
+    .run-progress.is-indeterminate .run-progress-bar { width: 38%; animation: run-progress-sweep 1.2s ease-in-out infinite; }
+    .run-id { margin: 9px 0 0; overflow-wrap: anywhere; color: var(--moss); font: 11.5px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    @keyframes run-progress-sweep { from { transform: translateX(-110%); } to { transform: translateX(265%); } }
+    .video-result { display: grid; gap: 12px; }
+    .result-badge { width: max-content; padding: 5px 10px; border-radius: 999px; background: var(--mint); color: var(--pine); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+    .result-badge.is-mock { background: #FFF1EC; color: #8C2E16; }
+    .delivered-video, .mock-video-poster { width: min(100%, 320px); aspect-ratio: 9 / 16; justify-self: center; border: 1px solid var(--rule); border-radius: 14px; background: #111; object-fit: cover; }
+    .result-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .result-actions .button { min-height: 46px; }
+    .result-actions > :only-child { grid-column: 1 / -1; }
+    .mock-result-note { margin: 0; color: var(--moss); font-size: 13px; }
     /* Sign-in gate. */
     .gate { padding: 110px 0 140px; text-align: center; }
     .gate-mark { width: 52px; height: 52px; margin: 0 auto 18px; display: grid; place-items: center; border-radius: 14px; background: var(--mint); font-size: 24px; }
@@ -535,7 +552,7 @@
         <header class="catalog-head">
           <p class="eyebrow">Your helper catalogue</p>
           <h1 class="catalog-title" id="catalog-title">Discover <em>useful helpers.</em></h1>
-          <p class="catalog-sub">Search 21 real workflows, run one on our cloud, or buy it once and make it yours.</p>
+          <p class="catalog-sub">Search <span id="catalog-count">our</span> real workflows, run one on our cloud, or buy it once and make it yours.</p>
           <div class="catalog-tools">
             <form class="search-form" id="search-form" role="search" aria-label="Search helpers">
               <input class="search-input" id="search-input" type="search" name="q" placeholder="Search UGC, Shopify, SEO, video…" aria-label="Search helpers" autocomplete="off">
@@ -646,6 +663,7 @@
         if (igMore[i] && igMore[i].slug && !PRODUCTS[igMore[i].slug]) PRODUCTS[igMore[i].slug] = igMore[i];
       }
       var slugs = Object.keys(PRODUCTS);
+      if (el('catalog-count')) el('catalog-count').textContent = slugs.length;
       var pendingOpenSlug = '';
       try { pendingOpenSlug = new URLSearchParams(window.location.search || '').get('open') || ''; } catch (e) {}
 
@@ -819,7 +837,7 @@
         var labels = {
           brief: 'Brief', scenes: 'Scenes', style: 'Style', product_url: 'Product URL', claim: 'Claim',
           photo_desc: 'Photo', usages: 'Use cases', image_descs: 'Images', store: 'Store', product: 'Product',
-          mood: 'Mood', character: 'Character', tone: 'Tone', length: 'Length'
+          mood: 'Mood', character: 'Character', tone: 'Tone', length: 'Length', audio: 'Audio source', duration: 'Duration'
         };
         return labels[key] || key.replace(/[_-]+/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); });
       }
@@ -828,6 +846,7 @@
         if (key === 'brief') return 'e.g. product + hook + audience';
         if (key === 'scenes') return 'e.g. 3';
         if (key === 'style') return 'e.g. playful, cinematic';
+        if (key === 'audio') return 'Hosted milestone: sample-demello-10s';
         if (/length|duration|seconds|runtime|time/.test(hint)) return 'e.g. 30 seconds';
         if (/style|mood|creative direction|visual/.test(hint)) return 'e.g. playful, cinematic';
         if (/scene|frame|shot|count|number|quantity/.test(hint)) return 'e.g. 3';
@@ -848,17 +867,30 @@
           var key = sep === -1 ? inputs[j].trim() : inputs[j].slice(0, sep).trim();
           var label = sep === -1 ? key : inputs[j].slice(sep + 1).trim();
           var clearLabel = inputLabel(key);
+          var initialValue = '';
+          if (p.slug === 'japanese-style-story-video' && key === 'audio') initialValue = 'sample-demello-10s';
+          if (p.slug === 'japanese-style-story-video' && key === 'style') initialValue = 'sumi-e';
+          if (p.slug === 'japanese-style-story-video' && key === 'duration') initialValue = '10 seconds';
           fields.push('<div class="demo-field"><label class="field-label" for="demo-field-' + j + '">' + esc(clearLabel) + '</label>' +
-            '<textarea class="demo-textarea" id="demo-field-' + j + '" data-demo-field data-key="' + esc(key) + '" data-label="' + esc(clearLabel) + '" placeholder="' + esc(inputPlaceholder(key, label)) + '" required></textarea></div>');
+            '<textarea class="demo-textarea" id="demo-field-' + j + '" data-demo-field data-key="' + esc(key) + '" data-label="' + esc(clearLabel) + '" placeholder="' + esc(inputPlaceholder(key, label)) + '" required>' + esc(initialValue) + '</textarea></div>');
         }
         var price = '$' + (p.runPrice || p.priceRun);
+        var progress = p.slug === 'japanese-style-story-video'
+          ? '<div class="run-progress is-indeterminate" data-run-progress hidden><div class="run-progress-head"><span class="run-phase" data-run-phase>Starting…</span><span class="run-percent" data-run-percent>Connecting…</span></div>' +
+            '<div class="run-progress-track" data-run-track role="progressbar" aria-label="Video workflow progress" aria-valuemin="0" aria-valuemax="100"><div class="run-progress-bar" data-run-bar></div></div>' +
+            '<p class="run-id" data-run-id hidden></p></div>'
+          : '';
+        var billingNote = p.slug === 'japanese-style-story-video'
+          ? 'Measured run quote: $0.10. This hosted milestone is not paid-traffic-ready, so it currently bills $0 while the safety gate remains closed.'
+          : 'You pay per run from your credits. Omo handles the hosting, service keys, and setup.';
         return '<div class="demo-box sig-cut"><div class="demo-head"><div><p class="run-eyebrow">Cloud workflow</p><h3>Run it now</h3></div><span class="run-price">&asymp; ' + esc(price) + ' / run</span></div>' +
-          '<p class="demo-note">You pay per run from your credits. Omo handles the hosting, service keys, and setup.</p>' +
+          '<p class="demo-note">' + esc(billingNote) + '</p>' +
           '<form data-demo-form data-slug="' + esc(p.slug) + '" novalidate><div class="demo-row">' + fields.join('') + '</div>' +
           '<button class="button button-primary demo-run" type="submit">Run on our cloud — &asymp; ' + esc(price) + ' / run</button>' +
           '<a class="button button-secondary demo-buy" href="#" data-action="buy">' + (isFreeListing(p) ? 'Download — Free' : 'Buy — $' + p.priceOwn) + '</a>' +
           '<p class="run-usage">Runs from your balance &middot; $5 free when you join</p>' +
           '<p class="demo-status" data-demo-status role="status" aria-live="polite"></p>' +
+          progress +
           '<div class="credit-empty" data-credit-empty hidden><strong>You\'re out of credits</strong>' +
           '<p>Top up $20, $50, $100, or a custom amount (minimum $5).</p>' +
           '<button class="button button-secondary button-block" type="button" data-action="topup-credits">Top up credits</button></div></form>' +
@@ -896,6 +928,7 @@
       }
       function openDialog(p, focusDemo) {
         if (!p || !dialog || !dialogBody) return;
+        cancelActiveVideoRun();
         currentSlug = p.slug; lastTrigger = document.activeElement;
         dialogBody.innerHTML = detailHTML(p);
         if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -945,8 +978,347 @@
         return '<pre class="demo-raw">' + esc(JSON.stringify(output, null, 2)) + '</pre>';
       }
 
+      var VIDEO_SLUG = 'japanese-style-story-video';
+      var activeVideoRun = null;
+      function workerBase() { return API_BASE || 'https://cognition-demo.pages.dev'; }
+      function cancelActiveVideoRun() {
+        if (!activeVideoRun) return;
+        activeVideoRun.cancelled = true;
+        if (activeVideoRun.timer) window.clearTimeout(activeVideoRun.timer);
+        activeVideoRun = null;
+      }
+      function getClerkSessionToken() {
+        if (window.Clerk && window.Clerk.session && typeof window.Clerk.session.getToken === 'function') {
+          return window.Clerk.session.getToken().then(function (token) {
+            if (!token) throw new Error('Your sign-in session has expired. Sign in again.');
+            return token;
+          });
+        }
+        return Promise.reject(new Error('A verified sign-in session is not available.'));
+      }
+      function authenticatedRunHeaders(idempotencyKey) {
+        var headers = { 'Content-Type': 'application/json' };
+        if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+        return getClerkSessionToken().then(function (token) {
+          headers.Authorization = 'Bearer ' + token;
+          return headers;
+        }).catch(function (error) {
+          if (account && account.mode === 'server' && /^omo_[A-Za-z0-9_-]+$/.test(account.apiKey || '')) {
+            headers.Authorization = 'Bearer ' + account.apiKey;
+            return headers;
+          }
+          throw error;
+        });
+      }
+      function newIdempotencyKey() {
+        try { if (window.crypto && typeof window.crypto.randomUUID === 'function') return 'dashboard-' + window.crypto.randomUUID(); } catch (e) {}
+        return 'dashboard-' + Date.now() + '-' + Math.random().toString(36).slice(2, 14);
+      }
+      function videoPayload(payload) {
+        var fields = payload.fields || {};
+        var audio = String(fields.audio || '').trim();
+        var requestedStyle = String(fields.style || 'sumi-e').trim().toLowerCase();
+        if (['sumi-e-awake-v3', 'sumi-e', 'japanese ink', 'japanese-style'].indexOf(requestedStyle) === -1) {
+          throw new Error('This release is pinned to sumi-e. Use “sumi-e” for the style.');
+        }
+        var durationText = String(fields.duration || '10');
+        var matches = durationText.match(/\d+(?:\.\d+)?/g) || [];
+        var first = matches.length ? Number(matches[0]) : 10;
+        var last = matches.length > 1 ? Number(matches[matches.length - 1]) : first;
+        var minSeconds = Math.max(5, Math.min(20, matches.length > 1 ? first : 5));
+        var maxSeconds = Math.max(minSeconds, Math.max(5, Math.min(20, last)));
+        var input = { style: 'sumi-e-awake-v3', duration_bounds: { min_seconds: minSeconds, max_seconds: maxSeconds } };
+        if (audio === 'sample-demello-10s') input.audio_ref = audio;
+        else throw new Error('Hosted staging currently accepts only sample-demello-10s. Arbitrary audio stays gated until provider benchmarks and pre-spend controls pass.');
+        payload.fields = {
+          style: input.style,
+          duration_bounds: input.duration_bounds
+        };
+        if (input.audio_ref) payload.fields.audio_ref = input.audio_ref;
+        return payload;
+      }
+      function runRecord(data) {
+        return data && data.run && typeof data.run === 'object' ? data.run : (data || {});
+      }
+      function runIdFrom(data) {
+        var run = runRecord(data);
+        return String(run.run_id || run.id || (data && data.run_id) || '');
+      }
+      function runStatus(data) {
+        var run = runRecord(data);
+        return String(run.status || (data && data.status) || '').toLowerCase();
+      }
+      function runPhase(data) {
+        var run = runRecord(data);
+        return String(run.phase || run.current_phase || (data && data.phase) || runStatus(data) || 'running').toLowerCase();
+      }
+      function runProgressValue(data) {
+        var run = runRecord(data);
+        var value = run.progress_pct;
+        if (value == null) value = run.progress_percent;
+        if (value == null && typeof run.progress === 'number') value = run.progress;
+        if (value == null && data && data !== run) value = data.progress_pct;
+        value = Number(value);
+        if (!isFinite(value)) return null;
+        if (value > 0 && value <= 1) value *= 100;
+        return Math.max(0, Math.min(100, Math.round(value)));
+      }
+      function phaseCopy(phase) {
+        var labels = {
+          reserved: 'Run reserved…', queued: 'Waiting for a runner…', running: 'Starting the workflow…',
+          transcribing: 'Transcribing…', directing: 'Directing the story…', generating: 'Generating frames…',
+          assembling: 'Assembling video…', delivering: 'Preparing your download…', delivered: 'Video delivered',
+          completed: 'Video delivered', succeeded: 'Video delivered', failed: 'Run failed', cancelled: 'Run cancelled'
+        };
+        return labels[phase] || phase.replace(/[_-]+/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); }) + '…';
+      }
+      function phaseProgress(phase) {
+        var defaults = { reserved: 5, queued: 8, running: 12, transcribing: 22, directing: 38, generating: 62, assembling: 88, delivering: 96, delivered: 100, completed: 100, succeeded: 100 };
+        return defaults[phase] == null ? null : defaults[phase];
+      }
+      function showVideoProgress(form, data, forceIndeterminate) {
+        var box = form.querySelector('[data-run-progress]');
+        if (!box) return;
+        var phase = runPhase(data);
+        var progress = runProgressValue(data);
+        if (progress == null && !forceIndeterminate) progress = phaseProgress(phase);
+        box.hidden = false;
+        var phaseNode = box.querySelector('[data-run-phase]');
+        var percentNode = box.querySelector('[data-run-percent]');
+        var track = box.querySelector('[data-run-track]');
+        var bar = box.querySelector('[data-run-bar]');
+        if (phaseNode) phaseNode.textContent = phaseCopy(phase);
+        if (progress == null || forceIndeterminate) {
+          box.classList.add('is-indeterminate');
+          if (bar) { bar.style.width = ''; bar.style.transform = ''; }
+          if (percentNode) percentNode.textContent = 'Connecting…';
+          if (track) track.removeAttribute('aria-valuenow');
+          return;
+        }
+        form._runProgressValue = Math.max(Number(form._runProgressValue) || 0, progress);
+        progress = form._runProgressValue;
+        box.classList.remove('is-indeterminate');
+        if (percentNode) percentNode.textContent = progress + '%';
+        if (bar) { bar.style.transform = ''; bar.style.width = progress + '%'; }
+        if (track) track.setAttribute('aria-valuenow', String(progress));
+        var id = runIdFrom(data);
+        var idNode = box.querySelector('[data-run-id]');
+        if (idNode && id) { idNode.hidden = false; idNode.textContent = 'Run ' + id; }
+      }
+      function safeMediaUrl(value) {
+        if (!value) return '';
+        try {
+          var parsed = new URL(String(value), window.location.href);
+          if (parsed.protocol === 'https:' || (parsed.origin === window.location.origin && parsed.protocol === 'http:')) return parsed.href;
+        } catch (e) {}
+        return '';
+      }
+      function videoUrlFrom(data) {
+        var run = runRecord(data);
+        var result = run.result && typeof run.result === 'object' ? run.result : {};
+        var output = run.output && typeof run.output === 'object' ? run.output : {};
+        var topResult = data && data.result && typeof data.result === 'object' ? data.result : {};
+        var topOutput = data && data.output && typeof data.output === 'object' ? data.output : {};
+        return safeMediaUrl(run.video_url || result.video_url || output.video_url || topResult.video_url || topOutput.video_url || (data && data.video_url));
+      }
+      function renderDeliveredVideo(form, product, data) {
+        var resultBox = form.parentElement.querySelector('[data-demo-result]');
+        var status = form.querySelector('[data-demo-status]');
+        var url = videoUrlFrom(data);
+        showVideoProgress(form, { status: 'delivered', phase: 'delivered', progress_pct: 100, run_id: runIdFrom(data) });
+        if (!url) {
+          status.setAttribute('data-state', 'error');
+          status.textContent = 'The run finished, but its signed video link was missing. Check the run again before retrying.';
+          form.querySelector('.demo-run').disabled = false;
+          return;
+        }
+        resultBox.innerHTML = '<div class="video-result"><span class="result-badge">Delivered</span>' +
+          '<video class="delivered-video" controls playsinline preload="metadata" poster="' + esc(product.cover || '') + '"><source src="' + esc(url) + '" type="video/mp4">Your browser cannot play this MP4.</video>' +
+          '<div class="result-actions"><a class="button button-primary" href="' + esc(url) + '" target="_blank" rel="noopener" download>Download MP4</a>' +
+          '<button class="button button-secondary" type="button" data-action="run-again">Run again</button></div></div>';
+        resultBox.hidden = false;
+        status.removeAttribute('data-state');
+        status.textContent = 'Done — your video is ready to play and download.';
+      }
+      function renderMockVideo(form, product) {
+        var resultBox = form.parentElement.querySelector('[data-demo-result]');
+        var status = form.querySelector('[data-demo-status]');
+        resultBox.innerHTML = '<div class="video-result"><span class="result-badge is-mock">Simulation only</span>' +
+          '<img class="mock-video-poster" src="' + esc(product.cover || '') + '" alt="Placeholder preview; no video was generated">' +
+          '<p class="mock-result-note"><strong>Preview complete.</strong> This page was already in local demo mode before submission, so this was a progress simulation. No cloud request was sent, no video was generated, and no credits were charged.</p>' +
+          '<div class="result-actions"><button class="button button-secondary" type="button" data-action="run-again">Run the simulation again</button></div></div>';
+        resultBox.hidden = false;
+        status.removeAttribute('data-state');
+        status.textContent = 'Simulation complete — reconnect to generate the real MP4.';
+      }
+      function resetVideoRun(form) {
+        cancelActiveVideoRun();
+        form._runProgressValue = 0;
+        var progress = form.querySelector('[data-run-progress]');
+        if (progress) {
+          progress.hidden = true; progress.classList.add('is-indeterminate');
+          var bar = progress.querySelector('[data-run-bar]');
+          if (bar) { bar.style.width = ''; bar.style.transform = ''; }
+        }
+        var resultBox = form.parentElement.querySelector('[data-demo-result]');
+        if (resultBox) { resultBox.hidden = true; resultBox.innerHTML = ''; }
+        var status = form.querySelector('[data-demo-status]');
+        if (status) { status.textContent = ''; status.removeAttribute('data-state'); }
+        var button = form.querySelector('.demo-run');
+        if (button) { button.disabled = false; button.textContent = 'Run on our cloud — ≈ $' + (PRODUCTS[VIDEO_SLUG].runPrice || PRODUCTS[VIDEO_SLUG].priceRun) + ' / run'; }
+      }
+      function startMockVideoRun(form, product) {
+        cancelActiveVideoRun();
+        var token = { cancelled: false, timer: null, mock: true };
+        activeVideoRun = token;
+        var steps = [
+          { phase: 'reserved', progress_pct: 6 }, { phase: 'transcribing', progress_pct: 22 },
+          { phase: 'directing', progress_pct: 40 }, { phase: 'generating', progress_pct: 68 },
+          { phase: 'assembling', progress_pct: 90 }, { phase: 'delivered', progress_pct: 100 }
+        ];
+        var index = 0;
+        function advance() {
+          if (token.cancelled) return;
+          showVideoProgress(form, steps[index]);
+          index++;
+          if (index < steps.length) token.timer = window.setTimeout(advance, 700);
+          else { activeVideoRun = null; renderMockVideo(form, product); }
+        }
+        advance();
+      }
+      function pollVideoRun(form, product, runId, initialData) {
+        cancelActiveVideoRun();
+        var token = { cancelled: false, timer: null, failures: 0, runId: runId };
+        activeVideoRun = token;
+        showVideoProgress(form, initialData || { run_id: runId, phase: 'reserved', progress_pct: 5 });
+        function queue(delay) { token.timer = window.setTimeout(check, delay); }
+        function check() {
+          if (token.cancelled) return;
+          authenticatedRunHeaders('').then(function (headers) {
+            return fetch(workerBase() + '/api/run/' + encodeURIComponent(runId), { headers: headers });
+          })
+            .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, status: response.status, data: data }; }); })
+            .then(function (result) {
+              if (token.cancelled) return;
+              var data = result.data || {};
+              var status = runStatus(data);
+              if (status === 'failed' || status === 'refunded' || status === 'cancelled') {
+                activeVideoRun = null;
+                showVideoProgress(form, data);
+                var failedNode = form.querySelector('[data-demo-status]');
+                failedNode.setAttribute('data-state', 'error');
+                var noCharge = data.billing_mode === 'nonpaid_milestone' || Number(data.billed_amount_usd) === 0;
+                failedNode.textContent = (data.message || data.reason || data.error || 'The video run did not complete.') + (noCharge ? ' No credits were charged.' : ' Reserved credits were released.');
+                form.querySelector('.demo-run').disabled = false;
+                return;
+              }
+              if (!result.ok) {
+                if (result.status === 401 || result.status === 403) throw { terminal: true, message: 'Your session can no longer read this run. Sign in again, then retry.' };
+                throw { terminal: false, message: 'Run status is temporarily unavailable.' };
+              }
+              token.failures = 0;
+              showVideoProgress(form, data);
+              if (status === 'delivered' || status === 'completed' || status === 'succeeded') {
+                activeVideoRun = null;
+                renderDeliveredVideo(form, product, data);
+                return;
+              }
+              queue(1250);
+            }).catch(function (error) {
+              if (token.cancelled) return;
+              if (error && error.terminal) {
+                activeVideoRun = null;
+                var statusNode = form.querySelector('[data-demo-status]');
+                statusNode.setAttribute('data-state', 'error'); statusNode.textContent = error.message;
+                form.querySelector('.demo-run').disabled = false;
+                return;
+              }
+              token.failures++;
+              var phaseNode = form.querySelector('[data-run-phase]');
+              if (phaseNode) phaseNode.textContent = 'Connection interrupted — retrying…';
+              queue(Math.min(8000, 750 * Math.pow(2, Math.min(token.failures, 4))));
+            });
+        }
+        queue(900);
+      }
+      function submitVideoRun(form, product, payload, status, resultBox, runButton, creditEmpty) {
+        cancelActiveVideoRun();
+        form._runProgressValue = 0;
+        try { payload = videoPayload(payload); }
+        catch (error) {
+          resetVideoRun(form); status.setAttribute('data-state', 'error'); status.textContent = error.message;
+          return;
+        }
+        if (account.mode === 'mock') {
+          status.textContent = 'Local demo mode — showing a clearly marked simulation. No cloud request will be sent.';
+          startMockVideoRun(form, product);
+          return;
+        }
+        if (account.mode !== 'server') {
+          resetVideoRun(form); status.setAttribute('data-state', 'error');
+          status.textContent = 'Your verified account session is unavailable. Sign in again before submitting a cloud run.';
+          return;
+        }
+        showVideoProgress(form, { phase: 'running' }, true);
+        var payloadJson = JSON.stringify(payload);
+        var pending = form._pendingVideoSubmission;
+        if (!pending || pending.payloadJson !== payloadJson) pending = { idempotencyKey: newIdempotencyKey(), payloadJson: payloadJson };
+        form._pendingVideoSubmission = pending;
+        function uncertain(message) {
+          status.setAttribute('data-state', 'error');
+          status.textContent = message + ' The submission outcome is unknown; “Reconcile run” safely reuses the same idempotency key.';
+          runButton.disabled = false; runButton.textContent = 'Reconcile run';
+        }
+        function attempt(retriesLeft) {
+          authenticatedRunHeaders(pending.idempotencyKey).then(function (headers) {
+            return fetch(workerBase() + '/api/run', { method: 'POST', headers: headers, body: pending.payloadJson });
+          })
+          .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, status: response.status, data: data }; }); })
+          .then(function (result) {
+            if (result.status === 402 || result.data.error === 'insufficient_balance') {
+              form._pendingVideoSubmission = null;
+              resetVideoRun(form); status.textContent = ''; if (creditEmpty) creditEmpty.hidden = false; return;
+            }
+            var terminalStatus = runStatus(result.data);
+            if (terminalStatus === 'failed' || terminalStatus === 'refunded' || terminalStatus === 'cancelled') {
+              form._pendingVideoSubmission = null;
+              resetVideoRun(form); status.setAttribute('data-state', 'error');
+              var noCharge = result.data.billing_mode === 'nonpaid_milestone' || Number(result.data.billed_amount_usd) === 0;
+              status.textContent = (result.data.message || result.data.reason || result.data.error || 'The video run did not start.') + (noCharge ? ' No credits were charged.' : ' Reserved credits were released.');
+              return;
+            }
+            if (!result.ok || result.data.ok === false) {
+              if (result.status >= 500) { uncertain(result.data.message || 'The cloud returned an uncertain server response.'); return; }
+              form._pendingVideoSubmission = null;
+              resetVideoRun(form); status.setAttribute('data-state', 'error');
+              status.textContent = result.data.message || result.data.error || 'The video workflow could not start.'; return;
+            }
+            form._pendingVideoSubmission = null;
+            var runId = runIdFrom(result.data);
+            var currentStatus = runStatus(result.data);
+            if (currentStatus === 'delivered' || currentStatus === 'completed' || currentStatus === 'succeeded') {
+              renderDeliveredVideo(form, product, result.data); return;
+            }
+            if (!runId) {
+              resetVideoRun(form); status.setAttribute('data-state', 'error');
+              status.textContent = 'The cloud runner responded without a run ID. Nothing else was submitted.'; return;
+            }
+            status.textContent = 'Your run is active. You can watch each phase here.';
+            pollVideoRun(form, product, runId, result.data);
+          }).catch(function (error) {
+            if (retriesLeft > 0) {
+              status.textContent = 'Connection interrupted after submission — reconciling with the same idempotency key…';
+              window.setTimeout(function () { attempt(retriesLeft - 1); }, 650);
+              return;
+            }
+            uncertain(error && error.message ? error.message : 'The network disconnected after submission.');
+          });
+        }
+        attempt(1);
+      }
+
       /* Credits and API key logic retained from the previous dashboard. */
-      var account = { mode: 'mock', userId: '', balanceUsd: 5, apiKey: '', runs: [] };
+      var account = { mode: 'unavailable', userId: '', balanceUsd: 0, apiKey: '', runs: [] };
       var chosenAmount = 20;
       var revealed = false;
       var refreshAfterTopup = window.location.search && window.location.search.indexOf('topup=success') !== -1;
@@ -1004,25 +1376,34 @@
         try { var raw = lsGet(USE_KEY); if (raw) { var runs = JSON.parse(raw); if (Array.isArray(runs)) account.runs = runs; } } catch (e) {}
         lsSet(BAL_KEY, String(account.balanceUsd)); lsSet(KEY_KEY, account.apiKey); renderAccount();
       }
+      function markAccountUnavailable(message) {
+        account.mode = 'unavailable'; account.balanceUsd = 0; account.apiKey = ''; account.runs = [];
+        renderAccount();
+        var note = el('topup-note');
+        if (note) { note.textContent = message || 'Your verified account session is unavailable. Sign in again.'; note.className = 'form-note is-err'; }
+      }
       function loadAccount(user) {
         account.userId = user.id; lsSet(SEEN_KEY, '1');
         var canFetch = typeof fetch === 'function' && window.location && window.location.protocol !== 'file:';
         if (!canFetch) { loadMock(user); return; }
-        fetch(API_BASE + '/api/me?user_id=' + encodeURIComponent(user.id))
-          .then(function (response) { return response.json().catch(function () { return {}; }); })
-          .then(function (data) {
-            if (!data || !data.ok) { loadMock(user); return; }
+        getClerkSessionToken().then(function (token) {
+          return fetch(API_BASE + '/api/me', { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' } });
+        })
+          .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, data: data }; }); })
+          .then(function (result) {
+            var data = result.data || {};
+            if (!result.ok || !data.ok) { markAccountUnavailable(data.message || 'Your verified account session could not be loaded. Sign in again.'); return; }
             account.mode = 'server';
             account.balanceUsd = Number(data.balance_usd != null ? data.balance_usd : data.balance);
-            account.apiKey = data.api_key || defaultKey(user.id);
+            account.apiKey = data.api_key || '';
             account.runs = data.runs || [];
-            lsSet(BAL_KEY, String(account.balanceUsd)); lsSet(KEY_KEY, account.apiKey); lsSet(USE_KEY, JSON.stringify(account.runs));
+            lsSet(BAL_KEY, String(account.balanceUsd)); if (account.apiKey) lsSet(KEY_KEY, account.apiKey); lsSet(USE_KEY, JSON.stringify(account.runs));
             renderAccount();
             if (refreshAfterTopup) {
               refreshAfterTopup = false;
               setTimeout(function () { loadAccount(user); }, 1500);
             }
-          }).catch(function () { loadMock(user); });
+          }).catch(function (error) { markAccountUnavailable(error && error.message); });
       }
       function showGate() {
         if (el('signin-gate')) el('signin-gate').hidden = false;
@@ -1065,6 +1446,20 @@
         }
         amount = cents / 100;
         if (button) button.disabled = true;
+        if (account.mode === 'server') {
+          authenticatedRunHeaders('').then(function (headers) {
+            return fetch((API_BASE || '') + '/api/topup', {
+              method: 'POST', headers: headers,
+              body: JSON.stringify({ amount_usd: amount })
+            });
+          }).then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, data: data }; });
+          }).then(function (result) {
+            if (!result.ok || !result.data.url) throw new Error(result.data.error || 'Checkout could not start right now.');
+            window.location.assign(result.data.url);
+          }).catch(function (error) { done(error && error.message ? error.message : 'Checkout could not start right now.', false); });
+          return;
+        }
         if (window.StripePay && typeof StripePay.topup === 'function') {
           StripePay.topup(amount, {
             onSuccess: function (result) {
@@ -1141,6 +1536,12 @@
         }
         if (dialogBody) {
           dialogBody.addEventListener('click', function (event) {
+            var runAgain = event.target.closest('[data-action="run-again"]');
+            if (runAgain) {
+              var videoForm = dialogBody.querySelector('[data-demo-form][data-slug="' + VIDEO_SLUG + '"]');
+              if (videoForm) { resetVideoRun(videoForm); videoForm.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+              return;
+            }
             var vote = event.target.closest('[data-upvote]');
             if (vote) { toggleVote(vote.getAttribute('data-upvote')); return; }
             var topup = event.target.closest('[data-action="topup-credits"]');
@@ -1177,7 +1578,13 @@
             runButton.disabled = true; runButton.textContent = 'Running on our cloud…';
             status.removeAttribute('data-state'); status.textContent = ''; resultBox.hidden = true;
             if (creditEmpty) creditEmpty.hidden = true;
-            fetch((API_BASE || 'https://cognition-demo.pages.dev') + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+            if (product.slug === VIDEO_SLUG) {
+              submitVideoRun(form, product, payload, status, resultBox, runButton, creditEmpty);
+              return;
+            }
+            (account.mode === 'mock' ? Promise.resolve({ 'Content-Type': 'application/json' }) : authenticatedRunHeaders(newIdempotencyKey())).then(function (headers) {
+              return fetch((API_BASE || 'https://cognition-demo.pages.dev') + '/api/run', { method: 'POST', headers: headers, body: JSON.stringify(payload) });
+            })
               .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { status: response.status, data: data }; }); })
               .then(function (result) {
                 if (result.status === 402 || result.data.error === 'insufficient_balance') {
@@ -1191,10 +1598,10 @@
               .finally(function () { runButton.disabled = false; runButton.textContent = 'Run on our cloud — ≈ $' + (product.runPrice || product.priceRun) + ' / run'; });
           });
         }
-        if (closeBtn) closeBtn.addEventListener('click', function () { if (dialog.close) dialog.close(); else dialog.removeAttribute('open'); });
+        if (closeBtn) closeBtn.addEventListener('click', function () { cancelActiveVideoRun(); if (dialog.close) dialog.close(); else dialog.removeAttribute('open'); });
         if (dialog) {
-          dialog.addEventListener('close', function () { if (lastTrigger && lastTrigger.focus) lastTrigger.focus({ preventScroll: true }); });
-          dialog.addEventListener('click', function (event) { if (event.target === dialog && dialog.close) dialog.close(); });
+          dialog.addEventListener('close', function () { cancelActiveVideoRun(); if (lastTrigger && lastTrigger.focus) lastTrigger.focus({ preventScroll: true }); });
+          dialog.addEventListener('click', function (event) { if (event.target === dialog && dialog.close) { cancelActiveVideoRun(); dialog.close(); } });
         }
 
         var amountChips = document.querySelectorAll('.amount-chip');

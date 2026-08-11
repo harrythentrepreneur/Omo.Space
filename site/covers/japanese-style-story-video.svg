@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Japanese Style Story Video</title>
+  <desc id="desc">Black ink line art on pure white: an audio waveform becomes five drawing stages inside a portrait video frame.</desc>
+
+  <rect width="1200" height="675" fill="#fff"/>
+  <g fill="none" stroke="#111" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Input audio. -->
+    <circle cx="150" cy="274" r="76" stroke-width="4"/>
+    <path d="M92 276h15l10-31 15 62 16-88 15 72 14-42 14 27h18" stroke-width="6"/>
+    <path d="M238 274h126" stroke-width="4" stroke-dasharray="8 14"/>
+    <path d="m345 258 20 16-20 16" stroke-width="4"/>
+
+    <!-- Delivered 9:16 video frame. -->
+    <rect x="405" y="34" width="390" height="607" rx="30" stroke-width="5"/>
+    <rect x="429" y="60" width="342" height="555" rx="12" stroke-width="2"/>
+
+    <!-- Unfilled sumi-e line drawing: sun, branch, water and mountains. -->
+    <circle cx="667" cy="156" r="54" stroke-width="5"/>
+    <path d="M450 432c45-49 78-81 116-118 27-25 48-9 67 28 20 39 41 30 62-3 18-29 41-23 58 10" stroke-width="7"/>
+    <path d="M451 472c56-37 94-33 132-3 37 29 68 21 99-6 27-24 51-21 72-4" stroke-width="4"/>
+    <path d="M449 514c58-18 105-9 152-18 54-11 98-4 154-13" stroke-width="3"/>
+    <path d="M468 239c54-23 91-58 118-112" stroke-width="9"/>
+    <path d="M507 220c-22-28-27-59-17-91m48 59c30-17 53-42 63-70m-37 48c0-32 13-59 32-79" stroke-width="4"/>
+    <path d="M484 162l-21-10m36-18-18-19m71 16-20-13m46-15-6-22m24 28 20-15" stroke-width="4"/>
+
+    <!-- Authored frame progression within the output. -->
+    <rect x="455" y="546" width="290" height="42" rx="11" stroke-width="2"/>
+    <path d="M475 568h20l8-14 11 27 11-21 10 8h20l8-17 11 30 11-16h22l9-11 10 22 12-24 10 16h27" stroke-width="3"/>
+
+    <!-- Five visible progress checkpoints. -->
+    <path d="M855 274h238" stroke-width="4"/>
+    <circle cx="855" cy="274" r="10" stroke-width="4"/>
+    <circle cx="914" cy="274" r="10" stroke-width="4"/>
+    <circle cx="974" cy="274" r="10" stroke-width="4"/>
+    <circle cx="1033" cy="274" r="10" stroke-width="4"/>
+    <circle cx="1093" cy="274" r="10" stroke-width="4"/>
+    <path d="M855 306h34m42 0h34m42 0h34m42 0h34" stroke-width="6"/>
+
+    <!-- Video delivery cue. -->
+    <rect x="890" y="382" width="168" height="112" rx="16" stroke-width="5"/>
+    <path d="m955 416 48 22-48 22z" stroke-width="5"/>
+    <path d="M850 438h-54" stroke-width="4" stroke-dasharray="8 13"/>
+    <path d="m813 422-20 16 20 16" stroke-width="4"/>
+  </g>
+</svg>

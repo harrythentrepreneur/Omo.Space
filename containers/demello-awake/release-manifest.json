@@ -2,23 +2,23 @@
   "schema_version": "omo.release-manifest/v1-draft",
   "workflow_slug": "demello-awake",
   "workflow_version": "demello-awake@0.1.0",
-  "release_hash": "sha256:aa5c370cafa96520c47f35b568b821805605796f8dfcc542516b94338d9c8123",
-  "release_hash_short": "aa5c370cafa9",
+  "release_hash": "sha256:bdab144b977aee48ecb383041cd4eaa2a7ea454ea7577c15ece41f7d7f59861d",
+  "release_hash_short": "bdab144b977a",
   "modal_app_name_template": "omo-demello-awake-<release_hash_short>",
-  "status": "candidate-ready-for-private-modal-deploy",
+  "status": "private-staging-deployment",
   "environment": "staging",
   "traffic_percentage": 0,
   "promotion_authorized": false,
   "rollback_target": "disabled-zero-traffic",
   "compiler": {
-    "name": "manual-normalized-tree-hasher",
-    "version": "1",
-    "reproducible_clean_compiles": 1
+    "name": "release_hash.py",
+    "version": "2",
+    "reproducible_clean_compiles": 2
   },
   "hash_contract": {
     "algorithm": "sha256",
     "path_order": "sorted UTF-8 relative paths",
-    "serialization": "canonical JSON plus normalized YAML/text",
+    "serialization": "canonical JSON plus LF-normalized YAML/text",
     "line_endings": "LF",
     "symlink_policy": "reject",
     "timestamps_included": false,
@@ -46,6 +46,7 @@
   "models": [
     {"provider": "openai", "model": "gpt-4o-mini-transcribe-2025-12-15", "operation": "transcription"},
     {"provider": "opencode_go", "model": "deepseek-v4-flash", "operation": "director", "optional": true},
+    {"provider": "openai_codex_subscription", "model": "gpt-5.6-terra", "operation": "responses_image_generation_tool", "optional": true},
     {"provider": "openai", "model": "gpt-image-2-2026-04-21", "operation": "image_generation_and_edit"}
   ],
   "artifact_policy": {
@@ -70,11 +71,12 @@
     "rollback_drilled": false
   },
   "blocking_reasons": [
-    "release hash, base digest, compiler version, lock/SBOM, and signatures are pending",
+    "base digest, resolved dependency lock/SBOM, and signatures are pending",
     "Proxy Token plus signed Worker capability is not implemented",
     "Modal Volume is not the paid R2 artifact plane",
     "durable paid state, reservation, settlement, and reconciliation are absent",
     "provider rates and accepted-output benchmark do not support a paid quote",
+    "subscription image usage has no billable USD meter and OAuth refresh rotation is not durable",
     "signed QA and manual promotion evidence are absent"
   ]
 }

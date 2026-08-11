@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import time
 from pathlib import Path
 
 
@@ -16,6 +17,10 @@ request = json.loads(Path(args.request).read_text(encoding="utf-8"))
 run_id = request["run_id"]
 artifact_dir = Path(request["run_artifact_dir"])
 artifact_dir.mkdir(parents=True, exist_ok=True)
+(artifact_dir / "diagnostic.json").write_text('{"phase":"generate"}\n', encoding="utf-8")
+# Give the Modal-side process monitor enough time to observe a real file-based
+# checkpoint without coupling the protocol to stdout/stderr.
+time.sleep(0.3)
 video = artifact_dir / "video.mp4"
 contact = artifact_dir / "contact-sheet.jpg"
 video.write_bytes(b"offline-h264-aac-fixture")
@@ -45,6 +50,7 @@ result = {
             "director": 0.0,
             "image_generation": 0.0,
         },
+        "provider_costs_complete": True,
         "modal_cpu_core_seconds": 0.0,
         "modal_memory_gib_seconds": 0.0,
         "artifact_storage_usd": 0.0,
@@ -67,4 +73,3 @@ result = {
     "generation_provider": "procedural-fallback",
 }
 Path(args.result).write_text(json.dumps(result), encoding="utf-8")
-

@@ -15,6 +15,7 @@ import json
 import math
 import os
 import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -24,6 +25,13 @@ from PIL import Image, ImageDraw, ImageOps
 
 
 GPT_IMAGE_MODEL = "gpt-image-2-2026-04-21"
+CODEX_IMAGE_PROVIDER = "chatgpt-codex-image-generation"
+CODEX_RESPONSES_MODEL = "gpt-5.6-terra"
+CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
+CODEX_REFRESH_URL = "https://auth.openai.com/oauth/token"
+# Public OAuth client identifier used by the open-source Codex CLI. This is an
+# identifier, not a credential; access and refresh tokens remain Modal Secrets.
+CODEX_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 STYLE_LOCK_V3 = (
     "Minimal Japanese sumi-e: thin black ink on pure white, sparse flat line, "
     "no shading/fill/texture, vertical 9:16, no text/watermark/color."
@@ -144,6 +152,39 @@ ProviderRequest = Callable[..., Mapping[str, Any]]
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _codex_sse_image_result(lines: Sequence[str] | Any) -> str:
+    """Extract one final image payload from Codex Responses SSE lines."""
+    result: str | None = None
+    failed = False
+    for line in lines:
+        if not isinstance(line, str) or not line.startswith("data: "):
+            continue
+        try:
+            event = json.loads(line[6:])
+        except json.JSONDecodeError:
+            continue
+        event_type = event.get("type")
+        if event_type == "response.output_item.done":
+            item = event.get("item")
+            if isinstance(item, Mapping) and item.get("type") == "image_generation_call":
+                candidate = item.get("result")
+                if isinstance(candidate, str) and candidate:
+                    result = candidate
+        elif event_type == "response.image_generation_call.completed":
+            candidate = event.get("result")
+            if isinstance(candidate, str) and candidate:
+                result = candidate
+        elif event_type == "response.failed":
+            failed = True
+        elif event_type == "response.completed":
+            break
+    if failed:
+        raise ImageGenerationError("Codex image response reported failure")
+    if not result:
+        raise ImageGenerationError("Codex image response contained no final image")
+    return result
 
 
 def _decode_image(value: bytes) -> Image.Image:
@@ -338,6 +379,202 @@ class OpenAIImageAdapter:
             raise ImageGenerationError("image response decoded to zero bytes")
         usage = payload.get("usage")
         return decoded, dict(usage) if isinstance(usage, Mapping) else {}
+
+
+class CodexSubscriptionImageAdapter:
+    """ChatGPT-subscription image client through the Codex Responses route.
+
+    ChatGPT OAuth access tokens do not have the public ``api.images`` scope.
+    The Codex backend does, however, expose the Responses image-generation
+    tool to an entitled account. The transport stays injectable so tests never
+    require a subscription or network access.
+
+    An optional refresh token follows the open-source Codex CLI JSON refresh
+    request. Refreshed credentials are memory-only. A server deployment still
+    needs a controlled secret-rotation owner because a scale-to-zero container
+    cannot persist a rotated refresh token back into a Modal Secret.
+    """
+
+    model = CODEX_IMAGE_PROVIDER
+
+    def __init__(
+        self,
+        *,
+        access_token: str | None = None,
+        account_id: str | None = None,
+        refresh_token: str | None = None,
+        request: ProviderRequest | None = None,
+        base_url: str | None = None,
+        refresh_url: str | None = None,
+        responses_model: str | None = None,
+        timeout_seconds: float = 180.0,
+        size: str = "1024x1536",
+        quality: str = "medium",
+    ) -> None:
+        self.access_token = access_token or os.environ.get("OPENAI_CODEX_ACCESS_TOKEN")
+        self.account_id = account_id or os.environ.get("OPENAI_CODEX_ACCOUNT_ID")
+        self.refresh_token = refresh_token or os.environ.get("OPENAI_CODEX_REFRESH_TOKEN")
+        self.request = request
+        self.base_url = (base_url or os.environ.get("OPENAI_CODEX_BASE_URL") or CODEX_BASE_URL).rstrip("/")
+        self.refresh_url = refresh_url or os.environ.get("OPENAI_CODEX_REFRESH_URL") or CODEX_REFRESH_URL
+        self.responses_model = (
+            responses_model
+            or os.environ.get("OPENAI_CODEX_RESPONSES_MODEL")
+            or CODEX_RESPONSES_MODEL
+        )
+        self.timeout_seconds = timeout_seconds
+        self.size = size
+        self.quality = quality
+
+    @staticmethod
+    def _jwt_expiration(token: str | None) -> int | None:
+        if not token or token.count(".") != 2:
+            return None
+        try:
+            encoded = token.split(".", 2)[1]
+            encoded += "=" * (-len(encoded) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(encoded))
+            expiration = payload.get("exp")
+            return int(expiration) if isinstance(expiration, (int, float)) else None
+        except Exception:
+            return None
+
+    def _refresh_if_needed(self) -> str:
+        expiration = self._jwt_expiration(self.access_token)
+        if self.access_token and (expiration is None or expiration > int(time.time()) + 300):
+            return self.access_token
+        if not self.refresh_token:
+            if self.access_token:
+                return self.access_token
+            raise ImageGenerationError("OPENAI_CODEX_ACCESS_TOKEN is not configured")
+        try:
+            import httpx
+
+            response = httpx.post(
+                self.refresh_url,
+                headers={"Content-Type": "application/json"},
+                json={
+                    "client_id": CODEX_OAUTH_CLIENT_ID,
+                    "grant_type": "refresh_token",
+                    "refresh_token": self.refresh_token,
+                },
+                timeout=min(self.timeout_seconds, 30.0),
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            raise ImageGenerationError(
+                f"Codex OAuth refresh failed: {type(exc).__name__}"
+            ) from exc
+        access_token = payload.get("access_token") if isinstance(payload, Mapping) else None
+        if not isinstance(access_token, str) or not access_token:
+            raise ImageGenerationError("Codex OAuth refresh returned no access token")
+        rotated = payload.get("refresh_token")
+        self.access_token = access_token
+        if isinstance(rotated, str) and rotated:
+            self.refresh_token = rotated
+        return access_token
+
+    def _http_request(self, *, prompt: str, parent: bytes | None) -> Mapping[str, Any]:
+        if not self.account_id:
+            raise ImageGenerationError("OPENAI_CODEX_ACCOUNT_ID is not configured")
+        token = self._refresh_if_needed()
+        try:
+            import httpx
+        except ImportError as exc:
+            raise ImageGenerationError("httpx is required for Codex image requests") from exc
+
+        content: list[dict[str, Any]] = [{"type": "input_text", "text": prompt}]
+        if parent is not None:
+            encoded_parent = base64.b64encode(parent).decode("ascii")
+            content.append(
+                {
+                    "type": "input_image",
+                    "image_url": f"data:image/png;base64,{encoded_parent}",
+                    "detail": "high",
+                }
+            )
+        body = {
+            "model": self.responses_model,
+            "instructions": (
+                "Use the image-generation tool exactly once. Return no prose. "
+                "When an input image is present, edit it according to the prompt."
+            ),
+            "input": [{"role": "user", "content": content}],
+            "tools": [
+                {
+                    "type": "image_generation",
+                    "quality": self.quality,
+                    "size": self.size,
+                }
+            ],
+            "tool_choice": {"type": "image_generation"},
+            "parallel_tool_calls": False,
+            "store": False,
+            "stream": True,
+        }
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "ChatGPT-Account-Id": self.account_id,
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "OpenAI-Beta": "responses=experimental",
+            "User-Agent": "omo-demello-awake/0.1.0",
+            "originator": "codex_cli_rs",
+            "session_id": str(uuid.uuid4()),
+        }
+        try:
+            with httpx.stream(
+                "POST",
+                f"{self.base_url}/responses",
+                headers=headers,
+                json=body,
+                timeout=self.timeout_seconds,
+            ) as response:
+                response.raise_for_status()
+                result = _codex_sse_image_result(response.iter_lines())
+        except Exception as exc:
+            if isinstance(exc, ImageGenerationError):
+                raise
+            raise ImageGenerationError(
+                f"Codex image request failed: {type(exc).__name__}"
+            ) from exc
+        return {"data": [{"b64_json": result}], "usage": {}}
+
+    def generate(self, prompt: str, *, parent: bytes | None = None) -> tuple[bytes, Mapping[str, Any]]:
+        try:
+            if self.request is not None:
+                payload = self.request(
+                    edit=parent is not None,
+                    prompt=prompt,
+                    parent=parent,
+                    model=self.responses_model,
+                    size=self.size,
+                    quality=self.quality,
+                )
+            else:
+                payload = self._http_request(prompt=prompt, parent=parent)
+        except ImageGenerationError:
+            raise
+        except Exception as exc:
+            raise ImageGenerationError(
+                f"Codex image request failed: {type(exc).__name__}: {exc}"
+            ) from exc
+        data = payload.get("data")
+        if not isinstance(data, Sequence) or not data or not isinstance(data[0], Mapping):
+            raise ImageGenerationError("Codex image response has no data[0] object")
+        encoded = data[0].get("b64_json")
+        if not isinstance(encoded, str) or not encoded:
+            raise ImageGenerationError("Codex image response has no base64 payload")
+        try:
+            decoded = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ImageGenerationError("Codex image response contains invalid base64") from exc
+        if not decoded:
+            raise ImageGenerationError("Codex image response decoded to zero bytes")
+        # Subscription Responses does not currently return a billable USD cost
+        # for the image tool. Leave usage empty so cost_complete remains false.
+        return decoded, {}
 
 
 def generate_keyframes(
@@ -749,6 +986,8 @@ def generation_result_dict(result: GenerationResult) -> dict[str, Any]:
 
 
 __all__ = [
+    "CODEX_IMAGE_PROVIDER",
+    "CodexSubscriptionImageAdapter",
     "GPT_IMAGE_MODEL",
     "STYLE_LOCK_V3",
     "GeneratedFrame",
