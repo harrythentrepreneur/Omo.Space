@@ -132,25 +132,81 @@
     .create-button span { font-size: 23px; line-height: 1; }
     .credit-note { margin: 16px 0 0; color: rgba(255, 255, 255, .72); font-size: 13.5px; }
     .credit-note strong { color: #fff; }
-    .signup-status { min-height: 1.5em; margin: 12px 0 0; color: var(--mint); font-size: 13px; }
-    .signup-error { margin-top: 16px; padding: 16px; border: 1px solid rgba(255, 255, 255, .28); border-radius: 12px; }
-    .signup-error[hidden] { display: none; }
-    .signup-error p { margin: 0 0 14px; color: #fff; font-size: 14px; }
-    .error-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
-    .retry-button {
-      min-height: 44px; padding: 0 18px; border: 1px solid var(--mint); border-radius: 9px 9px 2px 9px;
-      background: var(--mint); color: var(--pine); font-weight: 700;
-    }
-    .error-back-link {
-      min-height: 44px; display: inline-flex; align-items: center;
-      color: #fff; font-size: 14px; font-weight: 700; text-underline-offset: 4px;
-    }
-
     .back-link {
       width: max-content; min-height: 44px; display: inline-flex; align-items: center; gap: 8px;
       color: var(--pine); font-size: 14px; font-weight: 700; text-underline-offset: 4px;
     }
     .back-link:hover { color: var(--orange); }
+
+    body.auth-modal-open { overflow: hidden; }
+    .auth-modal[hidden], .auth-modal__view[hidden] { display: none; }
+    .auth-modal {
+      position: fixed; z-index: 1000; inset: 0; padding: 24px 16px;
+      display: grid; place-items: center; overflow-y: auto;
+      background: rgba(24, 28, 27, .58);
+    }
+    .auth-modal__card {
+      position: relative; width: min(100%, 430px); margin: auto; padding: 38px 36px 32px;
+      border: 1px solid rgba(32, 32, 32, .08); border-radius: 18px;
+      background: #fff; color: #202020;
+      box-shadow: 0 26px 80px rgba(12, 22, 19, .25);
+      animation: auth-modal-in .18s ease-out both;
+    }
+    .auth-modal__close {
+      position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; padding: 0;
+      display: grid; place-items: center; border: 0; border-radius: 50%;
+      background: transparent; color: #6c6c6c; font-size: 27px; font-weight: 400; line-height: 1;
+    }
+    .auth-modal__close:hover { background: #f5f5f5; color: #202020; }
+    .auth-modal__heading { margin: 0 40px 5px 0; font-size: 25px; line-height: 1.22; letter-spacing: -.025em; }
+    .auth-modal__subheading { margin: 0 32px 27px 0; color: #717171; font-size: 14px; line-height: 1.5; }
+    .auth-modal__form { display: grid; gap: 14px; }
+    .auth-modal__field { position: relative; }
+    .auth-modal__input {
+      width: 100%; height: 58px; padding: 20px 14px 6px;
+      border: 1px solid #cfcfcf; border-radius: 7px; outline: 0;
+      background: #fff; color: #202020; font: 500 16px/1.2 var(--body);
+      transition: border-color .14s ease, box-shadow .14s ease;
+    }
+    .auth-modal__input:hover { border-color: #a7a7a7; }
+    .auth-modal__input:focus { border-color: #3f6fff; box-shadow: 0 0 0 3px rgba(63, 111, 255, .12); }
+    .auth-modal__label {
+      position: absolute; top: 8px; left: 14px; pointer-events: none;
+      color: #757575; font-size: 11px; font-weight: 700; letter-spacing: .035em;
+      transform-origin: left top; transition: transform .12s ease, color .12s ease, top .12s ease;
+    }
+    .auth-modal__input:placeholder-shown:not(:focus) + .auth-modal__label {
+      top: 19px; font-size: 15px; font-weight: 500; letter-spacing: 0;
+    }
+    .auth-modal__input:focus + .auth-modal__label { color: #3f6fff; }
+    .auth-modal__submit {
+      width: 100%; min-height: 54px; margin-top: 4px; padding: 0 20px;
+      border: 0; border-radius: 7px; background: var(--pine); color: #fff;
+      font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+      transition: background .14s ease, transform .14s ease;
+    }
+    .auth-modal__submit:not(:disabled):hover { background: #21483d; transform: translateY(-1px); }
+    .auth-modal__submit:disabled { background: #e4e4e4; color: #9b9b9b; cursor: not-allowed; }
+    .auth-modal__submit[aria-busy="true"] { cursor: wait; }
+    .auth-modal__message { margin: 0; color: #bd2f2f; font-size: 13px; line-height: 1.45; }
+    .auth-modal__message[hidden] { display: none; }
+    .auth-modal__fine-print { margin: 3px 4px 0; color: #858585; font-size: 11px; line-height: 1.5; text-align: center; }
+    .auth-modal__fine-print a, .auth-modal__switch-button, .auth-modal__resend {
+      color: #3f6fff; text-decoration: none;
+    }
+    .auth-modal__fine-print a:hover, .auth-modal__switch-button:hover, .auth-modal__resend:hover { text-decoration: underline; }
+    .auth-modal__switch { margin: 8px 0 0; color: #5f5f5f; font-size: 14px; text-align: center; }
+    .auth-modal__switch-button, .auth-modal__resend {
+      padding: 0; border: 0; background: none; font: inherit; font-weight: 700;
+    }
+    .auth-modal__verification-copy { margin: 0 0 22px; color: #666; font-size: 14px; line-height: 1.55; }
+    .auth-modal__verification-copy strong { color: #202020; font-weight: 700; overflow-wrap: anywhere; }
+    .auth-modal__resend-row { margin: 1px 0 0; color: #858585; font-size: 12px; text-align: center; }
+
+    @keyframes auth-modal-in {
+      from { opacity: 0; transform: translateY(8px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
 
     @media (max-width: 760px) {
       .page-shell {
@@ -173,6 +229,8 @@
     @media (max-width: 420px) {
       .signup-card { border-radius: 20px 20px 0 20px; }
       .eyebrow { margin-bottom: 18px; }
+      .auth-modal { padding: 12px; }
+      .auth-modal__card { padding: 34px 22px 26px; border-radius: 15px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -200,79 +258,63 @@
           Create my free account <span aria-hidden="true">→</span>
         </button>
         <p class="credit-note">No card needed. <strong>$5 in free credits</strong> when you join.</p>
-        <p class="signup-status" id="signup-status" role="status" aria-live="polite"></p>
-        <div class="signup-error" id="signup-error" role="alert" hidden>
-          <p>Couldn't load the sign-in provider — check your connection.</p>
-          <div class="error-actions">
-            <button class="retry-button" id="retry-signup" type="button">Retry</button>
-            <a class="error-back-link" href="index.html#feed">Back to the store</a>
-          </div>
-        </div>
       </div>
     </section>
 
     <a class="back-link" href="index.html#feed">← Back to the store</a>
   </main>
 
+  <div class="auth-modal" id="signup-modal" hidden>
+    <section class="auth-modal__card" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" aria-describedby="auth-modal-subtitle">
+      <button class="auth-modal__close" id="auth-modal-close" type="button" aria-label="Close">×</button>
+
+      <div class="auth-modal__view" id="auth-form-view">
+        <h2 class="auth-modal__heading" id="auth-modal-title">Create your Omo account</h2>
+        <p class="auth-modal__subheading" id="auth-modal-subtitle">to run AI helpers and keep what you build</p>
+
+        <form class="auth-modal__form" id="auth-form" novalidate>
+          <div class="auth-modal__field signup-only">
+            <input class="auth-modal__input" id="auth-first-name" name="firstName" type="text" autocomplete="given-name" placeholder=" " maxlength="80" required>
+            <label class="auth-modal__label" for="auth-first-name">First name</label>
+          </div>
+          <div class="auth-modal__field signup-only">
+            <input class="auth-modal__input" id="auth-last-name" name="lastName" type="text" autocomplete="family-name" placeholder=" " maxlength="80" required>
+            <label class="auth-modal__label" for="auth-last-name">Last name</label>
+          </div>
+          <div class="auth-modal__field">
+            <input class="auth-modal__input" id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder=" " maxlength="254" required>
+            <label class="auth-modal__label" for="auth-email">Email</label>
+          </div>
+          <div class="auth-modal__field">
+            <input class="auth-modal__input" id="auth-password" name="password" type="password" autocomplete="new-password" placeholder=" " minlength="8" maxlength="128" required>
+            <label class="auth-modal__label" for="auth-password">Password</label>
+          </div>
+          <p class="auth-modal__message" id="auth-error" role="alert" hidden></p>
+          <button class="auth-modal__submit" id="auth-submit" type="submit" disabled>Sign up</button>
+          <p class="auth-modal__fine-print signup-only">By signing up, you agree to our <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+        </form>
+
+        <p class="auth-modal__switch"><span id="auth-switch-copy">Already have an account?</span> <button class="auth-modal__switch-button" id="auth-switch" type="button">Log in</button></p>
+      </div>
+
+      <div class="auth-modal__view" id="auth-verification-view" hidden>
+        <h2 class="auth-modal__heading" id="auth-verification-title">Check your email</h2>
+        <p class="auth-modal__verification-copy">Enter the verification code sent to <strong id="auth-verification-email"></strong>.</p>
+        <form class="auth-modal__form" id="auth-verification-form" novalidate>
+          <div class="auth-modal__field">
+            <input class="auth-modal__input" id="auth-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder=" " minlength="6" maxlength="6" required>
+            <label class="auth-modal__label" for="auth-code">Verification code</label>
+          </div>
+          <p class="auth-modal__message" id="auth-verification-error" role="alert" hidden></p>
+          <button class="auth-modal__submit" id="auth-verify" type="submit" disabled>Verify email</button>
+          <p class="auth-modal__resend-row">Didn't get it? <button class="auth-modal__resend" id="auth-resend" type="button">Send a new code</button></p>
+        </form>
+      </div>
+    </section>
+  </div>
+
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
-  <script>
-    (function () {
-      'use strict';
-
-      var button = document.getElementById('create-account');
-      var status = document.getElementById('signup-status');
-      var errorPanel = document.getElementById('signup-error');
-      var retryButton = document.getElementById('retry-signup');
-
-      function showLoadError() {
-        button.hidden = true;
-        button.disabled = false;
-        status.textContent = '';
-        errorPanel.hidden = false;
-      }
-
-      function startSignup() {
-        errorPanel.hidden = true;
-        button.hidden = false;
-        button.disabled = true;
-
-        if (!window.ClerkAuth || typeof ClerkAuth.signUpAndRedirect !== 'function') {
-          showLoadError();
-          return;
-        }
-
-        status.textContent = ClerkAuth.isSignedIn() ? 'Taking you to your dashboard…' : 'Opening signup…';
-        var result;
-        try { result = ClerkAuth.signUpAndRedirect(); }
-        catch (error) { showLoadError(); return; }
-
-        if (result && typeof result.then === 'function') {
-          result.then(function () {
-            button.disabled = false;
-            if (!ClerkAuth.isSignedIn()) status.textContent = 'Finish creating your account in the signup form.';
-          }).catch(showLoadError);
-        } else {
-          button.disabled = false;
-        }
-      }
-
-      if (window.ClerkAuth && ClerkAuth.isSignedIn()) {
-        button.firstChild.nodeValue = 'Go to my dashboard ';
-      }
-
-      button.addEventListener('click', startSignup);
-      retryButton.addEventListener('click', startSignup);
-
-      if (window.ClerkAuth && typeof ClerkAuth.onAuthChange === 'function') {
-        ClerkAuth.onAuthChange(function () {
-          if (typeof ClerkAuth.getLoadError === 'function' && ClerkAuth.getLoadError()) showLoadError();
-        });
-      }
-      if (window.ClerkAuth && typeof ClerkAuth.getLoadError === 'function' && ClerkAuth.getLoadError()) {
-        showLoadError();
-      }
-    })();
-  </script>
+  <script src="signup-modal.js"></script>
 </body>
 </html>
