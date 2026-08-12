@@ -12,6 +12,8 @@
   var authLinksPrimed = false;
   var lastResolvedAuthKey = '';
   var BALANCE_CACHE_PREFIX = 'omo_nav_balance_v1:';
+  var BALANCE_TIMEOUT_MS = 5000;
+  var SESSION_RETRY_MS = 250;
   var AUTH_HINT_KEY = 'omo_nav_auth_hint_v1';
   var AUTH_HINT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -177,12 +179,12 @@
 
     link.textContent = '';
     link.appendChild(icon);
-    if (state !== 'unavailable') {
-      var amount = document.createElement('span');
-      amount.className = 'omo-nav-credit-amount';
-      amount.textContent = hasBalance ? '$' + formatted : '$\u2026';
-      link.appendChild(amount);
-    }
+    var amount = document.createElement('span');
+    amount.className = 'omo-nav-credit-amount';
+    amount.textContent = hasBalance ? '$' + formatted : (state === 'unavailable' ? '\u2014' : '$\u2026');
+    link.appendChild(amount);
+    link.href = 'billing.html';
+    link.hidden = false;
     link.classList.remove('omo-nav-auth-pending');
     link.classList.add('omo-nav-credit');
     link.classList.remove('is-balance-loading');
@@ -199,8 +201,10 @@
       link.title = hasBalance ? 'Refreshing $' + formatted + ' balance' : 'Loading balance';
     } else if (state === 'unavailable') {
       link.classList.add('is-balance-unavailable');
-      link.setAttribute('aria-label', 'Balance unavailable \u2014 view billing');
-      link.title = 'Balance unavailable';
+      link.setAttribute('aria-label', hasBalance
+        ? '$' + formatted + ' last known balance \u2014 view billing'
+        : 'Balance unavailable \u2014 view billing');
+      link.title = 'Balance unavailable \u2014 view billing';
     } else {
       link.setAttribute('aria-label', '$' + formatted + ' in credits \u2014 view billing');
       link.title = '$' + formatted + ' in credits';
@@ -308,11 +312,51 @@
     return balanceClientPromise;
   }
 
+  function wait(delayMs) {
+    return new Promise(function (resolve) { window.setTimeout(resolve, delayMs); });
+  }
+
+  function balanceWithSessionRetry(client, deadline) {
+    return client.getBalance().catch(function (error) {
+      if (!error || error.code !== 'no_session' || Date.now() + SESSION_RETRY_MS >= deadline) throw error;
+      return wait(SESSION_RETRY_MS).then(function () {
+        return balanceWithSessionRetry(client, deadline);
+      });
+    });
+  }
+
+  function withTimeout(promise, delayMs) {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = window.setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        var error = new Error('The balance request timed out.');
+        error.code = 'timeout';
+        reject(error);
+      }, delayMs);
+
+      Promise.resolve(promise).then(function (value) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(value);
+      }, function (error) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        reject(error);
+      });
+    });
+  }
+
   function requestCreditBalance(userId) {
     if (balanceInFlight && balanceInFlight.userId === userId) return balanceInFlight.promise;
-    var promise = loadCreditsClient().then(function (client) {
-      return client.getBalance();
+    var deadline = Date.now() + BALANCE_TIMEOUT_MS;
+    var request = loadCreditsClient().then(function (client) {
+      return balanceWithSessionRetry(client, deadline);
     });
+    var promise = withTimeout(request, BALANCE_TIMEOUT_MS);
     balanceInFlight = { userId: userId, promise: promise };
     promise.then(function () {
       if (balanceInFlight && balanceInFlight.promise === promise) balanceInFlight = null;
@@ -331,7 +375,8 @@
     }).catch(function () {
       var activeUser = currentUser();
       if (requestId !== balanceRequestId || !activeUser || activeUser.id !== userId) return;
-      renderAllCreditLinks(null, 'unavailable');
+      var cached = readCachedBalance(userId);
+      renderAllCreditLinks(cached && cached.balanceCents, 'unavailable');
     });
   }
 
