@@ -1,3 +1,5 @@
+[![Omo](https://omo.space/logo-sweet-pastel.svg)](https://omo.space) · [All Omo workflows](https://github.com/omo-space)
+
 # Phonics Worksheet Generator
 
 What this does: creates a bounded, print-ready phonics worksheet and matching answer key from a declared teaching scope.

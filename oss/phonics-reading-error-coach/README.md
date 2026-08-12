@@ -1,3 +1,5 @@
+[![Omo](https://omo.space/logo-sweet-pastel.svg)](https://omo.space) · [All Omo workflows](https://github.com/omo-space)
+
 # Phonics Reading Error Coach
 
 What this does: turns one observed decoding attempt into a cautious, teacher-reviewable phonics confusion note with short practice ideas.

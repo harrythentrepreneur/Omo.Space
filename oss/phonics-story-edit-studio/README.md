@@ -1,3 +1,5 @@
+[![Omo](https://omo.space/logo-sweet-pastel.svg)](https://omo.space) · [All Omo workflows](https://github.com/omo-space)
+
 # Phonics Story Edit Studio
 
 What this does: applies bounded text, layout, highlighting, title, or approved image changes to an owned PhonicsMaker story without overwriting the source.
