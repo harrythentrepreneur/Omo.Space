@@ -21,13 +21,10 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // Same merge the storefront does: ig-workflows.js + ig-more.js.
+  // Read the same single catalog as the storefront.
   function productMap() {
     var PRODUCTS = {};
-    (window.COGNITION_IG_WORKFLOWS || []).forEach(function (s) {
-      if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
-    });
-    (window.COGNITION_IG_MORE || []).forEach(function (s) {
+    (window.OMO_CATALOG || []).forEach(function (s) {
       if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
     });
     return PRODUCTS;
@@ -55,20 +52,21 @@
   }
 
   function cardHTML(p, owned) {
+    var comingSoon = p.status === 'coming-soon' || p.chargeable === false || p.active === false;
+    var price = comingSoon ? 'Coming soon' : '$' + Number(p.runPrice || p.priceRun || 0).toFixed(2) + '/run';
     var visual = p.icon
       ? '<div class="listing-cover icon-cover" aria-hidden="true"><img src="' + esc(p.icon) + '" alt="" loading="lazy"></div>'
       : (p.cover
           ? '<div class="listing-cover" aria-hidden="true"><img src="' + esc(p.cover) + '" alt="" loading="lazy"><span class="cover-emoji">' + esc(p.emoji) + '</span></div>'
           : '<div class="listing-cover" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:52px;line-height:1">' + esc(p.emoji) + '</span></div>');
-    return '<article class="listing-card sig-cut" data-lib-slug="' + esc(p.slug) + '" tabindex="0" role="button" aria-label="Open details for ' + esc(p.name) + '">' +
+    return '<article class="listing-card sig-cut" data-lib-slug="' + esc(p.slug) + '" tabindex="0" role="link" aria-label="Open the workflow page for ' + esc(p.name) + ' in a new tab">' +
       visual +
       '<div class="listing-body">' +
       '<h3 class="listing-name">' + esc(p.name) + '</h3>' +
       '<p class="listing-promise">' + esc(p.promise) + '</p>' +
       '<p class="listing-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +
       '<div class="listing-footer">' +
-        '<p class="listing-price">' + (owned ? 'Yours &middot; ' : '') + '$' + p.priceOwn + ' <span class="price-note">run &asymp; $' + Number(p.runPrice || p.priceRun || 0).toFixed(2) + '</span></p>' +
-        '<div class="listing-actions"><button class="details-link" type="button" data-lib-open="' + esc(p.slug) + '">Open</button></div>' +
+        '<p class="listing-price">' + (owned && !comingSoon ? 'Yours &middot; ' : '') + price + '</p>' +
       '</div>' +
       '</div>' +
     '</article>';
@@ -158,8 +156,6 @@
     view.addEventListener('click', function (e) {
       var back = e.target.closest('[data-lib-back]');
       if (back) { window.LibraryView.hide(); return; }
-      var open = e.target.closest('[data-lib-open]');
-      if (open) { openListing(open.dataset.libOpen); return; }
       var card = e.target.closest('[data-lib-slug]');
       if (card) openListing(card.dataset.libSlug);
     });

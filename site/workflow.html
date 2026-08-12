@@ -756,8 +756,7 @@
     </div>
   </footer>
 
-  <script src="ig-workflows.js"></script>
-  <script src="ig-more.js"></script>
+  <script src="catalog.js"></script>
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="stripe.js"></script>
@@ -790,12 +789,10 @@
       }
 
       var products = {};
-      var sources = [window.COGNITION_IG_WORKFLOWS || [], window.COGNITION_IG_MORE || []];
-      for (var sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
-        for (var itemIndex = 0; itemIndex < sources[sourceIndex].length; itemIndex++) {
-          var item = sources[sourceIndex][itemIndex];
-          if (item && item.slug && !products[item.slug]) products[item.slug] = item;
-        }
+      var catalog = window.OMO_CATALOG || [];
+      for (var itemIndex = 0; itemIndex < catalog.length; itemIndex++) {
+        var item = catalog[itemIndex];
+        if (item && item.slug && !products[item.slug]) products[item.slug] = item;
       }
 
       var slug = '';
@@ -806,6 +803,7 @@
         document.title = 'Workflow not found | Omo';
         return;
       }
+      var comingSoon = listing.status === 'coming-soon' || listing.chargeable === false || listing.active === false;
 
       function signedIn() {
         return !!(window.ClerkAuth &&
@@ -880,8 +878,8 @@
         } catch (error) {}
       }
 
-      var ownPrice = formatPrice(listing.priceOwn);
-      var perRun = formatRunPrice(listing.runPrice != null ? listing.runPrice : listing.priceRun);
+      var ownPrice = comingSoon ? 'Coming soon' : formatPrice(listing.priceOwn);
+      var perRun = comingSoon ? 'Coming soon' : formatRunPrice(listing.runPrice != null ? listing.runPrice : listing.priceRun);
       var workflowSteps = listing.workflow && Array.isArray(listing.workflow.steps)
         ? listing.workflow.steps
         : [];
@@ -891,7 +889,7 @@
       var metaDescription = document.querySelector('meta[name="description"]');
       if (metaDescription) {
         metaDescription.setAttribute('content', (listing.promise || 'Explore this Omo workflow.') +
-          ' Download the workflow + prompts, or have Omo run it in the cloud per run.');
+          (comingSoon ? ' This helper is coming soon and cannot run or charge yet.' : ' Download the workflow + prompts, or have Omo run it in the cloud per run.'));
       }
       el('listing-title').textContent = listing.name;
       el('listing-promise').textContent = listing.promise;
@@ -1085,25 +1083,35 @@
       heroMedia.addEventListener('keydown', handleGalleryKeydown);
       thumbnailRow.addEventListener('keydown', handleGalleryKeydown);
 
-      if (!workflowSteps.length) {
+      if (comingSoon) {
+        workflowSteps = [{ label: 'Complete hosting, review, and safety checks before activation' }];
+      } else if (!workflowSteps.length) {
         workflowSteps = [{ label: 'Follow the included process from your input to a finished result' }];
       }
       renderList('steps-list', workflowSteps, workflowStepLabel);
       renderList('inputs-list', listing.inputs || ['Your brief and the details you want the workflow to use']);
       renderList('outputs-list', listing.outputs || ['A finished, ready-to-use result']);
       renderList('perfect-list', perfectFor());
-      el('closing-copy').textContent =
-        'Buy it once if you want the workflow and prompts in your own hands. Choose a cloud run when you would rather skip the setup and let Omo handle the service keys.';
+      el('closing-copy').textContent = comingSoon
+        ? 'This helper is being prepared for hosting and review. It cannot run or charge yet.'
+        : 'Buy it once if you want the workflow and prompts in your own hands. Choose a cloud run when you would rather skip the setup and let Omo handle the service keys.';
 
       el('offer-cover').innerHTML = coverHTML(listing.name + ' cover');
       el('offer-title').textContent = listing.name;
       el('offer-desc').textContent = listing.promise;
-      var buyButtonLabel = 'Download Skill.md — ' + ownPrice;
-      var runButtonLabel = 'Run it for me — ' + perRun + '/run';
+      var buyButtonLabel = comingSoon ? 'Coming soon' : 'Download Skill.md — ' + ownPrice;
+      var runButtonLabel = comingSoon ? 'Coming soon' : 'Run it for me — ' + perRun + '/run';
       el('buy-button').textContent = buyButtonLabel;
       el('buy-button').setAttribute('aria-label', buyButtonLabel + '. Workflow + prompts. Run them on your computer.');
       el('run-button').textContent = runButtonLabel;
       el('run-button').setAttribute('aria-label', runButtonLabel + '. Per run. Omo handles the setup and sends back the finished result.');
+
+      if (comingSoon) {
+        var offerActions = document.querySelector('.offer-actions');
+        if (offerActions) offerActions.hidden = true;
+        setOfferNote('Coming soon — this helper cannot run or charge yet.');
+        return;
+      }
 
       var infoButtons = document.querySelectorAll('.offer-info');
       function closeInfoTooltips(except) {

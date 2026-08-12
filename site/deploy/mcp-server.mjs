@@ -2,7 +2,7 @@
 //
 // Mount `handleMcpRequest(request, env)` at /mcp in worker.js. The server uses
 // the same pure credit and cost helpers as the REST worker, reads the public
-// Instagram catalogue when an Assets binding/origin is available, and keeps a
+// storefront catalogue when an Assets binding/origin is available, and keeps a
 // compact server-owned snapshot for cold/offline operation.
 
 import { Pool } from '@neondatabase/serverless';
@@ -24,7 +24,7 @@ const MAX_INPUT_CHARS = 12_000;
 const DEMELLO_SLUG = 'japanese-style-story-video';
 const fetchedCatalogues = new Map();
 
-// ig-more's newer helpers share this intentionally simple interface.
+// Newer live helpers share this intentionally simple interface.
 const STANDARD_INPUTS = [
   'brief: product or topic',
   'style: creative direction hint',
@@ -36,7 +36,7 @@ const STANDARD_OUTPUTS = [
 ];
 const GENERIC_SYSTEM = 'You are a specialist AI workflow operator. Use only the supplied facts. Return EXACTLY this JSON shape: {"output":["key result 1","key result 2","key result 3"],"summary":"one plain sentence of what was produced"}. HARD RULES: output is a flat array of STRINGS, never invent facts, output ONLY the JSON object.';
 
-// The source of truth remains site/ig-workflows.js + site/ig-more.js. This
+// The source of truth remains site/catalog.js. This
 // snapshot mirrors the runtime-safe fields so MCP still works if static asset
 // fetching is unavailable (including the zero-network self-test).
 const FALLBACK_ROWS = [
@@ -219,7 +219,8 @@ function publicWorkflow(workflow) {
 }
 
 function normalizeHelper(helper) {
-  if (!helper || typeof helper !== 'object' || !helper.slug || !helper.name) return null;
+  if (!helper || typeof helper !== 'object' || !helper.slug || !helper.name ||
+      helper.chargeable === false || helper.active === false || helper.status === 'coming-soon') return null;
   const workflow = helper.workflow && Array.isArray(helper.workflow.steps)
     ? helper.workflow
     : llmWorkflow(GENERIC_SYSTEM, 500);
@@ -357,7 +358,7 @@ class LiteralReader {
 
 function parseCatalogueSource(source) {
   const text = String(source || '');
-  const assignment = text.search(/window\.(?:COGNITION_IG_WORKFLOWS|COGNITION_IG_MORE)\s*=/);
+  const assignment = text.search(/window\.OMO_CATALOG\s*=/);
   const start = assignment < 0 ? -1 : text.indexOf('[', assignment);
   if (start < 0) throw new Error('Catalogue assignment was not found.');
   const value = new LiteralReader(text, start).value();
@@ -389,11 +390,8 @@ async function loadCatalogue(request, env = {}) {
   if (!fetchedCatalogues.has(origin)) {
     fetchedCatalogues.set(origin, (async () => {
       try {
-        const sources = await Promise.all([
-          fetchCatalogueSource(`${origin}/ig-workflows.js`, env),
-          fetchCatalogueSource(`${origin}/ig-more.js`, env),
-        ]);
-        const helpers = sources.flatMap(parseCatalogueSource).map(normalizeHelper).filter(Boolean);
+        const source = await fetchCatalogueSource(`${origin}/catalog.js`, env);
+        const helpers = parseCatalogueSource(source).map(normalizeHelper).filter(Boolean);
         return withPinnedRuntimeHelpers(helpers.length ? helpers : fallbackCatalogue());
       } catch {
         return withPinnedRuntimeHelpers(fallbackCatalogue());
@@ -1044,10 +1042,7 @@ export async function handleMcpRequest(request, env = {}) {
 
 async function runSelfTest() {
   const { readFile } = await import('node:fs/promises');
-  const sources = await Promise.all([
-    readFile(new URL('../ig-workflows.js', import.meta.url), 'utf8'),
-    readFile(new URL('../ig-more.js', import.meta.url), 'utf8'),
-  ]);
+  const sources = [await readFile(new URL('../catalog.js', import.meta.url), 'utf8')];
   let demelloPolls = 0;
   const demelloRunId = 'run_mcpdemelloselftest0001';
   const env = {

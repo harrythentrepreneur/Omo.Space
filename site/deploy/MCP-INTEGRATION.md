@@ -14,7 +14,7 @@ import { handleMcpRequest } from './mcp-server.mjs';
 
 If MCP is deployed as a separate Worker, bind `OMO_API` as a Cloudflare service binding to the Omo API Worker. `OMO_API_BASE_URL` is the network fallback for non-Workers runtimes. Do not point MCP at Modal: it must call the buyer-facing Worker contract so reservation, idempotency, ownership, progress, settlement, and refunds remain centralized.
 
-In Cloudflare, attach this Worker to the narrow production route `omo.space/mcp*` (or create an equivalent Vercel rewrite to the Worker). The narrow route lets Vercel continue serving the rest of `site/`, including the two catalogue JavaScript files and the discovery document.
+In Cloudflare, attach this Worker to the narrow production route `omo.space/mcp*` (or create an equivalent Vercel rewrite to the Worker). The narrow route lets Vercel continue serving the rest of `site/`, including the catalogue JavaScript file and the discovery document.
 
 The MCP module uses the same environment bindings as the REST routes:
 
@@ -22,7 +22,7 @@ The MCP module uses the same environment bindings as the REST routes:
 - `BALANCE_KEY_SECRET` and `SIGNUP_GRANT_USD`
 - `LLM_API_KEY`, with optional `LLM_BASE_URL` and `LLM_MODEL`
 - `OMO_API` (recommended service binding for a separate MCP Worker), or `OMO_API_BASE_URL`
-- optional Workers Static Assets binding `ASSETS`, or `OMO_SITE_ORIGIN=https://omo.space`, to refresh catalogue data from `/ig-workflows.js` and `/ig-more.js`
+- optional Workers Static Assets binding `ASSETS`, or `OMO_SITE_ORIGIN=https://omo.space`, to refresh live catalogue data from `/catalog.js`
 
 If static catalogue fetches are unavailable, the module uses its server-owned runtime-safe snapshot. Client prompts, workflows, and prices are never trusted.
 

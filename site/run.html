@@ -470,8 +470,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="ig-workflows.js"></script>
-  <script src="ig-more.js"></script>
+  <script src="catalog.js"></script>
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="credits.js"></script>
@@ -593,18 +592,22 @@
       function workerBase() { return API_BASE || window.location.origin; }
 
       var products = {};
-      var sources = [window.COGNITION_IG_WORKFLOWS || [], window.COGNITION_IG_MORE || []];
-      for (var sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
-        for (var productIndex = 0; productIndex < sources[sourceIndex].length; productIndex++) {
-          var product = sources[sourceIndex][productIndex];
-          if (product && product.slug && !products[product.slug]) products[product.slug] = product;
-        }
+      var catalog = window.OMO_CATALOG || [];
+      for (var productIndex = 0; productIndex < catalog.length; productIndex++) {
+        var product = catalog[productIndex];
+        if (product && product.slug && !products[product.slug]) products[product.slug] = product;
       }
 
       var slug = '';
       try { slug = (new URLSearchParams(window.location.search || '').get('slug') || '').trim(); } catch (error) {}
       listing = products[slug];
       if (!listing) {
+        el('not-found').hidden = false;
+        return;
+      }
+      if (listing.status === 'coming-soon' || listing.chargeable === false || listing.active === false) {
+        el('not-found').querySelector('h1').textContent = 'Coming soon';
+        el('not-found').querySelector('p').textContent = 'This helper is still being hosted and reviewed. It cannot run or charge yet.';
         el('not-found').hidden = false;
         return;
       }
@@ -705,7 +708,7 @@
       function resolveField(key) {
         var schema = schemaFor(key);
         var ui = uiFor(key);
-        var registry = [
+        var renderers = [
           { component: 'HiddenConstField', match: function () { return Object.prototype.hasOwnProperty.call(schema, 'const') || (Array.isArray(schema.enum) && schema.enum.length === 1); } },
           { component: 'SelectField', match: function () { return Array.isArray(schema.enum) || Array.isArray(schema.oneOf); } },
           { component: 'BooleanField', match: function () { return schema.type === 'boolean'; } },
@@ -717,7 +720,7 @@
           { component: 'ShortTextField', match: function () { return schema.type === 'string'; } },
           { component: 'FallbackField', match: function () { return true; } }
         ];
-        for (var index = 0; index < registry.length; index++) if (registry[index].match()) return registry[index].component;
+        for (var index = 0; index < renderers.length; index++) if (renderers[index].match()) return renderers[index].component;
         return 'FallbackField';
       }
 

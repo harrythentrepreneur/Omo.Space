@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 COMPILER_PATH = ROOT / "packages" / "skill-to-modal" / "compiler.py"
 PROFILE_ROOT = ROOT / "packages" / "skill-to-modal" / "profiles"
 CONTAINER_ROOT = ROOT / "containers"
-CATALOG_PATH = ROOT / "site" / "ig-more.js"
+CATALOG_PATH = ROOT / "site" / "catalog.js"
 RUN_MANIFEST_ROOT = ROOT / "site" / "run-manifests"
 HOSTED_REGISTRY_PATH = ROOT / "site" / "deploy" / "hosted-skills.generated.mjs"
 CATALOG_START = "  // host-skill:generated:start"
@@ -254,7 +254,7 @@ def render_registry(profiles: list[dict[str, Any]]) -> str:
 
 def patch_catalog(source: str, profiles: list[dict[str, Any]]) -> str:
     if (CATALOG_START in source) != (CATALOG_END in source):
-        raise ValueError("site/ig-more.js has an incomplete host-skill marker pair")
+        raise ValueError("site/catalog.js has an incomplete host-skill marker pair")
     if CATALOG_START in source:
         marker_pattern = (
             r"\n?" + re.escape(CATALOG_START) + r".*?" + re.escape(CATALOG_END) + r"\n?"
@@ -263,8 +263,8 @@ def patch_catalog(source: str, profiles: list[dict[str, Any]]) -> str:
     else:
         base = source
     if not re.search(r"\]\s*;\s*$", base):
-        raise ValueError("site/ig-more.js does not end in a catalog array")
-    external_slugs = set(re.findall(r"\bslug:\s*['\"]([a-z0-9-]+)['\"]", base))
+        raise ValueError("site/catalog.js does not end in a catalog array")
+    external_slugs = set(re.findall(r"['\"]?slug['\"]?\s*:\s*['\"]([a-z0-9-]+)['\"]", base))
     managed = [
         item for item in profiles
         if item.get("catalog_managed", True) and item["catalog"]["slug"] not in external_slugs

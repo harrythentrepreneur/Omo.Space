@@ -413,30 +413,6 @@
     .hero-actions .button { min-width: 120px; }
     .hero-note { margin: 0; font-size: 14px; line-height: 1.45; color: var(--moss); }
 
-    /* ── Full registry ───────────────────────────────────────────── */
-    .registry-spotlight { padding: 0 0 32px; }
-    .registry-card {
-      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 28px;
-      padding: 28px 30px; border: 1px solid var(--pine); border-radius: 18px 18px 0 18px;
-      background: var(--pine); color: #F2F6F1;
-    }
-    .registry-kicker {
-      display: inline-flex; align-items: center; width: fit-content; margin-bottom: 10px;
-      padding: 5px 9px; border-radius: 999px; background: var(--mint); color: var(--pine);
-      font-size: 11px; font-weight: 700; letter-spacing: .1em; line-height: 1.2; text-transform: uppercase;
-    }
-    .registry-title {
-      margin-bottom: 8px; font-family: var(--display); font-size: clamp(27px, 4vw, 36px);
-      font-weight: 600; line-height: 1.1; letter-spacing: -.01em;
-    }
-    .registry-copy { max-width: 720px; margin: 0; color: #D9E7DF; font-size: 15px; line-height: 1.55; }
-    .registry-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
-    .registry-live-link {
-      min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px;
-      color: #F2F6F1; font-size: 14px; font-weight: 700; text-decoration: underline;
-      text-decoration-color: var(--mint); text-underline-offset: 4px;
-    }
-
     /* ── Feed ───────────────────────────────────────────────────── */
     .feed-section { padding: 0 0 96px; }
     .feed-head { margin-bottom: 24px; }
@@ -444,10 +420,6 @@
       display: flex; align-items: baseline; justify-content: space-between; gap: 20px; margin-bottom: 16px;
     }
     .feed-title { margin: 0; font-family: var(--display); font-size: 25px; font-weight: 600; line-height: 1.2; }
-    .feed-registry-link {
-      color: var(--pine); font-size: 14px; font-weight: 700; text-decoration-color: var(--orange);
-      text-decoration-thickness: 2px; text-underline-offset: 4px; white-space: nowrap;
-    }
     .feed-tools { display: flex; width: 100%; flex-direction: column; align-items: center; }
     .filter-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
     .filter-chip {
@@ -914,10 +886,6 @@
       .search-input { padding-inline: 15px 10px; }
       .search-submit { padding-inline: 16px; }
 
-      .registry-spotlight { padding-bottom: 30px; }
-      .registry-card { grid-template-columns: 1fr; gap: 20px; padding: 24px 20px; }
-      .registry-actions { justify-content: flex-start; }
-
       .feed-section { padding: 0 0 68px; }
       .feed-head { display: block; margin-bottom: 22px; }
       .feed-label-row { gap: 14px; }
@@ -977,9 +945,6 @@
     @media (max-width: 420px) {
       .hero-actions, .waitlist-row { flex-direction: column; }
       .hero-actions .button, .waitlist-row .button { width: 100%; }
-      .registry-actions { align-items: stretch; flex-direction: column; }
-      .registry-actions .button { width: 100%; }
-      .registry-live-link { justify-content: center; }
       .cta-money { display: grid; }
       .cta-money p { border-radius: 14px; }
       .footer-row { gap: 18px; }
@@ -1032,30 +997,12 @@
       </div>
     </section>
 
-    <!-- ── Full registry ────────────────────────────────────── -->
-    <section class="registry-spotlight" aria-labelledby="registry-title">
-      <div class="shell">
-        <div class="registry-card sig-cut">
-          <div>
-            <span class="registry-kicker">Full tool registry</span>
-            <h2 class="registry-title" id="registry-title">All 120 tools, one honest library.</h2>
-            <p class="registry-copy">Every PhonicsMaker tool is being onboarded: 96 are in review or draft, and 24 are live now. Coming-soon tools can’t run or charge yet.</p>
-          </div>
-          <div class="registry-actions">
-            <a class="button button-accent" href="/registry">Browse all tools <span aria-hidden="true">→</span></a>
-            <a class="registry-live-link" href="#feed">Live only</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- ── Feed ─────────────────────────────────────────────── -->
     <section class="feed-section" id="feed" aria-labelledby="feed-title">
       <div class="shell">
         <div class="feed-head">
           <div class="feed-label-row">
-            <h2 class="feed-title" id="feed-title">Live marketplace</h2>
-            <a class="feed-registry-link" href="/registry">Browse all 120 <span aria-hidden="true">→</span></a>
+            <h2 class="feed-title" id="feed-title">Marketplace catalog</h2>
           </div>
           <div class="feed-tools">
             <div class="filter-row" role="group" aria-label="Filter by outcome">
@@ -1063,6 +1010,7 @@
               <button class="filter-chip" type="button" data-filter="content" aria-pressed="false">✂️ Content</button>
               <button class="filter-chip" type="button" data-filter="leads" aria-pressed="false">📈 Leads</button>
               <button class="filter-chip" type="button" data-filter="save" aria-pressed="false">💰 Save money</button>
+              <button class="filter-chip" type="button" data-filter="education" aria-pressed="false">📚 Education</button>
             </div>
           </div>
         </div>
@@ -1080,7 +1028,7 @@
     <div class="shell footer-row">
       <div class="footer-brand">
         <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
-        <p class="footer-tagline">The store for AI helpers. Try a free demo, then download or run by API.</p>
+        <p class="footer-tagline">The store for AI helpers. Browse the catalog, then download or run live tools by API.</p>
       </div>
       <nav class="footer-links omo-footer-links" aria-label="Footer">
         <a href="about.html">About</a>
@@ -1099,8 +1047,7 @@
     <div class="dialog-body" id="dialog-body"></div>
   </dialog>
 
-  <script src="ig-workflows.js"></script>
-  <script src="ig-more.js"></script>
+  <script src="catalog.js"></script>
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="library.js"></script>
@@ -1131,18 +1078,10 @@
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       };
 
-      /* ── Live products ───────────────────────────────────────── */
-      var PRODUCTS = {}; // real IG workflows merge in below
-
-      // Instagram-verified workflows (ig-workflows.js, optional)
-      var igExtra = window.COGNITION_IG_WORKFLOWS || [];
-      igExtra.forEach(function (s) {
-        if (!s || !s.slug) return;
-        if (!PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
-      });
-      // More Instagram-verified workflows (ig-more.js, optional)
-      var igMore = window.COGNITION_IG_MORE || [];
-      igMore.forEach(function (s) {
+      /* ── Catalog products ────────────────────────────────────── */
+      var PRODUCTS = {};
+      var catalog = window.OMO_CATALOG || [];
+      catalog.forEach(function (s) {
         if (!s || !s.slug) return;
         if (!PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
       });
@@ -1152,23 +1091,26 @@
       if (catalogJsonLd) {
         var catalogItems = Object.keys(PRODUCTS).map(function (slug, index) {
           var p = PRODUCTS[slug];
-          return {
+          var item = {
             '@type': 'ListItem',
             position: index + 1,
             item: {
               '@type': 'Product',
               name: p.name,
-              description: p.promise,
-              offers: {
+              description: p.promise
+            }
+          };
+          if (p.chargeable !== false && p.active !== false) {
+            item.item.offers = {
                 '@type': 'Offer',
                 name: 'Pay per run',
                 price: String(p.runPrice || p.priceRun),
                 priceCurrency: 'USD',
                 availability: 'https://schema.org/InStock',
                 url: 'https://omo.space/#feed'
-              }
-            }
-          };
+            };
+          }
+          return item;
         });
         catalogJsonLd.textContent = JSON.stringify({
           '@context': 'https://schema.org',
@@ -1221,16 +1163,18 @@
           '<span class="upvote-count">' + totalVotes(p) + '</span></button>';
       }
 
-      // Free lead magnets are explicit: free === true wins over stored price fields.
-      function isFreeListing(p) {
+      function isComingSoon(p) {
+        return p.status === 'coming-soon' || p.chargeable === false || p.active === false;
+      }
+      function isIncludedListing(p) {
         return p.free === true;
       }
       function runPriceLabel(p) {
-        return 'run &asymp; $' + Number(p.runPrice || p.priceRun || 0).toFixed(2);
+        return '$' + Number(p.runPrice || p.priceRun || 0).toFixed(2) + '/run';
       }
 
       function cardHTML(p, featured) {
-        var ownLabel = isFreeListing(p) ? 'Free' : '$' + p.priceOwn + ' one-time';
+        var price = isComingSoon(p) ? 'Coming soon' : runPriceLabel(p);
         var visual = p.icon
           ? '<div class="listing-cover icon-cover" aria-hidden="true"><img src="' + ESC(p.icon) + '" alt="" loading="lazy"></div>'
           : (p.cover
@@ -1244,18 +1188,18 @@
           '<p class="listing-promise">' + ESC(p.promise || p.desc || '') + '</p>' +
           '<p class="listing-maker">by <span class="maker-handle">' + ESC(p.maker) + '</span></p>' +
           '<div class="listing-footer">' +
-            '<p class="listing-price">' + ownLabel + ' <span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p>' +
+            '<p class="listing-price">' + price + '</p>' +
           '</div>' +
           '</div>' +
         '</article>';
       }
 
       function matches(p) {
-        var catOk = currentFilter === 'all' || p.category === currentFilter;
+        var catOk = currentFilter === 'all' || (p.marketCategory || p.category) === currentFilter;
         if (!catOk) return false;
         var q = currentQuery;
         if (!q) return true;
-        var hay = (p.name + ' ' + p.promise + ' ' + p.maker + ' ' + p.category).toLowerCase();
+        var hay = ([p.name, p.promise, p.maker, p.category, p.marketCategory, p.subcategory].concat(p.tags || []).join(' ')).toLowerCase();
         return hay.indexOf(q) !== -1;
       }
 
@@ -1319,7 +1263,7 @@
 
       /* ── Ops filter chip: only when the catalog has ops skills ── */
       (function () {
-        var hasOps = Object.keys(PRODUCTS).some(function (slug) { return PRODUCTS[slug].category === 'ops'; });
+        var hasOps = Object.keys(PRODUCTS).some(function (slug) { return (PRODUCTS[slug].marketCategory || PRODUCTS[slug].category) === 'ops'; });
         if (!hasOps) return;
         var row = document.querySelector('.filter-row');
         if (!row || row.querySelector('[data-filter="ops"]')) return;
@@ -1363,7 +1307,7 @@
         var target = signedIn
           ? 'dashboard.html?open=' + encodeURIComponent(p.slug)
           : 'signup.html?open=' + encodeURIComponent(p.slug);
-        var label = signedIn ? 'Open in dashboard' : 'Create a free account';
+        var label = signedIn ? 'Open in dashboard' : 'Create an account';
         return '<div class="run-handoff">' +
           '<h3>How to run it</h3>' +
           '<p>Buy once, or run it in your dashboard for <strong>&asymp; $' + Number(p.runPrice || p.priceRun || 0).toFixed(2) + ' per run</strong> \u2014 one API call, no setup.</p>' +
@@ -1372,8 +1316,8 @@
       }
 
       function detailHTML(p) {
-        var free = isFreeListing(p);
-        var ownPrice = free ? 'Free' : '$' + p.priceOwn + ' <small>one-time</small>';
+        var included = isIncludedListing(p);
+        var ownPrice = included ? 'Included' : '$' + p.priceOwn + ' <small>one-time</small>';
         var visual;
         if (p.embedHtml) {
           // The reel embed IS the hero: a clean click-to-play 9:16 player.
@@ -1423,8 +1367,8 @@
           '<section class="detail-section">' +
             '<h3>Price \u2014 clear and upfront</h3>' +
             '<div class="price-tiers">' +
-              tierHTML('Own it', ownPrice, free ? 'Prompts and how-to are yours.' : 'Workflow files + prompts are yours forever.') +
-              tierHTML('Run it', runPriceLabel(p) + ' <small>per run</small>', 'We run it in our cloud and handle the API keys.') +
+              tierHTML('Own it', ownPrice, included ? 'Prompts and how-to are yours.' : 'Workflow files + prompts are yours forever.') +
+              tierHTML('Run it', runPriceLabel(p), 'We run it in our cloud and handle the API keys.') +
             '</div>' +
           '</section>' +
 
@@ -1442,7 +1386,7 @@
 
           '<div class="detail-footer">' +
             '<button class="button button-primary" type="button" data-action="demo">Run it</button>' +
-            '<a class="button button-secondary" href="signup.html?open=' + encodeURIComponent(p.slug) + '" data-action="buy">' + (free ? 'Download \u2014 Free' : 'Buy \u2014 $' + p.priceOwn) + '</a>' +
+            '<a class="button button-secondary" href="signup.html?open=' + encodeURIComponent(p.slug) + '" data-action="buy">' + (included ? 'Download \u2014 Included' : 'Buy \u2014 $' + p.priceOwn) + '</a>' +
           '</div>';
       }
 
@@ -1458,6 +1402,10 @@
       }
 
       function openDialog(p, focusDemo) {
+        if (isComingSoon(p)) {
+          openWorkflowPage(p.slug);
+          return;
+        }
         currentSlug = p.slug;
         lastTrigger = document.activeElement;
         dialogBody.innerHTML = detailHTML(PRODUCTS[p.slug]);
@@ -1602,6 +1550,8 @@
         footer.appendChild(err);
       }
       function handleBuy(slug) {
+        var listing = PRODUCTS[slug] || null;
+        if (!listing || isComingSoon(listing)) return;
         if (!window.ClerkAuth || !ClerkAuth.isSignedIn()) {
           redirectToSignup(slug);
           return;
@@ -1610,7 +1560,6 @@
           buyError('Checkout is unavailable right now. Please try again in a moment.');
           return;
         }
-        var listing = PRODUCTS[slug] || null;
         var user = window.ClerkAuth ? ClerkAuth.getUser() : null;
         StripePay.checkout(slug, listing, user, {
           onSuccess: function () { markPurchased(slug); },

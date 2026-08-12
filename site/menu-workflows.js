@@ -96,8 +96,7 @@
 
   function productMap() {
     var products = {};
-    addProducts(products, window.COGNITION_IG_WORKFLOWS);
-    addProducts(products, window.COGNITION_IG_MORE);
+    addProducts(products, window.OMO_CATALOG);
     return products;
   }
 
@@ -116,10 +115,7 @@
 
   function ensureCatalog() {
     if (!catalogPromise) {
-      catalogPromise = Promise.all([
-        loadCatalogScript('ig-workflows.js', 'COGNITION_IG_WORKFLOWS'),
-        loadCatalogScript('ig-more.js', 'COGNITION_IG_MORE')
-      ]);
+      catalogPromise = loadCatalogScript('catalog.js', 'OMO_CATALOG');
     }
     return catalogPromise;
   }
@@ -249,7 +245,7 @@
       renderSection(popovers[j], items, products);
     }
 
-    if (items.length && (!window.COGNITION_IG_WORKFLOWS || !window.COGNITION_IG_MORE)) {
+    if (items.length && !window.OMO_CATALOG) {
       ensureCatalog().then(function () {
         if (!isSignedIn()) {
           syncSections();

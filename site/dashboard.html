@@ -550,8 +550,7 @@
     <div class="dialog-body" id="dialog-body"></div>
   </dialog>
 
-  <script src="ig-workflows.js"></script>
-  <script src="ig-more.js"></script>
+  <script src="catalog.js"></script>
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="credits.js"></script>
@@ -574,16 +573,11 @@
       var VOTE_KEY = 'cognition_votes_v1';
 
       var PRODUCTS = {};
-      var igWorkflows = window.COGNITION_IG_WORKFLOWS || [];
-      var igMore = window.COGNITION_IG_MORE || [];
+      var catalog = window.OMO_CATALOG || [];
       var i;
-      for (i = 0; i < igWorkflows.length; i++) {
-        if (!igWorkflows[i] || !igWorkflows[i].slug) continue;
-        if (!PRODUCTS[igWorkflows[i].slug]) PRODUCTS[igWorkflows[i].slug] = igWorkflows[i];
-      }
-      for (i = 0; i < igMore.length; i++) {
-        if (!igMore[i] || !igMore[i].slug) continue;
-        if (!PRODUCTS[igMore[i].slug]) PRODUCTS[igMore[i].slug] = igMore[i];
+      for (i = 0; i < catalog.length; i++) {
+        if (!catalog[i] || !catalog[i].slug) continue;
+        if (!PRODUCTS[catalog[i].slug]) PRODUCTS[catalog[i].slug] = catalog[i];
       }
       var slugs = Object.keys(PRODUCTS);
       if (el('catalog-count')) el('catalog-count').textContent = slugs.length;
@@ -600,7 +594,7 @@
       }
       function fmtUsd(v) { return '$' + Number(v).toFixed(2); }
       function listingText(p) {
-        return [p.name, p.promise, p.category, (p.tags || []).join(' ')].join(' ').toLowerCase();
+        return [p.name, p.promise, p.category, p.marketCategory, p.subcategory, (p.tags || []).join(' ')].join(' ').toLowerCase();
       }
 
       /* Counts and matches come from name, promise, category, and tags. */
@@ -610,6 +604,7 @@
         { key: 'leads', group: 'outcome', label: 'Leads', icon: '↗', match: function (p) { return p.category === 'leads'; } },
         { key: 'save', group: 'outcome', label: 'Save money', icon: '$', match: function (p) { return p.category === 'save'; } },
         { key: 'ops', group: 'outcome', label: 'Ops', icon: '⚙', match: function (p) { return p.category === 'ops'; } },
+        { key: 'education', group: 'outcome', label: 'Education', icon: '▣', match: function (p) { return (p.marketCategory || p.category) === 'education'; } },
         { key: 'ugc', group: 'niche', label: 'UGC', icon: '◎', match: function (p) { return /\bugc\b/.test(listingText(p)); } },
         { key: 'ads', group: 'niche', label: 'Ads', icon: '◉', match: function (p) { return /\bad(s|vertising)?\b|\bcommercial\b|\bcreative(s)?\b/.test(listingText(p)); } },
         { key: 'shopify', group: 'niche', label: 'Shopify', icon: '◇', match: function (p) { return /\bshopify\b/.test(listingText(p)); } },
@@ -659,10 +654,11 @@
         return '<button class="upvote-btn' + (voted ? ' is-voted' : '') + '" type="button" data-upvote="' + esc(p.slug) + '" aria-pressed="' + (voted ? 'true' : 'false') + '" aria-label="' + (voted ? 'Remove upvote from ' : 'Upvote ') + esc(p.name) + '">' +
           '<span class="upvote-arrow" aria-hidden="true">▲</span><span class="upvote-count">' + totalVotes(p) + '</span></button>';
       }
-      function isFreeListing(p) { return p.free === true; }
-      function runPriceLabel(p) { return 'run &asymp; $' + Number(p.runPrice || p.priceRun || 0).toFixed(2); }
+      function isIncludedListing(p) { return p.free === true; }
+      function isComingSoon(p) { return p.status === 'coming-soon' || p.chargeable === false || p.active === false; }
+      function runPriceLabel(p) { return '$' + Number(p.runPrice || p.priceRun || 0).toFixed(2) + '/run'; }
       function cardHTML(p, featured) {
-        var ownLabel = isFreeListing(p) ? 'Free' : '$' + p.priceOwn + ' one-time';
+        var price = isComingSoon(p) ? 'Coming soon' : runPriceLabel(p);
         var visual = p.icon
           ? '<div class="listing-cover icon-cover" aria-hidden="true"><img src="' + esc(p.icon) + '" alt="" loading="lazy"></div>'
           : (p.cover
@@ -673,11 +669,11 @@
           '<h3 class="listing-name">' + esc(p.name) + '</h3>' +
           '<p class="listing-promise">' + esc(p.promise || p.desc || '') + '</p>' +
           '<p class="listing-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +
-          '<div class="listing-footer"><p class="listing-price">' + ownLabel + ' <span class="price-note">&middot; ' + runPriceLabel(p) + '</span></p></div></div></article>';
+          '<div class="listing-footer"><p class="listing-price">' + price + '</p></div></div></article>';
       }
       function matches(p) {
         if (!filterByKey(currentScope).match(p)) return false;
-        if (currentOutcome !== 'all' && p.category !== currentOutcome) return false;
+        if (currentOutcome !== 'all' && (p.marketCategory || p.category) !== currentOutcome) return false;
         if (!currentQuery) return true;
         return listingText(p).indexOf(currentQuery) !== -1;
       }
@@ -791,8 +787,8 @@
           '<p class="demo-note">' + esc(billingNote) + '</p>' +
           '<form data-demo-form data-slug="' + esc(p.slug) + '" novalidate><div class="demo-row">' + fields.join('') + '</div>' +
           '<button class="button button-primary demo-run" type="submit">Run on our cloud — &asymp; ' + esc(price) + ' / run</button>' +
-          '<a class="button button-secondary demo-buy" href="#" data-action="buy">' + (isFreeListing(p) ? 'Download — Free' : 'Buy — $' + p.priceOwn) + '</a>' +
-          '<p class="run-usage">Runs from your balance &middot; $5 free when you join</p>' +
+          '<a class="button button-secondary demo-buy" href="#" data-action="buy">' + (isIncludedListing(p) ? 'Download — Included' : 'Buy — $' + p.priceOwn) + '</a>' +
+          '<p class="run-usage">Runs from your balance &middot; includes $5 when you join</p>' +
           '<p class="demo-status" data-demo-status role="status" aria-live="polite"></p>' +
           progress +
           '<div class="credit-empty" data-credit-empty hidden><strong>You\'re out of credits</strong>' +
@@ -801,13 +797,20 @@
           '<div class="demo-result" data-demo-result hidden></div></div>';
       }
       function detailHTML(p) {
-        var ownPrice = isFreeListing(p) ? 'Free' : '$' + p.priceOwn + ' <small>one-time</small>';
+        var included = isIncludedListing(p);
+        var ownPrice = included ? 'Included' : '$' + p.priceOwn + ' <small>one-time</small>';
         var heroBg = p.cover || p.icon || '';
         var visual = p.embedHtml
           ? '<div class="detail-hero-video" data-reel-url="' + esc(p.reelUrl || '') + '"' + (heroBg ? ' style="background-image:url(' + esc(heroBg) + ')"' : '') + '><div class="hero-video-shade"></div><span class="hero-video-badge">Reel</span><span class="hero-video-play" aria-hidden="true">▶</span></div>'
           : (heroBg
             ? '<div class="detail-cover sig-cut" aria-hidden="true"><img src="' + esc(heroBg) + '" alt=""></div>'
             : '<div class="detail-cover sig-cut" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:44px">' + p.emoji + '</span></div>');
+        if (isComingSoon(p)) {
+          return visual + '<h2 class="detail-name" id="detail-name">' + esc(p.name) + '</h2>' +
+            '<p class="detail-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +
+            '<p class="detail-desc">' + esc(p.desc || p.promise) + '</p>' +
+            '<section class="detail-section"><h3>Coming soon</h3><p>This helper is still being hosted and reviewed. It cannot run or charge yet.</p></section>';
+        }
         var inputs = p.inputs || [];
         var outputs = p.outputs || [];
         var examples = p.exampleOut || [];
@@ -823,8 +826,8 @@
           '<section class="detail-section"><h3>See it work — a real example</h3><div class="io-box"><div class="io-col"><p class="io-label">INPUT</p><p style="margin:0;font-size:14px">' + esc(p.exampleIn) + '</p></div>' +
           '<div class="io-col"><p class="io-label">OUTPUT</p><ul>' + examples.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div></section>' +
           '<section class="detail-section"><h3>Price — clear and upfront</h3><div class="price-tiers">' +
-          tierHTML('Own it', ownPrice, isFreeListing(p) ? 'Prompts and how-to are yours.' : 'Workflow files + prompts are yours forever.') +
-          tierHTML('Run it', runPriceLabel(p) + ' <small>per run</small>', 'We run it in our cloud and handle the API keys.') + '</div></section>' +
+          tierHTML('Own it', ownPrice, included ? 'Prompts and how-to are yours.' : 'Workflow files + prompts are yours forever.') +
+          tierHTML('Run it', runPriceLabel(p), 'We run it in our cloud and handle the API keys.') + '</div></section>' +
           '<section class="detail-section"><h3>Two ways to use it</h3><div class="use-doors">' +
           doorHTML('💻', 'Download', 'Take the workflow and prompts. Run it on your machine.') +
           doorHTML('🔌', 'API', 'We run it in our cloud and handle the service keys.') + '</div></section>' +
@@ -876,6 +879,7 @@
       }
       function handleBuy(slug) {
         var listing = PRODUCTS[slug];
+        if (!listing || isComingSoon(listing)) return;
         var user = window.ClerkAuth && ClerkAuth.getUser ? ClerkAuth.getUser() : null;
         if (window.StripePay && typeof StripePay.checkout === 'function') {
           StripePay.checkout(slug, listing, user, { onSuccess: markPurchased, onError: function (msg) { showNote(msg, true); } });
@@ -1398,6 +1402,7 @@
             var form = event.target.closest('[data-demo-form]'); if (!form) return;
             event.preventDefault();
             var product = PRODUCTS[form.getAttribute('data-slug')]; var status = form.querySelector('[data-demo-status]');
+            if (!product || isComingSoon(product)) return;
             var resultBox = form.parentElement.querySelector('[data-demo-result]'); var runButton = form.querySelector('.demo-run');
             var creditEmpty = form.querySelector('[data-credit-empty]');
             var fields = form.querySelectorAll('[data-demo-field]'); var payload = { slug: product.slug, fields: {} }; var missing = '';

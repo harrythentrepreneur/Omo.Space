@@ -45,7 +45,7 @@ def test_hosted_profile_is_deterministic_and_schema_driven() -> None:
 def test_catalog_patch_is_idempotent() -> None:
     profile, manifest, pricing = compiled_inputs()
     hosted = host.build_hosted_profile(profile, manifest, pricing)
-    source = "window.COGNITION_IG_MORE = [\n  { slug: 'legacy' }\n];\n"
+    source = "window.OMO_CATALOG = [\n  { slug: 'legacy' }\n];\n"
     first = host.patch_catalog(source, [hosted])
     second = host.patch_catalog(first, [hosted])
     assert first == second
@@ -57,7 +57,7 @@ def test_catalog_patch_is_idempotent() -> None:
 def test_existing_hand_managed_slug_is_not_duplicated() -> None:
     profile, manifest, pricing = compiled_inputs()
     hosted = host.build_hosted_profile(profile, manifest, pricing)
-    source = "window.COGNITION_IG_MORE = [\n  { slug: 'facebook-ads-copywriter' }\n];\n"
+    source = "window.OMO_CATALOG = [\n  { slug: 'facebook-ads-copywriter' }\n];\n"
     patched = host.patch_catalog(source, [hosted])
     assert patched.count("facebook-ads-copywriter") == 1
 

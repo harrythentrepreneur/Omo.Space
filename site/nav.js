@@ -728,12 +728,10 @@
   }
 
   function catalogWorkflow(slug) {
-    var sources = [window.COGNITION_IG_WORKFLOWS || [], window.COGNITION_IG_MORE || []];
-    for (var sourceIndex = 0; sourceIndex < sources.length; sourceIndex += 1) {
-      for (var itemIndex = 0; itemIndex < sources[sourceIndex].length; itemIndex += 1) {
-        if (sources[sourceIndex][itemIndex] && sources[sourceIndex][itemIndex].slug === slug) {
-          return sources[sourceIndex][itemIndex];
-        }
+    var catalog = window.OMO_CATALOG || [];
+    for (var itemIndex = 0; itemIndex < catalog.length; itemIndex += 1) {
+      if (catalog[itemIndex] && catalog[itemIndex].slug === slug) {
+        return catalog[itemIndex];
       }
     }
     return null;
@@ -753,10 +751,7 @@
       });
     }
 
-    contextualCatalogPromise = Promise.all([
-      load('ig-workflows.js', 'COGNITION_IG_WORKFLOWS'),
-      load('ig-more.js', 'COGNITION_IG_MORE')
-    ]);
+    contextualCatalogPromise = load('catalog.js', 'OMO_CATALOG');
     return contextualCatalogPromise;
   }
 
@@ -815,7 +810,7 @@
       return;
     }
 
-    if (window.COGNITION_IG_WORKFLOWS && window.COGNITION_IG_MORE) return;
+    if (window.OMO_CATALOG) return;
     loadContextualCatalog().then(function () {
       var loadedProduct = catalogWorkflow(context.slug);
       if (loadedProduct) renderContextualWorkflowIdentity(context, loadedProduct);
