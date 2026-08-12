@@ -767,6 +767,34 @@ check('topup: custom $7 Omo credits, cards only, locale, text, version + idempot
 check('topup: success and cancel URLs return directly to billing', tpcParams.get('success_url') === 'https://omo.space/billing.html?topup=success&session_id={CHECKOUT_SESSION_ID}' && tpcParams.get('cancel_url') === 'https://omo.space/billing.html?topup=cancelled');
 check('topup: verified user overrides body user in reference + scoped metadata', tpcParams.get('client_reference_id') === 'user_111' && tpcParams.get('metadata[user_id]') === 'user_111' && tpcParams.get('metadata[type]') === 'credits_topup' && tpcParams.get('metadata[flow]') === 'topup');
 
+const topupPersistenceFailureEnv = {
+  ...stripeEnv,
+  BALANCE_DB: {
+    prepare(sql) {
+      if (sql.includes('topup_sessions')) throw Object.assign(new Error('missing topup_sessions table'), { code: '42P01' });
+      return {
+        bind() {
+          return {
+            first: async () => sql.startsWith('SELECT balance_cents')
+              ? { balance_cents: 500, api_key: 'hash', created_at: new Date().toISOString() }
+              : null,
+            run: async () => ({ meta: { changes: 1 } }),
+          };
+        },
+      };
+    },
+  },
+};
+const failedTopupResponse = await worker.fetch(mkReq('POST', '/api/topup', {
+  user_id: 'user_attacker', amount_usd: 7,
+}, { ...topupHeaders, 'Idempotency-Key': 'topup-router-db-failure' }), topupPersistenceFailureEnv);
+const failedTopup = await failedTopupResponse.json();
+const topupExpireCall = stripeCalls.at(-1);
+check('topup: persistence failure expires the unpaid Stripe session and fails closed',
+  failedTopupResponse.status === 503 && failedTopup.error === 'top-up recording unavailable' &&
+  failedTopup.session_expired === true &&
+  topupExpireCall.url === 'https://api.stripe.com/v1/checkout/sessions/cs_test_123/expire' && topupExpireCall.method === 'POST');
+
 const topupEvent = {
   id: 'evt_credit_topup_123',
   type: 'checkout.session.completed',

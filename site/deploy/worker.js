@@ -1625,6 +1625,8 @@ async function handleTopup(request, env) {
   params.set('line_items[0][price_data][product_data][description]', `Adds $${(cents / 100).toFixed(2)} to your Omo balance.`);
   params.set('line_items[0][price_data][unit_amount]', String(cents));
 
+  let topupStage = 'stripe_request';
+  let stripeSessionId = '';
   try {
     const stripeHeaders = stripeCheckoutHeaders(secretKey);
     if (callerIdempotencyKey) {
@@ -1644,9 +1646,25 @@ async function handleTopup(request, env) {
     if (!data || !data.id || !checkoutUrl || checkoutUrl.origin !== 'https://checkout.stripe.com') {
       return json({ error: 'stripe returned an invalid checkout session' }, 502, cors());
     }
-    if (real) await recordPendingTopup(env, data.id, userId, cents, 'usd');
+    stripeSessionId = data.id;
+    if (real) {
+      topupStage = 'topup_record';
+      await recordPendingTopup(env, data.id, userId, cents, 'usd');
+    }
     return json({ url: checkoutUrl.toString(), session_id: data.id }, 200, cors());
   } catch (e) {
+    const sessionExpired = topupStage === 'topup_record'
+      ? await expireStripeCheckoutSession(secretKey, stripeSessionId)
+      : false;
+    console.error('top-up session failed', {
+      stage: topupStage,
+      code: String(e && e.code || '').slice(0, 80),
+      message: String(e && e.message || 'unknown error').slice(0, 240),
+      session_expired: sessionExpired,
+    });
+    if (topupStage === 'topup_record') {
+      return json({ error: 'top-up recording unavailable', session_expired: sessionExpired }, 503, cors());
+    }
     return json({ error: 'stripe unavailable' }, 502, cors());
   }
 }
