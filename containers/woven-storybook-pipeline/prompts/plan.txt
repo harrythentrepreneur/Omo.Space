@@ -1,0 +1,1 @@
+Plan 8-16 chapters and 80-160 evidence-linked beats across scene, quote, milestone, and punch roles. Maintain month coverage, archive boundaries, role constraints, and symbol state continuity. Return strict JSON only.

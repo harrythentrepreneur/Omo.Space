@@ -1,0 +1,67 @@
+{
+  "$id": "https://cognition.marketplace/schemas/audio-symbolic-animation/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "audio_artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "maximum": 52428800,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "content_type": {
+          "enum": [
+            "audio/mpeg",
+            "audio/mp4",
+            "audio/wav",
+            "audio/x-wav"
+          ],
+          "type": "string"
+        },
+        "object_key": {
+          "maxLength": 512,
+          "minLength": 3,
+          "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "object_key",
+        "sha256",
+        "bytes",
+        "content_type"
+      ],
+      "type": "object"
+    },
+    "passage_hint": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    },
+    "style": {
+      "const": "sumi-e"
+    },
+    "target_duration_seconds": {
+      "enum": [
+        30,
+        60,
+        120,
+        240
+      ],
+      "type": "integer"
+    }
+  },
+  "required": [
+    "audio_artifact",
+    "target_duration_seconds",
+    "style"
+  ],
+  "title": "Audio symbolic animation run input",
+  "type": "object"
+}

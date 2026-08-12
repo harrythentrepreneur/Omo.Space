@@ -1,0 +1,1 @@
+Derive one recurring symbol from the transcript and express it as a countable mechanical state machine. Define the invariant anchor, state chain, and identity policy. Do not use mood words as visual deltas. Return strict JSON only.

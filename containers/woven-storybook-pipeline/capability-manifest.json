@@ -1,0 +1,41 @@
+{
+  "allowlist": [
+    "single_llm"
+  ],
+  "approved": [],
+  "blockers": [
+    {
+      "code": "EXECUTOR_NOT_VENDORED",
+      "detail": "The reviewed TypeScript implementation lives in /Users/yifan/woven/backend and is not a pinned, versioned dependency of this repository."
+    },
+    {
+      "code": "DEEPSEEK_SECRET_MISSING",
+      "detail": "A least-privilege Modal secret containing DEEPSEEK_API_KEY must exist before a real generation can run."
+    },
+    {
+      "code": "PRIVATE_DATA_PLANE_MISSING",
+      "detail": "Private upload, mode-700 run workspaces, TTL deletion, signed download, and raw-chat deletion need a hosted implementation and tests."
+    },
+    {
+      "code": "COST_INCOMPLETE",
+      "detail": "Chromium/Ghostscript compute, Modal resources, storage, egress, retries, and delivered-output yield are not measured."
+    },
+    {
+      "code": "LIVE_FIXTURE_QA_PENDING",
+      "detail": "The safe demo fixture must pass the vendored backend suite and one full Modal run before readiness can change."
+    }
+  ],
+  "decision": "blocked",
+  "execution_kind": "complex_external",
+  "requested": [
+    "private-chat-artifact-read",
+    "private-book-artifact-write",
+    "woven-typescript-backend",
+    "deepseek-openai-compatible",
+    "parallel-chapter-generation-6",
+    "headless-chromium-pdf",
+    "ghostscript-pdf"
+  ],
+  "schema_version": "cognition.capabilities/v1",
+  "slug": "woven-storybook-pipeline"
+}

@@ -1,0 +1,147 @@
+{
+  "artifacts": [
+    {
+      "content_type": "application/pdf",
+      "kind": "storybook_pdf",
+      "required": true
+    },
+    {
+      "content_type": "text/html",
+      "kind": "storybook_html",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "quality_manifest",
+      "required": true
+    }
+  ],
+  "description": "WhatsApp chats to keepsake storybooks via Woven backend.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "chat_export",
+      "widget": "private_artifact_upload"
+    },
+    {
+      "field": "mode",
+      "value": "natural",
+      "widget": "hidden"
+    },
+    {
+      "field": "pseudonymize_names",
+      "value": false,
+      "widget": "hidden"
+    },
+    {
+      "field": "title_override",
+      "widget": "text"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "chat_export": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "maximum": 52428800,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "text/plain",
+              "application/zip"
+            ],
+            "type": "string"
+          },
+          "object_key": {
+            "maxLength": 512,
+            "minLength": 3,
+            "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key",
+          "sha256",
+          "bytes",
+          "content_type"
+        ],
+        "type": "object"
+      },
+      "mode": {
+        "const": "natural"
+      },
+      "pseudonymize_names": {
+        "const": false
+      },
+      "title_override": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+      }
+    },
+    "required": [
+      "chat_export",
+      "mode",
+      "pseudonymize_names"
+    ],
+    "title": "Woven storybook run input",
+    "type": "object"
+  },
+  "name": "woven-storybook-pipeline",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": false,
+    "currency": "USD",
+    "display_price_usd": 0.4,
+    "label": "Projected $0.40 — unavailable",
+    "quote_status": "provisional_blocked",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "EXECUTOR_NOT_VENDORED",
+        "detail": "The reviewed TypeScript implementation lives in /Users/yifan/woven/backend and is not a pinned, versioned dependency of this repository."
+      },
+      {
+        "code": "DEEPSEEK_SECRET_MISSING",
+        "detail": "A least-privilege Modal secret containing DEEPSEEK_API_KEY must exist before a real generation can run."
+      },
+      {
+        "code": "PRIVATE_DATA_PLANE_MISSING",
+        "detail": "Private upload, mode-700 run workspaces, TTL deletion, signed download, and raw-chat deletion need a hosted implementation and tests."
+      },
+      {
+        "code": "COST_INCOMPLETE",
+        "detail": "Chromium/Ghostscript compute, Modal resources, storage, egress, retries, and delivered-output yield are not measured."
+      },
+      {
+        "code": "LIVE_FIXTURE_QA_PENDING",
+        "detail": "The safe demo fixture must pass the vendored backend suite and one full Modal run before readiness can change."
+      }
+    ],
+    "can_submit": false,
+    "required_env_names": [
+      "DEEPSEEK_API_KEY"
+    ],
+    "status": "not_ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "woven-storybook-pipeline",
+  "version": "0.1.0"
+}

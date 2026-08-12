@@ -1,0 +1,40 @@
+{
+  "allowlist": [
+    "single_llm"
+  ],
+  "approved": [],
+  "blockers": [
+    {
+      "code": "EXECUTOR_NOT_MATERIALIZED",
+      "detail": "The referenced Hermes scripts and faster-whisper model are not vendored, pinned, or packaged in this repository."
+    },
+    {
+      "code": "IMAGEGEN_CAPABILITY_UNAPPROVED",
+      "detail": "The skill requires sequential Hermes/Codex subscription image generation; no reviewed server-side Modal adapter or auditable credential lifecycle exists."
+    },
+    {
+      "code": "PRIVATE_ARTIFACT_PLANE_MISSING",
+      "detail": "Exact private input upload, output persistence, signed delivery, retention, and deletion are unresolved."
+    },
+    {
+      "code": "COST_INCOMPLETE",
+      "detail": "Modal transcription/assembly compute, subscription allowance, retries, storage, egress, and accepted-output yield are not measured."
+    },
+    {
+      "code": "QA_CAPABILITY_MISSING",
+      "detail": "The required vision continuity gate and long-run paid canary have not been implemented or approved."
+    }
+  ],
+  "decision": "blocked",
+  "execution_kind": "complex_external",
+  "requested": [
+    "private-artifact-read",
+    "private-artifact-write",
+    "faster-whisper-large-v3-turbo",
+    "sequential-codex-image-generation",
+    "ffmpeg-h264-aac",
+    "vision-quality-gate"
+  ],
+  "schema_version": "cognition.capabilities/v1",
+  "slug": "audio-symbolic-animation"
+}

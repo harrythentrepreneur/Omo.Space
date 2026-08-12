@@ -1,0 +1,172 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One sequential image generation per output second; 40-60 seconds latency per frame",
+    "ChatGPT subscription image allowance has no auditable per-call COGS in the repository model",
+    "CPU transcription with faster-whisper and FFmpeg assembly are unpriced Modal compute",
+    "Retries for landscape frames, timeouts, and empty-response storms can multiply usage"
+  ],
+  "description": "Use when making a symbolic animation video from any audio.",
+  "detected_provider_needs": [
+    "faster-whisper",
+    "ffmpeg",
+    "hermes-codex-imagegen"
+  ],
+  "name": "audio-symbolic-animation",
+  "parsed_workflow_steps": [
+    {
+      "id": "input-transcribe",
+      "number": "1",
+      "title": "INPUT + TRANSCRIBE"
+    },
+    {
+      "id": "passage-selection-if-audio-4-min",
+      "number": "2",
+      "title": "PASSAGE SELECTION (if audio > ~4 min)"
+    },
+    {
+      "id": "concept",
+      "number": "3",
+      "title": "CONCEPT"
+    },
+    {
+      "id": "shot-spine-10-14-shots-12-25s-each-boundaries-word-anchored",
+      "number": "4",
+      "title": "SHOT SPINE (10-14 shots, ~12-25s each, boundaries word-anchored)"
+    },
+    {
+      "id": "brief",
+      "number": "5",
+      "title": "BRIEF"
+    },
+    {
+      "id": "style-clause-default-sumi-e-swap-for-any-style",
+      "number": "6",
+      "title": "STYLE CLAUSE (default sumi-e; swap for any style)"
+    },
+    {
+      "id": "generate-one-sequential-chain-never-parallelize",
+      "number": "7",
+      "title": "GENERATE — ONE sequential chain, NEVER parallelize"
+    },
+    {
+      "id": "checkpoint-recommended-for-anything-60-frames",
+      "number": "8",
+      "title": "CHECKPOINT (recommended for anything > 60 frames)"
+    },
+    {
+      "id": "assemble",
+      "number": "9",
+      "title": "ASSEMBLE"
+    },
+    {
+      "id": "music-optional-user-approved-standard",
+      "number": "10",
+      "title": "MUSIC (optional, user-approved standard)"
+    },
+    {
+      "id": "qa-delivery",
+      "number": "11",
+      "title": "QA + DELIVERY"
+    }
+  ],
+  "required_env_names": [
+    "DEEPSEEK_API_KEY",
+    "OPENAI_CODEX_ACCESS_TOKEN",
+    "OPENAI_CODEX_REFRESH_TOKEN",
+    "OPENAI_CODEX_ACCOUNT_ID"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "acquire",
+      "operation": "private_artifact.read",
+      "readiness": "blocked",
+      "type": "artifact"
+    },
+    {
+      "id": "transcribe",
+      "operation": "faster_whisper.transcribe_words",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "select-passage",
+      "operation": "chat.completions.strict_json",
+      "prompt": "passage-selection.txt",
+      "provider": "deepseek",
+      "readiness": "blocked",
+      "type": "llm"
+    },
+    {
+      "id": "concept",
+      "operation": "chat.completions.strict_json",
+      "prompt": "concept.txt",
+      "provider": "deepseek",
+      "readiness": "blocked",
+      "type": "llm"
+    },
+    {
+      "id": "brief",
+      "operation": "chat.completions.strict_json_batches",
+      "prompt": "brief.txt",
+      "provider": "deepseek",
+      "readiness": "blocked",
+      "type": "llm"
+    },
+    {
+      "id": "generate-frames",
+      "operation": "codex_imagegen.sequential_chain",
+      "provider": "hermes-codex",
+      "readiness": "blocked",
+      "type": "api"
+    },
+    {
+      "id": "assemble",
+      "operation": "ffmpeg.delta_only_h264_aac",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "qa",
+      "operation": "media_and_vision.validate",
+      "readiness": "blocked",
+      "type": "quality"
+    },
+    {
+      "id": "deliver",
+      "operation": "private_artifact.write",
+      "readiness": "blocked",
+      "type": "artifact"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "audio-symbolic-animation",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "50d5ba9538ea5b8eab24b192df87f22b8723322f1c0874b8e24110057368fe1f"
+  },
+  "unresolved": [
+    {
+      "code": "EXECUTOR_NOT_MATERIALIZED",
+      "detail": "The referenced Hermes scripts and faster-whisper model are not vendored, pinned, or packaged in this repository."
+    },
+    {
+      "code": "IMAGEGEN_CAPABILITY_UNAPPROVED",
+      "detail": "The skill requires sequential Hermes/Codex subscription image generation; no reviewed server-side Modal adapter or auditable credential lifecycle exists."
+    },
+    {
+      "code": "PRIVATE_ARTIFACT_PLANE_MISSING",
+      "detail": "Exact private input upload, output persistence, signed delivery, retention, and deletion are unresolved."
+    },
+    {
+      "code": "COST_INCOMPLETE",
+      "detail": "Modal transcription/assembly compute, subscription allowance, retries, storage, egress, and accepted-output yield are not measured."
+    },
+    {
+      "code": "QA_CAPABILITY_MISSING",
+      "detail": "The required vision continuity gate and long-run paid canary have not been implemented or approved."
+    }
+  ]
+}

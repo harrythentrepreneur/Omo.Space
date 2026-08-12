@@ -1,0 +1,171 @@
+{
+  "chargeable": false,
+  "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
+  "default_tier": "120_seconds",
+  "display_price_usd": 24.34,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 6.1,
+      "detail": [
+        {
+          "cost_usd": 0.00092,
+          "qty": 1,
+          "step": "llm(passage)"
+        },
+        {
+          "cost_usd": 0.00132,
+          "qty": 1,
+          "step": "llm(concept)"
+        },
+        {
+          "cost_usd": 0.00252,
+          "qty": 1,
+          "step": "llm(shot-spine)"
+        },
+        {
+          "cost_usd": 0.01568,
+          "qty": 2,
+          "step": "llm(brief-batch)"
+        },
+        {
+          "cost_usd": 1.2,
+          "qty": 30,
+          "step": "api(openai_image)"
+        }
+      ],
+      "guard_cost_usd": 0.0,
+      "guarded_price_floor_usd": 6.11,
+      "modeled_cost_usd": 1.22044,
+      "notes": [
+        "Planning lane substitutes the repository openai_image cost code because the specified ChatGPT subscription lane has no auditable unit price."
+      ],
+      "pricing_cost_usd": 1.22044,
+      "tier": "30_seconds"
+    },
+    {
+      "cost_model_run_price_usd": 12.18,
+      "detail": [
+        {
+          "cost_usd": 0.00092,
+          "qty": 1,
+          "step": "llm(passage)"
+        },
+        {
+          "cost_usd": 0.00132,
+          "qty": 1,
+          "step": "llm(concept)"
+        },
+        {
+          "cost_usd": 0.00252,
+          "qty": 1,
+          "step": "llm(shot-spine)"
+        },
+        {
+          "cost_usd": 0.03136,
+          "qty": 4,
+          "step": "llm(brief-batch)"
+        },
+        {
+          "cost_usd": 2.4,
+          "qty": 60,
+          "step": "api(openai_image)"
+        }
+      ],
+      "guard_cost_usd": 0.0,
+      "guarded_price_floor_usd": 12.19,
+      "modeled_cost_usd": 2.43612,
+      "notes": [],
+      "pricing_cost_usd": 2.43612,
+      "tier": "60_seconds"
+    },
+    {
+      "cost_model_run_price_usd": 24.34,
+      "detail": [
+        {
+          "cost_usd": 0.00092,
+          "qty": 1,
+          "step": "llm(passage)"
+        },
+        {
+          "cost_usd": 0.00132,
+          "qty": 1,
+          "step": "llm(concept)"
+        },
+        {
+          "cost_usd": 0.00252,
+          "qty": 1,
+          "step": "llm(shot-spine)"
+        },
+        {
+          "cost_usd": 0.06272,
+          "qty": 8,
+          "step": "llm(brief-batch)"
+        },
+        {
+          "cost_usd": 4.8,
+          "qty": 120,
+          "step": "api(openai_image)"
+        }
+      ],
+      "guard_cost_usd": 0.0,
+      "guarded_price_floor_usd": 24.34,
+      "modeled_cost_usd": 4.86748,
+      "notes": [],
+      "pricing_cost_usd": 4.86748,
+      "tier": "120_seconds"
+    },
+    {
+      "cost_model_run_price_usd": 48.65,
+      "detail": [
+        {
+          "cost_usd": 0.00092,
+          "qty": 1,
+          "step": "llm(passage)"
+        },
+        {
+          "cost_usd": 0.00132,
+          "qty": 1,
+          "step": "llm(concept)"
+        },
+        {
+          "cost_usd": 0.00252,
+          "qty": 1,
+          "step": "llm(shot-spine)"
+        },
+        {
+          "cost_usd": 0.12544,
+          "qty": 16,
+          "step": "llm(brief-batch)"
+        },
+        {
+          "cost_usd": 9.6,
+          "qty": 240,
+          "step": "api(openai_image)"
+        }
+      ],
+      "guard_cost_usd": 0.0,
+      "guarded_price_floor_usd": 48.66,
+      "modeled_cost_usd": 9.7302,
+      "notes": [],
+      "pricing_cost_usd": 9.7302,
+      "tier": "240_seconds"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "notes": [
+    "No buyer quote is approved while the specified subscription lane and Modal compute remain unpriced.",
+    "The displayed planning amount is the API-alternative floor for the default duration, not a charge."
+  ],
+  "quote_status": "blocked_unpriced_capabilities",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model.mjs",
+  "unpriced_costs": [
+    "faster-whisper CPU and model load",
+    "FFmpeg CPU/memory",
+    "artifact storage and egress",
+    "vision QA",
+    "subscription allowance depletion and retry tails"
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "artifacts": [
+    {
+      "content_type": "video/mp4",
+      "kind": "video",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "transcript",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "frame_brief",
+      "required": true
+    }
+  ],
+  "description": "Use when making a symbolic animation video from any audio.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "audio_artifact",
+      "widget": "private_artifact_upload"
+    },
+    {
+      "field": "target_duration_seconds",
+      "widget": "select"
+    },
+    {
+      "field": "style",
+      "value": "sumi-e",
+      "widget": "hidden"
+    },
+    {
+      "field": "passage_hint",
+      "widget": "textarea"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://cognition.marketplace/schemas/audio-symbolic-animation/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "audio_artifact": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "maximum": 52428800,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "audio/mpeg",
+              "audio/mp4",
+              "audio/wav",
+              "audio/x-wav"
+            ],
+            "type": "string"
+          },
+          "object_key": {
+            "maxLength": 512,
+            "minLength": 3,
+            "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key",
+          "sha256",
+          "bytes",
+          "content_type"
+        ],
+        "type": "object"
+      },
+      "passage_hint": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "style": {
+        "const": "sumi-e"
+      },
+      "target_duration_seconds": {
+        "enum": [
+          30,
+          60,
+          120,
+          240
+        ],
+        "type": "integer"
+      }
+    },
+    "required": [
+      "audio_artifact",
+      "target_duration_seconds",
+      "style"
+    ],
+    "title": "Audio symbolic animation run input",
+    "type": "object"
+  },
+  "name": "audio-symbolic-animation",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": false,
+    "currency": "USD",
+    "display_price_usd": 24.34,
+    "label": "Projected $24.34 — unavailable",
+    "quote_status": "blocked_unpriced_capabilities",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "EXECUTOR_NOT_MATERIALIZED",
+        "detail": "The referenced Hermes scripts and faster-whisper model are not vendored, pinned, or packaged in this repository."
+      },
+      {
+        "code": "IMAGEGEN_CAPABILITY_UNAPPROVED",
+        "detail": "The skill requires sequential Hermes/Codex subscription image generation; no reviewed server-side Modal adapter or auditable credential lifecycle exists."
+      },
+      {
+        "code": "PRIVATE_ARTIFACT_PLANE_MISSING",
+        "detail": "Exact private input upload, output persistence, signed delivery, retention, and deletion are unresolved."
+      },
+      {
+        "code": "COST_INCOMPLETE",
+        "detail": "Modal transcription/assembly compute, subscription allowance, retries, storage, egress, and accepted-output yield are not measured."
+      },
+      {
+        "code": "QA_CAPABILITY_MISSING",
+        "detail": "The required vision continuity gate and long-run paid canary have not been implemented or approved."
+      }
+    ],
+    "can_submit": false,
+    "required_env_names": [
+      "DEEPSEEK_API_KEY",
+      "OPENAI_CODEX_ACCESS_TOKEN",
+      "OPENAI_CODEX_REFRESH_TOKEN",
+      "OPENAI_CODEX_ACCOUNT_ID"
+    ],
+    "status": "not_ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "audio-symbolic-animation",
+  "version": "0.1.0"
+}

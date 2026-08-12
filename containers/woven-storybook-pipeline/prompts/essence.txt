@@ -1,0 +1,1 @@
+Derive the core message, two primary symbols, and one to three secondary symbols from recurrence evidence and disconfirming samples. Never impose a theme or fabricate a quote. Return strict JSON only.

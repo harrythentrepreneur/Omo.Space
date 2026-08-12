@@ -1,0 +1,112 @@
+spec_version: cognition.container/v1
+name: "woven-storybook-pipeline"
+slug: woven-storybook-pipeline
+version: "0.1.0"
+status: not-ready
+generated:
+  compiler: skill-to-modal/0.1.0
+  hand_edit_allowed: false
+source:
+  kind: vendored-skill-md
+  path: source/SKILL.md
+  sha256: 6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf
+image:
+  base: debian-slim
+  python: "3.12"
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - jsonschema==4.26.0
+  apt_packages:
+    - chromium
+    - ghostscript
+resources:
+  cpu: 2.0
+  memory_mb: 4096
+  timeout_seconds: 1200
+  min_containers: 0
+  max_containers: 4
+endpoint:
+  mode: async_job
+  submit_path: /v1/runs
+  result_path: /v1/runs/{call_id}
+  auth: modal_proxy_token
+  invalid_input_status: 422
+  not_ready_status: 503
+readiness:
+  can_submit: false
+  execution_kind: complex_external
+  blockers:
+    - code: EXECUTOR_NOT_VENDORED
+      detail: "The reviewed TypeScript implementation lives in /Users/yifan/woven/backend and is not a pinned, versioned dependency of this repository."
+    - code: DEEPSEEK_SECRET_MISSING
+      detail: "A least-privilege Modal secret containing DEEPSEEK_API_KEY must exist before a real generation can run."
+    - code: PRIVATE_DATA_PLANE_MISSING
+      detail: "Private upload, mode-700 run workspaces, TTL deletion, signed download, and raw-chat deletion need a hosted implementation and tests."
+    - code: COST_INCOMPLETE
+      detail: "Chromium/Ghostscript compute, Modal resources, storage, egress, retries, and delivered-output yield are not measured."
+    - code: LIVE_FIXTURE_QA_PENDING
+      detail: "The safe demo fixture must pass the vendored backend suite and one full Modal run before readiness can change."
+required_env_names:
+  - DEEPSEEK_API_KEY
+steps:
+  - id: acquire
+    type: artifact
+    operation: "private_artifact.read"
+    readiness: blocked
+  - id: parse
+    type: native
+    operation: "woven.chat.parse_and_locale_gate"
+    readiness: blocked
+    provider: local
+  - id: select
+    type: native
+    operation: "woven.month_balanced_selection"
+    readiness: blocked
+    provider: local
+  - id: essence
+    type: llm
+    operation: "chat.completions.strict_json"
+    readiness: blocked
+    provider: deepseek
+    system_prompt: prompts/essence.txt
+  - id: plan
+    type: llm
+    operation: "chat.completions.strict_json"
+    readiness: blocked
+    provider: deepseek
+    system_prompt: prompts/plan.txt
+  - id: chapters
+    type: llm
+    operation: "chat.completions.concurrent_strict_json"
+    readiness: blocked
+    provider: deepseek
+    system_prompt: prompts/chapter.txt
+  - id: editorial
+    type: llm
+    operation: "chat.completions.book_audit"
+    readiness: blocked
+    provider: deepseek
+    system_prompt: prompts/editorial.txt
+  - id: gates
+    type: quality
+    operation: "woven.final_gates"
+    readiness: blocked
+    provider: local
+  - id: render
+    type: native
+    operation: "chromium_and_ghostscript.render"
+    readiness: blocked
+    provider: local
+  - id: deliver
+    type: artifact
+    operation: "private_artifact.write"
+    readiness: blocked
+input_schema: schemas/input.json
+output_schema: schemas/output.json
+frontend_manifest: manifest.json
+pricing_report: pricing-report.json
+tests:
+  contract: tests/test_contract.py
+  cases: tests/cases.json
+  network_allowed: false

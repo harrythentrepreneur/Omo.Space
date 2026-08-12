@@ -1,0 +1,138 @@
+{
+  "happy_path": {
+    "input": {
+      "chat_export": {
+        "bytes": 64000,
+        "content_type": "text/plain",
+        "object_key": "fixtures/chats/demo-chat.txt",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "mode": "natural",
+      "pseudonymize_names": false,
+      "title_override": "Alex & Sam: Our Story"
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 2500000,
+          "content_type": "application/pdf",
+          "kind": "storybook_pdf",
+          "object_key": "fixtures/results/book.pdf",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "bytes": 450000,
+          "content_type": "text/html",
+          "kind": "storybook_html",
+          "object_key": "fixtures/results/book.html",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        {
+          "bytes": 24000,
+          "content_type": "application/json",
+          "kind": "quality_manifest",
+          "object_key": "fixtures/results/manifest.json",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "book": {
+        "beat_count": 96,
+        "chapter_count": 10,
+        "page_type_counts": {
+          "milestone": 12,
+          "punch": 14,
+          "quote": 28,
+          "scene": 42
+        },
+        "title": "Alex & Sam: Our Story"
+      },
+      "gates": {
+        "boundaries": "PASS",
+        "continuity": "PASS",
+        "distribution": "PASS",
+        "editorial": "PASS",
+        "month_coverage": "PASS",
+        "provenance": "PASS",
+        "semantic_issue_count": 2
+      },
+      "run_id": "fixture-woven-run",
+      "status": "completed",
+      "usage": {
+        "completion_tokens": 82000,
+        "estimated_cost_usd": 0.05852,
+        "llm_calls": 13,
+        "prompt_tokens": 149000
+      },
+      "workflow_version": "woven-storybook-pipeline@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-chat-export",
+      "input": {
+        "mode": "natural",
+        "pseudonymize_names": false
+      },
+      "reason": "chat_export is required"
+    },
+    {
+      "id": "pseudonymization-conflicts-with-source",
+      "input": {
+        "chat_export": {
+          "bytes": 10,
+          "content_type": "text/plain",
+          "object_key": "a/chat.txt",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "mode": "natural",
+        "pseudonymize_names": true
+      },
+      "reason": "the source contract fixes real names"
+    },
+    {
+      "id": "unsupported-mode",
+      "input": {
+        "chat_export": {
+          "bytes": 10,
+          "content_type": "text/plain",
+          "object_key": "a/chat.txt",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "mode": "fixed-pages",
+        "pseudonymize_names": false
+      },
+      "reason": "natural mode is the reviewed contract"
+    },
+    {
+      "id": "oversized-export",
+      "input": {
+        "chat_export": {
+          "bytes": 52428801,
+          "content_type": "application/zip",
+          "object_key": "a/chat.zip",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "mode": "natural",
+        "pseudonymize_names": false
+      },
+      "reason": "input size is bounded before processing"
+    },
+    {
+      "id": "raw-chat-field-forbidden",
+      "input": {
+        "chat_export": {
+          "bytes": 10,
+          "content_type": "text/plain",
+          "object_key": "a/chat.txt",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "mode": "natural",
+        "pseudonymize_names": false,
+        "raw_messages": [
+          "never place raw chat in JSON"
+        ]
+      },
+      "reason": "raw chat bodies are artifact-only and unknown fields fail closed"
+    }
+  ]
+}

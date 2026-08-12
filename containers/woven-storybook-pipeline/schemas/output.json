@@ -1,0 +1,238 @@
+{
+  "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/output.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "storybook_pdf"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "storybook_html"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "quality_manifest"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        }
+      ],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "application/pdf",
+              "text/html",
+              "application/json"
+            ],
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "storybook_pdf",
+              "storybook_html",
+              "quality_manifest"
+            ],
+            "type": "string"
+          },
+          "object_key": {
+            "minLength": 3,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "object_key",
+          "sha256",
+          "bytes",
+          "content_type"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "book": {
+      "additionalProperties": false,
+      "properties": {
+        "beat_count": {
+          "maximum": 160,
+          "minimum": 80,
+          "type": "integer"
+        },
+        "chapter_count": {
+          "maximum": 16,
+          "minimum": 8,
+          "type": "integer"
+        },
+        "page_type_counts": {
+          "additionalProperties": false,
+          "properties": {
+            "milestone": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "punch": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "quote": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "scene": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "scene",
+            "quote",
+            "milestone",
+            "punch"
+          ],
+          "type": "object"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 3,
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "chapter_count",
+        "beat_count",
+        "page_type_counts"
+      ],
+      "type": "object"
+    },
+    "gates": {
+      "additionalProperties": false,
+      "properties": {
+        "boundaries": {
+          "const": "PASS"
+        },
+        "continuity": {
+          "const": "PASS"
+        },
+        "distribution": {
+          "const": "PASS"
+        },
+        "editorial": {
+          "const": "PASS"
+        },
+        "month_coverage": {
+          "const": "PASS"
+        },
+        "provenance": {
+          "const": "PASS"
+        },
+        "semantic_issue_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "provenance",
+        "distribution",
+        "editorial",
+        "continuity",
+        "month_coverage",
+        "boundaries",
+        "semantic_issue_count"
+      ],
+      "type": "object"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "llm_calls": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_cost_usd"
+      ],
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "woven-storybook-pipeline@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "artifacts",
+    "book",
+    "gates",
+    "usage"
+  ],
+  "title": "Completed Woven storybook run",
+  "type": "object"
+}

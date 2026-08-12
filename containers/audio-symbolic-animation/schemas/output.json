@@ -1,0 +1,206 @@
+{
+  "$id": "https://cognition.marketplace/schemas/audio-symbolic-animation/output.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "video"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "transcript"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "kind": {
+                "const": "frame_brief"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        }
+      ],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "video/mp4",
+              "application/json"
+            ],
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "video",
+              "transcript",
+              "frame_brief"
+            ],
+            "type": "string"
+          },
+          "object_key": {
+            "minLength": 3,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "object_key",
+          "sha256",
+          "bytes",
+          "content_type"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "delivery": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "hashtags": {
+          "items": {
+            "pattern": "^#",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array"
+        },
+        "title": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "hashtags"
+      ],
+      "type": "object"
+    },
+    "media": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_codec": {
+          "const": "aac"
+        },
+        "duration_seconds": {
+          "maximum": 240.2,
+          "minimum": 29.8,
+          "type": "number"
+        },
+        "fps": {
+          "const": 30
+        },
+        "height": {
+          "const": 1920
+        },
+        "video_codec": {
+          "const": "h264"
+        },
+        "width": {
+          "const": 1080
+        }
+      },
+      "required": [
+        "duration_seconds",
+        "width",
+        "height",
+        "fps",
+        "video_codec",
+        "audio_codec"
+      ],
+      "type": "object"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_frames": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "generated_frames": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "provider_cost_usd": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "generated_frames",
+        "accepted_frames",
+        "provider_cost_usd"
+      ],
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "audio-symbolic-animation@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "artifacts",
+    "media",
+    "delivery",
+    "usage"
+  ],
+  "title": "Completed symbolic animation run",
+  "type": "object"
+}

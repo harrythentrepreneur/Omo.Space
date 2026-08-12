@@ -1,0 +1,556 @@
+{
+  "apt_packages": [
+    "ffmpeg"
+  ],
+  "artifacts": [
+    {
+      "content_type": "video/mp4",
+      "kind": "video",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "transcript",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "frame_brief",
+      "required": true
+    }
+  ],
+  "capabilities": [
+    "private-artifact-read",
+    "private-artifact-write",
+    "faster-whisper-large-v3-turbo",
+    "sequential-codex-image-generation",
+    "ffmpeg-h264-aac",
+    "vision-quality-gate"
+  ],
+  "cost_drivers": [
+    "One sequential image generation per output second; 40-60 seconds latency per frame",
+    "ChatGPT subscription image allowance has no auditable per-call COGS in the repository model",
+    "CPU transcription with faster-whisper and FFmpeg assembly are unpriced Modal compute",
+    "Retries for landscape frames, timeouts, and empty-response storms can multiply usage"
+  ],
+  "execution_kind": "complex_external",
+  "form": [
+    {
+      "field": "audio_artifact",
+      "widget": "private_artifact_upload"
+    },
+    {
+      "field": "target_duration_seconds",
+      "widget": "select"
+    },
+    {
+      "field": "style",
+      "value": "sumi-e",
+      "widget": "hidden"
+    },
+    {
+      "field": "passage_hint",
+      "widget": "textarea"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "audio_artifact": {
+        "bytes": 1048576,
+        "content_type": "audio/mpeg",
+        "object_key": "fixtures/audio/sample.mp3",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "passage_hint": "Use the self-contained section about letting go.",
+      "style": "sumi-e",
+      "target_duration_seconds": 120
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 8000000,
+          "content_type": "video/mp4",
+          "kind": "video",
+          "object_key": "fixtures/results/video.mp4",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "bytes": 12000,
+          "content_type": "application/json",
+          "kind": "transcript",
+          "object_key": "fixtures/results/transcript.json",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        {
+          "bytes": 90000,
+          "content_type": "application/json",
+          "kind": "frame_brief",
+          "object_key": "fixtures/results/brief.json",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "delivery": {
+        "description": "A fixture description.",
+        "hashtags": [
+          "#symbolicanimation",
+          "#storytelling"
+        ],
+        "title": "Letting Go, One Thread at a Time"
+      },
+      "media": {
+        "audio_codec": "aac",
+        "duration_seconds": 120,
+        "fps": 30,
+        "height": 1920,
+        "video_codec": "h264",
+        "width": 1080
+      },
+      "run_id": "fixture-audio-run",
+      "status": "completed",
+      "usage": {
+        "accepted_frames": 120,
+        "generated_frames": 126,
+        "provider_cost_usd": null
+      },
+      "workflow_version": "audio-symbolic-animation@0.1.0"
+    }
+  },
+  "input_schema": {
+    "$id": "https://cognition.marketplace/schemas/audio-symbolic-animation/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "audio_artifact": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "maximum": 52428800,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "audio/mpeg",
+              "audio/mp4",
+              "audio/wav",
+              "audio/x-wav"
+            ],
+            "type": "string"
+          },
+          "object_key": {
+            "maxLength": 512,
+            "minLength": 3,
+            "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key",
+          "sha256",
+          "bytes",
+          "content_type"
+        ],
+        "type": "object"
+      },
+      "passage_hint": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "style": {
+        "const": "sumi-e"
+      },
+      "target_duration_seconds": {
+        "enum": [
+          30,
+          60,
+          120,
+          240
+        ],
+        "type": "integer"
+      }
+    },
+    "required": [
+      "audio_artifact",
+      "target_duration_seconds",
+      "style"
+    ],
+    "title": "Audio symbolic animation run input",
+    "type": "object"
+  },
+  "name": "audio-symbolic-animation",
+  "negative_cases": [
+    {
+      "id": "missing-artifact",
+      "input": {
+        "style": "sumi-e",
+        "target_duration_seconds": 120
+      },
+      "reason": "audio_artifact is required"
+    },
+    {
+      "id": "unbounded-duration",
+      "input": {
+        "audio_artifact": {
+          "bytes": 10,
+          "content_type": "audio/mpeg",
+          "object_key": "a/b.mp3",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "style": "sumi-e",
+        "target_duration_seconds": 600
+      },
+      "reason": "duration must use a priced tier"
+    },
+    {
+      "id": "wrong-style",
+      "input": {
+        "audio_artifact": {
+          "bytes": 10,
+          "content_type": "audio/mpeg",
+          "object_key": "a/b.mp3",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "style": "photorealistic",
+        "target_duration_seconds": 30
+      },
+      "reason": "v0.1 only reviews the source sumi-e lane"
+    },
+    {
+      "id": "bad-digest",
+      "input": {
+        "audio_artifact": {
+          "bytes": 10,
+          "content_type": "audio/mpeg",
+          "object_key": "a/b.mp3",
+          "sha256": "not-a-digest"
+        },
+        "style": "sumi-e",
+        "target_duration_seconds": 30
+      },
+      "reason": "artifact identity must be content-addressed"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "audio_artifact": {
+          "bytes": 10,
+          "content_type": "audio/mpeg",
+          "object_key": "a/b.mp3",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "make_it_viral": true,
+        "style": "sumi-e",
+        "target_duration_seconds": 30
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$id": "https://cognition.marketplace/schemas/audio-symbolic-animation/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "artifacts": {
+        "allOf": [
+          {
+            "contains": {"properties": {"kind": {"const": "video"}}, "required": ["kind"]},
+            "maxContains": 1,
+            "minContains": 1
+          },
+          {
+            "contains": {"properties": {"kind": {"const": "transcript"}}, "required": ["kind"]},
+            "maxContains": 1,
+            "minContains": 1
+          },
+          {
+            "contains": {"properties": {"kind": {"const": "frame_brief"}}, "required": ["kind"]},
+            "maxContains": 1,
+            "minContains": 1
+          }
+        ],
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "content_type": {
+              "enum": [
+                "video/mp4",
+                "application/json"
+              ],
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "video",
+                "transcript",
+                "frame_brief"
+              ],
+              "type": "string"
+            },
+            "object_key": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "object_key",
+            "sha256",
+            "bytes",
+            "content_type"
+          ],
+          "type": "object"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+      },
+      "delivery": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "hashtags": {
+            "items": {
+              "pattern": "^#",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "hashtags"
+        ],
+        "type": "object"
+      },
+      "media": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_codec": {
+            "const": "aac"
+          },
+          "duration_seconds": {
+            "maximum": 240.2,
+            "minimum": 29.8,
+            "type": "number"
+          },
+          "fps": {
+            "const": 30
+          },
+          "height": {
+            "const": 1920
+          },
+          "video_codec": {
+            "const": "h264"
+          },
+          "width": {
+            "const": 1080
+          }
+        },
+        "required": [
+          "duration_seconds",
+          "width",
+          "height",
+          "fps",
+          "video_codec",
+          "audio_codec"
+        ],
+        "type": "object"
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_frames": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "generated_frames": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "provider_cost_usd": {
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "generated_frames",
+          "accepted_frames",
+          "provider_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "audio-symbolic-animation@0.1.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "artifacts",
+      "media",
+      "delivery",
+      "usage"
+    ],
+    "title": "Completed symbolic animation run",
+    "type": "object"
+  },
+  "pricing": {
+    "chargeable": false,
+    "default_tier": "120_seconds",
+    "estimates": [
+      {
+        "notes": [
+          "Planning lane substitutes the repository openai_image cost code because the specified ChatGPT subscription lane has no auditable unit price."
+        ],
+        "tier": "30_seconds",
+        "workflow": {
+          "steps": [
+            {"estimated_input_tokens": 3000, "max_output_tokens": 1200, "model": "deepseek-v4-flash", "role": "passage", "type": "llm"},
+            {"estimated_input_tokens": 4000, "max_output_tokens": 1800, "model": "deepseek-v4-flash", "role": "concept", "type": "llm"},
+            {"estimated_input_tokens": 6000, "max_output_tokens": 4000, "model": "deepseek-v4-flash", "role": "shot-spine", "type": "llm"},
+            {"estimated_input_tokens": 8000, "max_output_tokens": 16000, "model": "deepseek-v4-flash", "qty": 2, "role": "brief-batch", "type": "llm"},
+            {"api": "openai_image", "qty": 30, "type": "api"}
+          ]
+        }
+      },
+      {
+        "tier": "60_seconds",
+        "workflow": {
+          "steps": [
+            {"estimated_input_tokens": 3000, "max_output_tokens": 1200, "model": "deepseek-v4-flash", "role": "passage", "type": "llm"},
+            {"estimated_input_tokens": 4000, "max_output_tokens": 1800, "model": "deepseek-v4-flash", "role": "concept", "type": "llm"},
+            {"estimated_input_tokens": 6000, "max_output_tokens": 4000, "model": "deepseek-v4-flash", "role": "shot-spine", "type": "llm"},
+            {"estimated_input_tokens": 8000, "max_output_tokens": 16000, "model": "deepseek-v4-flash", "qty": 4, "role": "brief-batch", "type": "llm"},
+            {"api": "openai_image", "qty": 60, "type": "api"}
+          ]
+        }
+      },
+      {
+        "tier": "120_seconds",
+        "workflow": {
+          "steps": [
+            {"estimated_input_tokens": 3000, "max_output_tokens": 1200, "model": "deepseek-v4-flash", "role": "passage", "type": "llm"},
+            {"estimated_input_tokens": 4000, "max_output_tokens": 1800, "model": "deepseek-v4-flash", "role": "concept", "type": "llm"},
+            {"estimated_input_tokens": 6000, "max_output_tokens": 4000, "model": "deepseek-v4-flash", "role": "shot-spine", "type": "llm"},
+            {"estimated_input_tokens": 8000, "max_output_tokens": 16000, "model": "deepseek-v4-flash", "qty": 8, "role": "brief-batch", "type": "llm"},
+            {"api": "openai_image", "qty": 120, "type": "api"}
+          ]
+        }
+      },
+      {
+        "tier": "240_seconds",
+        "workflow": {
+          "steps": [
+            {"estimated_input_tokens": 3000, "max_output_tokens": 1200, "model": "deepseek-v4-flash", "role": "passage", "type": "llm"},
+            {"estimated_input_tokens": 4000, "max_output_tokens": 1800, "model": "deepseek-v4-flash", "role": "concept", "type": "llm"},
+            {"estimated_input_tokens": 6000, "max_output_tokens": 4000, "model": "deepseek-v4-flash", "role": "shot-spine", "type": "llm"},
+            {"estimated_input_tokens": 8000, "max_output_tokens": 16000, "model": "deepseek-v4-flash", "qty": 16, "role": "brief-batch", "type": "llm"},
+            {"api": "openai_image", "qty": 240, "type": "api"}
+          ]
+        }
+      }
+    ],
+    "notes": [
+      "No buyer quote is approved while the specified subscription lane and Modal compute remain unpriced.",
+      "The displayed planning amount is the API-alternative floor for the default duration, not a charge."
+    ],
+    "quote_status": "blocked_unpriced_capabilities",
+    "unpriced_costs": [
+      "faster-whisper CPU and model load",
+      "FFmpeg CPU/memory",
+      "artifact storage and egress",
+      "vision QA",
+      "subscription allowance depletion and retry tails"
+    ]
+  },
+  "prompts": {
+    "brief.txt": "Create a one-record-per-second frame brief. Every delta must be one visible mechanical event. Preserve anchor identity and fixed geometry, include generation_fps=1 and a verb per frame, and keep the state ledger monotonic. Return strict JSON only.",
+    "concept.txt": "Derive one recurring symbol from the transcript and express it as a countable mechanical state machine. Define the invariant anchor, state chain, and identity policy. Do not use mood words as visual deltas. Return strict JSON only.",
+    "passage-selection.txt": "When the source exceeds four minutes, select one self-contained passage with a strong opening and clean landing. Use transcript word IDs and timestamps only; never invent or rewrite quotes. Return strict JSON only."
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "EXECUTOR_NOT_MATERIALIZED",
+        "detail": "The referenced Hermes scripts and faster-whisper model are not vendored, pinned, or packaged in this repository."
+      },
+      {
+        "code": "IMAGEGEN_CAPABILITY_UNAPPROVED",
+        "detail": "The skill requires sequential Hermes/Codex subscription image generation; no reviewed server-side Modal adapter or auditable credential lifecycle exists."
+      },
+      {
+        "code": "PRIVATE_ARTIFACT_PLANE_MISSING",
+        "detail": "Exact private input upload, output persistence, signed delivery, retention, and deletion are unresolved."
+      },
+      {
+        "code": "COST_INCOMPLETE",
+        "detail": "Modal transcription/assembly compute, subscription allowance, retries, storage, egress, and accepted-output yield are not measured."
+      },
+      {
+        "code": "QA_CAPABILITY_MISSING",
+        "detail": "The required vision continuity gate and long-run paid canary have not been implemented or approved."
+      }
+    ],
+    "can_submit": false
+  },
+  "required_env_names": [
+    "DEEPSEEK_API_KEY",
+    "OPENAI_CODEX_ACCESS_TOKEN",
+    "OPENAI_CODEX_REFRESH_TOKEN",
+    "OPENAI_CODEX_ACCOUNT_ID"
+  ],
+  "resources": {
+    "cpu": 4.0,
+    "max_containers": 2,
+    "memory_mb": 8192,
+    "timeout_seconds": 14400
+  },
+  "slug": "audio-symbolic-animation",
+  "steps": [
+    {"id": "acquire", "operation": "private_artifact.read", "readiness": "blocked", "type": "artifact"},
+    {"id": "transcribe", "operation": "faster_whisper.transcribe_words", "provider": "local", "readiness": "blocked", "type": "native"},
+    {"id": "select-passage", "operation": "chat.completions.strict_json", "prompt": "passage-selection.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
+    {"id": "concept", "operation": "chat.completions.strict_json", "prompt": "concept.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
+    {"id": "brief", "operation": "chat.completions.strict_json_batches", "prompt": "brief.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
+    {"id": "generate-frames", "operation": "codex_imagegen.sequential_chain", "provider": "hermes-codex", "readiness": "blocked", "type": "api"},
+    {"id": "assemble", "operation": "ffmpeg.delta_only_h264_aac", "provider": "local", "readiness": "blocked", "type": "native"},
+    {"id": "qa", "operation": "media_and_vision.validate", "readiness": "blocked", "type": "quality"},
+    {"id": "deliver", "operation": "private_artifact.write", "readiness": "blocked", "type": "artifact"}
+  ],
+  "version": "0.1.0"
+}

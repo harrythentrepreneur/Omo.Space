@@ -1,0 +1,1 @@
+Audit the whole book sparsely. Preserve every per-page issue and report semanticIssueCount honestly; never reset it. Do not invent dialogue, evidence IDs, facts, or symbols. Return strict JSON only.

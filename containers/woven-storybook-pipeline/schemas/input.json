@@ -1,0 +1,59 @@
+{
+  "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "chat_export": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "maximum": 52428800,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "content_type": {
+          "enum": [
+            "text/plain",
+            "application/zip"
+          ],
+          "type": "string"
+        },
+        "object_key": {
+          "maxLength": 512,
+          "minLength": 3,
+          "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "object_key",
+        "sha256",
+        "bytes",
+        "content_type"
+      ],
+      "type": "object"
+    },
+    "mode": {
+      "const": "natural"
+    },
+    "pseudonymize_names": {
+      "const": false
+    },
+    "title_override": {
+      "maxLength": 120,
+      "minLength": 3,
+      "type": "string"
+    }
+  },
+  "required": [
+    "chat_export",
+    "mode",
+    "pseudonymize_names"
+  ],
+  "title": "Woven storybook run input",
+  "type": "object"
+}

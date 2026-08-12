@@ -1,0 +1,484 @@
+{
+  "apt_packages": [
+    "chromium",
+    "ghostscript"
+  ],
+  "artifacts": [
+    {
+      "content_type": "application/pdf",
+      "kind": "storybook_pdf",
+      "required": true
+    },
+    {
+      "content_type": "text/html",
+      "kind": "storybook_html",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "quality_manifest",
+      "required": true
+    }
+  ],
+  "capabilities": [
+    "private-chat-artifact-read",
+    "private-book-artifact-write",
+    "woven-typescript-backend",
+    "deepseek-openai-compatible",
+    "parallel-chapter-generation-6",
+    "headless-chromium-pdf",
+    "ghostscript-pdf"
+  ],
+  "cost_drivers": [
+    "13-29 DeepSeek V4 Flash calls with chapter concurrency 5-6",
+    "Archive size controls prompt volume, retries, chapter count, and 80-160 content beats",
+    "Two whole-book editorial passes can use up to 16k output tokens each",
+    "Chromium/Ghostscript render compute plus private artifact storage and egress are unpriced"
+  ],
+  "execution_kind": "complex_external",
+  "form": [
+    {
+      "field": "chat_export",
+      "widget": "private_artifact_upload"
+    },
+    {
+      "field": "mode",
+      "value": "natural",
+      "widget": "hidden"
+    },
+    {
+      "field": "pseudonymize_names",
+      "value": false,
+      "widget": "hidden"
+    },
+    {
+      "field": "title_override",
+      "widget": "text"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "chat_export": {
+        "bytes": 64000,
+        "content_type": "text/plain",
+        "object_key": "fixtures/chats/demo-chat.txt",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "mode": "natural",
+      "pseudonymize_names": false,
+      "title_override": "Alex & Sam: Our Story"
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 2500000,
+          "content_type": "application/pdf",
+          "kind": "storybook_pdf",
+          "object_key": "fixtures/results/book.pdf",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "bytes": 450000,
+          "content_type": "text/html",
+          "kind": "storybook_html",
+          "object_key": "fixtures/results/book.html",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        {
+          "bytes": 24000,
+          "content_type": "application/json",
+          "kind": "quality_manifest",
+          "object_key": "fixtures/results/manifest.json",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "book": {
+        "beat_count": 96,
+        "chapter_count": 10,
+        "page_type_counts": {
+          "milestone": 12,
+          "punch": 14,
+          "quote": 28,
+          "scene": 42
+        },
+        "title": "Alex & Sam: Our Story"
+      },
+      "gates": {
+        "boundaries": "PASS",
+        "continuity": "PASS",
+        "distribution": "PASS",
+        "editorial": "PASS",
+        "month_coverage": "PASS",
+        "provenance": "PASS",
+        "semantic_issue_count": 2
+      },
+      "run_id": "fixture-woven-run",
+      "status": "completed",
+      "usage": {
+        "completion_tokens": 82000,
+        "estimated_cost_usd": 0.05852,
+        "llm_calls": 13,
+        "prompt_tokens": 149000
+      },
+      "workflow_version": "woven-storybook-pipeline@0.1.0"
+    }
+  },
+  "input_schema": {
+    "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "chat_export": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "maximum": 52428800,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "text/plain",
+              "application/zip"
+            ],
+            "type": "string"
+          },
+          "object_key": {
+            "maxLength": 512,
+            "minLength": 3,
+            "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key",
+          "sha256",
+          "bytes",
+          "content_type"
+        ],
+        "type": "object"
+      },
+      "mode": {
+        "const": "natural"
+      },
+      "pseudonymize_names": {
+        "const": false
+      },
+      "title_override": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+      }
+    },
+    "required": [
+      "chat_export",
+      "mode",
+      "pseudonymize_names"
+    ],
+    "title": "Woven storybook run input",
+    "type": "object"
+  },
+  "name": "woven-storybook-pipeline",
+  "negative_cases": [
+    {
+      "id": "missing-chat-export",
+      "input": {
+        "mode": "natural",
+        "pseudonymize_names": false
+      },
+      "reason": "chat_export is required"
+    },
+    {
+      "id": "pseudonymization-conflicts-with-source",
+      "input": {
+        "chat_export": {
+          "bytes": 10,
+          "content_type": "text/plain",
+          "object_key": "a/chat.txt",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "mode": "natural",
+        "pseudonymize_names": true
+      },
+      "reason": "the source contract fixes real names"
+    },
+    {
+      "id": "unsupported-mode",
+      "input": {
+        "chat_export": {
+          "bytes": 10,
+          "content_type": "text/plain",
+          "object_key": "a/chat.txt",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "mode": "fixed-pages",
+        "pseudonymize_names": false
+      },
+      "reason": "natural mode is the reviewed contract"
+    },
+    {
+      "id": "oversized-export",
+      "input": {
+        "chat_export": {
+          "bytes": 52428801,
+          "content_type": "application/zip",
+          "object_key": "a/chat.zip",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "mode": "natural",
+        "pseudonymize_names": false
+      },
+      "reason": "input size is bounded before processing"
+    },
+    {
+      "id": "raw-chat-field-forbidden",
+      "input": {
+        "chat_export": {
+          "bytes": 10,
+          "content_type": "text/plain",
+          "object_key": "a/chat.txt",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "mode": "natural",
+        "pseudonymize_names": false,
+        "raw_messages": [
+          "never place raw chat in JSON"
+        ]
+      },
+      "reason": "raw chat bodies are artifact-only and unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "artifacts": {
+        "allOf": [
+          {
+            "contains": {"properties": {"kind": {"const": "storybook_pdf"}}, "required": ["kind"]},
+            "maxContains": 1,
+            "minContains": 1
+          },
+          {
+            "contains": {"properties": {"kind": {"const": "storybook_html"}}, "required": ["kind"]},
+            "maxContains": 1,
+            "minContains": 1
+          },
+          {
+            "contains": {"properties": {"kind": {"const": "quality_manifest"}}, "required": ["kind"]},
+            "maxContains": 1,
+            "minContains": 1
+          }
+        ],
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "content_type": {
+              "enum": [
+                "application/pdf",
+                "text/html",
+                "application/json"
+              ],
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "storybook_pdf",
+                "storybook_html",
+                "quality_manifest"
+              ],
+              "type": "string"
+            },
+            "object_key": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "object_key",
+            "sha256",
+            "bytes",
+            "content_type"
+          ],
+          "type": "object"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+      },
+      "book": {
+        "additionalProperties": false,
+        "properties": {
+          "beat_count": {
+            "maximum": 160,
+            "minimum": 80,
+            "type": "integer"
+          },
+          "chapter_count": {
+            "maximum": 16,
+            "minimum": 8,
+            "type": "integer"
+          },
+          "page_type_counts": {
+            "additionalProperties": false,
+            "properties": {
+              "milestone": {"minimum": 1, "type": "integer"},
+              "punch": {"minimum": 1, "type": "integer"},
+              "quote": {"minimum": 1, "type": "integer"},
+              "scene": {"minimum": 1, "type": "integer"}
+            },
+            "required": ["scene", "quote", "milestone", "punch"],
+            "type": "object"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": ["title", "chapter_count", "beat_count", "page_type_counts"],
+        "type": "object"
+      },
+      "gates": {
+        "additionalProperties": false,
+        "properties": {
+          "boundaries": {"const": "PASS"},
+          "continuity": {"const": "PASS"},
+          "distribution": {"const": "PASS"},
+          "editorial": {"const": "PASS"},
+          "month_coverage": {"const": "PASS"},
+          "provenance": {"const": "PASS"},
+          "semantic_issue_count": {"minimum": 0, "type": "integer"}
+        },
+        "required": [
+          "provenance",
+          "distribution",
+          "editorial",
+          "continuity",
+          "month_coverage",
+          "boundaries",
+          "semantic_issue_count"
+        ],
+        "type": "object"
+      },
+      "run_id": {"minLength": 8, "type": "string"},
+      "status": {"const": "completed"},
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {"minimum": 0, "type": "integer"},
+          "estimated_cost_usd": {"minimum": 0, "type": "number"},
+          "llm_calls": {"minimum": 1, "type": "integer"},
+          "prompt_tokens": {"minimum": 0, "type": "integer"}
+        },
+        "required": ["llm_calls", "prompt_tokens", "completion_tokens", "estimated_cost_usd"],
+        "type": "object"
+      },
+      "workflow_version": {"const": "woven-storybook-pipeline@0.1.0"}
+    },
+    "required": ["run_id", "status", "workflow_version", "artifacts", "book", "gates", "usage"],
+    "title": "Completed Woven storybook run",
+    "type": "object"
+  },
+  "pricing": {
+    "chargeable": false,
+    "default_tier": "natural_book",
+    "estimates": [
+      {
+        "guard_cost_usd": 0.08,
+        "notes": [
+          "The modeled 13-call fixture is guarded up to the source-observed $0.08 high end for a real 24k-message chat."
+        ],
+        "tier": "natural_book",
+        "workflow": {
+          "steps": [
+            {"estimated_input_tokens": 15000, "max_output_tokens": 4000, "model": "deepseek-v4-flash", "role": "analysis", "type": "llm"},
+            {"estimated_input_tokens": 20000, "max_output_tokens": 5000, "model": "deepseek-v4-flash", "role": "essence", "type": "llm"},
+            {"estimated_input_tokens": 20000, "max_output_tokens": 10000, "model": "deepseek-v4-flash", "role": "plan", "type": "llm"},
+            {"estimated_input_tokens": 8000, "max_output_tokens": 6000, "model": "deepseek-v4-flash", "qty": 8, "role": "chapter", "type": "llm"},
+            {"estimated_input_tokens": 25000, "max_output_tokens": 8000, "model": "deepseek-v4-flash", "qty": 2, "role": "editorial", "type": "llm"}
+          ]
+        }
+      }
+    ],
+    "notes": [
+      "The projected $0.40 applies the repository 5x launch markup to the source-observed $0.08 high end.",
+      "It remains non-chargeable until Modal/render/storage cost evidence and the private data plane exist."
+    ],
+    "quote_status": "provisional_blocked",
+    "unpriced_costs": [
+      "Modal CPU and memory",
+      "Chromium and Ghostscript render",
+      "private artifact storage and egress",
+      "failed/retried accepted-output cohort"
+    ]
+  },
+  "prompts": {
+    "chapter.txt": "Write only evidence-backed beats under the immutable continuity contract and role sentence bands. Quote pages must copy source message bytes exactly. Return sparse claim-ledger rows only for interpretation, symbolism, or ambiguity. Return strict JSON only.",
+    "editorial.txt": "Audit the whole book sparsely. Preserve every per-page issue and report semanticIssueCount honestly; never reset it. Do not invent dialogue, evidence IDs, facts, or symbols. Return strict JSON only.",
+    "essence.txt": "Derive the core message, two primary symbols, and one to three secondary symbols from recurrence evidence and disconfirming samples. Never impose a theme or fabricate a quote. Return strict JSON only.",
+    "plan.txt": "Plan 8-16 chapters and 80-160 evidence-linked beats across scene, quote, milestone, and punch roles. Maintain month coverage, archive boundaries, role constraints, and symbol state continuity. Return strict JSON only."
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "EXECUTOR_NOT_VENDORED",
+        "detail": "The reviewed TypeScript implementation lives in /Users/yifan/woven/backend and is not a pinned, versioned dependency of this repository."
+      },
+      {
+        "code": "DEEPSEEK_SECRET_MISSING",
+        "detail": "A least-privilege Modal secret containing DEEPSEEK_API_KEY must exist before a real generation can run."
+      },
+      {
+        "code": "PRIVATE_DATA_PLANE_MISSING",
+        "detail": "Private upload, mode-700 run workspaces, TTL deletion, signed download, and raw-chat deletion need a hosted implementation and tests."
+      },
+      {
+        "code": "COST_INCOMPLETE",
+        "detail": "Chromium/Ghostscript compute, Modal resources, storage, egress, retries, and delivered-output yield are not measured."
+      },
+      {
+        "code": "LIVE_FIXTURE_QA_PENDING",
+        "detail": "The safe demo fixture must pass the vendored backend suite and one full Modal run before readiness can change."
+      }
+    ],
+    "can_submit": false
+  },
+  "required_env_names": [
+    "DEEPSEEK_API_KEY"
+  ],
+  "resources": {
+    "cpu": 2.0,
+    "max_containers": 4,
+    "memory_mb": 4096,
+    "timeout_seconds": 1200
+  },
+  "slug": "woven-storybook-pipeline",
+  "steps": [
+    {"id": "acquire", "operation": "private_artifact.read", "readiness": "blocked", "type": "artifact"},
+    {"id": "parse", "operation": "woven.chat.parse_and_locale_gate", "provider": "local", "readiness": "blocked", "type": "native"},
+    {"id": "select", "operation": "woven.month_balanced_selection", "provider": "local", "readiness": "blocked", "type": "native"},
+    {"id": "essence", "operation": "chat.completions.strict_json", "prompt": "essence.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
+    {"id": "plan", "operation": "chat.completions.strict_json", "prompt": "plan.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
+    {"id": "chapters", "operation": "chat.completions.concurrent_strict_json", "prompt": "chapter.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
+    {"id": "editorial", "operation": "chat.completions.book_audit", "prompt": "editorial.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
+    {"id": "gates", "operation": "woven.final_gates", "provider": "local", "readiness": "blocked", "type": "quality"},
+    {"id": "render", "operation": "chromium_and_ghostscript.render", "provider": "local", "readiness": "blocked", "type": "native"},
+    {"id": "deliver", "operation": "private_artifact.write", "readiness": "blocked", "type": "artifact"}
+  ],
+  "version": "0.1.0"
+}

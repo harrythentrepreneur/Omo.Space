@@ -1,0 +1,1 @@
+Create a one-record-per-second frame brief. Every delta must be one visible mechanical event. Preserve anchor identity and fixed geometry, include generation_fps=1 and a verb per frame, and keep the state ledger monotonic. Return strict JSON only.

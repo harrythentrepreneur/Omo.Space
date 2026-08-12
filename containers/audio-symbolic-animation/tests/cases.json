@@ -1,0 +1,131 @@
+{
+  "happy_path": {
+    "input": {
+      "audio_artifact": {
+        "bytes": 1048576,
+        "content_type": "audio/mpeg",
+        "object_key": "fixtures/audio/sample.mp3",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "passage_hint": "Use the self-contained section about letting go.",
+      "style": "sumi-e",
+      "target_duration_seconds": 120
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 8000000,
+          "content_type": "video/mp4",
+          "kind": "video",
+          "object_key": "fixtures/results/video.mp4",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "bytes": 12000,
+          "content_type": "application/json",
+          "kind": "transcript",
+          "object_key": "fixtures/results/transcript.json",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        {
+          "bytes": 90000,
+          "content_type": "application/json",
+          "kind": "frame_brief",
+          "object_key": "fixtures/results/brief.json",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "delivery": {
+        "description": "A fixture description.",
+        "hashtags": [
+          "#symbolicanimation",
+          "#storytelling"
+        ],
+        "title": "Letting Go, One Thread at a Time"
+      },
+      "media": {
+        "audio_codec": "aac",
+        "duration_seconds": 120,
+        "fps": 30,
+        "height": 1920,
+        "video_codec": "h264",
+        "width": 1080
+      },
+      "run_id": "fixture-audio-run",
+      "status": "completed",
+      "usage": {
+        "accepted_frames": 120,
+        "generated_frames": 126,
+        "provider_cost_usd": null
+      },
+      "workflow_version": "audio-symbolic-animation@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-artifact",
+      "input": {
+        "style": "sumi-e",
+        "target_duration_seconds": 120
+      },
+      "reason": "audio_artifact is required"
+    },
+    {
+      "id": "unbounded-duration",
+      "input": {
+        "audio_artifact": {
+          "bytes": 10,
+          "content_type": "audio/mpeg",
+          "object_key": "a/b.mp3",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "style": "sumi-e",
+        "target_duration_seconds": 600
+      },
+      "reason": "duration must use a priced tier"
+    },
+    {
+      "id": "wrong-style",
+      "input": {
+        "audio_artifact": {
+          "bytes": 10,
+          "content_type": "audio/mpeg",
+          "object_key": "a/b.mp3",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "style": "photorealistic",
+        "target_duration_seconds": 30
+      },
+      "reason": "v0.1 only reviews the source sumi-e lane"
+    },
+    {
+      "id": "bad-digest",
+      "input": {
+        "audio_artifact": {
+          "bytes": 10,
+          "content_type": "audio/mpeg",
+          "object_key": "a/b.mp3",
+          "sha256": "not-a-digest"
+        },
+        "style": "sumi-e",
+        "target_duration_seconds": 30
+      },
+      "reason": "artifact identity must be content-addressed"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "audio_artifact": {
+          "bytes": 10,
+          "content_type": "audio/mpeg",
+          "object_key": "a/b.mp3",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "make_it_viral": true,
+        "style": "sumi-e",
+        "target_duration_seconds": 30
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}
