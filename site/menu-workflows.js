@@ -151,7 +151,7 @@
     var content = document.createElement('div');
     content.className = 'omo-nav-workflows-list';
     section.appendChild(content);
-    popover.appendChild(section);
+    popover.insertBefore(section, popover.querySelector('.omo-nav-logout'));
     return section;
   }
 
@@ -163,7 +163,7 @@
     if (!items.length) {
       var empty = document.createElement('p');
       empty.className = 'omo-nav-workflows-empty';
-      empty.textContent = 'Upvote or buy a workflow to see it here.';
+      empty.textContent = 'Upvote or buy a workflow to see it here';
       list.appendChild(empty);
       return;
     }

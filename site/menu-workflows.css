@@ -1,30 +1,70 @@
+.omo-nav-menu-toggle {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.omo-nav-menu-toggle:hover,
+.omo-nav-menu-toggle:focus-visible,
+.omo-nav-menu-toggle[aria-expanded="true"] {
+  background: rgba(221, 238, 229, .7);
+}
+
+.omo-nav-chevron {
+  display: block;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.omo-nav-popover {
+  top: calc(100% + 6px);
+  width: max-content;
+  min-width: 216px;
+  max-width: min(252px, calc(100vw - 24px));
+  padding: 5px;
+  border-radius: 9px;
+  box-shadow: 0 5px 15px rgba(23, 53, 44, .1);
+}
+
+.omo-nav-popover > a,
+.omo-nav-popover .omo-nav-logout > a {
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+
 .omo-nav-workflows {
-  margin-top: 6px;
-  padding: 10px 4px 3px;
+  margin-top: 4px;
+  padding: 8px 2px 1px;
   border-top: 1px solid var(--rule, #D9E2DC);
 }
 
 .omo-nav-workflows-label {
-  margin: 0 7px 6px;
+  margin: 0 6px 4px;
   color: var(--moss, #6F7E77);
-  font: 700 10.5px/1.2 var(--body, "DM Sans", Inter, system-ui, sans-serif);
+  font: 700 10px/1.2 var(--body, "DM Sans", Inter, system-ui, sans-serif);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
 
 .omo-nav-workflows-list {
-  max-height: min(228px, 48vh);
+  max-height: min(218px, 44vh);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
 
 .omo-nav-popover .omo-nav-workflow-link {
-  min-height: 36px;
+  min-height: 32px;
   justify-content: space-between;
-  gap: 10px;
-  padding: 6px 7px;
-  font-size: 12.5px;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 .omo-nav-workflow-name {
@@ -44,11 +84,21 @@
 
 .omo-nav-workflows-empty {
   margin: 0;
-  padding: 5px 7px 7px;
+  padding: 4px 6px 6px;
   color: var(--moss, #6F7E77);
-  font: 500 12px/1.4 var(--body, "DM Sans", Inter, system-ui, sans-serif);
+  font: 500 11.5px/1.4 var(--body, "DM Sans", Inter, system-ui, sans-serif);
+}
+
+.omo-nav-logout {
+  margin-top: 4px;
+  padding-top: 4px;
 }
 
 @media (max-width: 400px) {
-  .omo-nav-workflows-list { max-height: min(210px, 44vh); }
+  .omo-nav-popover {
+    left: 12px;
+    max-width: min(252px, calc(100vw - 24px));
+  }
+
+  .omo-nav-workflows-list { max-height: min(202px, 40vh); }
 }
