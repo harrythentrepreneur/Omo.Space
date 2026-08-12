@@ -1,11 +1,16 @@
 # Omo SKILL.md hosting runbook
 
-**Status:** agent-assisted production process, 2026-08-12. The reference proof
+**Status:** agent-assisted production process, 2026-08-13. The reference proof
 is `facebook-ads-copywriter`: its bundle, catalog profile, schema-driven form,
 hosted Worker route, live marketplace listing, and real provider-backed Modal
 run were produced by this process. Creator upload intake now has a real queue;
 review, deploy credentials, canaries, and publication are intentionally still
-agent gates rather than an unattended CI job.
+agent gates rather than an unattended CI job. **Production schema gate:** live
+logs prove `purchases` is absent, and `submissions`, `topup_sessions`,
+`stripe_events`, and `stripe_topups` are not proven present. `psql` is not
+installed in this workspace and Wrangler can list but cannot reveal
+`NEON_DATABASE_URL`; the founder must either provide the connection string through a secure environment
+binding or run the migration command below, then verify every additive table.
 
 ## Site upload → queued → live (V1)
 
@@ -23,13 +28,24 @@ Modal endpoint.
 
 ### One-time production setup
 
-Apply the additive queue schema before deploying the Worker route:
+Apply the full additive schema before enabling checkout, top-up, or upload:
 
 ```bash
 psql "$NEON_DATABASE_URL" -f site/deploy/schema.sql
 cd site/deploy
 npx wrangler deploy
 ```
+
+The exact remaining schema step is:
+
+```bash
+cd /Users/yifan/marketplace
+psql "$NEON_DATABASE_URL" -f site/deploy/schema.sql
+psql "$NEON_DATABASE_URL" -c "SELECT to_regclass('public.purchases'), to_regclass('public.topup_sessions'), to_regclass('public.stripe_events'), to_regclass('public.stripe_topups'), to_regclass('public.submissions');"
+```
+
+The second command must return all five `public.*` table names. Do not paste the
+connection string into chat, a command line, or the repository.
 
 The production Worker needs its existing Clerk, Neon, provider, and Modal Proxy
 Token secrets. Do not deploy `/api/submit` against Neon before the `submissions`
@@ -268,8 +284,12 @@ call, 349 prompt tokens, 780 completion tokens, estimated provider cost
 `$0.00037646`; catalog price `$0.10`.
 
 The upload queue code is locally testable without credentials. A production
-upload is not available until the additive Neon schema and this Worker revision
-are deployed. Every new workflow still requires its own reviewed profile,
+upload is not available until the founder securely supplies the Neon connection
+string to this environment or runs the exact migration above; the secret stored
+in Wrangler cannot be read back and local `psql` is unavailable. Live checkout
+currently fails closed with HTTP 503 and expires the unpaid Stripe Session when
+`purchases` cannot be recorded; top-up has the same fail-safe. Every new
+workflow still requires its own reviewed profile,
 provider/Modal credentials, direct canary, Worker deploy, Vercel publication,
 and Omo billing canary. Audio symbolic animation remains fail-closed on its
 documented Whisper/media/artifact/cost blockers.

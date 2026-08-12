@@ -78,19 +78,24 @@ Do not commit secret values. Only publishable keys belong in
   `authentication_required`.
 - `POST https://omo.space/api/topup` without auth: HTTP 401
   `authentication_required`.
-- Direct-Worker browser checks return the same 401 shapes. Terminal `curl` from
-  this agent environment timed out connecting to the `workers.dev` hostname;
-  the same deployed Worker is reachable through `omo.space` and in Chromium.
+- `node site/deploy/test-live.mjs` passes 10/10 against the Vercel rewrite:
+  CORS, routing, method validation, non-mutating checkout validation, auth
+  rejection, invalid waitlist input, and unsigned Clerk webhook rejection.
 - Read-only SQL through the pooled Neon URL confirmed public tables `users` and
   `runs`; both contained 0 rows before the first real signup. The local `psql`
   binary was unavailable, so the equivalent SELECTs were executed with the
   repo's installed official `@neondatabase/serverless` driver.
-- Local suites: balance 22/22, router 91/91, cost model 11/11.
+- Production error logs prove `public.purchases` is absent (`42P01`). The same
+  unapplied additive schema contains `topup_sessions`, `stripe_events`,
+  `stripe_topups`, and `submissions`, so none may be assumed present.
+- Local suites: balance 22/22, router 117/117, cost model 11/11, worker
+  normalizers 17/17.
 
 ## Stripe readiness audit and founder runbook
 
-Last audited 2026-08-12. The supported-listing test-card loop is ready to
-configure, but broad live catalog sales are **not yet fulfillment-ready**.
+Last audited 2026-08-13. Live Stripe secrets and routing are configured, but
+catalog sales and authenticated top-ups remain **fail-closed until the full
+additive Neon schema is applied**.
 
 ### Live route and code audit
 
@@ -102,18 +107,21 @@ configure, but broad live catalog sales are **not yet fulfillment-ready**.
   sends success/cancel back to the dashboard, records the pending session, and
   credits Neon exactly once after a signed paid event
   (`site/deploy/worker.js:1175-1317`, `2306-2446`).
+- Both session-creation paths now expire an unpaid Stripe Session immediately
+  if the corresponding pending database record cannot be stored. They return
+  HTTP 503 with `session_expired: true`, preventing a payable orphan session.
 - Stripe signatures are checked against the raw body with a five-minute
   timestamp tolerance (`site/deploy/worker.js:2520-2538`). The one shared
   webhook route is `POST /api/topup`; it handles both catalog purchases and
   credit top-ups when the `Stripe-Signature` header is present.
-- Read-only invalid-signature probes returned HTTP 501 `stripe webhook not
-  configured` from both `https://omo.space/api/topup` (Vercel rewrite) and
-  `https://cognition-demos.harrythentrepreneurr.workers.dev/api/topup`
-  (Cloudflare). A valid-slug checkout probe also returned HTTP 501 `stripe not
-  configured`. This proves both origins currently serve the intended handler
-  and neither Stripe Worker secret is configured. Use the stable public URL
-  `https://omo.space/api/topup` in Stripe.
-- Local verification passes: balance 22/22, router 91/91, cost model 11/11.
+- A live Woven checkout reached Stripe, then failed at purchase persistence
+  with PostgreSQL `42P01 relation "purchases" does not exist`. The Worker
+  expired that exact unpaid Session and returned HTTP 503
+  `{error:"purchase recording unavailable",session_expired:true}`. Stripe is
+  available; the remaining checkout blocker is the unapplied schema.
+- `/api/topup` without auth returns the expected 401. No existing signed-in
+  test session was available without exposing a credential, so authenticated
+  live session creation was not attempted.
 
 ### Checkout branding isolation (implemented 2026-08-13)
 
@@ -157,41 +165,35 @@ Official references: [Clover branding change](https://docs.stripe.com/changelog/
 [hosted Checkout appearance](https://docs.stripe.com/payments/checkout/customization/appearance?payment-ui=stripe-hosted&integration=api),
 and [multiple Stripe accounts](https://docs.stripe.com/get-started/account/multiple-accounts).
 
-### Gaps to fix in a follow-up code change
+Post-change local verification: balance 22/22, router 117/117, cost model
+11/11, and worker normalizers 17/17; `node --check` and `git diff --check`
+also pass. The router suite captures both Session-create requests and asserts
+the exact Clover header, branding/custom-text fields, line items, metadata, and
+return URLs without making a charge.
 
-1. `woven-relationship-book-maker` is exposed by the storefront
-   (`site/ig-more.js:406`) but is absent from `SERVER_CATALOG`
-   (`site/deploy/worker.js:154-187`), so its buy button receives 404 at
-   `site/deploy/worker.js:1040-1042`.
-2. Many valid custom two-decimal top-ups are rejected: the Worker requires
-   `amount_usd * 100` to be an exact safe integer
-   (`site/deploy/worker.js:1194-1197`), but binary floating point makes values
-   such as 5.02 become 501.999... cents. The preset $20/$50/$100/$200 chips
-   work; custom cents need a follow-up fix.
-3. A paid catalog purchase only becomes a completed Neon row. The success URL
+### Remaining payment gates
+
+1. Apply all of `site/deploy/schema.sql` to production Neon and verify
+   `purchases`, `topup_sessions`, `stripe_events`, `stripe_topups`, and
+   `submissions`. Wrangler secrets cannot be read back and this workspace has
+   no `psql`, so the founder must supply the URL securely or run the command.
+2. A paid catalog purchase only becomes a completed Neon row. The success URL
    returns to the home page (`site/deploy/worker.js:1058`), where the query
    parameters are trusted directly into local storage without server
    verification (`site/menu-workflows.js:34-58`). The Library then labels that
    local value purchased (`site/library.js:52-55`, `116-146`), but no verified
    ownership/download API or file delivery exists. Payment recording works;
    fulfillment does not, and the local ownership display is forgeable.
-4. The workflow-page checkout omits an `Idempotency-Key`
-   (`site/workflow.html:1139-1142`), and top-up session creation sends none to
-   Stripe (`site/deploy/worker.js:1229-1235`). A retry can create another unpaid
-   session; fulfillment itself remains idempotent.
-5. Only `checkout.session.completed` is handled, and only when
+3. Only `checkout.session.completed` is handled, and only when
    `payment_status=paid` (`site/deploy/worker.js:1269-1279`). Keep delayed
    payment methods disabled for now or add `checkout.session.async_payment_succeeded`.
-6. The dashboard makes one delayed balance refresh after return
+4. The dashboard makes one delayed balance refresh after return
    (`site/dashboard.html:1397-1400`); a slow webhook can leave a stale balance
    until manual reload.
-7. The publishable key is only a browser configuration/demo flag and loads
+5. The publishable key is only a browser configuration/demo flag and loads
    Stripe.js; hosted Checkout is created by the Worker. The code does not
    enforce test/live pairing (`site/stripe.js:14-20`, `120-137`). Always install
    matching-mode publishable, secret, and webhook keys.
-8. Before payments, confirm production Neon has `purchases`, `topup_sessions`,
-   `stripe_events`, and `stripe_topups` from `site/deploy/schema.sql`; only
-   `users` and `runs` were previously production-verified.
 
 ### Exact founder steps: Stripe test mode
 

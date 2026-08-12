@@ -26,10 +26,10 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
-- State: tick-001 audit done. Payment loop is ~80% built in code — not a greenfield build.
-- Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit (marketing/payment-loop-gap.md), fast signup-grant visibility with authoritative retry.
-- Next: (1) Kaviru/Harry set 3 live secrets (Stripe sk_live + webhook + Neon URL) and route omo.space/api/* to the Worker; (2) run canaries; (3) build the magic-link free-book grant; (4) Harry pulls the 200-person segment.
-- Blockers: live Stripe/Neon secrets; Worker route + canary; magic-link feature; 200-segment.
+- State: payment infrastructure is deployed fail-closed; Stripe/routing work, but production is missing the additive payment/upload tables.
+- Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit, fast signup-grant visibility, live secrets/routes, request-safe Neon access, 10/10 unauthenticated live canary, checkout orphan-session expiry, and 24-listing honesty audit.
+- Next: (1) Harry applies the full `site/deploy/schema.sql`; (2) re-run Woven checkout for HTTP 200 plus expiry and an authenticated top-up canary; (3) build the magic-link free-book grant; (4) Harry pulls the 200-person segment.
+- Blockers: production `purchases`/top-up/submissions schema; existing signed-in account for authenticated canary; paid download fulfillment; magic-link feature; 200-segment.
 
 ## Metrics (live)
 
@@ -41,8 +41,15 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Open proposals (awaiting Harry)
 
-(none yet)
+### PROPOSAL schema-001 — apply the additive production schema
+
+From `/Users/yifan/marketplace`, securely provide `NEON_DATABASE_URL` and run
+`psql "$NEON_DATABASE_URL" -f site/deploy/schema.sql`, or run it personally.
+Then verify `purchases`, `topup_sessions`, `stripe_events`, `stripe_topups`, and
+`submissions` exist. Do not paste the connection string into chat or history.
 
 ## Next tick
 
-Check pilot infra status. If the payment loop is not shipped, work only on pieces that need no Harry and no external send/spend (e.g. verify site trust items, prep the exact segment query). Otherwise record "waiting on Kaviru/Harry" and stop.
+Wait for schema-001. Once Harry confirms it, prove one Woven checkout returns a
+Stripe URL and expire it, then use an existing signed-in test account for one
+top-up session canary. Do not charge, send, or broaden the pilot.
