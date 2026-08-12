@@ -12,8 +12,11 @@
     var style = document.createElement('style');
     style.id = 'omo-nav-credit-styles';
     style.textContent =
+      '.omo-site-header{position:relative;top:auto;border-bottom:1px solid #D9E2DC;background:#F2F6F1;backdrop-filter:none;-webkit-backdrop-filter:none}' +
+      '.omo-site-header>.omo-nav-row{width:min(1160px,calc(100% - 48px));min-height:68px;margin-inline:auto;padding-block:8px}' +
       '.omo-nav-row>.omo-nav-brand{flex:1 1 auto}' +
       '.omo-nav-brand{gap:7px}' +
+      '.omo-nav-brand .wordmark{min-height:44px;align-self:auto}' +
       '.omo-nav-menu-toggle{width:36px;height:36px;min-height:36px;padding:0;border:0;border-radius:999px;background:#E8E8E6;color:var(--pine,#17352C);box-shadow:none;transition:background-color .15s ease}' +
       '.omo-nav-menu-toggle:hover,.omo-nav-menu-toggle[aria-expanded="true"]{border-color:transparent;background:#F6F0E7;box-shadow:none;transform:none}' +
       '.omo-nav-menu-toggle:focus-visible{border-color:transparent;background:#F6F0E7;outline:3px solid rgba(255,107,61,.3);outline-offset:2px}' +
@@ -36,7 +39,8 @@
       '.omo-nav-workflow-identity:focus-visible{outline:3px solid rgba(255,107,61,.34);outline-offset:2px}' +
       '.omo-nav-context-thumb{width:30px;height:30px;display:grid;place-items:center;flex:0 0 30px;overflow:hidden;border-radius:8px;background:var(--cream,#F4F1E8);font-size:17px}' +
       '.omo-nav-context-thumb img{width:100%;height:100%;display:block;object-fit:cover}' +
-      '.omo-nav-context-name{min-width:0;overflow:hidden;color:var(--pine,#17352C);font:700 15px/1.12 var(--display,"Fraunces",Georgia,serif);letter-spacing:-.015em;text-overflow:ellipsis;white-space:nowrap}' +
+      '.omo-nav-context-name{min-width:0;overflow:hidden;color:var(--pine,#17352C);font:600 15px/1.12 "Fraunces",Georgia,serif;letter-spacing:-.015em;text-overflow:ellipsis;white-space:nowrap}' +
+      '@media(max-width:760px){.omo-site-header>.omo-nav-row{width:min(1160px,calc(100% - 32px))}}' +
       '@media(max-width:480px){.omo-nav-popover{left:0;width:min(292px,calc(100vw - 24px));max-width:calc(100vw - 24px)}.omo-nav-login.omo-nav-credit{padding-inline:9px}.omo-nav-workflow-identity{max-width:calc(100vw - 180px);gap:6px}.omo-nav-context-thumb{width:28px;height:28px;flex-basis:28px}.omo-nav-context-name{font-size:13px}}';
     document.head.appendChild(style);
   }

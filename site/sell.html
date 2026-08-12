@@ -54,7 +54,7 @@
     :where(a, button, input):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
 
     .page-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
-    .sell-header { min-height: 94px; padding: max(24px, env(safe-area-inset-top)) 24px 14px; display: flex; justify-content: center; }
+    .sell-nav-shell { width: min(1160px, calc(100% - 48px)); margin-inline: auto; }
     .wordmark { display: inline-flex; align-items: center; align-self: flex-start; text-decoration: none; }
     .wordmark-logo { width: 126px; height: auto; }
     .sell-main { width: 100%; flex: 1; }
@@ -173,8 +173,7 @@
     .footer-dot { color: #AFB8B2; }
 
     @media (max-width: 700px) {
-      .sell-header { min-height: 78px; padding-top: max(20px, env(safe-area-inset-top)); }
-      .wordmark-logo { width: 108px; }
+      .sell-nav-shell { width: min(1160px, calc(100% - 32px)); }
       .showcase { height: 300px; }
       .showcase-stage { width: 590px; }
       .cover-card { width: 145px; border-width: 5px; border-radius: 18px; }
@@ -215,11 +214,25 @@
       *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
     }
   </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <script defer src="nav.js"></script>
 </head>
 <body>
   <div class="page-shell">
-    <header class="sell-header">
-      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo"></a>
+    <header class="site-header omo-site-header">
+      <div class="sell-nav-shell nav-row omo-nav-row">
+        <div class="omo-nav-brand">
+          <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo"></a>
+          <div class="omo-nav-menu">
+            <button class="omo-nav-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true"><span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+            <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+              <a href="index.html">Discover</a>
+              <a href="sell.html" aria-current="page">Sell Workflow</a>
+            </nav>
+          </div>
+        </div>
+        <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
+      </div>
     </header>
 
     <main class="sell-main" id="main">
