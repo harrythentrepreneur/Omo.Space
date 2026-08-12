@@ -61,6 +61,7 @@
     [hidden] { display: none !important; }
     .sig-cut { border-radius: 16px 16px 5px 16px; }
     .shell { width: min(1680px, calc(100% - 32px)); margin-inline: auto; }
+    .run-shell { width: min(1280px, calc(100% - 48px)); }
     .sr-only {
       position: absolute;
       width: 1px;
@@ -95,69 +96,15 @@
     .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
     .wordmark-logo { width: auto; height: 32px; }
 
-    .run-main { padding: 21px 0 78px; }
-    .crumb {
-      min-height: 38px;
-      display: inline-flex;
-      align-items: center;
-      margin-bottom: 10px;
-      color: var(--moss);
-      font-size: 13px;
-      font-weight: 700;
-      text-decoration: none;
-    }
-    .crumb:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 4px; }
-    .title-row {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 24px;
-      margin-bottom: 24px;
-    }
-    .title-block { min-width: 0; max-width: 850px; }
-    .eyebrow {
-      margin: 0 0 7px;
-      color: var(--orange);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-    }
-    .listing-title {
-      margin-bottom: 7px;
-      font-family: var(--display);
-      font-size: clamp(31px, 4vw, 46px);
-      font-weight: 700;
-      line-height: 1.07;
-      letter-spacing: -.035em;
-      overflow-wrap: anywhere;
-      text-wrap: balance;
-    }
-    .listing-promise { margin-bottom: 7px; color: #365349; font-size: 17px; text-wrap: pretty; }
-    .listing-meta { margin: 0; color: var(--moss); font-size: 13px; font-weight: 600; }
-    .price-chip {
-      flex: 0 0 auto;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      min-height: 38px;
-      padding: 0 13px;
-      border: 1px solid #b8d7c5;
-      border-radius: 99px;
-      background: var(--mint-soft);
-      color: var(--pine);
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .price-chip::before { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); content: ""; }
+    .run-main { padding: 32px 0 76px; }
 
     .workbench {
       display: grid;
-      grid-template-columns: minmax(360px, 32.5%) minmax(0, 1fr);
-      align-items: start;
-      gap: 16px;
+      grid-template-columns: minmax(340px, 380px) minmax(0, 1fr);
+      align-items: stretch;
+      gap: 24px;
     }
-    .input-panel, .examples-panel, .exchange-panel {
+    .input-panel, .examples-panel, .run-stage {
       min-width: 0;
       overflow: hidden;
       border: 1px solid var(--rule);
@@ -166,30 +113,30 @@
     }
     .input-panel {
       position: sticky;
-      top: 72px;
-      height: clamp(500px, calc(100dvh - 310px), 790px);
-      max-height: calc(100dvh - 88px);
+      top: 76px;
       display: flex;
       flex-direction: column;
     }
-    .right-workspace { min-width: 0; display: grid; gap: 16px; }
+    .examples-panel { display: flex; flex-direction: column; }
+    .right-workspace { min-width: 0; display: grid; gap: 24px; }
     .panel-head {
-      min-height: 61px;
+      min-height: 62px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      padding: 0 20px;
+      gap: 16px;
+      padding: 0 22px;
       border-bottom: 1px solid var(--rule);
     }
-    .panel-title { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 14px; letter-spacing: -.01em; }
+    .panel-title { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 15px; letter-spacing: -.015em; }
     .panel-title::before { width: 9px; height: 9px; border-radius: 50%; background: var(--orange); content: ""; }
     .panel-kicker { color: var(--moss); font: 700 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .panel-back { color: var(--moss); font-size: 11px; font-weight: 700; text-decoration: none; }
+    .panel-back:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 3px; }
 
     .form-shell { min-height: 0; display: flex; flex: 1; flex-direction: column; }
-    .form-scroll { min-height: 0; flex: 1; padding: 20px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-    .form-intro { margin-bottom: 18px; color: var(--moss); font-size: 13px; }
-    .form-fields { display: grid; gap: 17px; }
+    .form-scroll { min-height: 0; flex: 1; padding: 22px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .form-fields { display: grid; gap: 18px; }
     .field { min-width: 0; }
     .field-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 5px; }
     .field-label { min-width: 0; font-size: 13px; font-weight: 700; }
@@ -199,7 +146,7 @@
     .field-control {
       width: 100%;
       min-width: 0;
-      min-height: 45px;
+      min-height: 46px;
       display: block;
       padding: 10px 12px;
       border: 1px solid #c7d1ca;
@@ -210,7 +157,7 @@
       line-height: 1.45;
       transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
     }
-    textarea.field-control { min-height: 92px; resize: vertical; }
+    textarea.field-control { min-height: 104px; resize: vertical; }
     .field-control::placeholder { color: #89958f; opacity: 1; }
     .field-control:hover { border-color: #aabcb2; }
     .field-control:focus { border-color: var(--pine); outline: 0; box-shadow: 0 0 0 3px rgba(189, 239, 212, .48); }
@@ -245,12 +192,12 @@
     .field-error { min-height: 16px; margin: 5px 0 0; color: var(--danger); font-size: 11px; }
     .form-actions {
       flex: 0 0 auto;
-      padding: 16px 20px 17px;
+      padding: 18px 22px 19px;
       border-top: 1px solid var(--rule);
       background: #fbfcf9;
       box-shadow: 0 -10px 24px rgba(23, 53, 44, .045);
     }
-    .run-button, .action-button, .use-example, .copy-button {
+    .run-button, .action-button, .use-example {
       min-height: 42px;
       display: inline-flex;
       align-items: center;
@@ -261,7 +208,7 @@
     }
     .run-button {
       width: 100%;
-      min-height: 51px;
+      min-height: 50px;
       padding: 0 18px;
       background: var(--pine);
       color: #fff;
@@ -282,47 +229,24 @@
       font-weight: 700;
       text-align: center;
     }
-    .privacy-note { margin: 2px 0 0; color: var(--moss); font-size: 10px; text-align: center; }
+    .privacy-note { margin: 4px 0 0; color: var(--moss); font-size: 10px; text-align: center; }
 
-    .workspace-head { overflow-x: auto; scrollbar-width: none; }
-    .workspace-head::-webkit-scrollbar { display: none; }
-    .workspace-tabs { min-width: max-content; display: flex; align-items: center; gap: 4px; }
-    .workspace-tab {
-      min-height: 35px;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 0 10px;
-      border-radius: 8px;
-      color: var(--moss);
-      font-size: 12px;
-      font-weight: 700;
-      text-decoration: none;
-    }
-    .workspace-tab:hover { background: #f1f5f2; color: var(--pine); }
-    .workspace-tab.active { background: var(--mint-soft); color: var(--pine); }
     .count { min-width: 20px; padding: 3px 6px; border-radius: 99px; background: var(--mint); color: var(--pine); font: 700 9px/1 var(--mono); text-align: center; }
-    .view-label { flex: 0 0 auto; color: var(--moss); font: 700 9px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; }
 
-    .examples-intro {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 18px;
-      padding: 18px 20px 0;
-    }
-    .examples-intro h2 { margin-bottom: 4px; font-family: var(--display); font-size: 21px; letter-spacing: -.025em; }
-    .examples-intro p { max-width: 610px; margin: 0; color: var(--moss); font-size: 12px; }
-    .example-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px 20px 20px; }
+    .example-grid { min-height: 0; display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 22px; }
     .example-grid.single { grid-template-columns: minmax(0, 1fr); }
     .example-card {
       min-width: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
       border: 1px solid var(--rule);
       border-radius: 13px 13px 4px 13px;
       background: #fff;
       transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
     }
+    .example-grid.single .example-card { display: grid; grid-template-columns: minmax(250px, .92fr) minmax(0, 1.08fr); }
     .example-card:hover { transform: translateY(-2px); border-color: #b3c3ba; box-shadow: 0 10px 25px rgba(23, 53, 44, .08); }
     .example-visual {
       aspect-ratio: 16 / 9;
@@ -349,35 +273,18 @@
     .example-card:nth-child(4) .example-art { object-position: 50% 35%; }
     .example-glyph { position: relative; z-index: 1; font-size: 34px; line-height: 1; }
     .made-chip { position: absolute; top: 10px; left: 10px; z-index: 2; padding: 5px 8px; border-radius: 99px; background: rgba(23, 53, 44, .88); color: #fff; font-size: 9px; font-weight: 700; backdrop-filter: blur(7px); }
-    .example-copy { padding: 14px; }
+    .example-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; padding: 16px; }
     .example-overline { margin: 0 0 5px; color: var(--orange); font: 700 9px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
     .example-copy h3 { margin-bottom: 5px; font-size: 15px; line-height: 1.3; letter-spacing: -.015em; }
     .example-caption { margin-bottom: 7px; color: var(--moss); font: 700 9px/1.3 var(--mono); letter-spacing: .03em; }
     .example-input { min-height: 54px; display: -webkit-box; margin-bottom: 10px; overflow: hidden; color: #435c53; font-size: 11px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-    .example-output { min-height: 47px; margin-bottom: 11px; padding: 9px 10px; border-left: 3px solid var(--mint); background: var(--mint-soft); color: #365349; font-size: 11px; line-height: 1.4; }
+    .example-output { min-height: 47px; margin: auto 0 0; padding: 10px 11px; border-left: 3px solid var(--mint); background: var(--mint-soft); color: #365349; font-size: 11px; line-height: 1.45; }
     .use-example { position: absolute; right: 10px; bottom: 10px; z-index: 3; min-height: 38px; gap: 6px; padding: 0 11px; border-color: rgba(255,255,255,.4); background: rgba(23, 53, 44, .92); color: #fff; box-shadow: 0 7px 22px rgba(23,53,44,.22); font-size: 11px; backdrop-filter: blur(7px); }
     .use-example:hover { border-color: var(--pine); background: var(--mint); color: var(--pine); }
     .use-example::before { color: var(--orange); font-size: 13px; content: "↙"; }
 
-    .exchange-body { padding: 20px; }
-    .request-block { margin-bottom: 18px; }
-    .code-head { min-height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
-    .code-title { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--moss); font: 700 10px/1.2 var(--mono); letter-spacing: .11em; text-transform: uppercase; }
-    .method { padding: 4px 7px; border-radius: 5px; background: var(--mint); color: var(--pine); font: 700 9px/1 var(--font); letter-spacing: 0; }
-    .copy-button { min-height: 44px; padding: 0 10px; border-color: var(--rule); background: #fff; color: var(--pine); font-size: 11px; }
-    .copy-button:hover { border-color: var(--rule-dark); background: var(--mint-soft); }
-    pre {
-      max-width: 100%;
-      margin: 0;
-      overflow: auto;
-      color: var(--code);
-      font: 500 12px/1.62 var(--mono);
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      tab-size: 2;
-    }
-    .request-code { max-height: 310px; padding: 15px; border: 1px solid var(--rule); border-radius: 10px 10px 3px 10px; background: #fbfcf9; }
-    .progress-wrap { margin-bottom: 18px; padding: 15px; border: 1px solid #c9e3d4; border-radius: 11px 11px 3px 11px; background: var(--mint-soft); }
+    .run-stage-body { display: grid; gap: 16px; padding: 22px; }
+    .progress-wrap { padding: 16px; border: 1px solid #c9e3d4; border-radius: 11px 11px 3px 11px; background: var(--mint-soft); }
     .progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
     .phase-label { margin: 0; font-size: 13px; font-weight: 700; }
     .status-label { display: inline-flex; align-items: center; gap: 6px; color: #477064; font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
@@ -397,10 +304,7 @@
     .run-id { display: block; margin-top: 5px; overflow-wrap: anywhere; font: 600 9px/1.4 var(--mono); }
     @keyframes progress-sweep { from { transform: translateX(-110%); } to { transform: translateX(300%); } }
 
-    .response-layout { display: grid; grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr); gap: 14px; }
-    .response-column { min-width: 0; }
-    .response-code { min-height: 100%; max-height: 470px; padding: 14px; border-radius: 10px 10px 3px 10px; background: var(--pine); color: #dff6e8; }
-    .friendly-output { min-height: 100%; padding: 17px; border: 1px solid #efc8b8; border-radius: 11px 11px 3px 11px; background: var(--orange-soft); }
+    .friendly-output { padding: 18px; border: 1px solid var(--rule); border-radius: 11px 11px 3px 11px; background: #fff; }
     .output-tag { margin: 0 0 7px; color: #9b4a2c; font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
     .friendly-output h3 { margin-bottom: 8px; font-family: var(--display); font-size: 21px; letter-spacing: -.025em; }
     .friendly-output h4 { margin: 15px 0 6px; font-size: 14px; }
@@ -413,9 +317,6 @@
     .action-button { min-height: 44px; padding: 0 12px; background: var(--pine); color: #fff; font-size: 11px; }
     .action-button.secondary { border-color: var(--rule-dark); background: #fff; color: var(--pine); }
     .action-button.secondary:hover { background: var(--mint-soft); }
-    .below { display: flex; justify-content: space-between; gap: 18px; margin-top: 15px; color: var(--moss); font-size: 11px; }
-    .below a { font-weight: 700; text-underline-offset: 3px; }
-
     .not-found { width: min(600px, calc(100% - 40px)); margin: 50px auto; padding: 54px 28px; border: 1px solid var(--rule); background: var(--surface); box-shadow: var(--shadow); text-align: center; }
     .not-found-mark { margin-bottom: 16px; font-size: 36px; }
     .not-found h1 { margin-bottom: 10px; font-size: 29px; }
@@ -437,37 +338,31 @@
     }
 
     @media (max-width: 1020px) {
-      .workbench { grid-template-columns: minmax(300px, .72fr) minmax(0, 1.28fr); }
-      .example-grid, .response-layout { grid-template-columns: 1fr; }
+      .workbench { grid-template-columns: minmax(300px, 340px) minmax(0, 1fr); gap: 20px; }
+      .example-grid { grid-template-columns: 1fr; }
+      .example-grid.single .example-card { grid-template-columns: 1fr; }
+      .example-grid.single .example-visual { aspect-ratio: 16 / 8; min-height: 0; }
     }
     @media (max-width: 800px) {
-      .title-row { align-items: flex-start; flex-direction: column; gap: 12px; }
       .workbench { grid-template-columns: 1fr; }
       .input-panel { position: static; height: auto; min-height: 0; max-height: none; display: block; }
       .form-shell { display: block; }
       .form-scroll { overflow: visible; }
       .example-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .example-grid.single, .response-layout { grid-template-columns: 1fr; }
+      .example-grid.single { grid-template-columns: 1fr; }
     }
     @media (max-width: 600px) {
       .shell { width: calc(100% - 28px); }
-      .run-main { padding: 22px 0 52px; }
-      .title-row { margin-bottom: 19px; }
-      .listing-title { font-size: clamp(30px, 10vw, 38px); }
-      .listing-promise { font-size: 15px; }
-      .price-chip { min-height: 36px; }
+      .run-shell { width: calc(100% - 28px); }
+      .run-main { padding: 20px 0 52px; }
+      .workbench, .right-workspace { gap: 16px; }
       .panel-head { min-height: 56px; padding-inline: 15px; }
-      .form-scroll, .exchange-body { padding: 16px 15px; }
+      .form-scroll, .run-stage-body { padding: 16px 15px; }
       .form-actions { padding: 15px; }
-      .examples-intro { padding: 16px 15px 0; }
-      .example-grid { grid-template-columns: 1fr; padding: 14px 15px 16px; }
-      .workspace-head { padding-inline: 10px; }
-      .workspace-tab { padding-inline: 8px; }
-      .workspace-tab:nth-child(3) { display: none; }
-      .view-label { display: none; }
+      .example-grid { grid-template-columns: 1fr; gap: 14px; padding: 15px; }
+      .example-grid.single .example-visual { aspect-ratio: 16 / 9; }
       .phase-list { gap: 3px; font-size: 8px; }
       .phase-list span.done::before { display: none; }
-      .below { flex-direction: column; gap: 5px; }
       .toast { right: 14px; bottom: 14px; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -498,27 +393,15 @@
   </header>
 
   <main class="run-main" id="main">
-    <div class="shell" id="run-view" hidden>
-      <a class="crumb" id="back-top" href="workflow.html">← Back to the listing</a>
-      <header class="title-row">
-        <div class="title-block">
-          <p class="eyebrow" id="listing-eyebrow">Run it for me</p>
-          <h1 class="listing-title" id="listing-title"></h1>
-          <p class="listing-promise" id="listing-promise"></p>
-          <p class="listing-meta" id="listing-meta"></p>
-        </div>
-        <span class="price-chip" id="price-chip"></span>
-      </header>
-
+    <div class="shell run-shell" id="run-view" hidden>
       <div class="workbench">
         <aside class="input-panel sig-cut" aria-labelledby="inputs-title">
           <header class="panel-head">
-            <h2 class="panel-title" id="inputs-title">Inputs</h2>
-            <span class="panel-kicker">Fixed request rail</span>
+            <h1 class="panel-title" id="inputs-title">Inputs</h1>
+            <a class="panel-back" id="back-bottom" href="workflow.html">← Listing</a>
           </header>
           <form class="form-shell" id="run-form" novalidate>
             <div class="form-scroll">
-              <p class="form-intro">Add the details this workflow should use. Examples guide the shape; your words stay yours.</p>
               <div class="form-fields" id="input-fields"></div>
             </div>
             <div class="form-actions">
@@ -532,37 +415,20 @@
 
         <div class="right-workspace">
           <section class="examples-panel sig-cut" id="examples" aria-labelledby="examples-title">
-            <header class="panel-head workspace-head">
-              <nav class="workspace-tabs" aria-label="Run workspace">
-                <a class="workspace-tab active" href="#examples">▧ Examples <span class="count" id="example-count">0</span></a>
-                <a class="workspace-tab" href="#request-workspace">{ } Request</a>
-                <a class="workspace-tab" href="#response-workspace">↗ Response</a>
-              </nav>
-              <span class="view-label">▦ Gallery</span>
+            <header class="panel-head">
+              <h2 class="panel-title" id="examples-title">Examples</h2>
+              <span class="count" id="example-count">0</span>
             </header>
-            <div class="examples-intro">
-              <div>
-                <h2 id="examples-title">See what a good story looks like</h2>
-                <p>Each example fills the complete form so you can start with a proven shape, then make it your own.</p>
-              </div>
-            </div>
             <div class="example-grid" id="example-grid"></div>
           </section>
 
-          <section class="exchange-panel sig-cut" aria-labelledby="exchange-title">
+          <section class="run-stage sig-cut" id="run-stage" aria-labelledby="run-stage-title" hidden>
             <header class="panel-head">
-              <h2 class="panel-title" id="exchange-title">Request / Response</h2>
-              <span class="panel-kicker">Cloud workspace</span>
+              <h2 class="panel-title" id="run-stage-title">Run progress</h2>
+              <span class="panel-kicker">Cloud run</span>
             </header>
-            <div class="exchange-body">
-              <section class="request-block" id="request-workspace" aria-labelledby="request-title">
-                <div class="code-head">
-                  <h3 class="code-title" id="request-title"><span class="method">POST</span> /api/run · Request JSON</h3>
-                  <button class="copy-button" id="copy-json" type="button">Copy JSON</button>
-                </div>
-                <pre class="request-code" id="request-json" aria-live="polite"></pre>
-              </section>
-
+            <div class="run-stage-body">
+              <pre id="request-json" hidden></pre>
               <section class="progress-wrap" id="progress-stage" aria-labelledby="progress-title" aria-live="polite">
                 <div class="progress-head">
                   <h3 class="phase-label" id="progress-title">Ready when you are</h3>
@@ -574,29 +440,19 @@
                 <span class="run-id" id="run-id" hidden></span>
               </section>
 
-              <div class="response-layout" id="response-workspace">
-                <section class="response-column" aria-labelledby="response-title">
-                  <div class="code-head"><h3 class="code-title" id="response-title">Response JSON</h3></div>
-                  <pre class="response-code" id="response-json">{
+              <pre id="response-json" hidden>{
   "status": "waiting_for_request"
 }</pre>
-                </section>
-                <section class="friendly-output" id="output-stage" aria-labelledby="output-title">
-                  <p class="output-tag">Friendly output</p>
-                  <h3 id="output-title">Your finished result lands here.</h3>
-                  <div id="friendly-content"><p class="waiting-copy">Run the workflow to see a clean, readable result alongside the full response JSON.</p></div>
-                  <div class="artifact-links" id="artifact-links" aria-label="Output files" hidden></div>
-                  <div class="output-actions" id="output-actions" hidden>
-                    <button class="action-button" id="download-output" type="button">Download output</button>
-                    <button class="action-button secondary" id="run-again" type="button">Run again</button>
-                  </div>
-                </section>
-              </div>
-
-              <div class="below">
-                <span id="workspace-note">Schema-driven inputs · exact JSON preview</span>
-                <a id="back-bottom" href="workflow.html">Back to the listing</a>
-              </div>
+              <section class="friendly-output" id="output-stage" aria-labelledby="output-title">
+                <p class="output-tag">Output</p>
+                <h3 id="output-title">Working on your result.</h3>
+                <div id="friendly-content"><p class="waiting-copy">Your finished result will appear here.</p></div>
+                <div class="artifact-links" id="artifact-links" aria-label="Output files" hidden></div>
+                <div class="output-actions" id="output-actions" hidden>
+                  <button class="action-button" id="download-output" type="button">Download output</button>
+                  <button class="action-button secondary" id="run-again" type="button">Run again</button>
+                </div>
+              </section>
             </div>
           </section>
         </div>
@@ -1561,6 +1417,9 @@
         stopActiveRun();
         setProgress('Run needs attention', 0, 'error', false, 'failed');
         el('progress-note').textContent = message || 'The workflow could not run right now.';
+        el('output-title').textContent = 'This run did not finish.';
+        el('friendly-content').innerHTML = '<p class="waiting-copy"></p>';
+        el('friendly-content').firstChild.textContent = message || 'The workflow could not run right now.';
         if (data) updateResponseJson(data);
         el('form-status').setAttribute('data-state', 'error');
         el('form-status').textContent = message || 'The workflow could not run right now.';
@@ -1659,20 +1518,9 @@
       }
       function runButtonLabel() { return 'Run it — ≈ ' + formatPrice(runtimeDefinition.price_usd); }
 
-      var votes = {};
-      try { votes = JSON.parse(safeStorage('cognition_votes_v1') || '{}'); } catch (error) { votes = {}; }
-      var maker = listing.makerName || listing.maker || 'Independent maker';
-      var upvotes = Number(listing.upvotes || 0) + (votes[listing.slug] ? 1 : 0);
       var listingUrl = 'workflow.html?slug=' + encodeURIComponent(listing.slug);
       document.title = 'Run ' + listing.name + ' | Omo';
-      el('listing-eyebrow').textContent = 'Run it for me · ' + maker;
-      el('listing-title').textContent = listing.name;
-      el('listing-promise').textContent = listing.promise || listing.desc || '';
-      el('listing-meta').textContent = 'by ' + maker + ' · ' + upvotes + ' upvotes';
-      el('back-top').href = listingUrl;
       el('back-bottom').href = listingUrl;
-      el('price-chip').textContent = 'Hosted run · ≈ ' + formatPrice(runtimeDefinition.price_usd);
-      el('workspace-note').textContent = (runManifest ? 'Versioned schema' : 'Catalog compatibility schema') + ' · exact JSON preview';
 
       var inputFields = el('input-fields');
       fieldOrder().forEach(function (key, index) { inputFields.appendChild(renderField(key, index)); });
@@ -1697,22 +1545,6 @@
         if (event.key === 'cognition_user' || event.key === 'omo_balance_v1') updateCreditNote();
       });
 
-      el('copy-json').addEventListener('click', function () {
-        var text = el('request-json').textContent;
-        var fallback = function () {
-          var area = document.createElement('textarea');
-          area.value = text;
-          area.style.position = 'fixed';
-          area.style.opacity = '0';
-          document.body.appendChild(area);
-          area.select();
-          document.execCommand('copy');
-          area.remove();
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).catch(fallback);
-        else fallback();
-        notify('Request JSON copied.');
-      });
       el('run-form').addEventListener('submit', function (event) {
         event.preventDefault();
         if (!signedIn()) { openSignup(); return; }
@@ -1729,9 +1561,11 @@
         el('friendly-content').innerHTML = '<p class="waiting-copy">Omo is turning this request into a finished result…</p>';
         el('output-title').textContent = 'Working on your result.';
         el('progress-note').textContent = 'Keep this page open while Omo runs the workflow.';
+        el('run-stage').hidden = false;
         setRunId('');
         setControlsDisabled(true);
         el('run-button').textContent = 'Running…';
+        window.setTimeout(function () { el('run-stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 0);
         submitRun(payload);
       });
       el('download-output').addEventListener('click', function () {
@@ -1753,7 +1587,8 @@
         el('form-status').textContent = 'Ready to run again with these inputs.';
         el('form-status').removeAttribute('data-state');
         setProgress('Ready when you are', 0, 'ready', false, '');
-        el('progress-note').textContent = 'Review the live request, then run it again.';
+        el('progress-note').textContent = 'Your next run will appear here.';
+        el('run-stage').hidden = true;
         el('inputs-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
         var firstField = document.querySelector('[data-run-field]:not([type="hidden"])');
         if (firstField) window.setTimeout(function () { firstField.focus({ preventScroll: true }); }, 350);
