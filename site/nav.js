@@ -11,9 +11,13 @@
   var authSubscribed = false;
   var authLinksPrimed = false;
   var lastResolvedAuthKey = '';
+  var freshGrantState = null;
   var BALANCE_CACHE_PREFIX = 'omo_nav_balance_v1:';
   var BALANCE_TIMEOUT_MS = 5000;
   var SESSION_RETRY_MS = 250;
+  var SIGNUP_GRANT_CENTS = 500;
+  var FRESH_ACCOUNT_MAX_AGE_MS = 2 * 60 * 1000;
+  var FRESH_GRANT_RETRY_MS = 1000;
   var AUTH_HINT_KEY = 'omo_nav_auth_hint_v1';
   var AUTH_HINT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -169,6 +173,33 @@
     } catch (error) {}
   }
 
+  function clerkAccountCreatedAt(userId) {
+    var clerkUser = window.Clerk && window.Clerk.user;
+    if (!clerkUser || String(clerkUser.id || '') !== String(userId || '')) return 0;
+    var value = clerkUser.createdAt;
+    var timestamp = value && typeof value.getTime === 'function' ? value.getTime() : Number(value);
+    if (!isFinite(timestamp)) timestamp = Date.parse(String(value || ''));
+    if (isFinite(timestamp) && timestamp > 0 && timestamp < 100000000000) timestamp *= 1000;
+    return isFinite(timestamp) ? timestamp : 0;
+  }
+
+  function isFreshClerkAccount(userId, cached) {
+    if (!userId || cached || demoAuthConfigured()) return false;
+    var createdAt = clerkAccountCreatedAt(userId);
+    var age = Date.now() - createdAt;
+    return createdAt > 0 && age >= 0 && age <= FRESH_ACCOUNT_MAX_AGE_MS;
+  }
+
+  function clearFreshGrant(state) {
+    if (state && freshGrantState !== state) return;
+    if (freshGrantState && freshGrantState.timer) window.clearTimeout(freshGrantState.timer);
+    freshGrantState = null;
+  }
+
+  function activeFreshGrant(userId) {
+    return freshGrantState && freshGrantState.userId === userId ? freshGrantState : null;
+  }
+
   function renderCreditLink(link, balanceCents, state) {
     var hasBalance = balanceCents != null && isFinite(Number(balanceCents));
     var formatted = hasBalance ? formatBalance(balanceCents) : '';
@@ -292,11 +323,11 @@
     return new Promise(function (resolve) { window.setTimeout(resolve, delayMs); });
   }
 
-  function balanceWithSessionRetry(client, deadline) {
-    return client.getBalance().catch(function (error) {
+  function balanceWithSessionRetry(client, deadline, options) {
+    return client.getBalance(options).catch(function (error) {
       if (!error || error.code !== 'no_session' || Date.now() + SESSION_RETRY_MS >= deadline) throw error;
       return wait(SESSION_RETRY_MS).then(function () {
-        return balanceWithSessionRetry(client, deadline);
+        return balanceWithSessionRetry(client, deadline, options);
       });
     });
   }
@@ -326,13 +357,15 @@
     });
   }
 
-  function requestCreditBalance(userId) {
-    if (balanceInFlight && balanceInFlight.userId === userId) return balanceInFlight.promise;
+  function requestCreditBalance(userId, options) {
+    var force = !!(options && options.force);
+    if (!force && balanceInFlight && balanceInFlight.userId === userId) return balanceInFlight.promise;
     var deadline = Date.now() + BALANCE_TIMEOUT_MS;
     var request = loadCreditsClient().then(function (client) {
-      return balanceWithSessionRetry(client, deadline);
+      return balanceWithSessionRetry(client, deadline, force ? { force: true } : null);
     });
     var promise = withTimeout(request, BALANCE_TIMEOUT_MS);
+    if (force) return promise;
     balanceInFlight = { userId: userId, promise: promise };
     promise.then(function () {
       if (balanceInFlight && balanceInFlight.promise === promise) balanceInFlight = null;
@@ -342,15 +375,78 @@
     return promise;
   }
 
-  function refreshCreditBalance(requestId, userId) {
-    requestCreditBalance(userId).then(function (account) {
-      var activeUser = currentUser();
-      if (requestId !== balanceRequestId || !activeUser || activeUser.id !== userId) return;
-      writeCachedBalance(account);
-      renderAllCreditLinks(account.balanceCents, 'ready');
+  function accountIsCurrent(requestId, userId) {
+    var activeUser = currentUser();
+    return requestId === balanceRequestId && activeUser && activeUser.id === userId && isSignedIn();
+  }
+
+  function acceptCreditAccount(account, requestId, userId, finalAttempt) {
+    if (!accountIsCurrent(requestId, userId)) return false;
+    var fresh = activeFreshGrant(userId);
+    var cents = Number(account && account.balanceCents);
+    if (fresh && !finalAttempt && isFinite(cents) && cents < SIGNUP_GRANT_CENTS) {
+      renderAllCreditLinks(SIGNUP_GRANT_CENTS, 'loading');
+      return false;
+    }
+    clearFreshGrant(fresh);
+    writeCachedBalance(account);
+    renderAllCreditLinks(account.balanceCents, 'ready');
+    return true;
+  }
+
+  function finishFreshGrantRetry(state, account) {
+    if (!accountIsCurrent(state.requestId, state.userId) || freshGrantState !== state) return;
+    state.retrySettled = true;
+    if (account) {
+      acceptCreditAccount(account, state.requestId, state.userId, true);
+      return;
+    }
+    clearFreshGrant(state);
+    var cached = readCachedBalance(state.userId);
+    renderAllCreditLinks(cached && cached.balanceCents, 'unavailable');
+  }
+
+  function retryFreshGrant(state) {
+    if (!accountIsCurrent(state.requestId, state.userId) || freshGrantState !== state) return;
+    state.timer = null;
+    state.retryStarted = true;
+    requestCreditBalance(state.userId, { force: true }).then(function (account) {
+      finishFreshGrantRetry(state, account);
     }).catch(function () {
-      var activeUser = currentUser();
-      if (requestId !== balanceRequestId || !activeUser || activeUser.id !== userId) return;
+      finishFreshGrantRetry(state, null);
+    });
+  }
+
+  function beginFreshGrant(requestId, userId, cached) {
+    clearFreshGrant();
+    if (!isFreshClerkAccount(userId, cached)) return null;
+    // /api/me guarantees this idempotent grant. Show it as refreshing for a
+    // just-created Clerk account, but never persist it before the server agrees.
+    var state = {
+      requestId: requestId,
+      userId: userId,
+      retryStarted: false,
+      retrySettled: false,
+      timer: null
+    };
+    freshGrantState = state;
+    state.timer = window.setTimeout(function () { retryFreshGrant(state); }, FRESH_GRANT_RETRY_MS);
+    return state;
+  }
+
+  function refreshCreditBalance(requestId, userId) {
+    var freshRequest = activeFreshGrant(userId);
+    requestCreditBalance(userId).then(function (account) {
+      if (freshRequest && freshRequest.retryStarted) return;
+      acceptCreditAccount(account, requestId, userId, false);
+    }).catch(function () {
+      if (freshRequest && freshRequest.retryStarted) return;
+      if (!accountIsCurrent(requestId, userId)) return;
+      var fresh = activeFreshGrant(userId);
+      if (fresh && !fresh.retrySettled) {
+        renderAllCreditLinks(SIGNUP_GRANT_CENTS, 'loading');
+        return;
+      }
       var cached = readCachedBalance(userId);
       renderAllCreditLinks(cached && cached.balanceCents, 'unavailable');
     });
@@ -362,9 +458,16 @@
     if (!account || !activeUser || account.userId !== activeUser.id || !isSignedIn()) return;
     if (account.mode === 'loading' || account.balanceCents == null || !isFinite(Number(account.balanceCents))) {
       var cached = readCachedBalance(activeUser.id);
-      renderAllCreditLinks(cached && cached.balanceCents, 'loading');
+      var freshLoading = activeFreshGrant(activeUser.id);
+      renderAllCreditLinks(cached ? cached.balanceCents : (freshLoading ? SIGNUP_GRANT_CENTS : null), 'loading');
       return;
     }
+    var fresh = activeFreshGrant(activeUser.id);
+    if (fresh && !fresh.retrySettled && Number(account.balanceCents) < SIGNUP_GRANT_CENTS) {
+      renderAllCreditLinks(SIGNUP_GRANT_CENTS, 'loading');
+      return;
+    }
+    clearFreshGrant(fresh);
     writeCachedBalance(account);
     renderAllCreditLinks(account.balanceCents, 'ready');
   }
@@ -383,12 +486,14 @@
     lastResolvedAuthKey = authKey;
     var cached = userId ? readCachedBalance(userId) : null;
     var requestId = ++balanceRequestId;
+    var fresh = signedIn && userId ? beginFreshGrant(requestId, userId, cached) : null;
+    if (!fresh) clearFreshGrant();
     var links = document.querySelectorAll('[data-omo-login]');
     for (var i = 0; i < links.length; i += 1) {
       if (signedIn) {
         links[i].href = 'billing.html';
         links[i].hidden = false;
-        renderCreditLink(links[i], cached && cached.balanceCents, 'loading');
+        renderCreditLink(links[i], cached ? cached.balanceCents : (fresh ? SIGNUP_GRANT_CENTS : null), 'loading');
         links[i].removeAttribute('aria-haspopup');
         links[i].removeAttribute('aria-controls');
       } else {

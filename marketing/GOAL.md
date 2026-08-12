@@ -27,7 +27,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 ## Status
 
 - State: tick-001 audit done. Payment loop is ~80% built in code — not a greenfield build.
-- Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit (marketing/payment-loop-gap.md).
+- Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit (marketing/payment-loop-gap.md), fast signup-grant visibility with authoritative retry.
 - Next: (1) Kaviru/Harry set 3 live secrets (Stripe sk_live + webhook + Neon URL) and route omo.space/api/* to the Worker; (2) run canaries; (3) build the magic-link free-book grant; (4) Harry pulls the 200-person segment.
 - Blockers: live Stripe/Neon secrets; Worker route + canary; magic-link feature; 200-segment.
 
