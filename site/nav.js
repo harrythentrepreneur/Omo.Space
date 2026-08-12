@@ -11,6 +11,15 @@
     var style = document.createElement('style');
     style.id = 'omo-nav-credit-styles';
     style.textContent =
+      '.omo-nav-menu-toggle{width:38px;min-height:38px;padding:0;border:1px solid #6F7E77;border-radius:999px;background:#E5F1EA;box-shadow:inset 0 1px 0 rgba(255,255,255,.72);transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease}' +
+      '.omo-nav-menu-toggle:hover,.omo-nav-menu-toggle[aria-expanded="true"]{border-color:#2F6A55;background:var(--mint,#BDEFD4);box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 2px 8px rgba(23,53,44,.12)}' +
+      '.omo-nav-menu-toggle:focus-visible{border-color:#2F6A55;background:var(--mint,#BDEFD4);outline:3px solid rgba(255,107,61,.34);outline-offset:2px}' +
+      '.omo-nav-chevron{position:relative;display:block;width:14px;height:14px;font-size:0;line-height:1;transition:transform .15s ease}' +
+      '.omo-nav-chevron::before{content:"";position:absolute;top:2px;left:2px;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}' +
+      '.omo-nav-popover{top:calc(100% + 7px);width:max-content;min-width:216px;max-width:min(252px,calc(100vw - 24px));padding:5px;border:1px solid #81948B;border-radius:10px;background:var(--surface,#FFFFFF);box-shadow:0 16px 34px rgba(23,53,44,.2),0 3px 9px rgba(23,53,44,.13)}' +
+      '.omo-nav-popover>a,.omo-nav-popover .omo-nav-logout>a{min-height:32px;padding:0 8px;border-radius:6px;font-size:12.5px}' +
+      '.omo-nav-popover a:hover,.omo-nav-popover a:focus-visible{background:#D8EADF;color:var(--pine,#17352C);box-shadow:inset 3px 0 0 #6F7E77;text-decoration:none}' +
+      '.omo-nav-popover a[aria-current="page"],.omo-nav-popover a[aria-selected="true"],.omo-nav-popover a.is-active{background:var(--mint,#BDEFD4);color:var(--pine,#17352C);box-shadow:inset 3px 0 0 var(--pine,#17352C);text-decoration:none}' +
       '.omo-nav-login.omo-nav-credit{min-width:40px;gap:6px;padding-inline:11px;border-radius:999px;font-variant-numeric:tabular-nums}' +
       '.omo-nav-credit-icon{font-size:16px;line-height:1}' +
       '.omo-nav-logout{margin-top:6px;padding-top:7px;border-top:1px solid var(--rule,#D9E2DC)}' +
@@ -278,6 +287,7 @@
     var toggle = menu.querySelector('.omo-nav-menu-toggle');
     var popover = menu.querySelector('.omo-nav-popover');
     if (!toggle || !popover) return;
+    if (!toggle.title) toggle.title = 'Menu';
 
     function closeMenu(returnFocus) {
       if (toggle.getAttribute('aria-expanded') !== 'true') return;
