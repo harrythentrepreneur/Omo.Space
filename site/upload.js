@@ -65,6 +65,7 @@
       ready_for_publish: 'Ready to publish',
       deployed: 'Live',
       failed: 'Needs attention',
+      local_waiting: 'Waiting locally',
       demo_queued: 'Demo queue'
     };
     return labels[status] || 'Submitted';
@@ -90,7 +91,7 @@
       status.textContent = statusLabel(submission.status);
       var visibility = document.createElement('span');
       visibility.className = 'visibility-badge';
-      visibility.textContent = submission.preview ? 'Local preview' : 'Marketplace';
+      visibility.textContent = submission.localOnly ? 'Local receipt' : 'Marketplace';
       var date = document.createElement('time');
       date.dateTime = submission.submittedAt || '';
       date.textContent = formatDate(submission.submittedAt);
@@ -120,9 +121,17 @@
     return !!(file && /\.md$/i.test(file.name || ''));
   }
 
-  function showQueued(submission, preview) {
+  function showQueued(submission, mode) {
+    var preview = mode === 'preview';
+    var waiting = mode === 'waiting';
     var steps = progress.querySelectorAll('[data-progress-step]');
-    var labels = [
+    var labels = waiting ? [
+      'File checked locally',
+      'Secure queue activation pending',
+      'Agent review after queueing',
+      'Tests + canaries after approval',
+      'Publish after every gate passes'
+    ] : [
       'Upload received',
       'Queued for agent review',
       'Compile, test + price after review',
@@ -139,22 +148,31 @@
     });
     var title = progress.querySelector('.progress-title');
     var note = progress.querySelector('.progress-demo');
-    if (title) title.textContent = preview ? 'Demo submission queued locally.' : 'Your workflow is queued.';
+    if (title) title.textContent = preview
+      ? 'Demo submission queued locally.'
+      : waiting ? 'Saved here to retry.' : 'Your workflow is queued.';
     if (note) note.textContent = preview
       ? 'Local preview only — no file left this browser. Production submissions are stored securely for agent review.'
-      : 'Queued is not live. An Omo agent must review the runtime profile; tests and canaries must pass before publishing.';
+      : waiting
+        ? 'The secure queue is still activating. This browser saved only the workflow name — not the Markdown. Keep the file and retry later.'
+        : 'Queued is not live. An Omo agent must review the runtime profile; tests and canaries must pass before publishing.';
     progress.hidden = false;
     progress.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     var submissions = readSubmissions();
-    submissions.push({
+    var receipt = {
       id: submission.id,
       name: submission.name,
       slug: submission.slug,
       submittedAt: new Date().toISOString(),
-      status: preview ? 'demo_queued' : submission.status,
-      preview: preview
-    });
+      status: preview ? 'demo_queued' : waiting ? 'local_waiting' : submission.status,
+      localOnly: preview || waiting
+    };
+    var priorReceipt = receipt.localOnly ? submissions.findIndex(function (item) {
+      return item && item.localOnly && item.name === receipt.name && item.status === receipt.status;
+    }) : -1;
+    if (priorReceipt >= 0) submissions[priorReceipt] = receipt;
+    else submissions.push(receipt);
     writeSubmissions(submissions.slice(-20));
     renderSubmissions();
   }
@@ -182,6 +200,11 @@
       });
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (body) {
+        if ([404, 405, 501].includes(response.status)) {
+          var unavailable = new Error('The secure submission queue is still activating.');
+          unavailable.code = 'queue_unavailable';
+          throw unavailable;
+        }
         if (!response.ok || response.status !== 202 || body.status !== 'queued') {
           throw new Error(body.message || body.error || 'Omo could not queue this workflow. Try again.');
         }
@@ -257,15 +280,20 @@
       var result;
       if (isFilePreview()) {
         result = { id: 'preview-' + Date.now(), name: payload.name, slug: '', status: 'queued' };
-        showQueued(result, true);
+        showQueued(result, 'preview');
       } else {
         result = await submitToWorker(payload);
-        showQueued({ id: result.id, name: payload.name, slug: result.slug, status: result.status }, false);
+        showQueued({ id: result.id, name: payload.name, slug: result.slug, status: result.status }, 'queued');
       }
       submitButton.textContent = result.duplicate ? 'Already queued ✓' : 'Queued for review ✓';
     } catch (error) {
-      fileError.textContent = error && error.message || 'Omo could not queue this workflow. Try again.';
-      submitButton.textContent = 'Submit for hosting →';
+      if (error && error.code === 'queue_unavailable') {
+        showQueued({ id: 'waiting-' + Date.now(), name: nameInput.value.trim(), slug: '', status: 'local_waiting' }, 'waiting');
+        submitButton.textContent = 'Saved here — retry later';
+      } else {
+        fileError.textContent = error && error.message || 'Omo could not queue this workflow. Try again.';
+        submitButton.textContent = 'Submit for hosting →';
+      }
     } finally {
       submitButton.disabled = false;
     }

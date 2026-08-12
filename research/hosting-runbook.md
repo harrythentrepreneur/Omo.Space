@@ -40,7 +40,9 @@ table exists.
 1. A signed-in creator opens `host.html`, selects a public `.md` file of at
    most 200 KiB, and supplies a workflow name. `upload.js` reads the actual
    content and sends a Clerk bearer token to `POST /api/submit`. `file://`
-   preview is the only local-only demo path.
+   remains an explicit demo. During rollout only, HTTP 404/405/501 from an
+   undeployed queue creates a clearly labelled local retry receipt containing
+   metadata only; it never stores the Markdown or claims the item was queued.
 2. The Worker requires scalar frontmatter `name` and `description`, derives the
    slug server-side, rejects mismatched names and private hosting, stores the
    content as untrusted data, and returns HTTP `202` with `{id, status:
