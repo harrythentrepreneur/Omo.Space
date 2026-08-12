@@ -1,0 +1,20 @@
+{
+  "schema_version": "omo.education-artifact-manifest/v1",
+  "workflow_slug": "phonics-worksheet-generator",
+  "document_id": "smoke-ch-001",
+  "title": "Find the ch Words",
+  "filename_stem": "smoke-worksheet",
+  "include_answer_key": false,
+  "metadata": {"dialect": "en-US", "focus_patterns": ["ch"]},
+  "pages": [
+    {
+      "page_number": 1,
+      "heading": "Circle the word with ch",
+      "body": ["Say each word. Circle the word that begins with ch."],
+      "items": [
+        {"id": "item-1", "prompt": "chip or sip", "answer": "chip"},
+        {"id": "item-2", "prompt": "chat or sat", "answer": "chat"}
+      ]
+    }
+  ]
+}

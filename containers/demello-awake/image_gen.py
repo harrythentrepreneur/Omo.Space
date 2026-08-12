@@ -410,10 +410,16 @@ class CodexSubscriptionImageAdapter:
         timeout_seconds: float = 180.0,
         size: str = "1024x1536",
         quality: str = "medium",
+        allow_refresh: bool = True,
     ) -> None:
         self.access_token = access_token or os.environ.get("OPENAI_CODEX_ACCESS_TOKEN")
         self.account_id = account_id or os.environ.get("OPENAI_CODEX_ACCOUNT_ID")
-        self.refresh_token = refresh_token or os.environ.get("OPENAI_CODEX_REFRESH_TOKEN")
+        self.allow_refresh = allow_refresh
+        self.refresh_token = (
+            refresh_token or os.environ.get("OPENAI_CODEX_REFRESH_TOKEN")
+            if allow_refresh
+            else None
+        )
         self.request = request
         self.base_url = (base_url or os.environ.get("OPENAI_CODEX_BASE_URL") or CODEX_BASE_URL).rstrip("/")
         self.refresh_url = refresh_url or os.environ.get("OPENAI_CODEX_REFRESH_URL") or CODEX_REFRESH_URL
@@ -443,7 +449,7 @@ class CodexSubscriptionImageAdapter:
         expiration = self._jwt_expiration(self.access_token)
         if self.access_token and (expiration is None or expiration > int(time.time()) + 300):
             return self.access_token
-        if not self.refresh_token:
+        if not self.allow_refresh or not self.refresh_token:
             if self.access_token:
                 return self.access_token
             raise ImageGenerationError("OPENAI_CODEX_ACCESS_TOKEN is not configured")
