@@ -273,64 +273,8 @@
       color: var(--moss); text-align: center;
     }
 
-    /* Compact credits workspace. */
-    .credits-panel {
-      margin: 34px 0 0; border: 1px solid var(--rule); border-radius: 14px;
-      background: var(--surface); overflow: hidden;
-    }
-    .credits-summary {
-      min-height: 68px; padding: 14px 18px; display: flex; align-items: center; gap: 14px;
-      cursor: pointer; list-style: none;
-    }
-    .credits-summary::-webkit-details-marker { display: none; }
-    .credits-summary::after { content: '+'; margin-left: auto; font-size: 22px; font-weight: 500; }
-    .credits-panel[open] .credits-summary::after { content: '−'; }
-    .credits-summary-icon {
-      width: 38px; height: 38px; display: grid; place-items: center;
-      border-radius: 10px; background: var(--mint); font-size: 18px;
-    }
-    .credits-summary-copy { min-width: 0; }
-    .credits-summary-copy strong { display: block; line-height: 1.25; }
-    .credits-summary-copy span { color: var(--moss); font-size: 13px; }
-    .credits-summary-balance { margin-left: auto; font-size: 15px; font-weight: 700; white-space: nowrap; }
-    .credits-panel[open] .credits-summary-balance { margin-left: 0; }
-    .credits-body {
-      display: grid; grid-template-columns: minmax(240px, .8fr) minmax(300px, 1.2fr);
-      gap: 24px; padding: 22px; border-top: 1px solid var(--rule); background: var(--canvas);
-    }
-    .credit-card { min-width: 0; padding: 22px; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); }
-    .credit-card h2 { margin-bottom: 5px; font-family: var(--display); font-size: 22px; font-weight: 600; }
-    .card-intro { margin-bottom: 16px; color: var(--moss); font-size: 13.5px; }
-    .credit-balance { margin: 4px 0 16px; font-family: var(--display); font-size: 34px; font-weight: 600; line-height: 1; }
-    .amount-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    .amount-chip {
-      min-height: 42px; min-width: 58px; flex: 1; border: 1px solid var(--rule);
-      border-radius: 10px; background: var(--surface); color: var(--pine); font-size: 14px; font-weight: 700;
-    }
-    .amount-chip:hover { border-color: var(--pine); }
-    .amount-chip.is-active { background: var(--pine); color: #fff; border-color: var(--pine); }
-    .custom-amount-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; margin: 0 0 12px; }
-    .custom-amount-label { font-size: 13px; font-weight: 700; white-space: nowrap; }
-    .custom-amount {
-      width: 100%; min-height: 42px; padding: 8px 12px; border: 1px solid var(--rule);
-      border-radius: 10px; background: var(--surface); color: var(--pine);
-    }
-    .custom-amount:focus { border-color: var(--pine); }
-    .empty-credit-note { margin: -4px 0 14px; padding: 10px 12px; border-radius: 10px; background: #FFE8E0; color: var(--pine); font-size: 13px; font-weight: 700; }
-    .form-note { min-height: 1.2em; margin: 10px 0 0; color: var(--moss); font-size: 12.5px; }
-    .form-note.is-ok { color: var(--pine); font-weight: 700; }
-    .form-note.is-err { color: var(--orange); font-weight: 700; }
-    .usage-empty { margin: 0; color: var(--moss); font-size: 14px; }
-    .usage-list { list-style: none; margin: 0; padding: 0; }
-    .usage-row { display: flex; align-items: baseline; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; }
-    .usage-row:last-child { border-bottom: 0; }
-    .usage-slug { flex: 1; overflow-wrap: anywhere; font-weight: 700; }
-    .usage-cost { white-space: nowrap; font-weight: 700; }
-    .usage-time { white-space: nowrap; color: var(--moss); font-size: 12px; }
     .dash-notice { margin: 0 0 18px; padding: 11px 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--mint); font-size: 13.5px; font-weight: 700; }
     .dash-notice.is-error { background: #FFE8E0; border-color: var(--orange); }
-    .api-foot { margin: 14px 0 0; color: var(--moss); font-size: 12px; }
-    .api-foot code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 
     /* Detail dialog copied from the storefront. */
     .listing-dialog {
@@ -484,7 +428,6 @@
       }
       .filter-row::-webkit-scrollbar { display: none; }
       .filter-chip { min-height: 40px; flex: 0 0 auto; scroll-snap-align: start; }
-      .credits-body { grid-template-columns: 1fr; }
       .listing-dialog {
         position: fixed; inset: auto 0 0; width: 100%; max-width: none;
         max-height: calc(100dvh - 16px); margin: auto 0 0;
@@ -519,13 +462,7 @@
       .listing-promise { min-height: 1.4em; -webkit-line-clamp: 1; }
       .listing-footer { align-items: center; }
       .listing-card > .upvote-btn { top: 12px; right: 12px; min-height: 44px; padding-inline: 12px; }
-      .credits-summary { min-height: 76px; padding-inline: 16px; }
-      .amount-chip, .clear-filters { min-height: 44px; }
-      .credits-summary-balance { display: none; }
-      .credits-body { padding: 14px; }
-      .credit-card { padding: 18px; }
-      .usage-row { align-items: flex-start; flex-wrap: wrap; }
-      .usage-time { width: 100%; }
+      .clear-filters { min-height: 44px; }
       .price-tiers, .use-doors, .demo-row { grid-template-columns: 1fr; }
       .dashboard-layout { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
     }
@@ -579,39 +516,6 @@
         <div class="feed-grid" id="listing-feed"></div>
         <p class="feed-empty" id="feed-empty" hidden>No helpers match that search. Try another word or clear the filters.</p>
 
-        <details class="credits-panel" id="credits-panel">
-          <summary class="credits-summary">
-            <span class="credits-summary-icon" aria-hidden="true">◒</span>
-            <span class="credits-summary-copy"><strong>Credits &amp; usage</strong><span>Top up and see recent runs</span></span>
-            <span class="credits-summary-balance" id="credits-summary-balance">$5.00 available</span>
-          </summary>
-          <div class="credits-body">
-            <section class="credit-card sig-cut" id="topup-card" aria-labelledby="topup-title">
-              <h2 id="topup-title">Credits</h2>
-              <p class="card-intro">Your balance pays for cloud runs. Every new account gets $5 free.</p>
-              <p class="credit-balance" id="credit-balance">$5.00</p>
-              <p class="empty-credit-note" id="empty-credit-note" hidden>You’re out of credits, but you can keep going in seconds — top up from $5 below.</p>
-              <form id="topup-form" novalidate>
-                <div class="amount-row" role="group" aria-label="Top-up amount">
-                  <button class="amount-chip is-active" type="button" data-amount="20" aria-pressed="true">$20</button>
-                  <button class="amount-chip" type="button" data-amount="50" aria-pressed="false">$50</button>
-                  <button class="amount-chip" type="button" data-amount="100" aria-pressed="false">$100</button>
-                  <button class="amount-chip" type="button" data-amount="200" aria-pressed="false">$200</button>
-                </div>
-                <label class="custom-amount-row" for="custom-amount"><span class="custom-amount-label">Custom $</span><input class="custom-amount" id="custom-amount" type="number" min="5" step="0.01" inputmode="decimal" placeholder="Minimum $5" aria-describedby="topup-note"></label>
-                <button class="button button-primary button-block" id="topup-btn" type="submit">Top up with Stripe</button>
-                <p class="form-note" id="topup-note" role="status" aria-live="polite"></p>
-              </form>
-            </section>
-            <section class="credit-card" id="usage-card" aria-labelledby="usage-title">
-              <h2 id="usage-title">Recent usage</h2>
-              <p class="card-intro">Signed-in helper runs, newest first.</p>
-              <p class="usage-empty" id="usage-empty">No runs yet — pick a helper above and try it.</p>
-              <ul class="usage-list" id="usage-list" hidden></ul>
-              <p class="api-foot">API base: <code id="api-base-label">—</code> · Your <code>omo_</code> key is deterministic per account.</p>
-            </section>
-          </div>
-        </details>
       </section>
     </div>
   </main>
@@ -639,6 +543,44 @@
       </nav>
     </div>
   </footer>
+
+  <div class="credits-modal" id="credits-modal" hidden>
+    <section class="credits-modal__card" role="dialog" aria-modal="true" aria-labelledby="credits-modal-title" aria-describedby="credits-modal-subtitle">
+      <header class="credits-modal__header">
+        <div class="credits-modal__title-wrap">
+          <h2 class="credits-modal__title" id="credits-modal-title">Credits</h2>
+          <p class="credits-modal__subtitle" id="credits-modal-subtitle">Top up and see where your balance went.</p>
+        </div>
+        <button class="credits-modal__close" id="credits-modal-close" type="button" aria-label="Close credits">✕</button>
+      </header>
+      <div class="credits-modal__body">
+        <section class="credits-modal__section credits-modal__section--topup" id="topup-card" aria-label="Top up credits">
+          <p class="card-intro">Your balance pays for cloud runs. Every new account gets $5 free.</p>
+          <p class="credit-balance" id="credit-balance">$5.00</p>
+          <p class="empty-credit-note" id="empty-credit-note" hidden>You’re out of credits, but you can keep going in seconds — top up from $5 below.</p>
+          <form id="topup-form" novalidate>
+            <div class="amount-row" role="group" aria-label="Top-up amount">
+              <button class="amount-chip is-active" type="button" data-amount="20" aria-pressed="true">$20</button>
+              <button class="amount-chip" type="button" data-amount="50" aria-pressed="false">$50</button>
+              <button class="amount-chip" type="button" data-amount="100" aria-pressed="false">$100</button>
+              <button class="amount-chip" type="button" data-amount="200" aria-pressed="false">$200</button>
+            </div>
+            <label class="custom-amount-row" for="custom-amount"><span class="custom-amount-label">Custom $</span><input class="custom-amount" id="custom-amount" type="number" min="5" step="0.01" inputmode="decimal" placeholder="Minimum $5" aria-describedby="topup-note"></label>
+            <button class="button button-primary button-block" id="topup-btn" type="submit">Top up with Stripe</button>
+            <p class="form-note" id="topup-note" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+        <section class="credits-modal__section" id="usage-card" aria-labelledby="usage-title">
+          <h2 id="usage-title">Recent usage</h2>
+          <p class="card-intro">Signed-in helper runs, newest first.</p>
+          <p class="usage-empty" id="usage-empty">No runs yet — pick a helper and try it.</p>
+          <ul class="usage-list" id="usage-list" hidden></ul>
+          <p class="api-foot">API base: <code id="api-base-label">—</code> · Your <code>omo_</code> key is deterministic per account.</p>
+        </section>
+      </div>
+      <p class="credits-modal__footer">Secure checkout by Stripe · Recent usage can take a moment to appear.</p>
+    </section>
+  </div>
 
   <dialog class="listing-dialog" id="listing-dialog" aria-labelledby="detail-name">
     <button class="dialog-close" id="dialog-close" type="button" aria-label="Close details">✕</button>
@@ -1315,7 +1257,6 @@
       /* Credits and API key logic retained from the previous dashboard. */
       var account = { mode: 'unavailable', userId: '', balanceUsd: 0, apiKey: '', runs: [] };
       var accountRequestId = 0;
-      var chosenAmount = 20;
       var revealed = false;
       var refreshAfterTopup = window.location.search && window.location.search.indexOf('topup=success') !== -1;
       function fnv1a(str) {
@@ -1337,11 +1278,8 @@
         notice.classList.toggle('is-error', !!isError);
       }
       function renderAccount() {
-        if (el('balance-pill')) el('balance-pill').textContent = 'Balance ' + fmtUsd(account.balanceUsd);
         if (el('credit-balance')) el('credit-balance').textContent = fmtUsd(account.balanceUsd);
-        if (el('credits-summary-balance')) el('credits-summary-balance').textContent = fmtUsd(account.balanceUsd) + ' available';
         if (el('empty-credit-note')) el('empty-credit-note').hidden = account.balanceUsd > 0;
-        if (account.balanceUsd <= 0 && el('credits-panel')) el('credits-panel').open = true;
         revealed = false;
         if (el('api-key-value')) el('api-key-value').textContent = maskKey();
         if (el('api-key-label')) el('api-key-label').textContent = 'API key';
@@ -1356,6 +1294,7 @@
           }).join('');
         } else if (list && empty) { empty.hidden = false; list.hidden = true; list.innerHTML = ''; }
         if (el('api-base-label')) el('api-base-label').textContent = API_BASE || '(same origin)';
+        if (window.OmoCredits && typeof window.OmoCredits.update === 'function') window.OmoCredits.update(account);
       }
       function currentUser() {
         if (window.ClerkAuth && typeof ClerkAuth.isSignedIn === 'function' && ClerkAuth.isSignedIn()) {
@@ -1442,57 +1381,6 @@
         var user = currentUser();
         if (user) showDashboard(user); else showGate();
       }
-      function mockTopup(amount) {
-        account.balanceUsd = Math.round((account.balanceUsd + amount) * 100) / 100;
-        lsSet(BAL_KEY, String(account.balanceUsd)); renderAccount();
-      }
-      function submitTopup(event) {
-        if (event && event.preventDefault) event.preventDefault();
-        var custom = el('custom-amount');
-        var hasCustom = custom && String(custom.value || '').trim() !== '';
-        var amount = hasCustom ? Number(custom.value) : chosenAmount;
-        var cents = Math.round(amount * 100);
-        var button = el('topup-btn'); var note = el('topup-note');
-        function done(message, ok) {
-          if (note) { note.textContent = message; note.className = 'form-note' + (ok ? ' is-ok' : ' is-err'); }
-          if (button) button.disabled = false;
-        }
-        if (!isFinite(amount) || Math.abs(amount * 100 - cents) > 0.000001 || cents < 500) {
-          done('Enter at least $5.00, with up to two decimal places.', false);
-          return;
-        }
-        amount = cents / 100;
-        if (button) button.disabled = true;
-        if (account.mode === 'server') {
-          authenticatedRunHeaders('').then(function (headers) {
-            return fetch((API_BASE || '') + '/api/topup', {
-              method: 'POST', headers: headers,
-              body: JSON.stringify({ amount_usd: amount })
-            });
-          }).then(function (response) {
-            return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, data: data }; });
-          }).then(function (result) {
-            if (!result.ok || !result.data.url) throw new Error(result.data.error || 'Checkout could not start right now.');
-            window.location.assign(result.data.url);
-          }).catch(function (error) { done(error && error.message ? error.message : 'Checkout could not start right now.', false); });
-          return;
-        }
-        if (window.StripePay && typeof StripePay.topup === 'function') {
-          StripePay.topup(amount, {
-            onSuccess: function (result) {
-              if (result && result.simulated) {
-                account.balanceUsd = Number(result.balance);
-                renderAccount();
-                done('Demo top-up added ' + fmtUsd(amount) + ' to your local balance.', true);
-              }
-            },
-            onError: function (message) { done(message || 'Checkout could not start right now.', false); }
-          });
-          return;
-        }
-        mockTopup(amount);
-        done('Demo top-up added ' + fmtUsd(amount) + ' to your local balance.', true);
-      }
       function copyKey() {
         var label = el('api-key-label');
         function done() { if (label) label.textContent = 'Copied ✓'; setTimeout(function () { if (label) label.textContent = 'API key'; }, 1600); }
@@ -1504,14 +1392,8 @@
           if (typeof dialog.close === 'function') dialog.close();
           else dialog.removeAttribute('open');
         }
-        var panel = el('credits-panel');
-        if (panel) panel.open = true;
-        window.setTimeout(function () {
-          var card = el('topup-card');
-          if (card) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          var custom = el('custom-amount');
-          if (custom && typeof custom.focus === 'function') custom.focus({ preventScroll: true });
-        }, 0);
+        if (window.OmoCredits && typeof window.OmoCredits.open === 'function') window.OmoCredits.open();
+        else window.dispatchEvent(new CustomEvent('omo:open-credits'));
       }
 
       function wire() {
@@ -1560,7 +1442,7 @@
             var vote = event.target.closest('[data-upvote]');
             if (vote) { toggleVote(vote.getAttribute('data-upvote')); return; }
             var topup = event.target.closest('[data-action="topup-credits"]');
-            if (topup) { goToTopup(); return; }
+            if (topup) { event.stopPropagation(); goToTopup(); return; }
             var buy = event.target.closest('[data-action="buy"]');
             if (buy) { event.preventDefault(); handleBuy(currentSlug); return; }
             var reel = event.target.closest('.detail-hero-video');
@@ -1619,29 +1501,6 @@
           dialog.addEventListener('click', function (event) { if (event.target === dialog && dialog.close) { cancelActiveVideoRun(); dialog.close(); } });
         }
 
-        var amountChips = document.querySelectorAll('.amount-chip');
-        for (var j = 0; j < amountChips.length; j++) {
-          (function (chip) {
-            chip.addEventListener('click', function () {
-              chosenAmount = Number(chip.getAttribute('data-amount')) || 20;
-              if (el('custom-amount')) el('custom-amount').value = '';
-              for (var k = 0; k < amountChips.length; k++) {
-                var active = amountChips[k] === chip; amountChips[k].classList.toggle('is-active', active);
-                amountChips[k].setAttribute('aria-pressed', active ? 'true' : 'false');
-              }
-            });
-          })(amountChips[j]);
-        }
-        if (el('custom-amount')) el('custom-amount').addEventListener('input', function () {
-          var hasValue = !!String(this.value || '').trim();
-          chosenAmount = hasValue ? null : 20;
-          for (var j = 0; j < amountChips.length; j++) {
-            var active = !hasValue && Number(amountChips[j].getAttribute('data-amount')) === 20;
-            amountChips[j].classList.toggle('is-active', active);
-            amountChips[j].setAttribute('aria-pressed', active ? 'true' : 'false');
-          }
-        });
-        if (el('topup-form')) el('topup-form').addEventListener('submit', submitTopup);
         if (el('sign-out-btn')) el('sign-out-btn').addEventListener('click', function () {
           var button = el('sign-out-btn');
           if (!window.ClerkAuth || typeof window.ClerkAuth.signOut !== 'function') {
@@ -1679,7 +1538,6 @@
           if (window.location.search && window.location.search.indexOf('topup=cancelled') !== -1) showNote('Top-up cancelled — your balance was not changed.', true);
           if (window.location.search && window.location.search.indexOf('topup=needed') !== -1) {
             showNote('You’re out of credits. Choose a suggested amount or top up any amount from $5.', false);
-            if (el('credits-panel')) el('credits-panel').open = true;
           }
         } catch (e) {}
       }
@@ -1699,11 +1557,9 @@
         clearFilters: clearFilters,
         refresh: refreshAuth,
         topup: function (amount) {
-          if (typeof amount === 'number') {
-            chosenAmount = amount;
-            if (el('custom-amount')) el('custom-amount').value = '';
-          }
-          submitTopup(null);
+          var options = typeof amount === 'number' ? { amount: amount } : {};
+          if (window.OmoCredits && typeof window.OmoCredits.open === 'function') window.OmoCredits.open(options);
+          else window.dispatchEvent(new CustomEvent('omo:open-credits', { detail: options }));
         }
       };
     })();

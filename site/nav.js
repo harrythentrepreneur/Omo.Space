@@ -2,6 +2,7 @@
   'use strict';
 
   var authModalPromise = null;
+  var creditsModalPromise = null;
   var balanceRequestId = 0;
   var DEMO_BALANCE_KEY = 'omo_balance_v1';
 
@@ -72,7 +73,7 @@
       link.appendChild(amount);
     }
     link.classList.add('omo-nav-credit');
-    link.setAttribute('aria-label', hasBalance ? '$' + formatted + ' in credits \u2014 open dashboard' : 'Credits \u2014 open dashboard');
+    link.setAttribute('aria-label', hasBalance ? '$' + formatted + ' in credits \u2014 open credits' : 'Credits \u2014 open credits');
     link.title = hasBalance ? '$' + formatted + ' in credits' : 'Credits';
   }
 
@@ -135,7 +136,7 @@
 
   function syncLoginLinks() {
     var signedIn = isSignedIn();
-    var href = signedIn ? 'dashboard.html' : 'signup.html';
+    var href = signedIn ? 'dashboard.html?topup=' : 'signup.html';
     var requestId = ++balanceRequestId;
     var links = document.querySelectorAll('[data-omo-login]');
     for (var i = 0; i < links.length; i += 1) {
@@ -143,18 +144,21 @@
       links[i].hidden = false;
       if (signedIn) {
         renderCreditLink(links[i], null);
-        links[i].removeAttribute('aria-haspopup');
+        links[i].setAttribute('aria-haspopup', 'dialog');
+        links[i].setAttribute('aria-controls', 'credits-modal');
       } else {
         links[i].classList.remove('omo-nav-credit');
         links[i].textContent = 'Log in';
         links[i].removeAttribute('aria-label');
         links[i].removeAttribute('title');
+        links[i].removeAttribute('aria-controls');
         links[i].setAttribute('aria-haspopup', 'dialog');
       }
     }
 
     if (signedIn) {
       refreshCreditBalance(requestId);
+      if (window.OmoCredits && typeof window.OmoCredits.refresh === 'function') window.OmoCredits.refresh();
     } else {
       loadAuthModal();
       var popovers = document.querySelectorAll('.omo-nav-popover');
@@ -195,6 +199,46 @@
     });
 
     return authModalPromise;
+  }
+
+  function creditsModalApi() {
+    if (window.OmoCredits && typeof window.OmoCredits.open === 'function') return window.OmoCredits;
+    return null;
+  }
+
+  function loadCreditsModal() {
+    var api = creditsModalApi();
+    if (api) return Promise.resolve(api);
+    if (creditsModalPromise) return creditsModalPromise;
+
+    creditsModalPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'credits-modal.js';
+      script.onload = function () {
+        var loadedApi = creditsModalApi();
+        if (loadedApi) resolve(loadedApi);
+        else reject(new Error('The Omo credits popup did not initialize.'));
+      };
+      script.onerror = function () {
+        reject(new Error('The Omo credits popup could not be loaded.'));
+      };
+      document.head.appendChild(script);
+    });
+
+    return creditsModalPromise;
+  }
+
+  function handleCreditClick(event) {
+    var link = event.target.closest && event.target.closest('[data-omo-login].omo-nav-credit');
+    if (!link || !isSignedIn()) return;
+
+    event.preventDefault();
+    loadCreditsModal().then(function (api) {
+      api.open();
+    }).catch(function (error) {
+      window.console.error(error);
+      window.location.assign(link.href);
+    });
   }
 
   function handleLoginClick(event) {
@@ -323,6 +367,8 @@
 
     syncLoginLinks();
     if (!subscribeToAuthChanges()) loadAuthAdapter();
+    loadCreditsModal().catch(function (error) { window.console.error(error); });
+    document.addEventListener('click', handleCreditClick);
     document.addEventListener('click', handleLoginClick);
     document.addEventListener('click', handleLogoutClick);
 
