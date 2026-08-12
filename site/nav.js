@@ -3,6 +3,7 @@
 
   var authModalPromise = null;
   var creditsModalPromise = null;
+  var contextualCatalogPromise = null;
   var balanceRequestId = 0;
   var DEMO_BALANCE_KEY = 'omo_balance_v1';
 
@@ -12,19 +13,33 @@
     var style = document.createElement('style');
     style.id = 'omo-nav-credit-styles';
     style.textContent =
-      '.omo-nav-menu-toggle{width:38px;min-height:38px;padding:0;border:1px solid #6F7E77;border-radius:999px;background:#E5F1EA;box-shadow:inset 0 1px 0 rgba(255,255,255,.72);transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease}' +
-      '.omo-nav-menu-toggle:hover,.omo-nav-menu-toggle[aria-expanded="true"]{border-color:#2F6A55;background:var(--mint,#BDEFD4);box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 2px 8px rgba(23,53,44,.12)}' +
-      '.omo-nav-menu-toggle:focus-visible{border-color:#2F6A55;background:var(--mint,#BDEFD4);outline:3px solid rgba(255,107,61,.34);outline-offset:2px}' +
+      '.omo-nav-row>.omo-nav-brand{flex:1 1 auto}' +
+      '.omo-nav-brand{gap:7px}' +
+      '.omo-nav-menu-toggle{width:42px;height:34px;min-height:34px;padding:0;border:0;border-radius:0;background:var(--mint,#BDEFD4);clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px));box-shadow:none;transition:background-color .15s ease,transform .15s ease}' +
+      '.omo-nav-menu-toggle:hover,.omo-nav-menu-toggle[aria-expanded="true"]{border-color:transparent;background:#A9EAC7;box-shadow:none;transform:translateY(-1px)}' +
+      '.omo-nav-menu-toggle:focus-visible{border-color:transparent;background:var(--mint,#BDEFD4);outline:3px solid rgba(255,107,61,.38);outline-offset:2px}' +
       '.omo-nav-chevron{position:relative;display:block;width:14px;height:14px;font-size:0;line-height:1;transition:transform .15s ease}' +
       '.omo-nav-chevron::before{content:"";position:absolute;top:2px;left:2px;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}' +
-      '.omo-nav-popover{top:calc(100% + 7px);width:max-content;min-width:216px;max-width:min(252px,calc(100vw - 24px));padding:5px;border:1px solid #81948B;border-radius:10px;background:var(--surface,#FFFFFF);box-shadow:0 16px 34px rgba(23,53,44,.2),0 3px 9px rgba(23,53,44,.13)}' +
-      '.omo-nav-popover>a,.omo-nav-popover .omo-nav-logout>a{min-height:32px;padding:0 8px;border-radius:6px;font-size:12.5px}' +
-      '.omo-nav-popover a:hover,.omo-nav-popover a:focus-visible{background:#D8EADF;color:var(--pine,#17352C);box-shadow:inset 3px 0 0 #6F7E77;text-decoration:none}' +
-      '.omo-nav-popover a[aria-current="page"],.omo-nav-popover a[aria-selected="true"],.omo-nav-popover a.is-active{background:var(--mint,#BDEFD4);color:var(--pine,#17352C);box-shadow:inset 3px 0 0 var(--pine,#17352C);text-decoration:none}' +
+      '.omo-nav-menu-toggle[aria-expanded="true"] .omo-nav-chevron{transform:rotate(180deg)}' +
+      '.omo-nav-popover{top:calc(100% + 7px);width:min(316px,calc(100vw - 24px));max-height:calc(100dvh - 86px);overflow-y:auto;padding:9px;border:0;border-radius:0;background:var(--surface,#FFFFFF);clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));box-shadow:0 16px 34px rgba(23,53,44,.2),0 3px 9px rgba(23,53,44,.13)}' +
+      '.omo-nav-primary-links{display:grid;grid-template-columns:1fr 1fr;gap:7px}' +
+      '.omo-nav-popover .omo-nav-primary-links>a{min-height:36px;justify-content:space-between;padding:0 9px;border-radius:0;background:var(--cream,#F4F1E8);clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));font-size:12px}' +
+      '.omo-nav-popover .omo-nav-primary-links>a::after{content:"\u2726";margin-left:6px;font-size:12px}' +
+      '.omo-nav-popover .omo-nav-primary-links>a.omo-nav-sell{color:#FFFFFF;background:var(--orange,#FF6B3D)}' +
+      '.omo-nav-popover .omo-nav-primary-links>a.omo-nav-sell::after{content:"\u2197"}' +
+      '.omo-nav-popover .omo-nav-primary-links>a:hover,.omo-nav-popover .omo-nav-primary-links>a:focus-visible{color:var(--pine,#17352C);background:var(--mint,#BDEFD4);box-shadow:none;text-decoration:none}' +
+      '.omo-nav-popover .omo-nav-primary-links>a.omo-nav-sell:hover,.omo-nav-popover .omo-nav-primary-links>a.omo-nav-sell:focus-visible{color:#FFFFFF;background:#EC572E}' +
+      '.omo-nav-popover .omo-nav-logout>a{min-height:34px;padding:0 8px;border-radius:0;font-size:12px}' +
+      '.omo-nav-popover .omo-nav-logout>a:hover,.omo-nav-popover .omo-nav-logout>a:focus-visible{color:var(--orange,#FF6B3D);background:transparent;box-shadow:none;text-decoration:none}' +
       '.omo-nav-login.omo-nav-credit{min-width:40px;gap:6px;padding-inline:11px;border-radius:999px;font-variant-numeric:tabular-nums}' +
       '.omo-nav-credit-icon{font-size:16px;line-height:1}' +
-      '.omo-nav-logout{margin-top:6px;padding-top:7px;border-top:1px solid var(--rule,#D9E2DC)}' +
-      '@media(max-width:480px){.omo-nav-login.omo-nav-credit{padding-inline:9px}}';
+      '.omo-nav-workflow-identity{min-width:0;max-width:min(310px,calc(100vw - 190px));min-height:40px;display:inline-flex;align-items:center;gap:8px;flex:0 1 auto;color:var(--pine,#17352C);text-decoration:none}' +
+      '.omo-nav-workflow-identity:hover,.omo-nav-workflow-identity:focus-visible{color:var(--pine,#17352C);text-decoration:none}' +
+      '.omo-nav-workflow-identity:focus-visible{outline:3px solid rgba(255,107,61,.34);outline-offset:2px}' +
+      '.omo-nav-context-thumb{width:30px;height:30px;display:grid;place-items:center;flex:0 0 30px;overflow:hidden;border-radius:8px;background:var(--cream,#F4F1E8);font-size:17px}' +
+      '.omo-nav-context-thumb img{width:100%;height:100%;display:block;object-fit:cover}' +
+      '.omo-nav-context-name{min-width:0;overflow:hidden;color:var(--pine,#17352C);font:700 15px/1.12 var(--display,"Fraunces",Georgia,serif);letter-spacing:-.015em;text-overflow:ellipsis;white-space:nowrap}' +
+      '@media(max-width:480px){.omo-nav-popover{left:0;max-width:calc(100vw - 24px)}.omo-nav-login.omo-nav-credit{padding-inline:9px}.omo-nav-workflow-identity{max-width:calc(100vw - 180px);gap:6px}.omo-nav-context-thumb{width:28px;height:28px;flex-basis:28px}.omo-nav-context-name{font-size:13px}}';
     document.head.appendChild(style);
   }
 
@@ -314,11 +329,137 @@
     else loadScript('key-config.js', loadClerk);
   }
 
+  function prepareMenuLinks(popover) {
+    if (popover.querySelector('.omo-nav-primary-links')) return;
+
+    var links = [];
+    for (var i = 0; i < popover.children.length; i += 1) {
+      if (popover.children[i].tagName === 'A') links.push(popover.children[i]);
+    }
+    if (!links.length) return;
+
+    var group = document.createElement('div');
+    group.className = 'omo-nav-primary-links';
+    popover.insertBefore(group, links[0]);
+    for (var j = 0; j < links.length; j += 1) {
+      var href = links[j].getAttribute('href') || '';
+      if (/sell\.html(?:[?#]|$)/.test(href)) links[j].classList.add('omo-nav-sell');
+      else links[j].classList.add('omo-nav-discover');
+      group.appendChild(links[j]);
+    }
+  }
+
+  function workflowContext() {
+    var page = (window.location.pathname.split('/').pop() || '').toLowerCase();
+    if (page !== 'workflow.html' && page !== 'run.html') return null;
+
+    var slug = '';
+    try { slug = (new URLSearchParams(window.location.search || '').get('slug') || '').trim(); }
+    catch (error) { return null; }
+    return slug ? { slug: slug, page: page } : null;
+  }
+
+  function catalogWorkflow(slug) {
+    var sources = [window.COGNITION_IG_WORKFLOWS || [], window.COGNITION_IG_MORE || []];
+    for (var sourceIndex = 0; sourceIndex < sources.length; sourceIndex += 1) {
+      for (var itemIndex = 0; itemIndex < sources[sourceIndex].length; itemIndex += 1) {
+        if (sources[sourceIndex][itemIndex] && sources[sourceIndex][itemIndex].slug === slug) {
+          return sources[sourceIndex][itemIndex];
+        }
+      }
+    }
+    return null;
+  }
+
+  function loadContextualCatalog() {
+    if (contextualCatalogPromise) return contextualCatalogPromise;
+
+    function load(source, globalName) {
+      if (window[globalName]) return Promise.resolve();
+      return new Promise(function (resolve) {
+        var script = document.createElement('script');
+        script.src = source;
+        script.onload = resolve;
+        script.onerror = resolve;
+        document.head.appendChild(script);
+      });
+    }
+
+    contextualCatalogPromise = Promise.all([
+      load('ig-workflows.js', 'COGNITION_IG_WORKFLOWS'),
+      load('ig-more.js', 'COGNITION_IG_MORE')
+    ]);
+    return contextualCatalogPromise;
+  }
+
+  function appendIdentityIcon(container, product) {
+    var icon = typeof product.icon === 'string' ? product.icon : '';
+    var source = product.cover || (/[/\.]|^https?:/.test(icon) ? icon : '');
+    var emoji = product.emoji || (!source && icon) || '\u2726';
+
+    function showEmoji() {
+      container.textContent = emoji;
+    }
+
+    if (!source) {
+      showEmoji();
+      return;
+    }
+
+    var image = document.createElement('img');
+    image.src = source;
+    image.alt = '';
+    image.addEventListener('error', showEmoji, { once: true });
+    container.appendChild(image);
+  }
+
+  function renderContextualWorkflowIdentity(context, product) {
+    var wordmark = document.querySelector('.omo-nav-brand .wordmark');
+    var name = product && (product.name || product.title);
+    if (!wordmark || !name) return;
+
+    var identity = document.createElement('a');
+    identity.className = 'omo-nav-workflow-identity';
+    identity.href = 'workflow.html?slug=' + encodeURIComponent(context.slug);
+    identity.setAttribute('aria-label', name + ' workflow listing');
+    identity.title = name;
+
+    var icon = document.createElement('span');
+    icon.className = 'omo-nav-context-thumb';
+    icon.setAttribute('aria-hidden', 'true');
+    appendIdentityIcon(icon, product);
+    identity.appendChild(icon);
+
+    var title = document.createElement('span');
+    title.className = 'omo-nav-context-name';
+    title.textContent = name;
+    identity.appendChild(title);
+    wordmark.replaceWith(identity);
+  }
+
+  function installContextualWorkflowIdentity() {
+    var context = workflowContext();
+    if (!context) return;
+
+    var product = catalogWorkflow(context.slug);
+    if (product) {
+      renderContextualWorkflowIdentity(context, product);
+      return;
+    }
+
+    if (window.COGNITION_IG_WORKFLOWS && window.COGNITION_IG_MORE) return;
+    loadContextualCatalog().then(function () {
+      var loadedProduct = catalogWorkflow(context.slug);
+      if (loadedProduct) renderContextualWorkflowIdentity(context, loadedProduct);
+    });
+  }
+
   function initMenu(menu) {
     var toggle = menu.querySelector('.omo-nav-menu-toggle');
     var popover = menu.querySelector('.omo-nav-popover');
     if (!toggle || !popover) return;
     if (!toggle.title) toggle.title = 'Menu';
+    prepareMenuLinks(popover);
 
     function closeMenu(returnFocus) {
       if (toggle.getAttribute('aria-expanded') !== 'true') return;
@@ -349,6 +490,7 @@
 
   function init() {
     installCreditStyles();
+    installContextualWorkflowIdentity();
     var menus = document.querySelectorAll('.omo-nav-menu');
     for (var i = 0; i < menus.length; i += 1) initMenu(menus[i]);
 
@@ -374,10 +516,10 @@
 (function (doc) {
   var style = doc.createElement('link');
   style.rel = 'stylesheet';
-  style.href = 'menu-workflows.css';
+  style.href = 'menu-workflows.css?v=3';
   doc.head.appendChild(style);
 
   var script = doc.createElement('script');
-  script.src = 'menu-workflows.js';
+  script.src = 'menu-workflows.js?v=3';
   doc.head.appendChild(script);
 })(document);
