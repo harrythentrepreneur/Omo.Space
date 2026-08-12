@@ -207,6 +207,11 @@ function check(name, cond) {
   else { fail += 1; console.log(`FAIL  ${name}`); }
 }
 
+check('Neon: Worker never caches request-bound Pool I/O in module scope',
+  !workerSrc.includes('let neonPool') &&
+  workerSrc.includes("neon(url, { fullResults: true })") &&
+  (workerSrc.match(/await client\.release\(\)/g) || []).length === 5);
+
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
 const creditsSource = fs.readFileSync(path.join(here, '..', 'credits.js'), 'utf8');

@@ -58,7 +58,7 @@
 
 // Pure credit math lives in ./balance.mjs (bundled at deploy time); the cost
 // model in ./cost-model.mjs sets the per-run price (5x markup, $0.10 floor).
-import { Pool } from '@neondatabase/serverless';
+import { Pool, neon } from '@neondatabase/serverless';
 import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts, MIN_TOPUP_USD } from './balance.mjs';
 import { runPrice, llmWorkflow } from './cost-model.mjs';
 import { handleMcpRequest } from './mcp-server.mjs';
@@ -1762,12 +1762,11 @@ async function handleClerkWebhook(request, env) {
 }
 
 // ── Balance store (Neon → D1 → in-memory mock) ─────────────────────────────
-// Neon uses a small, process-wide serverless pool and named prepared queries.
+// Neon uses request-local HTTP queries and request-local transactional pools.
+// Cloudflare I/O objects cannot cross request contexts, so never cache a Pool.
 // D1 remains supported for existing deployments. With neither configured,
 // tests and local demos use an in-memory $5 account and the same transitions.
 
-let neonPool = null;
-let neonPoolUrl = '';
 const mockUsers = new Map();
 const mockRuns = new Map();
 const mockLedger = new Map();
@@ -1836,17 +1835,32 @@ function boundedNumber(value, min, max, fallback) {
 function getNeonPool(env) {
   const url = neonDatabaseUrl(env);
   if (!url) return null;
-  if (!neonPool || neonPoolUrl !== url) {
-    neonPool = new Pool({
-      connectionString: url,
-      max: 4,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-      allowExitOnIdle: true,
-    });
-    neonPoolUrl = url;
-  }
-  return neonPool;
+  const sql = neon(url, { fullResults: true });
+  return {
+    query(query) {
+      if (typeof query === 'string') return sql.query(query);
+      return sql.query(query.text, query.values || []);
+    },
+    async connect() {
+      const pool = new Pool({
+        connectionString: url,
+        max: 1,
+        connectionTimeoutMillis: 5000,
+        allowExitOnIdle: true,
+      });
+      const client = await pool.connect();
+      let released = false;
+      return {
+        query: client.query.bind(client),
+        async release() {
+          if (released) return;
+          released = true;
+          client.release();
+          await pool.end();
+        },
+      };
+    },
+  };
 }
 
 function prepared(name, text, values) {
@@ -2138,7 +2152,7 @@ async function getUserRecord(env, userId) {
       try { await client.query('ROLLBACK'); } catch (rollbackError) {}
       throw e;
     } finally {
-      client.release();
+      await client.release();
     }
   }
 
@@ -2201,7 +2215,7 @@ async function claimRunRequest(env, userId, idempotencyKey, requestHash, slug, c
     } catch (e) {
       try { await client.query('ROLLBACK'); } catch (rollbackError) {}
       throw e;
-    } finally { client.release(); }
+    } finally { await client.release(); }
   }
   if (databaseKind(env) === 'd1') {
     const inserted = await env.BALANCE_DB.prepare('INSERT OR IGNORE INTO run_requests (run_id, user_id, idempotency_key, request_hash, slug, cost_cents, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(...values).run();
@@ -2577,7 +2591,7 @@ async function reserveRunCredits(env, userId, costCents, runId) {
     } catch (e) {
       try { await client.query('ROLLBACK'); } catch (rollbackError) {}
       throw e;
-    } finally { client.release(); }
+    } finally { await client.release(); }
   }
   if (databaseKind(env) === 'd1') {
     try {
@@ -2628,7 +2642,7 @@ async function refundRunCredits(env, userId, costCents, runId) {
     } catch (e) {
       try { await client.query('ROLLBACK'); } catch (rollbackError) {}
       throw e;
-    } finally { client.release(); }
+    } finally { await client.release(); }
   }
   if (databaseKind(env) === 'd1') {
     // D1 batch() is transactional. balance_cents=-1 is a private claim marker:
@@ -2820,7 +2834,7 @@ async function creditTopup(env, stripeEventId, sessionId, userId, amountCents) {
     } catch (e) {
       try { await client.query('ROLLBACK'); } catch (rollbackError) {}
       throw e;
-    } finally { client.release(); }
+    } finally { await client.release(); }
   }
   if (databaseKind(env) === 'd1') {
     let tracksEvents = false;
