@@ -23,11 +23,33 @@
   ],
   "rewrites": [
     {
+      "source": "/v1/runs",
+      "destination": "/api/v1/runs.js"
+    },
+    {
+      "source": "/v1/runs/:run_id",
+      "destination": "/api/v1/runs.js"
+    },
+    {
+      "source": "/api/v1/runs",
+      "destination": "/api/v1/runs.js"
+    },
+    {
+      "source": "/api/v1/runs/:run_id",
+      "destination": "/api/v1/runs.js"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://cognition-demos.harrythentrepreneurr.workers.dev/api/:path*"
     },
     { "source": "/creators", "destination": "/creators.html" },
     { "source": "/library", "destination": "/index.html" },
     { "source": "/sell", "destination": "/creators.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/reconcile-runs",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }

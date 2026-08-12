@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "captions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "type": "array"
+    },
+    "cta": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "hook": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "shots": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "hook",
+    "shots",
+    "captions",
+    "cta"
+  ],
+  "type": "object"
+}

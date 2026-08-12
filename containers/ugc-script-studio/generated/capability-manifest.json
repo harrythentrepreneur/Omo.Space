@@ -1,0 +1,20 @@
+{
+  "estimated_cost_usd": 0.003,
+  "input_schema": "schemas/input.json",
+  "model": "deepseek-v4-flash",
+  "network": "opencode.ai",
+  "operation": "chat_json",
+  "output_schema": "schemas/output.json",
+  "provider": "openai-compatible",
+  "required_secrets": [
+    {
+      "name": "LLM_API_KEY",
+      "purpose": "OpenAI-compatible provider authentication"
+    }
+  ],
+  "runtime_class": "single-llm",
+  "runtime_version": "sha256:7e597b503933f30d8909237125a3ce7b4df0fea852fb6fcc00f6adde07fa1f5d",
+  "slug": "ugc-script-studio",
+  "spec_version": "cognition.capability/v1",
+  "workflow_version": "1.0.0"
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "brand_voice": {
+      "enum": [
+        "raw",
+        "honest",
+        "hype",
+        "luxury",
+        "funny"
+      ],
+      "type": "string"
+    },
+    "length": {
+      "enum": [
+        15,
+        30,
+        60
+      ],
+      "type": "integer"
+    },
+    "product_url": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "product_url",
+    "brand_voice",
+    "length"
+  ],
+  "type": "object"
+}
