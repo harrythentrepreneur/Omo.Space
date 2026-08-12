@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <meta name="theme-color" content="#F8F7F5">
+  <meta name="theme-color" content="#FBFAF6">
   <meta name="robots" content="index,follow">
   <meta name="description" content="Sell the skill.md files and AI workflows you already built on the Omo marketplace.">
   <link rel="canonical" href="https://omo.space/sell.html">
@@ -25,165 +25,194 @@
   <title>Sell Your Workflow on Omo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <style>
     :root {
-      --canvas: #F8F7F5;
+      --canvas: #FBFAF6;
       --surface: #FFFFFF;
       --pine: #17352C;
       --orange: #FF6B3D;
       --mint: #BDEFD4;
-      --moss: #6F7E77;
-      --rule: #DDE3DF;
+      --moss: #687A72;
+      --rule: rgba(23, 53, 44, .13);
       --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     *, *::before, *::after { box-sizing: border-box; }
     html { min-width: 320px; overflow-x: hidden; background: var(--canvas); }
     body {
       min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0; overflow-x: hidden;
-      background: var(--canvas);
-      color: var(--pine); font-family: var(--body); line-height: 1.58; text-rendering: optimizeLegibility;
+      background:
+        radial-gradient(circle at 14% 16%, rgba(189, 239, 212, .24), transparent 23rem),
+        radial-gradient(circle at 86% 34%, rgba(255, 107, 61, .09), transparent 20rem),
+        var(--canvas);
+      color: var(--pine); font-family: var(--body); line-height: 1.5; text-rendering: optimizeLegibility;
     }
     button, input { font: inherit; }
     button { cursor: pointer; }
     a { color: inherit; }
     img { display: block; max-width: 100%; }
     :where(a, button, input):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
-    .page-shell {
-      width: min(100% - 32px, 520px); min-height: 100vh; min-height: 100dvh; margin-inline: auto;
-      padding: max(42px, env(safe-area-inset-top)) 0 max(24px, env(safe-area-inset-bottom));
-      display: grid; grid-template-rows: auto 1fr auto;
+
+    .page-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+    .sell-header { min-height: 94px; padding: max(24px, env(safe-area-inset-top)) 24px 14px; display: flex; justify-content: center; }
+    .wordmark { display: inline-flex; align-items: center; align-self: flex-start; text-decoration: none; }
+    .wordmark-logo { width: 126px; height: auto; }
+    .sell-main { width: 100%; flex: 1; }
+
+    .showcase {
+      position: relative; width: 100%; height: 360px; overflow: hidden;
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+      mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
     }
-    .sell-header { display: flex; justify-content: center; }
-    .wordmark { display: inline-flex; align-items: center; text-decoration: none; }
-    .wordmark-logo { width: 112px; height: auto; }
-    .sell-main { display: grid; place-items: center; padding: 70px 0 76px; }
-    .sell-copy { width: min(100%, 440px); text-align: center; }
+    .showcase::after {
+      content: ""; position: absolute; z-index: 0; left: 50%; bottom: 18px; width: min(680px, 80vw); height: 100px;
+      border-radius: 50%; background: rgba(23, 53, 44, .13); filter: blur(36px); transform: translateX(-50%);
+    }
+    .showcase-stage {
+      position: relative; z-index: 1; left: 50%; width: min(790px, 132vw); height: 100%;
+      transform: translateX(-50%);
+    }
+    .cover-card {
+      position: absolute; top: 49%; width: 184px; aspect-ratio: .72; margin: 0; overflow: hidden;
+      border: 7px solid rgba(255, 255, 255, .96); border-radius: 23px; background: #e8ece9;
+      box-shadow: 0 18px 44px rgba(23, 53, 44, .19); transform: translate(-50%, -50%);
+    }
+    .cover-card img { width: 100%; height: 100%; object-fit: cover; }
+    .cover-card--far-left { left: 7%; opacity: .33; filter: blur(4px); transform: translate(-50%, -50%) rotate(-9deg) scale(.76); }
+    .cover-card--left { left: 28%; z-index: 2; opacity: .83; filter: blur(1.1px); transform: translate(-50%, -50%) rotate(-5deg) scale(.91); }
+    .cover-card--center {
+      left: 50%; z-index: 5; width: 210px; border-width: 8px; transform: translate(-50%, -50%) rotate(1.4deg);
+      box-shadow: 0 28px 62px rgba(23, 53, 44, .27);
+    }
+    .cover-card--right { left: 72%; z-index: 2; opacity: .83; filter: blur(1.1px); transform: translate(-50%, -50%) rotate(5deg) scale(.91); }
+    .cover-card--far-right { left: 93%; opacity: .33; filter: blur(4px); transform: translate(-50%, -50%) rotate(9deg) scale(.76); }
+    .cover-card--center::after {
+      content: "Ready to sell"; position: absolute; right: 9px; bottom: 9px; padding: 7px 11px; border-radius: 999px;
+      background: var(--mint); color: var(--pine); font-size: 10px; font-weight: 700; letter-spacing: .02em;
+      box-shadow: 0 5px 16px rgba(23, 53, 44, .16); transform: rotate(-2deg);
+    }
+    .creator-badge {
+      position: absolute; z-index: 7; left: calc(50% + 72px); bottom: 23px; padding: 10px 15px; border: 2px solid var(--pine);
+      border-radius: 12px 12px 12px 3px; background: var(--orange); color: #fff; font-size: 12px; font-weight: 700;
+      line-height: 1.2; box-shadow: 5px 6px 0 var(--pine); transform: rotate(-3deg);
+    }
+    .spark { position: absolute; z-index: 8; color: var(--orange); font-size: 29px; font-weight: 700; line-height: 1; }
+    .spark--one { top: 35px; left: calc(50% - 148px); transform: rotate(-12deg); }
+    .spark--two { right: calc(50% - 178px); bottom: 53px; color: var(--pine); transform: rotate(12deg); }
+
+    .pitch { width: min(100% - 32px, 940px); margin: 4px auto 0; text-align: center; }
+    .eyebrow {
+      width: fit-content; margin: 0 auto 15px; padding: 8px 13px; border: 1px solid rgba(23, 53, 44, .14);
+      border-radius: 999px; background: rgba(255, 255, 255, .66); color: var(--moss); font-size: 11px; font-weight: 700;
+      letter-spacing: .12em; text-transform: uppercase;
+    }
     h1 {
-      margin: 0; font-size: clamp(31px, 7vw, 38px); font-weight: 700; line-height: 1.13;
-      letter-spacing: -.035em; text-wrap: balance;
+      max-width: 930px; margin: 0 auto; font-size: clamp(43px, 6.6vw, 76px); font-weight: 700; line-height: .98;
+      letter-spacing: -.061em; text-wrap: balance;
     }
+    h1 span { color: var(--orange); }
     .sell-subtitle {
-      max-width: 390px; margin: 14px auto 30px; color: var(--moss); font-size: 15px; line-height: 1.6;
+      max-width: 590px; margin: 22px auto 0; color: var(--moss); font-size: clamp(15px, 1.8vw, 18px); line-height: 1.55;
       text-wrap: pretty;
     }
-    .seller-card {
-      padding: 28px; border: 1px solid var(--rule); border-radius: 16px; background: var(--surface);
-      box-shadow: 0 12px 34px rgba(23, 53, 44, .055); text-align: left;
+    .stat-heading {
+      margin: 52px auto 22px; font-size: clamp(27px, 4vw, 46px); font-weight: 600; line-height: 1.08;
+      letter-spacing: -.045em; text-wrap: balance;
     }
-    .seller-card h2 { margin: 0 0 18px; font-size: 17px; line-height: 1.35; letter-spacing: -.01em; }
-    .earning-list { margin: 0 0 24px; padding: 0; display: grid; gap: 14px; list-style: none; }
-    .earning-list li { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 10px; }
-    .check {
-      width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%;
-      background: rgba(189, 239, 212, .72); color: var(--pine); font-size: 12px; font-weight: 700;
+    .stat-heading strong { color: var(--orange); font-weight: 700; }
+    .economics {
+      max-width: 750px; margin: 0 auto; padding: 20px 0; display: flex; justify-content: center; align-items: stretch;
+      border-block: 1px solid var(--rule);
     }
-    .earning-label { color: #40574f; font-size: 14px; }
-    .earning-share { color: var(--pine); font-size: 14px; font-weight: 700; white-space: nowrap; }
+    .economics-item { min-width: 0; flex: 1; padding: 0 24px; display: flex; flex-direction: column; justify-content: center; }
+    .economics-item + .economics-item { border-left: 1px solid var(--rule); }
+    .economics-rate { color: var(--pine); font-size: clamp(25px, 3.2vw, 36px); font-weight: 700; line-height: 1; letter-spacing: -.045em; }
+    .economics-label { margin-top: 7px; color: var(--moss); font-size: 12px; font-weight: 600; line-height: 1.35; }
+    .action-group { margin-top: 31px; }
     .signup-button {
-      width: 100%; min-height: 52px; padding: 0 22px; border: 1px solid var(--pine); border-radius: 8px;
+      min-width: 228px; min-height: 56px; padding: 0 27px; border: 2px solid var(--pine); border-radius: 999px;
       background: var(--pine); color: #fff; font-size: 15px; font-weight: 700;
-      transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
+      box-shadow: 0 8px 0 rgba(23, 53, 44, .12); transition: transform .14s ease, box-shadow .14s ease, background-color .14s ease;
     }
-    .signup-button:hover { background: #21483d; transform: translateY(-1px); box-shadow: 0 7px 18px rgba(23, 53, 44, .16); }
-    .login-note { margin: 16px 0 0; color: var(--moss); font-size: 13px; text-align: center; }
-    .login-link { color: var(--pine); font-weight: 700; text-underline-offset: 3px; }
-    .waitlist-form { margin: 24px 0 0; padding-top: 22px; border-top: 1px solid var(--rule); }
-    .waitlist-label { display: block; margin-bottom: 11px; color: var(--moss); font-size: 12px; line-height: 1.5; text-align: center; }
-    .waitlist-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .signup-button:hover { background: #21483D; box-shadow: 0 10px 0 rgba(23, 53, 44, .12); transform: translateY(-2px); }
+    .signup-button:active { box-shadow: 0 4px 0 rgba(23, 53, 44, .12); transform: translateY(2px); }
+    .login-note { margin: 17px 0 0; color: var(--moss); font-size: 13px; }
+    .login-link { color: var(--pine); font-weight: 700; text-underline-offset: 4px; }
+
+    .waitlist-form { width: min(100%, 530px); margin: 46px auto 0; }
+    .waitlist-label { display: block; margin-bottom: 12px; color: var(--moss); font-size: 12px; line-height: 1.5; }
+    .waitlist-row {
+      padding: 5px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px;
+      border: 1px solid rgba(23, 53, 44, .16); border-radius: 999px; background: rgba(255, 255, 255, .78);
+      box-shadow: 0 8px 28px rgba(23, 53, 44, .055);
+    }
     .waitlist-input {
-      min-width: 0; height: 46px; padding: 0 13px; border: 1px solid #CCD6D0;
-      border-radius: 8px; background: #fff; color: var(--pine); font-size: 14px;
+      min-width: 0; height: 45px; padding: 0 17px; border: 0; border-radius: 999px; background: transparent; color: var(--pine); font-size: 14px;
+      outline: 0;
     }
-    .waitlist-input::placeholder { color: #95A19B; }
-    .waitlist-input:focus { border-color: var(--orange); outline: 3px solid rgba(255, 107, 61, .11); }
-    .waitlist-submit { width: auto; min-height: 46px; padding-inline: 16px; white-space: nowrap; font-size: 13px; }
+    .waitlist-input::placeholder { color: #93A099; }
+    .waitlist-input:focus { box-shadow: inset 0 0 0 2px rgba(189, 239, 212, .9); }
+    .waitlist-submit {
+      min-height: 45px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--mint); color: var(--pine);
+      font-size: 12px; font-weight: 700; white-space: nowrap;
+    }
+    .waitlist-submit:hover { background: #AEE8C7; }
     .waitlist-submit:disabled { cursor: wait; opacity: .7; }
-    .waitlist-note { margin: 10px 0 0; color: var(--pine); font-size: 12px; font-weight: 700; text-align: center; }
-    .waitlist-note[data-state="error"] { color: #8c2e16; }
+    .waitlist-note { margin: 10px 0 0; color: var(--pine); font-size: 12px; font-weight: 700; }
+    .waitlist-note[data-state="error"] { color: #8C2E16; }
+
     .page-footer {
-      display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px;
-      color: #87918C; font-size: 12px; text-align: center;
+      width: min(100% - 32px, 940px); margin: 72px auto 0; padding: 25px 0 max(27px, env(safe-area-inset-bottom));
+      display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px;
+      border-top: 1px solid var(--rule); color: #829087; font-size: 11px; text-align: center;
     }
     .page-footer p { margin: 0; }
-    .footer-links { display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .footer-links { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .footer-links a { text-decoration: none; }
     .footer-links a:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 3px; }
-    .footer-dot { color: #B2B9B5; }
+    .footer-dot { color: #AFB8B2; }
 
-    body.auth-modal-open { overflow: hidden; }
-    .auth-modal[hidden], .auth-modal__view[hidden], .signup-only[hidden] { display: none; }
-    .auth-modal {
-      position: fixed; z-index: 1000; inset: 0; padding: 24px 16px; display: grid; place-items: center;
-      overflow-y: auto; background: rgba(24, 28, 27, .58);
+    @media (max-width: 700px) {
+      .sell-header { min-height: 78px; padding-top: max(20px, env(safe-area-inset-top)); }
+      .wordmark-logo { width: 108px; }
+      .showcase { height: 300px; }
+      .showcase-stage { width: 590px; }
+      .cover-card { width: 145px; border-width: 5px; border-radius: 18px; }
+      .cover-card--center { width: 171px; border-width: 6px; }
+      .cover-card--far-left { left: 4%; }
+      .cover-card--left { left: 27%; }
+      .cover-card--right { left: 73%; }
+      .cover-card--far-right { left: 96%; }
+      .creator-badge { left: calc(50% + 50px); bottom: 20px; padding: 9px 12px; font-size: 10px; box-shadow: 4px 5px 0 var(--pine); }
+      .spark--one { top: 30px; left: calc(50% - 122px); }
+      .spark--two { right: calc(50% - 143px); }
+      .pitch { margin-top: 0; }
+      .stat-heading { margin-top: 42px; }
+      .economics-item { padding-inline: 13px; }
     }
-    .auth-modal__card {
-      position: relative; width: min(100%, 430px); margin: auto; padding: 38px 36px 32px;
-      border: 1px solid rgba(32, 32, 32, .08); border-radius: 18px; background: #fff; color: #202020;
-      box-shadow: 0 26px 80px rgba(12, 22, 19, .25); animation: auth-modal-in .18s ease-out both;
-    }
-    .auth-modal__close {
-      position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; padding: 0; display: grid;
-      place-items: center; border: 0; border-radius: 50%; background: transparent; color: #6c6c6c;
-      font-size: 27px; font-weight: 400; line-height: 1;
-    }
-    .auth-modal__close:hover { background: #f5f5f5; color: #202020; }
-    .auth-modal__logo { width: auto; height: 72px; margin: 0 auto 24px; }
-    .auth-modal__heading { margin: 0 40px 5px 0; font-size: 25px; line-height: 1.22; letter-spacing: -.025em; }
-    .auth-modal__subheading { margin: 0 32px 27px 0; color: #717171; font-size: 14px; line-height: 1.5; }
-    .auth-modal__form { display: grid; gap: 14px; }
-    .auth-modal__field { position: relative; }
-    .auth-modal__input {
-      width: 100%; height: 58px; padding: 20px 14px 6px; border: 1px solid #cfcfcf; border-radius: 7px;
-      outline: 0; background: #fff; color: #202020; font: 500 16px/1.2 var(--body);
-      transition: border-color .14s ease, box-shadow .14s ease;
-    }
-    .auth-modal__input:hover { border-color: #a7a7a7; }
-    .auth-modal__input:focus { border-color: #3f6fff; box-shadow: 0 0 0 3px rgba(63, 111, 255, .12); }
-    .auth-modal__label {
-      position: absolute; top: 8px; left: 14px; pointer-events: none; color: #757575; font-size: 11px;
-      font-weight: 700; letter-spacing: .035em; transform-origin: left top; transition: all .12s ease;
-    }
-    .auth-modal__input:placeholder-shown:not(:focus) + .auth-modal__label { top: 19px; font-size: 15px; font-weight: 500; letter-spacing: 0; }
-    .auth-modal__input:focus + .auth-modal__label { color: #3f6fff; }
-    .auth-modal__submit {
-      width: 100%; min-height: 54px; margin-top: 4px; padding: 0 20px; border: 0; border-radius: 7px;
-      background: var(--pine); color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-    }
-    .auth-modal__submit:not(:disabled):hover { background: #21483d; }
-    .auth-modal__submit:disabled { background: #e4e4e4; color: #9b9b9b; cursor: not-allowed; }
-    .auth-modal__submit[aria-busy="true"] { cursor: wait; }
-    .auth-modal__message { margin: 0; color: #bd2f2f; font-size: 13px; line-height: 1.45; }
-    .auth-modal__message[hidden] { display: none; }
-    .auth-modal__fine-print { margin: 3px 4px 0; color: #858585; font-size: 11px; line-height: 1.5; text-align: center; }
-    .auth-modal__fine-print a, .auth-modal__switch-button, .auth-modal__resend { color: #3f6fff; text-decoration: none; }
-    .auth-modal__fine-print a:hover, .auth-modal__switch-button:hover, .auth-modal__resend:hover { text-decoration: underline; }
-    .auth-modal__switch { margin: 8px 0 0; color: #5f5f5f; font-size: 14px; text-align: center; }
-    .auth-modal__switch-button, .auth-modal__resend { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; }
-    .auth-modal__verification-copy { margin: 0 0 22px; color: #666; font-size: 14px; line-height: 1.55; }
-    .auth-modal__verification-copy strong { color: #202020; overflow-wrap: anywhere; }
-    .auth-modal__resend-row { margin: 1px 0 0; color: #858585; font-size: 12px; text-align: center; }
-    @keyframes auth-modal-in {
-      from { opacity: 0; transform: translateY(8px) scale(.985); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    @media (max-width: 600px) {
-      .page-shell { padding-top: max(28px, env(safe-area-inset-top)); }
-      .wordmark-logo { width: 102px; }
-      .sell-main { padding: 52px 0 58px; place-items: start center; }
-      .sell-subtitle { margin-bottom: 24px; }
-      .seller-card { padding: 24px 20px; border-radius: 14px; }
-    }
-    @media (max-width: 420px) {
-      .earning-list li { grid-template-columns: 22px 1fr; row-gap: 1px; }
-      .earning-share { grid-column: 2; }
-      .waitlist-row { grid-template-columns: 1fr; }
+    @media (max-width: 470px) {
+      .showcase { height: 269px; }
+      .showcase-stage { width: 535px; }
+      .cover-card { width: 126px; border-radius: 16px; }
+      .cover-card--center { width: 151px; }
+      .creator-badge { left: calc(50% + 41px); bottom: 16px; }
+      .spark--one { left: calc(50% - 108px); }
+      .spark--two { right: calc(50% - 126px); bottom: 43px; }
+      h1 { font-size: clamp(39px, 12.3vw, 54px); line-height: 1.01; }
+      .sell-subtitle { margin-top: 18px; font-size: 15px; }
+      .stat-heading { margin-top: 38px; font-size: 28px; }
+      .economics { align-items: start; }
+      .economics-item { padding-inline: 9px; }
+      .economics-rate { font-size: 27px; }
+      .economics-label { font-size: 10px; }
+      .waitlist-form { margin-top: 40px; }
+      .waitlist-row { grid-template-columns: 1fr; border-radius: 19px; }
+      .waitlist-input { text-align: center; }
       .waitlist-submit { width: 100%; }
-      .auth-modal { padding: 12px; }
-      .auth-modal__card { padding: 34px 22px 26px; border-radius: 15px; }
+      .page-footer { margin-top: 56px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { transition: none !important; animation: none !important; }
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
     }
   </style>
 </head>
@@ -193,88 +222,56 @@
       <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo"></a>
     </header>
 
-    <main class="sell-main">
-      <section class="sell-copy" aria-labelledby="sell-title">
-        <h1 id="sell-title">Sell your workflow on the marketplace</h1>
-        <p class="sell-subtitle">Share the AI workflows you already built. Omo handles discovery, payments, and cloud runs.</p>
-        <div class="seller-card">
-          <h2>How you earn</h2>
-          <ul class="earning-list">
-            <li><span class="check" aria-hidden="true">✓</span><span class="earning-label">Sell through the Omo store</span><span class="earning-share">Keep 85%</span></li>
-            <li><span class="check" aria-hidden="true">✓</span><span class="earning-label">Share your own sales link</span><span class="earning-share">Keep 95%</span></li>
-            <li><span class="check" aria-hidden="true">✓</span><span class="earning-label">Cloud API runs</span><span class="earning-share">85% of margin</span></li>
-          </ul>
-          <button class="signup-button" id="create-account" type="button">Create your account</button>
-          <p class="login-note">Already have an account? <a class="login-link" id="sell-login" href="signup.html">Log in</a></p>
-          <form class="waitlist-form" data-waitlist-form data-source="sell" novalidate>
-            <label class="waitlist-label" for="sell-waitlist-email">Not ready yet? Get launch updates and early seller invites.</label>
-            <div class="waitlist-row">
-              <input class="waitlist-input" id="sell-waitlist-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required>
-              <button class="signup-button waitlist-submit" type="submit">Join waitlist</button>
-            </div>
-            <p class="waitlist-note" data-waitlist-note role="status" aria-live="polite" hidden></p>
-          </form>
+    <main class="sell-main" id="main">
+      <div class="showcase" aria-hidden="true">
+        <div class="showcase-stage">
+          <figure class="cover-card cover-card--far-left"><img src="covers/cover-alex-cinematic.jpg" alt=""></figure>
+          <figure class="cover-card cover-card--left"><img src="covers/ig-gpt-image-seedance-product-ad.jpg" alt=""></figure>
+          <figure class="cover-card cover-card--center"><img src="covers/ig-one-photo-ecom-creative-factory.jpg" alt=""></figure>
+          <figure class="cover-card cover-card--right"><img src="covers/ig-consistent-character-ugc.jpg" alt=""></figure>
+          <figure class="cover-card cover-card--far-right"><img src="covers/cover-shethinksai-guide.jpg" alt=""></figure>
+          <span class="spark spark--one">✦</span>
+          <span class="spark spark--two">✦</span>
+          <span class="creator-badge">Built once.<br>Sold again.</span>
         </div>
+      </div>
+
+      <section class="pitch" aria-labelledby="sell-title">
+        <p class="eyebrow">The creator marketplace for AI workflows</p>
+        <h1 id="sell-title">Sell your workflow <span>on the marketplace</span></h1>
+        <p class="sell-subtitle">Bring the workflow you already built. Omo helps people discover it, buy it, and run it — while you keep the generous share.</p>
+
+        <h2 class="stat-heading">Join the creators <strong>earning on Omo</strong></h2>
+        <div class="economics" aria-label="Creator earnings on Omo">
+          <div class="economics-item"><span class="economics-rate">85%</span><span class="economics-label">of every Omo store sale</span></div>
+          <div class="economics-item"><span class="economics-rate">95%</span><span class="economics-label">when buyers use your link</span></div>
+          <div class="economics-item"><span class="economics-rate">85%</span><span class="economics-label">of the margin on API runs</span></div>
+        </div>
+
+        <div class="action-group">
+          <button class="signup-button" id="create-account" type="button">Create your account</button>
+          <p class="login-note">Already creating on Omo? <a class="login-link" id="sell-login" href="signup.html">Log in</a></p>
+        </div>
+
+        <form class="waitlist-form" data-waitlist-form data-source="sell" novalidate>
+          <label class="waitlist-label" for="sell-waitlist-email">Not ready yet? Get launch updates and early seller invites.</label>
+          <div class="waitlist-row">
+            <input class="waitlist-input" id="sell-waitlist-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required>
+            <button class="waitlist-submit" type="submit">Keep me posted</button>
+          </div>
+          <p class="waitlist-note" data-waitlist-note role="status" aria-live="polite" hidden></p>
+        </form>
       </section>
     </main>
+
     <footer class="page-footer">
       <p>© 2026 Omo</p><span class="footer-dot" aria-hidden="true">·</span>
       <nav class="footer-links" aria-label="Footer">
-        <a href="terms.html">Terms</a>
-        <span class="footer-dot" aria-hidden="true">·</span>
-        <a href="privacy.html">Privacy</a>
-        <span class="footer-dot" aria-hidden="true">·</span>
+        <a href="terms.html">Terms</a><span class="footer-dot" aria-hidden="true">·</span>
+        <a href="privacy.html">Privacy</a><span class="footer-dot" aria-hidden="true">·</span>
         <a href="support.html">Support</a>
       </nav>
     </footer>
-  </div>
-
-  <div class="auth-modal" id="signup-modal" hidden>
-    <section class="auth-modal__card" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" aria-describedby="auth-modal-subtitle">
-      <button class="auth-modal__close" id="auth-modal-close" type="button" aria-label="Close">×</button>
-      <img class="auth-modal__logo" src="logo-sweet-pastel.svg" alt="Omo">
-
-      <div class="auth-modal__view" id="auth-form-view">
-        <h2 class="auth-modal__heading" id="auth-modal-title">Create your Omo account</h2>
-        <p class="auth-modal__subheading" id="auth-modal-subtitle">to sell workflows and keep what you earn</p>
-        <form class="auth-modal__form" id="auth-form" novalidate>
-          <div class="auth-modal__field signup-only">
-            <input class="auth-modal__input" id="auth-first-name" name="firstName" type="text" autocomplete="given-name" placeholder=" " maxlength="80" required>
-            <label class="auth-modal__label" for="auth-first-name">First name</label>
-          </div>
-          <div class="auth-modal__field signup-only">
-            <input class="auth-modal__input" id="auth-last-name" name="lastName" type="text" autocomplete="family-name" placeholder=" " maxlength="80" required>
-            <label class="auth-modal__label" for="auth-last-name">Last name</label>
-          </div>
-          <div class="auth-modal__field">
-            <input class="auth-modal__input" id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder=" " maxlength="254" required>
-            <label class="auth-modal__label" for="auth-email">Email</label>
-          </div>
-          <div class="auth-modal__field">
-            <input class="auth-modal__input" id="auth-password" name="password" type="password" autocomplete="new-password" placeholder=" " minlength="8" maxlength="128" required>
-            <label class="auth-modal__label" for="auth-password">Password</label>
-          </div>
-          <p class="auth-modal__message" id="auth-error" role="alert" hidden></p>
-          <button class="auth-modal__submit" id="auth-submit" type="submit" disabled>Sign up</button>
-          <p class="auth-modal__fine-print signup-only">By signing up, you agree to our <a href="terms.html" target="_blank" rel="noopener">Terms</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>
-        </form>
-        <p class="auth-modal__switch"><span id="auth-switch-copy">Already have an account?</span> <button class="auth-modal__switch-button" id="auth-switch" type="button">Log in</button></p>
-      </div>
-
-      <div class="auth-modal__view" id="auth-verification-view" hidden>
-        <h2 class="auth-modal__heading" id="auth-verification-title">Check your email</h2>
-        <p class="auth-modal__verification-copy">Enter the verification code sent to <strong id="auth-verification-email"></strong>.</p>
-        <form class="auth-modal__form" id="auth-verification-form" novalidate>
-          <div class="auth-modal__field">
-            <input class="auth-modal__input" id="auth-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder=" " minlength="6" maxlength="6" required>
-            <label class="auth-modal__label" for="auth-code">Verification code</label>
-          </div>
-          <p class="auth-modal__message" id="auth-verification-error" role="alert" hidden></p>
-          <button class="auth-modal__submit" id="auth-verify" type="submit" disabled>Verify email</button>
-          <p class="auth-modal__resend-row">Didn't get it? <button class="auth-modal__resend" id="auth-resend" type="button">Send a new code</button></p>
-        </form>
-      </div>
-    </section>
   </div>
 
   <script src="key-config.js"></script>
@@ -286,9 +283,9 @@
       var loginLink = document.getElementById('sell-login');
       if (!loginLink) return;
       loginLink.addEventListener('click', function (event) {
-        if (!window.OmoSignupModal || typeof window.OmoSignupModal.openSignIn !== 'function') return;
+        if (!window.OmoAuth || typeof window.OmoAuth.open !== 'function') return;
         event.preventDefault();
-        window.OmoSignupModal.openSignIn();
+        window.OmoAuth.open('login');
       });
     })();
   </script>

@@ -97,6 +97,7 @@
   var mode = 'signup';
   var busy = false;
   var lastFocused = null;
+  var activeOpenTarget = '';
 
   if (!modal || !card || !form) return;
 
@@ -104,10 +105,16 @@
   // giving the form heading more room, including on pages with older CSS.
   if (logo) logo.style.height = '52px';
 
+  function validOpenTarget(value) {
+    var slug = String(value || '').trim();
+    return /^[a-z0-9][a-z0-9-]{0,100}$/i.test(slug) ? slug : '';
+  }
+
   function redirectTarget() {
-    var slug = '';
-    try { slug = (new URLSearchParams(window.location.search).get('open') || '').trim(); } catch (error) {}
-    if (!/^[a-z0-9][a-z0-9-]{0,100}$/i.test(slug)) slug = '';
+    var slug = activeOpenTarget;
+    if (!slug) {
+      try { slug = validOpenTarget(new URLSearchParams(window.location.search).get('open')); } catch (error) {}
+    }
     return 'dashboard.html' + (slug ? '?open=' + encodeURIComponent(slug) : '');
   }
 
@@ -170,8 +177,9 @@
     updateValidity();
   }
 
-  function open(nextMode) {
+  function open(nextMode, options) {
     lastFocused = document.activeElement;
+    activeOpenTarget = validOpenTarget(options && options.open);
     setMode(nextMode || 'signup');
     formView.hidden = false;
     verificationView.hidden = true;
@@ -461,12 +469,12 @@
   document.addEventListener('keydown', handleKeydown);
 
   window.OmoSignupModal = {
-    open: function () { open('signup'); },
-    openSignIn: function () { open('login'); },
+    open: function (options) { open('signup', options); },
+    openSignIn: function (options) { open('login', options); },
     close: close
   };
   window.OmoAuth = {
-    open: function (nextMode) { open(nextMode); },
+    open: function (nextMode, options) { open(nextMode, options); },
     close: close
   };
 

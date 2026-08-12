@@ -637,6 +637,7 @@
     }
   </style>
   <link rel="stylesheet" href="nav-footer.css">
+  <script defer src="signup-modal.js"></script>
   <script defer src="nav.js"></script>
 </head>
 <body>
@@ -1166,12 +1167,14 @@
       el('run-button').addEventListener('click', function () {
         setOfferNote('');
         if (signedIn()) {
-          window.location.assign('dashboard.html?open=' + encodeURIComponent(listing.slug));
+          window.location.assign('run.html?slug=' + encodeURIComponent(listing.slug));
           return;
         }
-        // Keep signed-out runs on Omo's branded account form instead of
-        // bypassing it for Clerk's hosted modal.
-        window.location.assign('signup.html?open=' + encodeURIComponent(listing.slug));
+        if (window.OmoAuth && typeof window.OmoAuth.open === 'function') {
+          window.OmoAuth.open('signup', { open: listing.slug });
+          return;
+        }
+        setOfferNote('The account form could not open — please refresh and try again');
       });
 
       el('workflow-layout').hidden = false;
