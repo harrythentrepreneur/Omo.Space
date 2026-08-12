@@ -1171,7 +1171,7 @@
           return;
         }
         if (window.OmoAuth && typeof window.OmoAuth.open === 'function') {
-          window.OmoAuth.open('signup', { open: listing.slug });
+          window.OmoAuth.open('signup', { open: listing.slug, destination: 'run' });
           return;
         }
         setOfferNote('The account form could not open — please refresh and try again');

@@ -6,9 +6,7 @@ through the compiler profile, not edited by hand.
 
 ## Readiness
 
-**NOT READY for live runs or charging.** `POST /v1/runs` is protected with
-Modal Proxy Token auth and returns `503 WORKFLOW_NOT_READY` before spawning or
-spending while these blockers remain:
+**NOT READY for live runs or charging.** `POST /v1/runs` is protected with Modal Proxy Token auth and returns `503 WORKFLOW_NOT_READY` before spawning or spending while these blockers remain:
 
 - `EXECUTOR_NOT_MATERIALIZED` — The referenced Hermes scripts and faster-whisper model are not vendored, pinned, or packaged in this repository.
 - `IMAGEGEN_CAPABILITY_UNAPPROVED` — The skill requires sequential Hermes/Codex subscription image generation; no reviewed server-side Modal adapter or auditable credential lifecycle exists.
@@ -28,7 +26,7 @@ Required environment variable names (values never belong in this repository):
 - Submit: `POST /v1/runs` → `202` with `run_id`, `call_id`, and `result_url`
 - Poll: `GET /v1/runs/{call_id}` → `202 running` or the validated output
 - Invalid input: `422` before spawn
-- Blocked release: `503` before spawn
+- Blocked release: `503` before spawn when `readiness.can_submit` is false
 - Input/UI contract: `manifest.json`
 - Pricing evidence: `pricing-report.json` (display estimate `$24.34`, not chargeable)
 
@@ -48,9 +46,7 @@ python3 packages/skill-to-modal/compiler.py \
 python3 -m pytest -q -p no:cacheprovider containers/audio-symbolic-animation/tests/test_contract.py
 ```
 
-Deployment is intentionally gated on readiness review. Once the generated
-manifest says `can_submit: true`, required provider capabilities exist, and
-tests pass:
+Deployment is intentionally gated on readiness review. Once the generated manifest says `can_submit: true`, required provider capabilities exist, and tests pass:
 
 ```bash
 modal deploy containers/audio-symbolic-animation/modal_app.py

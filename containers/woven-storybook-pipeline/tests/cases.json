@@ -1,138 +1,90 @@
 {
   "happy_path": {
     "input": {
-      "chat_export": {
-        "bytes": 64000,
-        "content_type": "text/plain",
-        "object_key": "fixtures/chats/demo-chat.txt",
-        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      },
-      "mode": "natural",
-      "pseudonymize_names": false,
-      "title_override": "Alex & Sam: Our Story"
+      "favorite_moments": "Seven years, two cities, our first tiny apartment, and adopting a corgi who steals socks.",
+      "how_you_met": "We met after reaching for the same travel book in a rainy bookshop, then talked until closing.",
+      "inside_jokes": "We say ‘wrong turn, best view’ whenever a plan goes sideways, and call burnt breakfast the smoke-alarm serenade.",
+      "length": "short",
+      "style": "warm"
     },
     "output": {
-      "artifacts": [
-        {
-          "bytes": 2500000,
-          "content_type": "application/pdf",
-          "kind": "storybook_pdf",
-          "object_key": "fixtures/results/book.pdf",
-          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        },
-        {
-          "bytes": 450000,
-          "content_type": "text/html",
-          "kind": "storybook_html",
-          "object_key": "fixtures/results/book.html",
-          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-        },
-        {
-          "bytes": 24000,
-          "content_type": "application/json",
-          "kind": "quality_manifest",
-          "object_key": "fixtures/results/manifest.json",
-          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-        }
+      "book": "# Wrong Turn, Best View\n\n## The Bookshop in the Rain\n\nIt began with two hands reaching for the same travel book while rain traced the window. They talked until closing, discovering that an ordinary detour could become the start of everything.\n\n## Two Cities and One Small Home\n\nSeven years carried them through two cities and into a first tiny apartment. The rooms were modest, but the life inside them kept expanding—especially after a sock-stealing corgi arrived and claimed the softest corners.\n\n## The View They Kept\n\nPlans still went sideways. Breakfast still occasionally became a smoke-alarm serenade. Each time, they returned to the phrase that had become their compass: wrong turn, best view. Their keepsake was never a perfect route; it was the joy of finding the view together.",
+      "page_plan": [
+        "Cover — Wrong Turn, Best View, with a rainy bookshop motif",
+        "Pages 2–3 — The shared travel book and the conversation until closing",
+        "Pages 4–5 — Seven years across two cities and the first apartment",
+        "Pages 6–7 — The corgi, stolen socks, and the smoke-alarm serenade",
+        "Final page — ‘Wrong turn, best view’ as the closing keepsake line"
       ],
-      "book": {
-        "beat_count": 96,
-        "chapter_count": 10,
-        "page_type_counts": {
-          "milestone": 12,
-          "punch": 14,
-          "quote": 28,
-          "scene": 42
-        },
-        "title": "Alex & Sam: Our Story"
-      },
-      "gates": {
-        "boundaries": "PASS",
-        "continuity": "PASS",
-        "distribution": "PASS",
-        "editorial": "PASS",
-        "month_coverage": "PASS",
-        "provenance": "PASS",
-        "semantic_issue_count": 2
-      },
-      "run_id": "fixture-woven-run",
+      "run_id": "run-fixture-woven-preview",
       "status": "completed",
+      "title": "Wrong Turn, Best View",
       "usage": {
-        "completion_tokens": 82000,
-        "estimated_cost_usd": 0.05852,
-        "llm_calls": 13,
-        "prompt_tokens": 149000
+        "completion_tokens": 320,
+        "estimated_cost_usd": 7e-05,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 410,
+        "provider": "opencode-go"
       },
-      "workflow_version": "woven-storybook-pipeline@0.1.0"
+      "workflow_version": "woven-storybook-pipeline@0.2.0"
     }
   },
   "negative_cases": [
     {
-      "id": "missing-chat-export",
+      "id": "missing-how-you-met",
       "input": {
-        "mode": "natural",
-        "pseudonymize_names": false
+        "favorite_moments": "Seven years and two cities together.",
+        "inside_jokes": "Wrong turn, best view.",
+        "length": "short",
+        "style": "warm"
       },
-      "reason": "chat_export is required"
+      "reason": "how_you_met is required"
     },
     {
-      "id": "pseudonymization-conflicts-with-source",
+      "id": "unsupported-style",
       "input": {
-        "chat_export": {
-          "bytes": 10,
-          "content_type": "text/plain",
-          "object_key": "a/chat.txt",
-          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        "mode": "natural",
-        "pseudonymize_names": true
+        "favorite_moments": "Seven years and two cities together.",
+        "how_you_met": "We met in a rainy bookshop after reaching for one book.",
+        "inside_jokes": "Wrong turn, best view.",
+        "length": "short",
+        "style": "horror"
       },
-      "reason": "the source contract fixes real names"
+      "reason": "style is a reviewed enum"
     },
     {
-      "id": "unsupported-mode",
+      "id": "unsupported-length",
       "input": {
-        "chat_export": {
-          "bytes": 10,
-          "content_type": "text/plain",
-          "object_key": "a/chat.txt",
-          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        "mode": "fixed-pages",
-        "pseudonymize_names": false
+        "favorite_moments": "Seven years and two cities together.",
+        "how_you_met": "We met in a rainy bookshop after reaching for one book.",
+        "inside_jokes": "Wrong turn, best view.",
+        "length": "novel",
+        "style": "warm"
       },
-      "reason": "natural mode is the reviewed contract"
+      "reason": "length is bounded"
     },
     {
-      "id": "oversized-export",
+      "id": "empty-memory",
       "input": {
-        "chat_export": {
-          "bytes": 52428801,
-          "content_type": "application/zip",
-          "object_key": "a/chat.zip",
-          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        "mode": "natural",
-        "pseudonymize_names": false
+        "favorite_moments": "too short",
+        "how_you_met": "We met in a rainy bookshop after reaching for one book.",
+        "inside_jokes": "Wrong turn, best view.",
+        "length": "short",
+        "style": "warm"
       },
-      "reason": "input size is bounded before processing"
+      "reason": "favorite_moments requires useful detail"
     },
     {
-      "id": "raw-chat-field-forbidden",
+      "id": "raw-archive-forbidden",
       "input": {
-        "chat_export": {
-          "bytes": 10,
-          "content_type": "text/plain",
-          "object_key": "a/chat.txt",
-          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        "mode": "natural",
-        "pseudonymize_names": false,
-        "raw_messages": [
-          "never place raw chat in JSON"
-        ]
+        "chat_export": "raw private messages",
+        "favorite_moments": "Seven years and two cities together.",
+        "how_you_met": "We met in a rainy bookshop after reaching for one book.",
+        "inside_jokes": "Wrong turn, best view.",
+        "length": "short",
+        "style": "warm"
       },
-      "reason": "raw chat bodies are artifact-only and unknown fields fail closed"
+      "reason": "unknown fields fail closed and archives are not preview inputs"
     }
   ]
 }

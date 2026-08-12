@@ -97,9 +97,25 @@ const llmCalls = [];
 const modalCalls = [];
 const modalStatuses = new Map();
 let modalDispatchStatus = 202;
+const wovenCalls = [];
+const wovenStatuses = new Map();
 
 const sandbox = {
   fetch: async (url, opts) => {
+    if (String(url).startsWith('https://woven.modal.invalid')) {
+      const target = new URL(String(url));
+      wovenCalls.push({ url: String(url), method: opts && opts.method || 'GET', headers: opts && opts.headers, body: opts && opts.body });
+      if (target.pathname === '/v1/runs' && opts && opts.method === 'POST') {
+        const callId = 'fc-WOVENROUTER0001';
+        wovenStatuses.set(callId, { status: 202, body: { call_id: callId, status: 'running' } });
+        return { ok: true, status: 202, json: async () => ({ run_id: 'modal-submit-id', call_id: callId, status: 'accepted', result_url: `/v1/runs/${callId}` }) };
+      }
+      const callId = target.pathname.split('/').at(-1);
+      const value = wovenStatuses.get(callId);
+      return value
+        ? { ok: value.status >= 200 && value.status < 300, status: value.status, json: async () => value.body }
+        : { ok: false, status: 404, json: async () => ({ detail: 'run_not_found' }) };
+    }
     if (String(url).startsWith('https://modal.invalid')) {
       const target = new URL(String(url));
       modalCalls.push({ url: String(url), method: opts && opts.method || 'GET', headers: opts && opts.headers, body: opts && opts.body });
@@ -173,11 +189,30 @@ function check(name, cond) {
 }
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
+const indexSource = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
+const runPageSource = fs.readFileSync(path.join(here, '..', 'run.html'), 'utf8');
+const catalogSandbox = { window: {} };
+vm.createContext(catalogSandbox);
+vm.runInContext(fs.readFileSync(path.join(here, '..', 'ig-more.js'), 'utf8'), catalogSandbox, { filename: 'ig-more.js' });
+const wovenListing = catalogSandbox.window.COGNITION_IG_MORE.find((listing) => listing.slug === 'woven-relationship-book-maker');
+const wovenRunManifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'run-manifests', 'woven-relationship-book-maker.json'), 'utf8'));
+const wovenContainerInput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'woven-storybook-pipeline', 'schemas', 'input.json'), 'utf8'));
+const wovenContainerOutput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'woven-storybook-pipeline', 'schemas', 'output.json'), 'utf8'));
+const canonical = (value) => Array.isArray(value)
+  ? value.map(canonical)
+  : value && typeof value === 'object'
+    ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]))
+    : value;
 check('dashboard: server account loads /api/me with a Clerk session bearer', dashboardSource.includes('window.Clerk.session.getToken()') && dashboardSource.includes("fetch(API_BASE + '/api/me', { headers: { Authorization: 'Bearer ' + token"));
 check('dashboard: cloud-run network errors never fall back to a mock after POST', (dashboardSource.match(/startMockVideoRun\(form, product\);/g) || []).length === 1 && dashboardSource.includes('The submission outcome is unknown') && dashboardSource.includes('Reconcile run'));
 check('dashboard: terminal 5xx run states are handled before indefinite retry', dashboardSource.includes("terminalStatus === 'failed' || terminalStatus === 'refunded'") && dashboardSource.includes("status === 'failed' || status === 'refunded'"));
 check('dashboard: server top-ups post to /api/topup with authenticated headers', dashboardSource.includes("fetch((API_BASE || '') + '/api/topup'") && dashboardSource.includes("authenticatedRunHeaders('').then(function (headers)"));
 check('dashboard: hosted video form exposes the sample-only provider gate', dashboardSource.includes('Hosted staging currently accepts only sample-demello-10s'));
+check('run manifest: Woven browser schemas stay aligned with generated container input/output', JSON.stringify(canonical(wovenRunManifest.input_schema)) === JSON.stringify(canonical(wovenContainerInput)) && JSON.stringify(canonical(wovenRunManifest.output_schema)) === JSON.stringify(canonical(wovenContainerOutput)));
+check('catalog: Woven listing and hosted manifest publish the same $0.40 run price', wovenListing.runPrice === 0.4 && wovenRunManifest.price_usd === 0.4 && wovenListing.runManifest === 'run-manifests/woven-relationship-book-maker.json');
+check('catalog cards: per-run prices render to two decimal places', indexSource.includes("Number(p.runPrice || p.priceRun || 0).toFixed(2)"));
+check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
+check('run page: empty API base dispatches through the deployed same-origin Worker rewrite', runPageSource.includes("function workerBase() { return API_BASE || window.location.origin; }"));
 
 let browserCheckoutCall = null;
 const stripeClientSandbox = {
@@ -405,6 +440,43 @@ const idem1 = await (await worker.fetch(mkReq('POST', '/api/run', idemBody, idem
 const idem2 = await (await worker.fetch(mkReq('POST', '/api/run', idemBody, idemHeaders), realEnv)).json();
 const idemAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_idem', {}), env)).json();
 check('run: idempotency replay returns prior run and charges owner once', idem1.ok === true && idem2.idempotent_replay === true && idem2.run_id === idem1.run_id && idemAfter.balance_usd === 4.9 && llmCalls.length === callsBeforeIdem + 1);
+
+// ── Woven Relationship Book Maker → schema-driven Modal async run ─────────
+
+const wovenEnv = {
+  ...realEnv,
+  WOVEN_MODAL_URL: 'https://woven.modal.invalid',
+  WOVEN_MODAL_PROXY_TOKEN_ID: 'wk-test-id',
+  WOVEN_MODAL_PROXY_TOKEN_SECRET: 'ws-test-secret',
+};
+const wovenMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_woven', {}), env)).json();
+const wovenHeaders = { Authorization: `Bearer ${wovenMe.api_key}`, 'Idempotency-Key': 'woven-router-0001' };
+const wovenInput = {
+  slug: 'woven-relationship-book-maker',
+  input: {
+    how_you_met: 'We reached for the same travel book on a rainy afternoon.',
+    favorite_moments: 'Seven years, two cities, our first apartment, and adopting a corgi.',
+    inside_jokes: 'Wrong turn, best view.', style: 'warm', length: 'short',
+  },
+};
+const wovenStartResponse = await worker.fetch(mkReq('POST', '/api/run', wovenInput, wovenHeaders), wovenEnv);
+const wovenStart = await wovenStartResponse.json();
+check('woven: schema-valid input dispatches asynchronously at the server-owned $0.40 quote', wovenStartResponse.status === 202 && wovenStart.status === 'running' && wovenStart.quoted_cost_usd === 0.4 && wovenStart.billed_amount_usd === 0.4);
+check('woven: Worker sends exact typed input with scoped Modal Proxy Token headers', JSON.parse(wovenCalls[0].body).style === 'warm' && wovenCalls[0].headers['Modal-Key'] === 'wk-test-id' && wovenCalls[0].headers['Modal-Secret'] === 'ws-test-secret');
+const badWoven = await worker.fetch(mkReq('POST', '/api/run', { slug: 'woven-relationship-book-maker', input: { ...wovenInput.input, style: 'invented' } }, { ...wovenHeaders, 'Idempotency-Key': 'woven-router-bad1' }), wovenEnv);
+check('woven: schema-invalid input fails before debit or Modal spend', badWoven.status === 422 && wovenCalls.length === 1);
+const wovenRunning = await worker.fetch(mkReq('GET', `/api/run/${wovenStart.run_id}`, {}, { Authorization: `Bearer ${wovenMe.api_key}` }), wovenEnv);
+check('woven: Omo status poll proxies Modal running state', wovenRunning.status === 202);
+wovenStatuses.set('fc-WOVENROUTER0001', { status: 200, body: {
+  run_id: 'run-provider-woven', status: 'completed', workflow_version: 'woven-storybook-pipeline@0.2.0',
+  title: 'Wrong Turns, Best Views', book: '# Wrong Turns, Best Views\n\nA long enough factual keepsake story that clears the minimum output length. '.repeat(4),
+  page_plan: ['Cover with rainy bookshop', 'The beginning in the bookshop', 'Two cities and one corgi', 'Closing on the best view'],
+  usage: { provider: 'opencode-go', model: 'deepseek-v4-flash', llm_calls: 1, prompt_tokens: 269, completion_tokens: 314, estimated_cost_usd: 0.00012558 },
+} });
+const wovenDoneResponse = await worker.fetch(mkReq('GET', `/api/run/${wovenStart.run_id}`, {}, { Authorization: `Bearer ${wovenMe.api_key}` }), wovenEnv);
+const wovenDone = await wovenDoneResponse.json();
+const wovenAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_woven', {}), env)).json();
+check('woven: completed Modal output settles once and preserves the schema-valid result', wovenDoneResponse.status === 200 && wovenDone.status === 'completed' && wovenDone.output.title === 'Wrong Turns, Best Views' && wovenAfter.balance_usd === 4.6);
 
 // ── Japanese Style Story Video → private Modal + async progress ───────────
 

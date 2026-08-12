@@ -1,62 +1,37 @@
 {
-  "chargeable": false,
+  "chargeable": true,
   "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
-  "default_tier": "natural_book",
+  "default_tier": "drafting_preview",
   "display_price_usd": 0.4,
   "estimates": [
     {
-      "cost_model_run_price_usd": 0.29,
+      "cost_model_run_price_usd": 0.1,
       "detail": [
         {
-          "cost_usd": 0.00378,
+          "cost_usd": 0.00113,
           "qty": 1,
-          "step": "llm(analysis)"
-        },
-        {
-          "cost_usd": 0.0049,
-          "qty": 1,
-          "step": "llm(essence)"
-        },
-        {
-          "cost_usd": 0.007,
-          "qty": 1,
-          "step": "llm(plan)"
-        },
-        {
-          "cost_usd": 0.02912,
-          "qty": 8,
-          "step": "llm(chapter)"
-        },
-        {
-          "cost_usd": 0.01372,
-          "qty": 2,
-          "step": "llm(editorial)"
+          "step": "llm(draft)"
         }
       ],
       "guard_cost_usd": 0.08,
       "guarded_price_floor_usd": 0.4,
-      "modeled_cost_usd": 0.05852,
+      "modeled_cost_usd": 0.00113,
       "notes": [
-        "The modeled 13-call fixture is guarded up to the source-observed $0.08 high end for a real 24k-message chat."
+        "The existing $0.40 quote is retained as a conservative staging guard over one bounded provider call and Modal compute."
       ],
       "pricing_cost_usd": 0.08,
-      "tier": "natural_book"
+      "tier": "drafting_preview"
     }
   ],
   "floor_usd": 0.1,
   "markup": 5.0,
   "notes": [
-    "The projected $0.40 applies the repository 5x launch markup to the source-observed $0.08 high end.",
-    "It remains non-chargeable until Modal/render/storage cost evidence and the private data plane exist."
+    "$0.40 applies the repository 5x launch markup to the $0.08 staging guard.",
+    "This price is for the hosted drafting preview, not the full private archive-to-PDF pipeline."
   ],
-  "quote_status": "provisional_blocked",
+  "quote_status": "staging_guarded",
   "rate_snapshot": "repository-2026-08",
   "schema_version": "cognition.pricing/v1",
   "source_model": "site/deploy/cost-model.mjs",
-  "unpriced_costs": [
-    "Modal CPU and memory",
-    "Chromium and Ghostscript render",
-    "private artifact storage and egress",
-    "failed/retried accepted-output cohort"
-  ]
+  "unpriced_costs": []
 }

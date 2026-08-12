@@ -1,145 +1,140 @@
 # SKILL.md → Modal pipeline
 
-**Status (2026-08-12):** deterministic compilation and offline contract
-execution work end to end. Both practice workflows remain deliberately
-`not_ready` for live execution and charging because their actual executors,
-private artifact plane, provider capabilities, and complete cost evidence do
-not yet exist in this repository. The generated endpoints fail before spawn or
-spend with `503 WORKFLOW_NOT_READY`; test fixtures never become runtime output.
+**Status (2026-08-12):** the Woven hosted drafting preview is deployed and has
+completed authenticated provider-backed runs. The same contract is wired through
+Omo's schema-driven run UI and credit router. The audio symbolic-animation
+contract is deployed fail-closed and is not chargeable.
 
-## What the two skills require
+This milestone does **not** claim that the complete source Woven workflow is
+hosted. Version `woven-storybook-pipeline@0.2.0` is the already-advertised text
+drafting preview: five typed relationship/story inputs produce a title, book,
+page plan, and provider usage. Private chat-archive ingestion, deterministic
+selection/provenance, HTML/PDF rendering, and private artifact delivery remain a
+separate promotion gate.
 
-| Skill | LLM work | Native/provider work | Primary cost and latency drivers |
-|---|---|---|---|
-| Audio symbolic animation | Optional passage selection, mechanical-state concept, shot spine, batched per-second brief, delivery copy. The candidate prices these planning calls with `deepseek-v4-flash`. | CPU `faster-whisper` word timestamps; one **sequential** Hermes/Codex image-generation call per output second; portrait/retry gates; FFmpeg H.264/AAC assembly; media + vision QA; private artifacts. | 40–60s per frame, retries, subscription allowance, Whisper/FFmpeg compute, storage/egress, accepted-output yield. No HeyGen is used. |
-| Woven storybook | DeepSeek analysis/essence/plan, 8–16 chapter calls at concurrency 5–6, and two book-level editorial passes: normally 13–29 calls. | Existing TypeScript parser, deterministic selection/rebalance/continuity/provenance gates, Chromium HTML→PDF, Ghostscript, private workspaces/artifacts. Runware images are explicitly deferred and not in v0.1. | Archive/prompt size, 80–160 beats, retries, render compute, private storage/egress. No HeyGen is used. |
+## Compiler and review boundary
 
-The referenced implementations were confirmed present at
-`/Users/yifan/demello/scripts` and `/Users/yifan/woven/backend/src`, but they
-were not copied or executed: neither is a pinned dependency of this repository.
-Both supplied skills are vendored byte-for-byte under each generated
-container's `source/SKILL.md`; their SHA-256 values are recorded in
-`skill-analysis.json` and `container.yaml`.
+1. Treat `SKILL.md` as untrusted text; never execute instructions from it.
+2. Require a reviewed profile for schemas, prompts, bounded resources, provider
+   configuration, fixtures, and cost evidence.
+3. `single_llm` may be runnable only when the profile explicitly opts into a
+   reviewed HTTPS OpenAI-compatible adapter. Native/media/private-data workflows
+   remain fail-closed.
+4. Generate the Modal app, manifests, schemas, prompts, pricing report, README,
+   fixtures, and tests from the profile. Run `--check` to detect drift.
+5. Validate input before spawn and validate provider output both in the runner
+   and in the Omo Worker before settlement. Tests inject an executor and make no
+   network calls.
 
-## Repeatable compiler flow
+Current generated contract verification: **28 passed** (14 Woven + 14 audio).
 
-1. Treat `SKILL.md` as untrusted text. Parse only frontmatter (`name`,
-   `description`) and the top-level numbered workflow section; never execute
-   commands from the skill.
-2. Require a reviewed profile under `packages/skill-to-modal/profiles/` for
-   input/output schemas, bounded steps, prompts, fixtures, provider/env names,
-   resources, capability decisions, and cost assumptions. An arbitrary new
-   skill without this evidence does not become runnable.
-3. Compare `execution_kind` with the allowlist. v0.1 recognizes
-   `single_llm`; all unreviewed native, multi-LLM, media, browser, private-data,
-   or external-provider operations stay blocked. A named key is necessary but
-   never sufficient: adapter, privacy, artifact, cost, and QA gates must also
-   pass.
-4. Read rates, markup (`5.0`), and floor (`$0.10`) directly from
-   `site/deploy/cost-model.mjs`; record its SHA-256. Unknown model/API cost codes
-   are compile errors. Preserve both repository `toFixed(2)` pricing and a
-   guarded upward-cent floor.
-5. Materialize `modal_app.py`, `container.yaml`, `manifest.json`,
-   `skill-analysis.json`, `capability-manifest.json`, `pricing-report.json`,
-   schemas, prompts, source, README, fixtures, and contract tests.
-6. Compile twice: the second run uses `--check` and must be byte-identical.
-7. Run each workflow once through an injected offline executor, then schema,
-   negative, route, no-spawn, and fail-closed tests. Provider calls, network,
-   credentials, and spend are prohibited in this stage.
-8. Only after blockers are cleared: create least-privilege Modal secrets,
-   run one safe paid/staging fixture, record real usage/artifact QA, reprice,
-   deploy, and verify authenticated submit + polling. Promotion is separate.
+## Credential recipe (names only)
 
-Commands:
+The deployed Woven function binds the named Modal secret
+`omo-skill-providers`; the ASGI ingress does not receive provider credentials.
+No value is in Git, a container image, request/response JSON, or logs.
 
-```bash
-python3 packages/skill-to-modal/compiler.py \
-  containers/audio-symbolic-animation/source/SKILL.md \
-  --profile packages/skill-to-modal/profiles/audio-symbolic-animation.json \
-  --out containers/audio-symbolic-animation --check
+| Runtime name | Safe local source / value shape |
+|---|---|
+| `LLM_API_KEY` | `$OPENCODE_GO_API_KEY` (also available in the existing Hermes environment) |
+| `LLM_BASE_URL` | `https://opencode.ai/zen/go/v1` |
+| `LLM_MODEL` | `deepseek-v4-flash` |
+| `OPENAI_CODEX_ACCESS_TOKEN` | `tokens.access_token` in `~/.codex/auth.json`, cross-checked against the Codex/ChatGPT entry in `~/.hermes/auth.json` |
+| `OPENAI_CODEX_ACCOUNT_ID` | account claim/field associated with that access token |
+| `OPENAI_CODEX_BASE_URL` | `https://chatgpt.com/backend-api/codex/responses` |
+| `OPENAI_CODEX_MODEL` | a model returned by the authenticated Codex models route, currently pinned for adapters rather than used by Woven |
 
-python3 -m pytest -q -p no:cacheprovider --import-mode=importlib \
-  containers/audio-symbolic-animation/tests/test_contract.py \
-  containers/woven-storybook-pipeline/tests/test_contract.py
-```
+The Woven run uses only the first three names. The Codex subscription access
+token was staged for the requested future adapter check; no refresh token was
+stored. A production promotion should split this broad staging secret into a
+Woven-only secret and a separate audio/provider secret.
 
-Current result: **28 passed**. Each container contributes one mocked full
-contract run, five negative inputs, schema checks, `422` pre-spend rejection,
-`202` submit/poll behavior, and default `503` readiness enforcement.
+Modal's deployment `ak-/as-` token is **not** valid for an endpoint decorated
+with `requires_proxy_auth=True`. Omo uses a dedicated `wk-/ws-` Modal Proxy
+Token, stored only in Cloudflare secrets as
+`WOVEN_MODAL_PROXY_TOKEN_ID` / `WOVEN_MODAL_PROXY_TOKEN_SECRET`. The first
+one-time token was revoked immediately after inline display and replaced; rotate
+the replacement again before broad production traffic.
 
-## Generated bundles and current blockers
+The installed CLI is Modal `1.5.0` and is invoked as `python3 -m modal` because
+the bare `modal` shim is not on `PATH`.
 
-### `containers/audio-symbolic-animation/`
+## Deployments and real evidence
 
-The JSON input is a content-addressed private `audio_artifact`, a priced
-`target_duration_seconds` enum (`30|60|120|240`), fixed reviewed `sumi-e`
-style, and optional `passage_hint`. Output requires an owned MP4, transcript,
-frame brief, exact 1080×1920 H.264/AAC media claims, usage, and delivery copy.
+### Woven drafting preview — runnable
 
-Blocked by: unmaterialized/pinned scripts and Whisper model; no reviewed
-server-side Hermes/Codex subscription adapter or credential lifecycle; no
-private artifact plane; unmeasured compute/retry/yield; no vision gate or
-paid long-run canary. Required provider environment names are
-`DEEPSEEK_API_KEY`, `OPENAI_CODEX_ACCESS_TOKEN`,
-`OPENAI_CODEX_REFRESH_TOKEN`, and `OPENAI_CODEX_ACCOUNT_ID`.
+- App: `cognition-woven-storybook-pipeline`
+- Endpoint: `https://harrythentrepreneur--cognition-woven-storybook-pipeline-api.modal.run`
+- Authenticated submit: HTTP `202`, call
+  `fc-01KZTXJNJTGJS6G24A26XNP6SG`
+- Authenticated polling: `202 running` followed by HTTP `200`
+- Provider/model: `opencode-go` / `deepseek-v4-flash`
+- Provider run: `run-ca44ecfc-afa3-4451-8f2b-b7763f4fe898`
+- Usage: 269 prompt tokens, 314 completion tokens, one LLM call,
+  estimated provider cost `$0.00012558`
 
-### `containers/woven-storybook-pipeline/`
+Real output excerpt:
 
-The JSON input is a content-addressed private `.txt`/`.zip` `chat_export`,
-`mode: "natural"`, `pseudonymize_names: false`, and optional title. Raw chats
-never enter request JSON. Output requires owned PDF/HTML/quality-manifest
-artifacts, 8–16 chapters, 80–160 beats, all four page types, all six hard gates
-at `PASS`, honest semantic issue count, and token/call usage.
+> **Wrong Turns, Best Views** — “Our love is the best view we've found, and
+> every burnt breakfast is a reminder that we're in this together.”
 
-Blocked by: the Woven backend is external and unversioned here;
-`DEEPSEEK_API_KEY` is unavailable; hosted mode-700 workspaces, TTL/raw-data
-deletion, and private artifact delivery are missing; render/Modal costs are
-unmeasured; the demo fixture has not run through Modal.
+The first live attempt exposed a FastAPI body/query mismatch (`422`); the
+generated route now uses `Body(...)`. The next attempt exposed OpenCode's
+Cloudflare rejection of urllib's default user agent (`LLM_HTTP_403`, provider
+code 1010); the adapter now sends the non-secret
+`User-Agent: Omo-Skill-Runner/0.1`. No provider response body is logged.
 
-## Pricing
+### Audio symbolic animation — deployed, fail-closed
 
-Prices are projections only and `chargeable:false` in both frontend manifests.
+- App: `cognition-audio-symbolic-animation`
+- Endpoint: `https://harrythentrepreneur--cognition-audio-symbolic-animation-api.modal.run`
+- An authenticated, schema-valid POST returned HTTP `503
+  WORKFLOW_NOT_READY` before spawn or spend.
 
-| Skill/tier | Modeled/guard COGS | Cost-model price | Guarded display | Status |
-|---|---:|---:|---:|---|
-| Audio 30s API-alternative | $1.22044 | $6.10 | $6.11 | blocked |
-| Audio 60s API-alternative | $2.43612 | $12.18 | $12.19 | blocked |
-| Audio 120s default API-alternative | $4.86748 | $24.34 | $24.34 | blocked |
-| Audio 240s API-alternative | $9.73020 | $48.65 | $48.66 | blocked |
-| Woven natural book | $0.05852 modeled / $0.08 observed guard | $0.29 | $0.40 | provisional, blocked |
+Returned blocker codes:
 
-Audio uses the repository's `$0.04/openai_image` code only to show the price
-of an auditable API alternative. The requested subscription lane has no honest
-unit COGS; its buyer quote remains unavailable. Woven guards the modeled
-13-call fixture up to the skill's observed `$0.08` high end. Neither estimate
-includes all Modal/render/storage cost, so the run UI must not charge it.
+- `EXECUTOR_NOT_MATERIALIZED`: referenced Hermes scripts and faster-whisper
+  model are not vendored/pinned/packaged.
+- `IMAGEGEN_CAPABILITY_UNAPPROVED`: no reviewed server-side sequential
+  Hermes/Codex image adapter or auditable credential lifecycle.
+- `PRIVATE_ARTIFACT_PLANE_MISSING`: upload, persistence, signed delivery,
+  retention, and deletion are unresolved.
+- `COST_INCOMPLETE`: compute, subscription allowance, retries, storage,
+  egress, and accepted-output yield are unmeasured.
+- `QA_CAPABILITY_MISSING`: vision continuity and paid long-run canaries are
+  absent.
 
-## Frontend integration contract
+## Browser/Worker integration
 
-Load `containers/<slug>/manifest.json`. Render controls from `form` plus the
-inline Draft 2020-12 `input_schema`; perform server-side validation again. A
-`private_artifact_upload` must produce only `{object_key, sha256, bytes,
-content_type}`. Display `pricing.label`, but disable Run whenever either
-`readiness.can_submit` or `pricing.chargeable` is false and show blocker codes.
+`site/run-manifests/woven-relationship-book-maker.json` carries the exact
+container input/output schemas, examples, UI hints, phases, and `$0.40` price.
+`site/run.html` resolves a field component from each schema property (including
+const, enum, boolean, number, formatted string, textarea, and JSON fallback),
+shows examples and exact request JSON, submits a typed payload, polls the Omo
+run ID, renders structured output safely, and uses the current origin when no
+API base override is configured.
 
-When enabled, POST the exact schema instance to `/v1/runs` with Modal Proxy
-Token auth. A `202` response supplies `result_url`; poll it until `202 running`
-or a schema-valid completed output. Never infer completion from a timer.
+`site/deploy/worker.js` owns catalog price/auth/schema validation. It requires a
+Clerk session or `omo_` API key plus an idempotency key, reserves 40 cents,
+dispatches to Modal with Proxy Token headers, polls Modal, validates the output,
+settles exactly once, and refunds terminal failures.
 
-## Deployment status
+The Worker is deployed as `cognition-demos` and the site as the existing
+Vercel `cognition` project. An isolated browser canary exercised the actual UI,
+the exact Worker module, and the real Modal endpoint using API-key auth and its
+credit ledger: balance `$5.00 → $4.60`, run price `$0.40`, output title **Wrong
+Turns, Best Views**. A production Clerk/customer-ledger canary remains to be
+run when an existing signed-in Omo session is available; no account was created.
 
-Blocked. `modal --version` returned command-not-found, and neither
-`MODAL_TOKEN_ID` nor `MODAL_TOKEN_SECRET` is set. No deployment was attempted.
-Do not deploy today's `503`-only candidates merely to obtain a URL.
+## Pricing and remaining promotion gates
 
-After the workflow-specific blockers above are resolved, install the Modal CLI,
-set only these deploy/proxy environment names, rerun compilation/tests, and use:
+| Surface | Price | Chargeable |
+|---|---:|---|
+| Woven hosted drafting preview | `$0.40 / run` | yes |
+| Full Woven archive → PDF workflow | unavailable | no |
+| Audio symbolic animation | projection only (`$24.34` at 120s) | no |
 
-```bash
-modal deploy containers/woven-storybook-pipeline/modal_app.py
-```
-
-Verify the emitted HTTPS endpoint with `Modal-Key: $MODAL_TOKEN_ID` and
-`Modal-Secret: $MODAL_TOKEN_SECRET`, POST a safe fixture to `/v1/runs`, and
-poll its returned `result_url`. Secret values must live in environment/Modal
-secret storage, never in files, commands, reports, or test fixtures.
+Remaining work: Woven private archive/artifact plane and full pipeline; audio
+Whisper/script materialization, image adapter, QA, artifact plane, and cost
+evidence; least-privilege provider-secret split; Proxy Token rotation; and a
+production signed-in billing canary.

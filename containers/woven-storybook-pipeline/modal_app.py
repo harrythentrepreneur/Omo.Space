@@ -8,6 +8,10 @@ executor and never make provider calls.
 from __future__ import annotations
 
 import json
+import os
+import re
+import urllib.error
+import urllib.request
 import uuid
 from functools import lru_cache
 from pathlib import Path
@@ -18,14 +22,33 @@ from jsonschema import Draft202012Validator
 
 
 APP_NAME = 'cognition-woven-storybook-pipeline'
-WORKFLOW_VERSION = 'woven-storybook-pipeline@0.1.0'
-EXECUTION_KIND = 'complex_external'
+WORKFLOW_VERSION = 'woven-storybook-pipeline@0.2.0'
+EXECUTION_KIND = 'single_llm'
 LOCAL_ROOT = Path(__file__).resolve().parent
 IMAGE_ROOT = Path('/root/woven_storybook_pipeline')
+
+LIVE_PROVIDER = 'opencode-go'
+LIVE_BASE_URL_ENV = 'LLM_BASE_URL'
+LIVE_MODEL_ENV = 'LLM_MODEL'
+LIVE_API_KEY_ENV = 'LLM_API_KEY'
+LIVE_DEFAULT_BASE_URL = 'https://opencode.ai/zen/go/v1'
+LIVE_DEFAULT_MODEL = 'deepseek-v4-flash'
+LIVE_PROMPT_PATH = 'prompts/run.txt'
+LIVE_MAX_TOKENS = 2200
+LIVE_TEMPERATURE = 0.45
+LIVE_TIMEOUT_SECONDS = 120
+LIVE_INPUT_RATE_PER_MILLION = 0.14
+LIVE_OUTPUT_RATE_PER_MILLION = 0.28
+LIVE_MODEL_OUTPUT_SCHEMA = {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'additionalProperties': False, 'properties': {'book': {'maxLength': 12000, 'minLength': 240, 'type': 'string'}, 'page_plan': {'items': {'maxLength': 360, 'minLength': 8, 'type': 'string'}, 'maxItems': 14, 'minItems': 4, 'type': 'array'}, 'title': {'maxLength': 120, 'minLength': 3, 'type': 'string'}}, 'required': ['title', 'book', 'page_plan'], 'type': 'object'}
+
 
 
 class WorkflowNotReady(RuntimeError):
     """Raised before spend when the reviewed workflow cannot run live."""
+
+
+class ProviderCallError(RuntimeError):
+    """Safe provider failure code; response bodies and credentials are never logged."""
 
 
 def _asset_root() -> Path:
@@ -53,6 +76,93 @@ def readiness() -> dict[str, Any]:
     return load_json("manifest.json")["readiness"]
 
 
+def _extract_json_object(value: str) -> dict[str, Any]:
+    fenced = re.sub(r"^```(?:json)?\s*|\s*```$", "", value.strip(), flags=re.I)
+    start = fenced.find("{")
+    end = fenced.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("provider output did not contain a JSON object")
+    parsed = json.loads(fenced[start : end + 1])
+    if not isinstance(parsed, dict):
+        raise ValueError("provider output must be a JSON object")
+    return parsed
+
+
+def _provider_completion(payload: dict[str, Any]) -> dict[str, Any]:
+    missing = [name for name in readiness()["required_env_names"] if not os.environ.get(name)]
+    if missing:
+        raise WorkflowNotReady("MISSING_REQUIRED_ENV:" + ",".join(sorted(missing)))
+
+    base_url = os.environ[LIVE_BASE_URL_ENV].rstrip("/")
+    if not base_url.startswith("https://"):
+        raise WorkflowNotReady("LLM_BASE_URL_MUST_BE_HTTPS")
+    model = os.environ[LIVE_MODEL_ENV]
+    system_prompt = (_asset_root() / LIVE_PROMPT_PATH).read_text(encoding="utf-8").strip()
+    user_prompt = "Run the reviewed workflow using only this JSON input:\n" + json.dumps(
+        payload, ensure_ascii=False, sort_keys=True
+    )
+    request_body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": LIVE_TEMPERATURE,
+        "max_tokens": LIVE_MAX_TOKENS,
+        "response_format": {"type": "json_object"},
+        "thinking": {"type": "disabled"},
+    }
+    request = urllib.request.Request(
+        base_url + "/chat/completions",
+        data=json.dumps(request_body).encode("utf-8"),
+        headers={
+            "Authorization": "Bearer " + os.environ[LIVE_API_KEY_ENV],
+            "Content-Type": "application/json",
+            "User-Agent": "Omo-Skill-Runner/0.1",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=LIVE_TIMEOUT_SECONDS) as response:
+            raw = response.read(2_000_001)
+    except urllib.error.HTTPError as exc:
+        raise ProviderCallError(f"LLM_HTTP_{exc.code}") from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise ProviderCallError("LLM_UNAVAILABLE") from exc
+    if len(raw) > 2_000_000:
+        raise ProviderCallError("LLM_RESPONSE_TOO_LARGE")
+    try:
+        provider_response = json.loads(raw)
+        content = provider_response["choices"][0]["message"]["content"]
+        generated = _extract_json_object(str(content))
+        Draft202012Validator(LIVE_MODEL_OUTPUT_SCHEMA).validate(generated)
+    except Exception as exc:
+        raise ProviderCallError("LLM_INVALID_OUTPUT") from exc
+
+    usage = provider_response.get("usage") or {}
+    prompt_tokens = max(0, int(usage.get("prompt_tokens") or 0))
+    completion_tokens = max(0, int(usage.get("completion_tokens") or 0))
+    estimated_cost = (
+        prompt_tokens * LIVE_INPUT_RATE_PER_MILLION
+        + completion_tokens * LIVE_OUTPUT_RATE_PER_MILLION
+    ) / 1_000_000
+    return {
+        "run_id": "run-" + str(uuid.uuid4()),
+        "status": "completed",
+        "workflow_version": WORKFLOW_VERSION,
+        **generated,
+        "usage": {
+            "provider": LIVE_PROVIDER,
+            "model": str(provider_response.get("model") or model),
+            "llm_calls": 1,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "estimated_cost_usd": round(estimated_cost, 8),
+        },
+    }
+
+
+
 Executor = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -67,9 +177,11 @@ def execute_workflow(
     validate_instance(payload, "input.json")
     if executor is None:
         state = readiness()
-        raise WorkflowNotReady(
-            "; ".join(reason["code"] for reason in state["blockers"])
-        )
+        if not state["can_submit"]:
+            raise WorkflowNotReady(
+                "; ".join(reason["code"] for reason in state["blockers"])
+            )
+        executor = _provider_completion
     result = executor(payload)
     validate_instance(result, "output.json")
     return result
@@ -77,7 +189,6 @@ def execute_workflow(
 
 runtime_image = (
     modal.Image.debian_slim(python_version="3.12")
-    .apt_install('chromium', 'ghostscript')
     .uv_pip_install(
         "modal==1.5.0",
         "fastapi==0.109.0",
@@ -93,12 +204,13 @@ app = modal.App(APP_NAME)
 
 @app.function(
     image=runtime_image,
-    cpu=2.0,
-    memory=4096,
-    timeout=1200,
+    cpu=1.0,
+    memory=512,
+    timeout=180,
     min_containers=0,
     max_containers=4,
     scaledown_window=5,
+    secrets=[modal.Secret.from_name('omo-skill-providers')],
 )
 def run_workflow(payload: dict[str, Any]) -> dict[str, Any]:
     return execute_workflow(payload)
@@ -114,11 +226,11 @@ def create_fastapi_app(
     *,
     ready_override: bool | None = None,
 ) -> Any:
-    from fastapi import FastAPI, HTTPException
+    from fastapi import Body, FastAPI, HTTPException
     from fastapi.responses import JSONResponse
     from jsonschema import ValidationError
 
-    web = FastAPI(title='woven-storybook-pipeline', version='0.1.0')
+    web = FastAPI(title='woven-storybook-pipeline', version='0.2.0')
 
     def default_spawn(payload: dict[str, Any]) -> str:
         return run_workflow.spawn(payload).object_id
@@ -130,7 +242,7 @@ def create_fastapi_app(
     lookup = lookup_result or default_lookup
 
     @web.post("/v1/runs", status_code=202)
-    async def submit(body: Any) -> Any:
+    async def submit(body: Any = Body(...)) -> Any:
         try:
             validate_instance(body, "input.json")
         except ValidationError as exc:

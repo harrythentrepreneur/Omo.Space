@@ -1163,7 +1163,7 @@
         return p.free === true;
       }
       function runPriceLabel(p) {
-        return 'run &asymp; $' + (p.runPrice || p.priceRun);
+        return 'run &asymp; $' + Number(p.runPrice || p.priceRun || 0).toFixed(2);
       }
 
       function cardHTML(p, featured) {
@@ -1303,7 +1303,7 @@
         var label = signedIn ? 'Open in dashboard' : 'Create a free account';
         return '<div class="run-handoff">' +
           '<h3>How to run it</h3>' +
-          '<p>Buy once, or run it in your dashboard for <strong>&asymp; $' + ESC(p.runPrice || p.priceRun) + ' per run</strong> \u2014 one API call, no setup.</p>' +
+          '<p>Buy once, or run it in your dashboard for <strong>&asymp; $' + Number(p.runPrice || p.priceRun || 0).toFixed(2) + ' per run</strong> \u2014 one API call, no setup.</p>' +
           '<a class="button button-primary" href="' + target + '">' + label + '</a>' +
         '</div>';
       }

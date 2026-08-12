@@ -1,255 +1,160 @@
 {
-  "apt_packages": [
-    "chromium",
-    "ghostscript"
-  ],
-  "artifacts": [
-    {
-      "content_type": "application/pdf",
-      "kind": "storybook_pdf",
-      "required": true
-    },
-    {
-      "content_type": "text/html",
-      "kind": "storybook_html",
-      "required": true
-    },
-    {
-      "content_type": "application/json",
-      "kind": "quality_manifest",
-      "required": true
-    }
-  ],
+  "apt_packages": [],
+  "artifacts": [],
   "capabilities": [
-    "private-chat-artifact-read",
-    "private-book-artifact-write",
-    "woven-typescript-backend",
-    "deepseek-openai-compatible",
-    "parallel-chapter-generation-6",
-    "headless-chromium-pdf",
-    "ghostscript-pdf"
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
   ],
   "cost_drivers": [
-    "13-29 DeepSeek V4 Flash calls with chapter concurrency 5-6",
-    "Archive size controls prompt volume, retries, chapter count, and 80-160 content beats",
-    "Two whole-book editorial passes can use up to 16k output tokens each",
-    "Chromium/Ghostscript render compute plus private artifact storage and egress are unpriced"
+    "One DeepSeek V4 Flash drafting call with a 2,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider retries",
+    "The $0.08 guard preserves the existing $0.40 buyer quote while staging evidence accumulates"
   ],
-  "execution_kind": "complex_external",
+  "execution_kind": "single_llm",
   "form": [
-    {
-      "field": "chat_export",
-      "widget": "private_artifact_upload"
-    },
-    {
-      "field": "mode",
-      "value": "natural",
-      "widget": "hidden"
-    },
-    {
-      "field": "pseudonymize_names",
-      "value": false,
-      "widget": "hidden"
-    },
-    {
-      "field": "title_override",
-      "widget": "text"
-    }
+    {"field": "how_you_met", "widget": "textarea"},
+    {"field": "favorite_moments", "widget": "textarea"},
+    {"field": "inside_jokes", "widget": "textarea"},
+    {"field": "style", "widget": "select"},
+    {"field": "length", "widget": "select"}
   ],
   "happy_path": {
     "input": {
-      "chat_export": {
-        "bytes": 64000,
-        "content_type": "text/plain",
-        "object_key": "fixtures/chats/demo-chat.txt",
-        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      },
-      "mode": "natural",
-      "pseudonymize_names": false,
-      "title_override": "Alex & Sam: Our Story"
+      "favorite_moments": "Seven years, two cities, our first tiny apartment, and adopting a corgi who steals socks.",
+      "how_you_met": "We met after reaching for the same travel book in a rainy bookshop, then talked until closing.",
+      "inside_jokes": "We say ‘wrong turn, best view’ whenever a plan goes sideways, and call burnt breakfast the smoke-alarm serenade.",
+      "length": "short",
+      "style": "warm"
     },
     "output": {
-      "artifacts": [
-        {
-          "bytes": 2500000,
-          "content_type": "application/pdf",
-          "kind": "storybook_pdf",
-          "object_key": "fixtures/results/book.pdf",
-          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        },
-        {
-          "bytes": 450000,
-          "content_type": "text/html",
-          "kind": "storybook_html",
-          "object_key": "fixtures/results/book.html",
-          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-        },
-        {
-          "bytes": 24000,
-          "content_type": "application/json",
-          "kind": "quality_manifest",
-          "object_key": "fixtures/results/manifest.json",
-          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-        }
+      "book": "# Wrong Turn, Best View\n\n## The Bookshop in the Rain\n\nIt began with two hands reaching for the same travel book while rain traced the window. They talked until closing, discovering that an ordinary detour could become the start of everything.\n\n## Two Cities and One Small Home\n\nSeven years carried them through two cities and into a first tiny apartment. The rooms were modest, but the life inside them kept expanding—especially after a sock-stealing corgi arrived and claimed the softest corners.\n\n## The View They Kept\n\nPlans still went sideways. Breakfast still occasionally became a smoke-alarm serenade. Each time, they returned to the phrase that had become their compass: wrong turn, best view. Their keepsake was never a perfect route; it was the joy of finding the view together.",
+      "page_plan": [
+        "Cover — Wrong Turn, Best View, with a rainy bookshop motif",
+        "Pages 2–3 — The shared travel book and the conversation until closing",
+        "Pages 4–5 — Seven years across two cities and the first apartment",
+        "Pages 6–7 — The corgi, stolen socks, and the smoke-alarm serenade",
+        "Final page — ‘Wrong turn, best view’ as the closing keepsake line"
       ],
-      "book": {
-        "beat_count": 96,
-        "chapter_count": 10,
-        "page_type_counts": {
-          "milestone": 12,
-          "punch": 14,
-          "quote": 28,
-          "scene": 42
-        },
-        "title": "Alex & Sam: Our Story"
-      },
-      "gates": {
-        "boundaries": "PASS",
-        "continuity": "PASS",
-        "distribution": "PASS",
-        "editorial": "PASS",
-        "month_coverage": "PASS",
-        "provenance": "PASS",
-        "semantic_issue_count": 2
-      },
-      "run_id": "fixture-woven-run",
+      "run_id": "run-fixture-woven-preview",
       "status": "completed",
+      "title": "Wrong Turn, Best View",
       "usage": {
-        "completion_tokens": 82000,
-        "estimated_cost_usd": 0.05852,
-        "llm_calls": 13,
-        "prompt_tokens": 149000
+        "completion_tokens": 320,
+        "estimated_cost_usd": 0.00007,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 410,
+        "provider": "opencode-go"
       },
-      "workflow_version": "woven-storybook-pipeline@0.1.0"
+      "workflow_version": "woven-storybook-pipeline@0.2.0"
     }
   },
   "input_schema": {
     "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
+    "description": "The safe hosted preview accepts story facts directly. The full WhatsApp archive/PDF pipeline remains private and is not this runtime scope.",
     "properties": {
-      "chat_export": {
-        "additionalProperties": false,
-        "properties": {
-          "bytes": {
-            "maximum": 52428800,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "content_type": {
-            "enum": [
-              "text/plain",
-              "application/zip"
-            ],
-            "type": "string"
-          },
-          "object_key": {
-            "maxLength": 512,
-            "minLength": 3,
-            "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
-            "type": "string"
-          },
-          "sha256": {
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "object_key",
-          "sha256",
-          "bytes",
-          "content_type"
-        ],
-        "type": "object"
+      "favorite_moments": {
+        "description": "Milestones and memories the story should include.",
+        "examples": ["Seven years, two cities, our first apartment, and adopting a corgi who steals socks."],
+        "maxLength": 2400,
+        "minLength": 12,
+        "title": "Favorite moments",
+        "type": "string"
       },
-      "mode": {
-        "const": "natural"
+      "how_you_met": {
+        "description": "A factual account of the beginning of the relationship.",
+        "examples": ["We met after reaching for the same travel book in a rainy bookshop."],
+        "maxLength": 1200,
+        "minLength": 12,
+        "title": "How you met",
+        "type": "string"
       },
-      "pseudonymize_names": {
-        "const": false
-      },
-      "title_override": {
-        "maxLength": 120,
+      "inside_jokes": {
+        "description": "Favorite phrases, jokes, or small details to weave in without inventing new facts.",
+        "examples": ["‘Wrong turn, best view’ and our corgi’s habit of stealing socks."],
+        "maxLength": 1200,
         "minLength": 3,
+        "title": "Inside jokes and tiny details",
+        "type": "string"
+      },
+      "length": {
+        "default": "short",
+        "description": "Short is roughly three chapters; long is roughly six.",
+        "enum": ["short", "long"],
+        "title": "Story length",
+        "type": "string"
+      },
+      "style": {
+        "default": "warm",
+        "description": "The writing style; facts remain unchanged.",
+        "enum": ["warm", "playful", "poetic"],
+        "title": "Writing style",
         "type": "string"
       }
     },
-    "required": [
-      "chat_export",
-      "mode",
-      "pseudonymize_names"
-    ],
-    "title": "Woven storybook run input",
+    "required": ["how_you_met", "favorite_moments", "inside_jokes", "style", "length"],
+    "title": "Woven keepsake drafting preview",
     "type": "object"
+  },
+  "live": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url_env": "LLM_BASE_URL",
+    "default_base_url": "https://opencode.ai/zen/go/v1",
+    "default_model": "deepseek-v4-flash",
+    "input_rate_per_million_usd": 0.14,
+    "max_tokens": 2200,
+    "modal_secret_name": "omo-skill-providers",
+    "model_env": "LLM_MODEL",
+    "model_output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "book": {"maxLength": 12000, "minLength": 240, "type": "string"},
+        "page_plan": {
+          "items": {"maxLength": 360, "minLength": 8, "type": "string"},
+          "maxItems": 14,
+          "minItems": 4,
+          "type": "array"
+        },
+        "title": {"maxLength": 120, "minLength": 3, "type": "string"}
+      },
+      "required": ["title", "book", "page_plan"],
+      "type": "object"
+    },
+    "output_rate_per_million_usd": 0.28,
+    "prompt": "run.txt",
+    "provider": "opencode-go",
+    "temperature": 0.45,
+    "timeout_seconds": 120
   },
   "name": "woven-storybook-pipeline",
   "negative_cases": [
     {
-      "id": "missing-chat-export",
-      "input": {
-        "mode": "natural",
-        "pseudonymize_names": false
-      },
-      "reason": "chat_export is required"
+      "id": "missing-how-you-met",
+      "input": {"favorite_moments": "Seven years and two cities together.", "inside_jokes": "Wrong turn, best view.", "length": "short", "style": "warm"},
+      "reason": "how_you_met is required"
     },
     {
-      "id": "pseudonymization-conflicts-with-source",
-      "input": {
-        "chat_export": {
-          "bytes": 10,
-          "content_type": "text/plain",
-          "object_key": "a/chat.txt",
-          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        "mode": "natural",
-        "pseudonymize_names": true
-      },
-      "reason": "the source contract fixes real names"
+      "id": "unsupported-style",
+      "input": {"favorite_moments": "Seven years and two cities together.", "how_you_met": "We met in a rainy bookshop after reaching for one book.", "inside_jokes": "Wrong turn, best view.", "length": "short", "style": "horror"},
+      "reason": "style is a reviewed enum"
     },
     {
-      "id": "unsupported-mode",
-      "input": {
-        "chat_export": {
-          "bytes": 10,
-          "content_type": "text/plain",
-          "object_key": "a/chat.txt",
-          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        "mode": "fixed-pages",
-        "pseudonymize_names": false
-      },
-      "reason": "natural mode is the reviewed contract"
+      "id": "unsupported-length",
+      "input": {"favorite_moments": "Seven years and two cities together.", "how_you_met": "We met in a rainy bookshop after reaching for one book.", "inside_jokes": "Wrong turn, best view.", "length": "novel", "style": "warm"},
+      "reason": "length is bounded"
     },
     {
-      "id": "oversized-export",
-      "input": {
-        "chat_export": {
-          "bytes": 52428801,
-          "content_type": "application/zip",
-          "object_key": "a/chat.zip",
-          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        "mode": "natural",
-        "pseudonymize_names": false
-      },
-      "reason": "input size is bounded before processing"
+      "id": "empty-memory",
+      "input": {"favorite_moments": "too short", "how_you_met": "We met in a rainy bookshop after reaching for one book.", "inside_jokes": "Wrong turn, best view.", "length": "short", "style": "warm"},
+      "reason": "favorite_moments requires useful detail"
     },
     {
-      "id": "raw-chat-field-forbidden",
-      "input": {
-        "chat_export": {
-          "bytes": 10,
-          "content_type": "text/plain",
-          "object_key": "a/chat.txt",
-          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        },
-        "mode": "natural",
-        "pseudonymize_names": false,
-        "raw_messages": [
-          "never place raw chat in JSON"
-        ]
-      },
-      "reason": "raw chat bodies are artifact-only and unknown fields fail closed"
+      "id": "raw-archive-forbidden",
+      "input": {"chat_export": "raw private messages", "favorite_moments": "Seven years and two cities together.", "how_you_met": "We met in a rainy bookshop after reaching for one book.", "inside_jokes": "Wrong turn, best view.", "length": "short", "style": "warm"},
+      "reason": "unknown fields fail closed and archives are not preview inputs"
     }
   ],
   "output_schema": {
@@ -257,228 +162,55 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
-      "artifacts": {
-        "allOf": [
-          {
-            "contains": {"properties": {"kind": {"const": "storybook_pdf"}}, "required": ["kind"]},
-            "maxContains": 1,
-            "minContains": 1
-          },
-          {
-            "contains": {"properties": {"kind": {"const": "storybook_html"}}, "required": ["kind"]},
-            "maxContains": 1,
-            "minContains": 1
-          },
-          {
-            "contains": {"properties": {"kind": {"const": "quality_manifest"}}, "required": ["kind"]},
-            "maxContains": 1,
-            "minContains": 1
-          }
-        ],
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "bytes": {
-              "minimum": 1,
-              "type": "integer"
-            },
-            "content_type": {
-              "enum": [
-                "application/pdf",
-                "text/html",
-                "application/json"
-              ],
-              "type": "string"
-            },
-            "kind": {
-              "enum": [
-                "storybook_pdf",
-                "storybook_html",
-                "quality_manifest"
-              ],
-              "type": "string"
-            },
-            "object_key": {
-              "minLength": 3,
-              "type": "string"
-            },
-            "sha256": {
-              "pattern": "^[0-9a-f]{64}$",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "object_key",
-            "sha256",
-            "bytes",
-            "content_type"
-          ],
-          "type": "object"
-        },
-        "maxItems": 3,
-        "minItems": 3,
-        "type": "array"
-      },
-      "book": {
-        "additionalProperties": false,
-        "properties": {
-          "beat_count": {
-            "maximum": 160,
-            "minimum": 80,
-            "type": "integer"
-          },
-          "chapter_count": {
-            "maximum": 16,
-            "minimum": 8,
-            "type": "integer"
-          },
-          "page_type_counts": {
-            "additionalProperties": false,
-            "properties": {
-              "milestone": {"minimum": 1, "type": "integer"},
-              "punch": {"minimum": 1, "type": "integer"},
-              "quote": {"minimum": 1, "type": "integer"},
-              "scene": {"minimum": 1, "type": "integer"}
-            },
-            "required": ["scene", "quote", "milestone", "punch"],
-            "type": "object"
-          },
-          "title": {
-            "maxLength": 120,
-            "minLength": 3,
-            "type": "string"
-          }
-        },
-        "required": ["title", "chapter_count", "beat_count", "page_type_counts"],
-        "type": "object"
-      },
-      "gates": {
-        "additionalProperties": false,
-        "properties": {
-          "boundaries": {"const": "PASS"},
-          "continuity": {"const": "PASS"},
-          "distribution": {"const": "PASS"},
-          "editorial": {"const": "PASS"},
-          "month_coverage": {"const": "PASS"},
-          "provenance": {"const": "PASS"},
-          "semantic_issue_count": {"minimum": 0, "type": "integer"}
-        },
-        "required": [
-          "provenance",
-          "distribution",
-          "editorial",
-          "continuity",
-          "month_coverage",
-          "boundaries",
-          "semantic_issue_count"
-        ],
-        "type": "object"
-      },
-      "run_id": {"minLength": 8, "type": "string"},
+      "book": {"description": "The generated chaptered keepsake in Markdown.", "maxLength": 12000, "minLength": 240, "title": "Keepsake story", "type": "string"},
+      "page_plan": {"description": "A PDF-ready sequence of page or spread notes.", "items": {"maxLength": 360, "minLength": 8, "type": "string"}, "maxItems": 14, "minItems": 4, "title": "Page plan", "type": "array"},
+      "run_id": {"minLength": 8, "title": "Run ID", "type": "string"},
       "status": {"const": "completed"},
+      "title": {"maxLength": 120, "minLength": 3, "title": "Book title", "type": "string"},
       "usage": {
         "additionalProperties": false,
         "properties": {
           "completion_tokens": {"minimum": 0, "type": "integer"},
           "estimated_cost_usd": {"minimum": 0, "type": "number"},
-          "llm_calls": {"minimum": 1, "type": "integer"},
-          "prompt_tokens": {"minimum": 0, "type": "integer"}
+          "llm_calls": {"const": 1},
+          "model": {"minLength": 1, "type": "string"},
+          "prompt_tokens": {"minimum": 0, "type": "integer"},
+          "provider": {"const": "opencode-go"}
         },
-        "required": ["llm_calls", "prompt_tokens", "completion_tokens", "estimated_cost_usd"],
+        "required": ["provider", "model", "llm_calls", "prompt_tokens", "completion_tokens", "estimated_cost_usd"],
+        "title": "Provider usage",
         "type": "object"
       },
-      "workflow_version": {"const": "woven-storybook-pipeline@0.1.0"}
+      "workflow_version": {"const": "woven-storybook-pipeline@0.2.0"}
     },
-    "required": ["run_id", "status", "workflow_version", "artifacts", "book", "gates", "usage"],
-    "title": "Completed Woven storybook run",
+    "required": ["run_id", "status", "workflow_version", "title", "book", "page_plan", "usage"],
+    "title": "Completed Woven drafting preview",
     "type": "object"
   },
   "pricing": {
-    "chargeable": false,
-    "default_tier": "natural_book",
+    "chargeable": true,
+    "default_tier": "drafting_preview",
     "estimates": [
       {
         "guard_cost_usd": 0.08,
-        "notes": [
-          "The modeled 13-call fixture is guarded up to the source-observed $0.08 high end for a real 24k-message chat."
-        ],
-        "tier": "natural_book",
-        "workflow": {
-          "steps": [
-            {"estimated_input_tokens": 15000, "max_output_tokens": 4000, "model": "deepseek-v4-flash", "role": "analysis", "type": "llm"},
-            {"estimated_input_tokens": 20000, "max_output_tokens": 5000, "model": "deepseek-v4-flash", "role": "essence", "type": "llm"},
-            {"estimated_input_tokens": 20000, "max_output_tokens": 10000, "model": "deepseek-v4-flash", "role": "plan", "type": "llm"},
-            {"estimated_input_tokens": 8000, "max_output_tokens": 6000, "model": "deepseek-v4-flash", "qty": 8, "role": "chapter", "type": "llm"},
-            {"estimated_input_tokens": 25000, "max_output_tokens": 8000, "model": "deepseek-v4-flash", "qty": 2, "role": "editorial", "type": "llm"}
-          ]
-        }
+        "notes": ["The existing $0.40 quote is retained as a conservative staging guard over one bounded provider call and Modal compute."],
+        "tier": "drafting_preview",
+        "workflow": {"steps": [{"estimated_input_tokens": 1500, "max_output_tokens": 2200, "model": "deepseek-v4-flash", "role": "draft", "type": "llm"}]}
       }
     ],
-    "notes": [
-      "The projected $0.40 applies the repository 5x launch markup to the source-observed $0.08 high end.",
-      "It remains non-chargeable until Modal/render/storage cost evidence and the private data plane exist."
-    ],
-    "quote_status": "provisional_blocked",
-    "unpriced_costs": [
-      "Modal CPU and memory",
-      "Chromium and Ghostscript render",
-      "private artifact storage and egress",
-      "failed/retried accepted-output cohort"
-    ]
+    "notes": ["$0.40 applies the repository 5x launch markup to the $0.08 staging guard.", "This price is for the hosted drafting preview, not the full private archive-to-PDF pipeline."],
+    "quote_status": "staging_guarded",
+    "unpriced_costs": []
   },
   "prompts": {
-    "chapter.txt": "Write only evidence-backed beats under the immutable continuity contract and role sentence bands. Quote pages must copy source message bytes exactly. Return sparse claim-ledger rows only for interpretation, symbolism, or ambiguity. Return strict JSON only.",
-    "editorial.txt": "Audit the whole book sparsely. Preserve every per-page issue and report semanticIssueCount honestly; never reset it. Do not invent dialogue, evidence IDs, facts, or symbols. Return strict JSON only.",
-    "essence.txt": "Derive the core message, two primary symbols, and one to three secondary symbols from recurrence evidence and disconfirming samples. Never impose a theme or fabricate a quote. Return strict JSON only.",
-    "plan.txt": "Plan 8-16 chapters and 80-160 evidence-linked beats across scene, quote, milestone, and punch roles. Maintain month coverage, archive boundaries, role constraints, and symbol state continuity. Return strict JSON only."
+    "run.txt": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, or quotations. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object."
   },
-  "readiness": {
-    "blockers": [
-      {
-        "code": "EXECUTOR_NOT_VENDORED",
-        "detail": "The reviewed TypeScript implementation lives in /Users/yifan/woven/backend and is not a pinned, versioned dependency of this repository."
-      },
-      {
-        "code": "DEEPSEEK_SECRET_MISSING",
-        "detail": "A least-privilege Modal secret containing DEEPSEEK_API_KEY must exist before a real generation can run."
-      },
-      {
-        "code": "PRIVATE_DATA_PLANE_MISSING",
-        "detail": "Private upload, mode-700 run workspaces, TTL deletion, signed download, and raw-chat deletion need a hosted implementation and tests."
-      },
-      {
-        "code": "COST_INCOMPLETE",
-        "detail": "Chromium/Ghostscript compute, Modal resources, storage, egress, retries, and delivered-output yield are not measured."
-      },
-      {
-        "code": "LIVE_FIXTURE_QA_PENDING",
-        "detail": "The safe demo fixture must pass the vendored backend suite and one full Modal run before readiness can change."
-      }
-    ],
-    "can_submit": false
-  },
-  "required_env_names": [
-    "DEEPSEEK_API_KEY"
-  ],
-  "resources": {
-    "cpu": 2.0,
-    "max_containers": 4,
-    "memory_mb": 4096,
-    "timeout_seconds": 1200
-  },
+  "readiness": {"blockers": [], "can_submit": true},
+  "required_env_names": ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"],
+  "resources": {"cpu": 1.0, "max_containers": 4, "memory_mb": 512, "timeout_seconds": 180},
   "slug": "woven-storybook-pipeline",
   "steps": [
-    {"id": "acquire", "operation": "private_artifact.read", "readiness": "blocked", "type": "artifact"},
-    {"id": "parse", "operation": "woven.chat.parse_and_locale_gate", "provider": "local", "readiness": "blocked", "type": "native"},
-    {"id": "select", "operation": "woven.month_balanced_selection", "provider": "local", "readiness": "blocked", "type": "native"},
-    {"id": "essence", "operation": "chat.completions.strict_json", "prompt": "essence.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
-    {"id": "plan", "operation": "chat.completions.strict_json", "prompt": "plan.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
-    {"id": "chapters", "operation": "chat.completions.concurrent_strict_json", "prompt": "chapter.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
-    {"id": "editorial", "operation": "chat.completions.book_audit", "prompt": "editorial.txt", "provider": "deepseek", "readiness": "blocked", "type": "llm"},
-    {"id": "gates", "operation": "woven.final_gates", "provider": "local", "readiness": "blocked", "type": "quality"},
-    {"id": "render", "operation": "chromium_and_ghostscript.render", "provider": "local", "readiness": "blocked", "type": "native"},
-    {"id": "deliver", "operation": "private_artifact.write", "readiness": "blocked", "type": "artifact"}
+    {"id": "draft", "operation": "chat.completions.strict_json", "prompt": "run.txt", "provider": "opencode-go", "readiness": "ready", "type": "llm"}
   ],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

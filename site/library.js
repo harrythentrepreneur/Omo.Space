@@ -67,7 +67,7 @@
       '<p class="listing-promise">' + esc(p.promise) + '</p>' +
       '<p class="listing-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +
       '<div class="listing-footer">' +
-        '<p class="listing-price">' + (owned ? 'Yours &middot; ' : '') + '$' + p.priceOwn + ' <span class="price-note">run &asymp; $' + (p.runPrice || p.priceRun) + '</span></p>' +
+        '<p class="listing-price">' + (owned ? 'Yours &middot; ' : '') + '$' + p.priceOwn + ' <span class="price-note">run &asymp; $' + Number(p.runPrice || p.priceRun || 0).toFixed(2) + '</span></p>' +
         '<div class="listing-actions"><button class="details-link" type="button" data-lib-open="' + esc(p.slug) + '">Open</button></div>' +
       '</div>' +
       '</div>' +

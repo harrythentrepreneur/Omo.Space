@@ -36,6 +36,9 @@
 //   DEMELLO_EXPECTED_RUN_SECONDS — derived-progress horizon, default 90.
 //   DEMELLO_RUN_TIMEOUT_SECONDS — terminal refund timeout, default 1300.
 //   DEMELLO_PROGRESS_WEBHOOK_SECRET — optional independent checkpoint bearer.
+//   WOVEN_MODAL_URL — protected Modal ASGI base URL for the Woven preview.
+//   WOVEN_MODAL_PROXY_TOKEN_ID / WOVEN_MODAL_PROXY_TOKEN_SECRET — Modal
+//     workspace Proxy Token pair (not the Modal CLI deployment token).
 //
 // Bindings:
 //   BALANCE_DB (D1) — optional fallback after Neon. Without either database the
@@ -146,6 +149,40 @@ const DEMELLO_QUOTED_RUN_CENTS = 10;
 const DEMELLO_PAID_TRAFFIC_READY = false;
 const DEMELLO_PHASES = ['reserved', 'running', 'transcribing', 'directing', 'generating', 'assembling', 'delivered', 'failed'];
 const DEMELLO_PHASE_RANK = new Map(DEMELLO_PHASES.map((phase, index) => [phase, index]));
+const WOVEN_SLUG = 'woven-relationship-book-maker';
+const WOVEN_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--cognition-woven-storybook-pipeline-api.modal.run';
+const WOVEN_RUN_CENTS = 40;
+const WOVEN_INPUT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['how_you_met', 'favorite_moments', 'inside_jokes', 'style', 'length'],
+  properties: {
+    how_you_met: { type: 'string', minLength: 12, maxLength: 1200 },
+    favorite_moments: { type: 'string', minLength: 12, maxLength: 2400 },
+    inside_jokes: { type: 'string', minLength: 3, maxLength: 1200 },
+    style: { type: 'string', enum: ['warm', 'playful', 'poetic'] },
+    length: { type: 'string', enum: ['short', 'long'] },
+  },
+};
+const WOVEN_OUTPUT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['run_id', 'status', 'workflow_version', 'title', 'book', 'page_plan', 'usage'],
+  properties: {
+    run_id: { type: 'string', minLength: 8 }, status: { const: 'completed' },
+    workflow_version: { const: 'woven-storybook-pipeline@0.2.0' },
+    title: { type: 'string', minLength: 3, maxLength: 120 },
+    book: { type: 'string', minLength: 240, maxLength: 12000 },
+    page_plan: { type: 'array', minItems: 4, maxItems: 14, items: { type: 'string', minLength: 8, maxLength: 360 } },
+    usage: {
+      type: 'object', additionalProperties: false,
+      required: ['provider', 'model', 'llm_calls', 'prompt_tokens', 'completion_tokens', 'estimated_cost_usd'],
+      properties: {
+        provider: { const: 'opencode-go' }, model: { type: 'string', minLength: 1 }, llm_calls: { const: 1 },
+        prompt_tokens: { type: 'integer', minimum: 0 }, completion_tokens: { type: 'integer', minimum: 0 },
+        estimated_cost_usd: { type: 'number', minimum: 0 },
+      },
+    },
+  },
+};
 
 // Server-owned catalog. The Instagram tuples mirror site/ig-workflows.js and
 // site/ig-more.js, but intentionally include only runtime-safe fields. Client
@@ -156,6 +193,7 @@ const CATALOG_ROWS = [
   ['meta-ads-analyser', 'Meta Ads Analyser', 49, 0.10, 'deepseek-v4-flash', 5000, META_SYSTEM_PROMPT],
   ['product-photo-generator', 'Product Photo Generator', 29, 0.10, 'deepseek-v4-flash', 4000, PHOTO_SYSTEM_PROMPT],
   ['listing-copy-engine', 'Listing Copy Engine', 19, 0.10, 'deepseek-v4-flash', 600, LISTING_COPY_SYSTEM_PROMPT],
+  [WOVEN_SLUG, 'Woven Relationship Book Maker', 29, 0.40, 'deepseek-v4-flash', 2200, 'Executed by the schema-validated Woven Modal deployment, not by the Worker LLM fallback.'],
   [DEMELLO_SLUG, 'Japanese Style Story Video', 29, 0.10, 'deepseek-v4-flash', 500, 'Turn supplied audio into a vertical sumi-e drawing animation. This listing is executed by its pinned Modal release, not by this prompt.'],
   ['ugc-actor-maker', 'UGC Actor Maker', 49, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
   ['ugc-heygen-editor', 'UGC HeyGen Editor', 39, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
@@ -383,9 +421,10 @@ async function handleGenericRun(request, env) {
   const slug = String(body.slug || '').trim();
   const fields = body.fields && typeof body.fields === 'object' && !Array.isArray(body.fields) ? body.fields : {};
   const isDemello = slug === DEMELLO_SLUG;
+  const isWoven = slug === WOVEN_SLUG;
   // The video workflow can spend Modal/provider budget and is never anonymous,
   // including in otherwise zero-config local mode.
-  const real = isRealMode(env) || isDemello;
+  const real = isRealMode(env) || isDemello || isWoven;
   const listing = SERVER_CATALOG.get(slug);
   if (!slug) return json({ error: 'Send slug.' }, 400, cors());
   if (real && !listing) return json({ error: 'unknown_catalog_slug' }, 404, cors());
@@ -411,6 +450,16 @@ async function handleGenericRun(request, env) {
     demelloInput = normalized.input;
     demelloInputNotice = normalized.input_notice || '';
   }
+  let wovenInput = null;
+  if (isWoven) {
+    const configError = wovenConfigError(env);
+    if (configError) return json({ error: configError }, 503, cors());
+    const candidate = body.input && typeof body.input === 'object' && !Array.isArray(body.input)
+      ? body.input : fields;
+    const errors = validateSchemaValue(candidate, WOVEN_INPUT_SCHEMA);
+    if (errors.length) return json({ error: 'invalid_woven_input', details: errors.slice(0, 8) }, 422, cors());
+    wovenInput = candidate;
+  }
 
   const systemPrompt = listing ? listing.systemPrompt : String(body.system_prompt || '').trim();
   const maxTokens = listing
@@ -422,7 +471,7 @@ async function handleGenericRun(request, env) {
   // Flatten fields into the user prompt, rejecting oversized payloads. The
   // de Mello branch validates and hashes a typed server-owned input instead.
   let userPrompt = '';
-  if (!isDemello) {
+  if (!isDemello && !isWoven) {
     for (const [k, v] of Object.entries(fields)) {
       if (!/^[A-Za-z0-9 _.-]{1,80}$/.test(k)) return json({ error: 'Invalid field name.' }, 400, cors());
       const s = String(v == null ? '' : v).trim();
@@ -450,7 +499,7 @@ async function handleGenericRun(request, env) {
     }
     requestHash = await sha256Hex(stableStringify(isDemello
       ? { slug, input: demelloInput, input_notice: demelloInputNotice }
-      : { slug, input: fields }));
+      : { slug, input: isWoven ? wovenInput : fields }));
     await getUserRecord(env, userId);
     await reconcileStaleReservations(env, userId);
     runRequest = await claimRunRequest(
@@ -494,11 +543,11 @@ async function handleGenericRun(request, env) {
       return json(response, 402, cors());
     }
     balanceAfterDebit = reservation.balance_cents;
-    if (runRequest && isDemello) {
+    if (runRequest && (isDemello || isWoven)) {
       await putRunProgress(env, {
         run_id: runId, user_id: userId, phase: 'reserved', progress_pct: 1,
         progress_source: 'derived', modal_status: 'reserved',
-        modal_status_url: demelloModalStatusUrl(env, runId),
+        modal_status_url: isWoven ? wovenEndpoint(env) : demelloModalStatusUrl(env, runId),
         input_notice: demelloInputNotice,
       });
     }
@@ -509,6 +558,11 @@ async function handleGenericRun(request, env) {
     return dispatchDemelloRun(env, {
       runRequest, runId, userId, idempotencyKey, demelloInput,
       demelloInputNotice, reservedCents, costUsd, balanceAfterDebit, authMethod,
+    });
+  }
+  if (isWoven) {
+    return dispatchWovenRun(env, {
+      runRequest, runId, userId, wovenInput, costUsd, balanceAfterDebit, authMethod,
     });
   }
 
@@ -557,6 +611,176 @@ async function handleGenericRun(request, env) {
     }
     return json(response, 500, cors());
   }
+}
+
+// ── Async Woven / schema-driven Modal run ─────────────────────────────────
+
+function validateSchemaValue(value, schema, path = '$') {
+  const errors = [];
+  if (!schema || typeof schema !== 'object') return errors;
+  if (Object.prototype.hasOwnProperty.call(schema, 'const') && value !== schema.const) {
+    return [`${path} must equal the fixed value.`];
+  }
+  if (Array.isArray(schema.enum) && !schema.enum.some((item) => item === value)) {
+    return [`${path} must be one of the allowed values.`];
+  }
+  const type = schema.type;
+  if (type === 'object') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return [`${path} must be an object.`];
+    const properties = schema.properties || {};
+    for (const required of schema.required || []) {
+      if (!Object.prototype.hasOwnProperty.call(value, required)) errors.push(`${path}.${required} is required.`);
+    }
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(value)) if (!Object.prototype.hasOwnProperty.call(properties, key)) errors.push(`${path}.${key} is not allowed.`);
+    }
+    for (const [key, child] of Object.entries(properties)) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) errors.push(...validateSchemaValue(value[key], child, `${path}.${key}`));
+    }
+  } else if (type === 'array') {
+    if (!Array.isArray(value)) return [`${path} must be an array.`];
+    if (schema.minItems != null && value.length < schema.minItems) errors.push(`${path} needs at least ${schema.minItems} items.`);
+    if (schema.maxItems != null && value.length > schema.maxItems) errors.push(`${path} allows at most ${schema.maxItems} items.`);
+    value.forEach((item, index) => errors.push(...validateSchemaValue(item, schema.items || {}, `${path}[${index}]`)));
+  } else if (type === 'string') {
+    if (typeof value !== 'string') return [`${path} must be a string.`];
+    if (schema.minLength != null && value.length < schema.minLength) errors.push(`${path} is too short.`);
+    if (schema.maxLength != null && value.length > schema.maxLength) errors.push(`${path} is too long.`);
+    if (schema.pattern && !(new RegExp(schema.pattern)).test(value)) errors.push(`${path} has an invalid format.`);
+  } else if (type === 'integer' || type === 'number') {
+    if (typeof value !== 'number' || !Number.isFinite(value) || (type === 'integer' && !Number.isInteger(value))) return [`${path} must be a ${type}.`];
+    if (schema.minimum != null && value < schema.minimum) errors.push(`${path} is below the minimum.`);
+    if (schema.maximum != null && value > schema.maximum) errors.push(`${path} is above the maximum.`);
+  } else if (type === 'boolean' && typeof value !== 'boolean') {
+    errors.push(`${path} must be true or false.`);
+  }
+  return errors;
+}
+
+function wovenEndpoint(env) {
+  return String(env.WOVEN_MODAL_URL || WOVEN_DEFAULT_ENDPOINT).replace(/\/+$/, '');
+}
+
+function wovenConfigError(env) {
+  if (!String(env.WOVEN_MODAL_PROXY_TOKEN_ID || '').trim() || !String(env.WOVEN_MODAL_PROXY_TOKEN_SECRET || '').trim()) {
+    return 'woven_modal_auth_not_configured';
+  }
+  try {
+    const endpoint = new URL(wovenEndpoint(env));
+    if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) return 'woven_modal_url_invalid';
+  } catch { return 'woven_modal_url_invalid'; }
+  return '';
+}
+
+function wovenModalHeaders(env) {
+  return {
+    'Modal-Key': String(env.WOVEN_MODAL_PROXY_TOKEN_ID).trim(),
+    'Modal-Secret': String(env.WOVEN_MODAL_PROXY_TOKEN_SECRET).trim(),
+    Accept: 'application/json',
+  };
+}
+
+function wovenPublicRunning(row, extra = {}) {
+  return {
+    ok: true, slug: WOVEN_SLUG, run_id: row.run_id, status: 'running', state: row.state,
+    phase: 'running', progress_pct: 35, status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
+    quoted_cost_usd: WOVEN_RUN_CENTS / 100, billed_amount_usd: Number(row.cost_cents) / 100,
+    ...extra,
+  };
+}
+
+async function dispatchWovenRun(env, context) {
+  const { runRequest, runId, userId, wovenInput, costUsd, balanceAfterDebit, authMethod } = context;
+  let response;
+  try {
+    response = await fetch(`${wovenEndpoint(env)}/v1/runs`, {
+      method: 'POST',
+      headers: { ...wovenModalHeaders(env), 'Content-Type': 'application/json' },
+      body: JSON.stringify(wovenInput),
+    });
+  } catch {
+    return failWovenRun(env, runRequest.row, 'woven_modal_dispatch_unavailable', 502);
+  }
+  let upstream = {};
+  try { upstream = await response.json(); } catch { upstream = {}; }
+  if (response.status !== 202 || !/^fc-[A-Za-z0-9_-]+$/.test(String(upstream.call_id || '')) || !/^\/v1\/runs\/fc-[A-Za-z0-9_-]+$/.test(String(upstream.result_url || ''))) {
+    return failWovenRun(env, runRequest.row, `woven_modal_dispatch_${response.status}`, 502);
+  }
+  const remote = { call_id: upstream.call_id, result_url: upstream.result_url };
+  await putRunProgress(env, {
+    run_id: runId, user_id: userId, phase: 'running', progress_pct: 35,
+    progress_source: 'modal', modal_status: 'accepted',
+    modal_status_url: wovenEndpoint(env) + upstream.result_url,
+    result_json: JSON.stringify(remote),
+  });
+  return json(wovenPublicRunning(runRequest.row, {
+    auth: authMethod, cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
+  }), 202, cors());
+}
+
+async function refreshWovenRun(env, row) {
+  if (row.state === 'succeeded' || row.state === 'refunded') {
+    let terminal = {};
+    try { terminal = JSON.parse(row.response_json || '{}'); } catch { terminal = {}; }
+    return { status: row.state === 'succeeded' ? 200 : Number(row.http_status) || 502, body: terminal };
+  }
+  const progress = await getRunProgress(env, row.run_id);
+  let remote = {};
+  try { remote = JSON.parse(progress && progress.result_json || '{}'); } catch { remote = {}; }
+  if (!/^\/v1\/runs\/fc-[A-Za-z0-9_-]+$/.test(String(remote.result_url || ''))) {
+    return failWovenRun(env, row, 'woven_modal_poll_contract_missing', 502, true);
+  }
+  let response;
+  try {
+    response = await fetch(wovenEndpoint(env) + remote.result_url, { headers: wovenModalHeaders(env) });
+  } catch {
+    await touchRunRequest(env, row.run_id);
+    return { status: 202, body: wovenPublicRunning(row, { poll_warning: 'woven_modal_status_unavailable' }) };
+  }
+  let upstream = {};
+  try { upstream = await response.json(); } catch { upstream = {}; }
+  if (response.status === 202) {
+    await touchRunRequest(env, row.run_id);
+    return { status: 202, body: wovenPublicRunning(row) };
+  }
+  const outputErrors = response.status === 200 ? validateSchemaValue(upstream, WOVEN_OUTPUT_SCHEMA) : ['upstream failed'];
+  if (response.status !== 200 || outputErrors.length) {
+    return failWovenRun(env, row, response.status === 200 ? 'woven_modal_invalid_output' : `woven_modal_poll_${response.status}`, 502, true);
+  }
+  const result = {
+    ok: true, slug: WOVEN_SLUG, run_id: row.run_id, status: 'completed', state: 'succeeded',
+    phase: 'delivered', progress_pct: 100, status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
+    quoted_cost_usd: WOVEN_RUN_CENTS / 100, billed_amount_usd: Number(row.cost_cents) / 100,
+    output: upstream,
+  };
+  await finishRunRequest(env, row.run_id, 'succeeded', result, 200);
+  await putRunProgress(env, {
+    run_id: row.run_id, user_id: row.user_id, phase: 'delivered', progress_pct: 100,
+    progress_source: 'modal', modal_status: 'completed', modal_status_url: wovenEndpoint(env) + remote.result_url,
+    result_json: JSON.stringify(upstream),
+  });
+  return { status: 200, body: result };
+}
+
+async function failWovenRun(env, row, reason, httpStatus = 502, returnObject = false) {
+  const current = await getRunRequestById(env, row.run_id);
+  if (current && current.state === 'succeeded') {
+    let terminal = {};
+    try { terminal = JSON.parse(current.response_json || '{}'); } catch { terminal = {}; }
+    const result = { status: 200, body: terminal };
+    return returnObject ? result : json(result.body, result.status, cors());
+  }
+  if (current) row = current;
+  const response = {
+    ok: false, error: 'run_failed', reason, slug: WOVEN_SLUG, run_id: row.run_id,
+    status: 'failed', state: 'refunded', phase: 'failed', progress_pct: 0,
+    quoted_cost_usd: WOVEN_RUN_CENTS / 100, billed_amount_usd: 0,
+    status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
+  };
+  const ownsRefund = await finishRunRequest(env, row.run_id, 'refunded', response, httpStatus);
+  if (ownsRefund && await runDebitExists(env, row.run_id)) await refundRunCredits(env, row.user_id, Number(row.cost_cents), row.run_id);
+  const terminal = { status: httpStatus, body: response };
+  return returnObject ? terminal : json(terminal.body, terminal.status, cors());
 }
 
 // ── Async de Mello / Modal run ────────────────────────────────────────────
@@ -754,6 +978,10 @@ async function handleRunStatus(request, env, _url, params) {
   if (!row || row.user_id !== auth.userId) return json({ error: 'run_not_found' }, 404, cors());
   if (row.slug === DEMELLO_SLUG) {
     const result = await refreshDemelloRun(env, row);
+    return json(result.body, result.status, cors());
+  }
+  if (row.slug === WOVEN_SLUG) {
+    const result = await refreshWovenRun(env, row);
     return json(result.body, result.status, cors());
   }
   if (row.state === 'succeeded' || row.state === 'refunded') {
@@ -1821,6 +2049,9 @@ async function replayRunResponse(env, row, requestHash) {
   if (row.slug === DEMELLO_SLUG) {
     const progress = await getRunProgress(env, row.run_id);
     return json(demelloPublicRunning(row, progress, { idempotent_replay: true }), 202, cors());
+  }
+  if (row.slug === WOVEN_SLUG) {
+    return json(wovenPublicRunning(row, { idempotent_replay: true }), 202, cors());
   }
   return json({
     ok: true, idempotent_replay: true, run_id: row.run_id, state: row.state,

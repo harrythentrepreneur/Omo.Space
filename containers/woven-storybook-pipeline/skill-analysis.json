@@ -1,10 +1,9 @@
 {
   "compiler": "skill-to-modal/0.1.0",
   "cost_drivers": [
-    "13-29 DeepSeek V4 Flash calls with chapter concurrency 5-6",
-    "Archive size controls prompt volume, retries, chapter count, and 80-160 content beats",
-    "Two whole-book editorial passes can use up to 16k output tokens each",
-    "Chromium/Ghostscript render compute plus private artifact storage and egress are unpriced"
+    "One DeepSeek V4 Flash drafting call with a 2,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider retries",
+    "The $0.08 guard preserves the existing $0.40 buyer quote while staging evidence accumulates"
   ],
   "description": "WhatsApp chats to keepsake storybooks via Woven backend.",
   "detected_provider_needs": [
@@ -62,80 +61,18 @@
     }
   ],
   "required_env_names": [
-    "DEEPSEEK_API_KEY"
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
   ],
   "reviewed_steps": [
     {
-      "id": "acquire",
-      "operation": "private_artifact.read",
-      "readiness": "blocked",
-      "type": "artifact"
-    },
-    {
-      "id": "parse",
-      "operation": "woven.chat.parse_and_locale_gate",
-      "provider": "local",
-      "readiness": "blocked",
-      "type": "native"
-    },
-    {
-      "id": "select",
-      "operation": "woven.month_balanced_selection",
-      "provider": "local",
-      "readiness": "blocked",
-      "type": "native"
-    },
-    {
-      "id": "essence",
+      "id": "draft",
       "operation": "chat.completions.strict_json",
-      "prompt": "essence.txt",
-      "provider": "deepseek",
-      "readiness": "blocked",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
       "type": "llm"
-    },
-    {
-      "id": "plan",
-      "operation": "chat.completions.strict_json",
-      "prompt": "plan.txt",
-      "provider": "deepseek",
-      "readiness": "blocked",
-      "type": "llm"
-    },
-    {
-      "id": "chapters",
-      "operation": "chat.completions.concurrent_strict_json",
-      "prompt": "chapter.txt",
-      "provider": "deepseek",
-      "readiness": "blocked",
-      "type": "llm"
-    },
-    {
-      "id": "editorial",
-      "operation": "chat.completions.book_audit",
-      "prompt": "editorial.txt",
-      "provider": "deepseek",
-      "readiness": "blocked",
-      "type": "llm"
-    },
-    {
-      "id": "gates",
-      "operation": "woven.final_gates",
-      "provider": "local",
-      "readiness": "blocked",
-      "type": "quality"
-    },
-    {
-      "id": "render",
-      "operation": "chromium_and_ghostscript.render",
-      "provider": "local",
-      "readiness": "blocked",
-      "type": "native"
-    },
-    {
-      "id": "deliver",
-      "operation": "private_artifact.write",
-      "readiness": "blocked",
-      "type": "artifact"
     }
   ],
   "schema_version": "cognition.skill-analysis/v1",
@@ -144,26 +81,5 @@
     "path": "source/SKILL.md",
     "sha256": "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf"
   },
-  "unresolved": [
-    {
-      "code": "EXECUTOR_NOT_VENDORED",
-      "detail": "The reviewed TypeScript implementation lives in /Users/yifan/woven/backend and is not a pinned, versioned dependency of this repository."
-    },
-    {
-      "code": "DEEPSEEK_SECRET_MISSING",
-      "detail": "A least-privilege Modal secret containing DEEPSEEK_API_KEY must exist before a real generation can run."
-    },
-    {
-      "code": "PRIVATE_DATA_PLANE_MISSING",
-      "detail": "Private upload, mode-700 run workspaces, TTL deletion, signed download, and raw-chat deletion need a hosted implementation and tests."
-    },
-    {
-      "code": "COST_INCOMPLETE",
-      "detail": "Chromium/Ghostscript compute, Modal resources, storage, egress, retries, and delivered-output yield are not measured."
-    },
-    {
-      "code": "LIVE_FIXTURE_QA_PENDING",
-      "detail": "The safe demo fixture must pass the vendored backend suite and one full Modal run before readiness can change."
-    }
-  ]
+  "unresolved": []
 }

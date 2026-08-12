@@ -748,7 +748,7 @@
           '<span class="upvote-arrow" aria-hidden="true">▲</span><span class="upvote-count">' + totalVotes(p) + '</span></button>';
       }
       function isFreeListing(p) { return p.free === true; }
-      function runPriceLabel(p) { return 'run &asymp; $' + (p.runPrice || p.priceRun); }
+      function runPriceLabel(p) { return 'run &asymp; $' + Number(p.runPrice || p.priceRun || 0).toFixed(2); }
       function cardHTML(p, featured) {
         var ownLabel = isFreeListing(p) ? 'Free' : '$' + p.priceOwn + ' one-time';
         var visual = p.icon
@@ -866,7 +866,7 @@
           fields.push('<div class="demo-field"><label class="field-label" for="demo-field-' + j + '">' + esc(clearLabel) + '</label>' +
             '<textarea class="demo-textarea" id="demo-field-' + j + '" data-demo-field data-key="' + esc(key) + '" data-label="' + esc(clearLabel) + '" placeholder="' + esc(inputPlaceholder(key, label)) + '" required>' + esc(initialValue) + '</textarea></div>');
         }
-        var price = '$' + (p.runPrice || p.priceRun);
+        var price = '$' + Number(p.runPrice || p.priceRun || 0).toFixed(2);
         var progress = p.slug === 'japanese-style-story-video'
           ? '<div class="run-progress is-indeterminate" data-run-progress hidden><div class="run-progress-head"><span class="run-phase" data-run-phase>Starting…</span><span class="run-percent" data-run-percent>Connecting…</span></div>' +
             '<div class="run-progress-track" data-run-track role="progressbar" aria-label="Video workflow progress" aria-valuemin="0" aria-valuemax="100"><div class="run-progress-bar" data-run-bar></div></div>' +
@@ -1160,7 +1160,7 @@
         var status = form.querySelector('[data-demo-status]');
         if (status) { status.textContent = ''; status.removeAttribute('data-state'); }
         var button = form.querySelector('.demo-run');
-        if (button) { button.disabled = false; button.textContent = 'Run on our cloud — ≈ $' + (PRODUCTS[VIDEO_SLUG].runPrice || PRODUCTS[VIDEO_SLUG].priceRun) + ' / run'; }
+        if (button) { button.disabled = false; button.textContent = 'Run on our cloud — ≈ $' + Number(PRODUCTS[VIDEO_SLUG].runPrice || PRODUCTS[VIDEO_SLUG].priceRun || 0).toFixed(2) + ' / run'; }
       }
       function startMockVideoRun(form, product) {
         cancelActiveVideoRun();
@@ -1610,7 +1610,7 @@
                 if (!result.data.ok) { status.setAttribute('data-state', 'error'); status.textContent = result.data.message || result.data.error || 'The workflow could not run.'; return; }
                 resultBox.innerHTML = renderDemoOutput(result.data.output !== undefined ? result.data.output : result.data); resultBox.hidden = false; status.textContent = 'Done — that’s the real helper output.';
               }).catch(function () { status.setAttribute('data-state', 'error'); status.textContent = 'Could not reach the cloud runner right now.'; })
-              .finally(function () { runButton.disabled = false; runButton.textContent = 'Run on our cloud — ≈ $' + (product.runPrice || product.priceRun) + ' / run'; });
+              .finally(function () { runButton.disabled = false; runButton.textContent = 'Run on our cloud — ≈ $' + Number(product.runPrice || product.priceRun || 0).toFixed(2) + ' / run'; });
           });
         }
         if (closeBtn) closeBtn.addEventListener('click', function () { cancelActiveVideoRun(); if (dialog.close) dialog.close(); else dialog.removeAttribute('open'); });

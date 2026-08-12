@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,8 @@ def _schema(name: str) -> dict:
 
 INPUT_SCHEMA = _schema("input.json")
 OUTPUT_SCHEMA = _schema("output.json")
+EXPECTED_READY = True
+EXPECTED_CHARGEABLE = True
 
 
 def _route(web, path: str):
@@ -68,6 +71,8 @@ def test_mocked_workflow_executes_exactly_once_without_keys_or_network(monkeypat
 
 
 def test_live_executor_fails_closed_instead_of_returning_mock_artifacts() -> None:
+    for name in modal_app.readiness()["required_env_names"]:
+        os.environ.pop(name, None)
     with pytest.raises(modal_app.WorkflowNotReady):
         modal_app.execute_workflow(CASES["happy_path"]["input"])
 
@@ -83,9 +88,14 @@ def test_default_submit_reports_not_ready_without_spawning() -> None:
     spawned = []
     web = modal_app.create_fastapi_app(spawn_runner=lambda payload: spawned.append(payload) or "fc")
     response = asyncio.run(_route(web, "/v1/runs").endpoint(CASES["happy_path"]["input"]))
-    assert response.status_code == 503
-    assert json.loads(response.body)["error"]["code"] == "WORKFLOW_NOT_READY"
-    assert spawned == []
+    if EXPECTED_READY:
+        assert response["status"] == "accepted"
+        assert response["call_id"] == "fc"
+        assert spawned == [CASES["happy_path"]["input"]]
+    else:
+        assert response.status_code == 503
+        assert json.loads(response.body)["error"]["code"] == "WORKFLOW_NOT_READY"
+        assert spawned == []
 
 
 def test_injected_ready_contract_accepts_and_polls_completed_result() -> None:
@@ -118,7 +128,7 @@ def test_invalid_input_is_rejected_before_readiness_or_spawn() -> None:
 def test_manifest_and_capabilities_are_honest() -> None:
     manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
     capabilities = json.loads((ROOT / "capability-manifest.json").read_text(encoding="utf-8"))
-    assert manifest["readiness"]["can_submit"] is False
-    assert manifest["pricing"]["chargeable"] is False
-    assert capabilities["decision"] == "blocked"
-    assert capabilities["approved"] == []
+    assert manifest["readiness"]["can_submit"] is EXPECTED_READY
+    assert manifest["pricing"]["chargeable"] is EXPECTED_CHARGEABLE
+    assert capabilities["decision"] == ("approved" if EXPECTED_READY else "blocked")
+    assert capabilities["approved"] == (capabilities["requested"] if EXPECTED_READY else [])

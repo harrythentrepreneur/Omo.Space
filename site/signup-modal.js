@@ -98,6 +98,7 @@
   var busy = false;
   var lastFocused = null;
   var activeOpenTarget = '';
+  var activeDestination = '';
 
   if (!modal || !card || !form) return;
 
@@ -112,9 +113,14 @@
 
   function redirectTarget() {
     var slug = activeOpenTarget;
+    var destination = activeDestination;
     if (!slug) {
       try { slug = validOpenTarget(new URLSearchParams(window.location.search).get('open')); } catch (error) {}
     }
+    if (!destination) {
+      try { destination = new URLSearchParams(window.location.search).get('destination') === 'run' ? 'run' : ''; } catch (error) {}
+    }
+    if (slug && destination === 'run') return 'run.html?slug=' + encodeURIComponent(slug);
     return slug ? 'workflow.html?slug=' + encodeURIComponent(slug) : 'dashboard.html';
   }
 
@@ -180,6 +186,7 @@
   function open(nextMode, options) {
     lastFocused = document.activeElement;
     activeOpenTarget = validOpenTarget(options && options.open);
+    activeDestination = options && options.destination === 'run' ? 'run' : '';
     setMode(nextMode || 'signup');
     formView.hidden = false;
     verificationView.hidden = true;

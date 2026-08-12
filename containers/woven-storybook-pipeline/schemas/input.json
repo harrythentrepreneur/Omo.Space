@@ -2,58 +2,67 @@
   "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "The safe hosted preview accepts story facts directly. The full WhatsApp archive/PDF pipeline remains private and is not this runtime scope.",
   "properties": {
-    "chat_export": {
-      "additionalProperties": false,
-      "properties": {
-        "bytes": {
-          "maximum": 52428800,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "content_type": {
-          "enum": [
-            "text/plain",
-            "application/zip"
-          ],
-          "type": "string"
-        },
-        "object_key": {
-          "maxLength": 512,
-          "minLength": 3,
-          "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
-          "type": "string"
-        },
-        "sha256": {
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "object_key",
-        "sha256",
-        "bytes",
-        "content_type"
+    "favorite_moments": {
+      "description": "Milestones and memories the story should include.",
+      "examples": [
+        "Seven years, two cities, our first apartment, and adopting a corgi who steals socks."
       ],
-      "type": "object"
+      "maxLength": 2400,
+      "minLength": 12,
+      "title": "Favorite moments",
+      "type": "string"
     },
-    "mode": {
-      "const": "natural"
+    "how_you_met": {
+      "description": "A factual account of the beginning of the relationship.",
+      "examples": [
+        "We met after reaching for the same travel book in a rainy bookshop."
+      ],
+      "maxLength": 1200,
+      "minLength": 12,
+      "title": "How you met",
+      "type": "string"
     },
-    "pseudonymize_names": {
-      "const": false
-    },
-    "title_override": {
-      "maxLength": 120,
+    "inside_jokes": {
+      "description": "Favorite phrases, jokes, or small details to weave in without inventing new facts.",
+      "examples": [
+        "‘Wrong turn, best view’ and our corgi’s habit of stealing socks."
+      ],
+      "maxLength": 1200,
       "minLength": 3,
+      "title": "Inside jokes and tiny details",
+      "type": "string"
+    },
+    "length": {
+      "default": "short",
+      "description": "Short is roughly three chapters; long is roughly six.",
+      "enum": [
+        "short",
+        "long"
+      ],
+      "title": "Story length",
+      "type": "string"
+    },
+    "style": {
+      "default": "warm",
+      "description": "The writing style; facts remain unchanged.",
+      "enum": [
+        "warm",
+        "playful",
+        "poetic"
+      ],
+      "title": "Writing style",
       "type": "string"
     }
   },
   "required": [
-    "chat_export",
-    "mode",
-    "pseudonymize_names"
+    "how_you_met",
+    "favorite_moments",
+    "inside_jokes",
+    "style",
+    "length"
   ],
-  "title": "Woven storybook run input",
+  "title": "Woven keepsake drafting preview",
   "type": "object"
 }

@@ -416,8 +416,8 @@ window.COGNITION_IG_MORE = [
     maker: 'Woven',
     makerName: 'Woven Studio',
     version: 'v1.0.0 · 2026-08-11',
-    demoCap: 'Hosted demo: narrative draft + PDF-ready page plan',
-    desc: 'Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted demo delivers a Markdown book draft and PDF-ready page plan; download the workflow once or run the drafting preview on our cloud for about ten cents.',
+    demoCap: 'Hosted run: narrative draft + PDF-ready page plan',
+    desc: 'Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted run delivers a Markdown book draft and PDF-ready page plan for $0.40; the full private chat-archive-to-PDF pipeline remains a separate production milestone.',
     cover: 'covers/woven-relationship-book-maker.svg',
     images: [
       'covers/woven-2-chapters.png',
@@ -449,7 +449,8 @@ window.COGNITION_IG_MORE = [
         { type: 'pipeline', role: 'deliver', label: 'Deliver Markdown book and PDF-ready page plan' }
       ]
     },
-    runPrice: 0.1,
+    runPrice: 0.4,
+    runManifest: 'run-manifests/woven-relationship-book-maker.json',
     icon: null
   }
 ];

@@ -8,6 +8,10 @@ executor and never make provider calls.
 from __future__ import annotations
 
 import json
+import os
+import re
+import urllib.error
+import urllib.request
 import uuid
 from functools import lru_cache
 from pathlib import Path
@@ -24,8 +28,13 @@ LOCAL_ROOT = Path(__file__).resolve().parent
 IMAGE_ROOT = Path('/root/audio_symbolic_animation')
 
 
+
 class WorkflowNotReady(RuntimeError):
     """Raised before spend when the reviewed workflow cannot run live."""
+
+
+class ProviderCallError(RuntimeError):
+    """Safe provider failure code; response bodies and credentials are never logged."""
 
 
 def _asset_root() -> Path:
@@ -53,6 +62,7 @@ def readiness() -> dict[str, Any]:
     return load_json("manifest.json")["readiness"]
 
 
+
 Executor = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -67,9 +77,11 @@ def execute_workflow(
     validate_instance(payload, "input.json")
     if executor is None:
         state = readiness()
-        raise WorkflowNotReady(
-            "; ".join(reason["code"] for reason in state["blockers"])
-        )
+        if not state["can_submit"]:
+            raise WorkflowNotReady(
+                "; ".join(reason["code"] for reason in state["blockers"])
+            )
+        executor = _provider_completion
     result = executor(payload)
     validate_instance(result, "output.json")
     return result
@@ -114,7 +126,7 @@ def create_fastapi_app(
     *,
     ready_override: bool | None = None,
 ) -> Any:
-    from fastapi import FastAPI, HTTPException
+    from fastapi import Body, FastAPI, HTTPException
     from fastapi.responses import JSONResponse
     from jsonschema import ValidationError
 
@@ -130,7 +142,7 @@ def create_fastapi_app(
     lookup = lookup_result or default_lookup
 
     @web.post("/v1/runs", status_code=202)
-    async def submit(body: Any) -> Any:
+    async def submit(body: Any = Body(...)) -> Any:
         try:
             validate_instance(body, "input.json")
         except ValidationError as exc:

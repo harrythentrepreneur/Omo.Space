@@ -237,6 +237,115 @@ def modal_app_template(profile: dict[str, Any]) -> str:
     if profile.get("apt_packages"):
         packages = ", ".join(repr(item) for item in profile["apt_packages"])
         apt_chain = f"\n    .apt_install({packages})"
+    ready = bool(profile["readiness"]["can_submit"])
+    live = profile.get("live") if ready else None
+    if live:
+        live_constants = f'''\nLIVE_PROVIDER = {live['provider']!r}
+LIVE_BASE_URL_ENV = {live['base_url_env']!r}
+LIVE_MODEL_ENV = {live['model_env']!r}
+LIVE_API_KEY_ENV = {live['api_key_env']!r}
+LIVE_DEFAULT_BASE_URL = {live['default_base_url']!r}
+LIVE_DEFAULT_MODEL = {live['default_model']!r}
+LIVE_PROMPT_PATH = {('prompts/' + live['prompt'])!r}
+LIVE_MAX_TOKENS = {int(live['max_tokens'])}
+LIVE_TEMPERATURE = {float(live['temperature'])!r}
+LIVE_TIMEOUT_SECONDS = {int(live.get('timeout_seconds', 120))}
+LIVE_INPUT_RATE_PER_MILLION = {float(live['input_rate_per_million_usd'])!r}
+LIVE_OUTPUT_RATE_PER_MILLION = {float(live['output_rate_per_million_usd'])!r}
+LIVE_MODEL_OUTPUT_SCHEMA = {live['model_output_schema']!r}
+'''
+        live_executor = '''
+
+def _extract_json_object(value: str) -> dict[str, Any]:
+    fenced = re.sub(r"^```(?:json)?\\s*|\\s*```$", "", value.strip(), flags=re.I)
+    start = fenced.find("{")
+    end = fenced.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("provider output did not contain a JSON object")
+    parsed = json.loads(fenced[start : end + 1])
+    if not isinstance(parsed, dict):
+        raise ValueError("provider output must be a JSON object")
+    return parsed
+
+
+def _provider_completion(payload: dict[str, Any]) -> dict[str, Any]:
+    missing = [name for name in readiness()["required_env_names"] if not os.environ.get(name)]
+    if missing:
+        raise WorkflowNotReady("MISSING_REQUIRED_ENV:" + ",".join(sorted(missing)))
+
+    base_url = os.environ[LIVE_BASE_URL_ENV].rstrip("/")
+    if not base_url.startswith("https://"):
+        raise WorkflowNotReady("LLM_BASE_URL_MUST_BE_HTTPS")
+    model = os.environ[LIVE_MODEL_ENV]
+    system_prompt = (_asset_root() / LIVE_PROMPT_PATH).read_text(encoding="utf-8").strip()
+    user_prompt = "Run the reviewed workflow using only this JSON input:\\n" + json.dumps(
+        payload, ensure_ascii=False, sort_keys=True
+    )
+    request_body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": LIVE_TEMPERATURE,
+        "max_tokens": LIVE_MAX_TOKENS,
+        "response_format": {"type": "json_object"},
+        "thinking": {"type": "disabled"},
+    }
+    request = urllib.request.Request(
+        base_url + "/chat/completions",
+        data=json.dumps(request_body).encode("utf-8"),
+        headers={
+            "Authorization": "Bearer " + os.environ[LIVE_API_KEY_ENV],
+            "Content-Type": "application/json",
+            "User-Agent": "Omo-Skill-Runner/0.1",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=LIVE_TIMEOUT_SECONDS) as response:
+            raw = response.read(2_000_001)
+    except urllib.error.HTTPError as exc:
+        raise ProviderCallError(f"LLM_HTTP_{exc.code}") from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise ProviderCallError("LLM_UNAVAILABLE") from exc
+    if len(raw) > 2_000_000:
+        raise ProviderCallError("LLM_RESPONSE_TOO_LARGE")
+    try:
+        provider_response = json.loads(raw)
+        content = provider_response["choices"][0]["message"]["content"]
+        generated = _extract_json_object(str(content))
+        Draft202012Validator(LIVE_MODEL_OUTPUT_SCHEMA).validate(generated)
+    except Exception as exc:
+        raise ProviderCallError("LLM_INVALID_OUTPUT") from exc
+
+    usage = provider_response.get("usage") or {}
+    prompt_tokens = max(0, int(usage.get("prompt_tokens") or 0))
+    completion_tokens = max(0, int(usage.get("completion_tokens") or 0))
+    estimated_cost = (
+        prompt_tokens * LIVE_INPUT_RATE_PER_MILLION
+        + completion_tokens * LIVE_OUTPUT_RATE_PER_MILLION
+    ) / 1_000_000
+    return {
+        "run_id": "run-" + str(uuid.uuid4()),
+        "status": "completed",
+        "workflow_version": WORKFLOW_VERSION,
+        **generated,
+        "usage": {
+            "provider": LIVE_PROVIDER,
+            "model": str(provider_response.get("model") or model),
+            "llm_calls": 1,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "estimated_cost_usd": round(estimated_cost, 8),
+        },
+    }
+'''
+        secret_arg = f",\n    secrets=[modal.Secret.from_name({live['modal_secret_name']!r})]"
+    else:
+        live_constants = ""
+        live_executor = ""
+        secret_arg = ""
     return f'''"""Generated Modal contract runtime for {title}.
 
 Generated by {COMPILER_VERSION}; change the profile/compiler, not this file.
@@ -247,6 +356,10 @@ executor and never make provider calls.
 from __future__ import annotations
 
 import json
+import os
+import re
+import urllib.error
+import urllib.request
 import uuid
 from functools import lru_cache
 from pathlib import Path
@@ -261,10 +374,15 @@ WORKFLOW_VERSION = {slug + '@' + version!r}
 EXECUTION_KIND = {profile['execution_kind']!r}
 LOCAL_ROOT = Path(__file__).resolve().parent
 IMAGE_ROOT = Path({('/root/' + slug.replace('-', '_'))!r})
+{live_constants}
 
 
 class WorkflowNotReady(RuntimeError):
     """Raised before spend when the reviewed workflow cannot run live."""
+
+
+class ProviderCallError(RuntimeError):
+    """Safe provider failure code; response bodies and credentials are never logged."""
 
 
 def _asset_root() -> Path:
@@ -290,6 +408,7 @@ def validate_instance(instance: Any, schema_name: str) -> None:
 
 def readiness() -> dict[str, Any]:
     return load_json("manifest.json")["readiness"]
+{live_executor}
 
 
 Executor = Callable[[dict[str, Any]], dict[str, Any]]
@@ -306,9 +425,11 @@ def execute_workflow(
     validate_instance(payload, "input.json")
     if executor is None:
         state = readiness()
-        raise WorkflowNotReady(
-            "; ".join(reason["code"] for reason in state["blockers"])
-        )
+        if not state["can_submit"]:
+            raise WorkflowNotReady(
+                "; ".join(reason["code"] for reason in state["blockers"])
+            )
+        executor = _provider_completion
     result = executor(payload)
     validate_instance(result, "output.json")
     return result
@@ -336,7 +457,7 @@ app = modal.App(APP_NAME)
     timeout={profile['resources']['timeout_seconds']},
     min_containers=0,
     max_containers={profile['resources']['max_containers']},
-    scaledown_window=5,
+    scaledown_window=5{secret_arg},
 )
 def run_workflow(payload: dict[str, Any]) -> dict[str, Any]:
     return execute_workflow(payload)
@@ -352,7 +473,7 @@ def create_fastapi_app(
     *,
     ready_override: bool | None = None,
 ) -> Any:
-    from fastapi import FastAPI, HTTPException
+    from fastapi import Body, FastAPI, HTTPException
     from fastapi.responses import JSONResponse
     from jsonschema import ValidationError
 
@@ -368,7 +489,7 @@ def create_fastapi_app(
     lookup = lookup_result or default_lookup
 
     @web.post("/v1/runs", status_code=202)
-    async def submit(body: Any) -> Any:
+    async def submit(body: Any = Body(...)) -> Any:
         try:
             validate_instance(body, "input.json")
         except ValidationError as exc:
@@ -429,6 +550,8 @@ def api() -> Any:
 
 def contract_test_template(profile: dict[str, Any]) -> str:
     module_name = profile["slug"].replace("-", "_")
+    expected_ready = bool(profile["readiness"]["can_submit"])
+    expected_chargeable = bool(profile["pricing"].get("chargeable", False)) if expected_ready else False
     return f'''"""Generated offline contract tests: no keys, network, or spend."""
 
 from __future__ import annotations
@@ -436,6 +559,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -463,6 +587,8 @@ def _schema(name: str) -> dict:
 
 INPUT_SCHEMA = _schema("input.json")
 OUTPUT_SCHEMA = _schema("output.json")
+EXPECTED_READY = {expected_ready!r}
+EXPECTED_CHARGEABLE = {expected_chargeable!r}
 
 
 def _route(web, path: str):
@@ -499,6 +625,8 @@ def test_mocked_workflow_executes_exactly_once_without_keys_or_network(monkeypat
 
 
 def test_live_executor_fails_closed_instead_of_returning_mock_artifacts() -> None:
+    for name in modal_app.readiness()["required_env_names"]:
+        os.environ.pop(name, None)
     with pytest.raises(modal_app.WorkflowNotReady):
         modal_app.execute_workflow(CASES["happy_path"]["input"])
 
@@ -514,9 +642,14 @@ def test_default_submit_reports_not_ready_without_spawning() -> None:
     spawned = []
     web = modal_app.create_fastapi_app(spawn_runner=lambda payload: spawned.append(payload) or "fc")
     response = asyncio.run(_route(web, "/v1/runs").endpoint(CASES["happy_path"]["input"]))
-    assert response.status_code == 503
-    assert json.loads(response.body)["error"]["code"] == "WORKFLOW_NOT_READY"
-    assert spawned == []
+    if EXPECTED_READY:
+        assert response["status"] == "accepted"
+        assert response["call_id"] == "fc"
+        assert spawned == [CASES["happy_path"]["input"]]
+    else:
+        assert response.status_code == 503
+        assert json.loads(response.body)["error"]["code"] == "WORKFLOW_NOT_READY"
+        assert spawned == []
 
 
 def test_injected_ready_contract_accepts_and_polls_completed_result() -> None:
@@ -549,10 +682,10 @@ def test_invalid_input_is_rejected_before_readiness_or_spawn() -> None:
 def test_manifest_and_capabilities_are_honest() -> None:
     manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
     capabilities = json.loads((ROOT / "capability-manifest.json").read_text(encoding="utf-8"))
-    assert manifest["readiness"]["can_submit"] is False
-    assert manifest["pricing"]["chargeable"] is False
-    assert capabilities["decision"] == "blocked"
-    assert capabilities["approved"] == []
+    assert manifest["readiness"]["can_submit"] is EXPECTED_READY
+    assert manifest["pricing"]["chargeable"] is EXPECTED_CHARGEABLE
+    assert capabilities["decision"] == ("approved" if EXPECTED_READY else "blocked")
+    assert capabilities["approved"] == (capabilities["requested"] if EXPECTED_READY else [])
 '''
 
 
@@ -563,12 +696,13 @@ def yaml_quote(value: str) -> str:
 def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
     blockers = profile["readiness"]["blockers"]
     steps = profile["steps"]
+    ready = bool(profile["readiness"]["can_submit"])
     lines = [
         "spec_version: cognition.container/v1",
         f"name: {yaml_quote(profile['name'])}",
         f"slug: {profile['slug']}",
         f"version: {yaml_quote(profile['version'])}",
-        "status: not-ready",
+        f"status: {'ready' if ready else 'not-ready'}",
         "generated:",
         f"  compiler: {COMPILER_VERSION}",
         "  hand_edit_allowed: false",
@@ -603,9 +737,9 @@ def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
             "  invalid_input_status: 422",
             "  not_ready_status: 503",
             "readiness:",
-            "  can_submit: false",
+            f"  can_submit: {'true' if ready else 'false'}",
             f"  execution_kind: {profile['execution_kind']}",
-            "  blockers:",
+            "  blockers:" if blockers else "  blockers: []",
         ]
     )
     for blocker in blockers:
@@ -652,6 +786,28 @@ def readme(profile: dict[str, Any], source_hash: str, pricing: dict[str, Any]) -
     )
     env_names = "\n".join(f"- `{name}`" for name in profile["required_env_names"])
     prompts = "\n".join(f"- `prompts/{name}`" for name in sorted(profile["prompts"]))
+    ready = bool(profile["readiness"]["can_submit"])
+    readiness_copy = (
+        "**READY for authenticated staging runs.** `POST /v1/runs` validates the input "
+        "schema before spawning a provider-backed job."
+        if ready else
+        "**NOT READY for live runs or charging.** `POST /v1/runs` is protected with "
+        "Modal Proxy Token auth and returns `503 WORKFLOW_NOT_READY` before spawning or "
+        "spending while these blockers remain:"
+    )
+    blocker_copy = blockers if blockers else "- None for this reviewed runtime scope."
+    price_copy = (
+        f"`${pricing['display_price_usd']:.2f}` per run"
+        if pricing["chargeable"] else
+        f"display estimate `${pricing['display_price_usd']:.2f}`, not chargeable"
+    )
+    deploy_copy = (
+        "Deploy after the named Modal secret exists and the offline tests pass:"
+        if ready else
+        "Deployment is intentionally gated on readiness review. Once the generated "
+        "manifest says `can_submit: true`, required provider capabilities exist, and "
+        "tests pass:"
+    )
     return f"""# {profile['name']}
 
 Generated Modal candidate for `{profile['slug']}`. The source skill is vendored
@@ -660,11 +816,9 @@ through the compiler profile, not edited by hand.
 
 ## Readiness
 
-**NOT READY for live runs or charging.** `POST /v1/runs` is protected with
-Modal Proxy Token auth and returns `503 WORKFLOW_NOT_READY` before spawning or
-spending while these blockers remain:
+{readiness_copy}
 
-{blockers}
+{blocker_copy}
 
 Required environment variable names (values never belong in this repository):
 
@@ -675,9 +829,9 @@ Required environment variable names (values never belong in this repository):
 - Submit: `POST /v1/runs` → `202` with `run_id`, `call_id`, and `result_url`
 - Poll: `GET /v1/runs/{{call_id}}` → `202 running` or the validated output
 - Invalid input: `422` before spawn
-- Blocked release: `503` before spawn
+- Blocked release: `503` before spawn when `readiness.can_submit` is false
 - Input/UI contract: `manifest.json`
-- Pricing evidence: `pricing-report.json` (display estimate `${pricing['display_price_usd']:.2f}`, not chargeable)
+- Pricing evidence: `pricing-report.json` ({price_copy})
 
 Prompt assets:
 
@@ -693,9 +847,7 @@ python3 packages/skill-to-modal/compiler.py \\
 python3 -m pytest -q -p no:cacheprovider containers/{profile['slug']}/tests/test_contract.py
 ```
 
-Deployment is intentionally gated on readiness review. Once the generated
-manifest says `can_submit: true`, required provider capabilities exist, and
-tests pass:
+{deploy_copy}
 
 ```bash
 modal deploy containers/{profile['slug']}/modal_app.py
@@ -713,10 +865,13 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str]:
         raise ValueError("profile name does not match SKILL.md frontmatter")
     execution_kind = profile.get("execution_kind")
     readiness = profile["readiness"]
+    ready = bool(readiness.get("can_submit"))
     if execution_kind not in ALLOWED_EXECUTION_KINDS and not readiness["blockers"]:
         raise ValueError("non-allowlisted execution kind must have blockers")
-    if readiness.get("can_submit") is not False:
-        raise ValueError("v0.1 compiler only emits reviewed fail-closed candidates")
+    if ready and execution_kind not in ALLOWED_EXECUTION_KINDS:
+        raise ValueError("only allowlisted execution kinds may be ready")
+    if ready and (readiness["blockers"] or not profile.get("live")):
+        raise ValueError("ready single_llm profiles require live config and no blockers")
 
     source_hash = sha256_text(skill_text)
     pricing = price_report(profile)
@@ -740,8 +895,8 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str]:
         "execution_kind": execution_kind,
         "allowlist": sorted(ALLOWED_EXECUTION_KINDS),
         "requested": profile["capabilities"],
-        "approved": [],
-        "decision": "blocked",
+        "approved": profile["capabilities"] if ready else [],
+        "decision": "approved" if ready else "blocked",
         "blockers": readiness["blockers"],
     }
     manifest = {
@@ -751,8 +906,8 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str]:
         "description": parsed["description"],
         "version": profile["version"],
         "readiness": {
-            "status": "not_ready",
-            "can_submit": False,
+            "status": "ready" if ready else "not_ready",
+            "can_submit": ready,
             "blockers": readiness["blockers"],
             "required_env_names": profile["required_env_names"],
         },
@@ -769,8 +924,12 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str]:
         "pricing": {
             "currency": "USD",
             "display_price_usd": pricing["display_price_usd"],
-            "label": f"Projected ${pricing['display_price_usd']:.2f} — unavailable",
-            "chargeable": False,
+            "label": (
+                f"${pricing['display_price_usd']:.2f} per run"
+                if ready and pricing["chargeable"]
+                else f"Projected ${pricing['display_price_usd']:.2f} — unavailable"
+            ),
+            "chargeable": bool(pricing["chargeable"]) if ready else False,
             "quote_status": pricing["quote_status"],
             "report_path": "pricing-report.json",
         },

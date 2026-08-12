@@ -6,35 +6,28 @@ through the compiler profile, not edited by hand.
 
 ## Readiness
 
-**NOT READY for live runs or charging.** `POST /v1/runs` is protected with
-Modal Proxy Token auth and returns `503 WORKFLOW_NOT_READY` before spawning or
-spending while these blockers remain:
+**READY for authenticated staging runs.** `POST /v1/runs` validates the input schema before spawning a provider-backed job.
 
-- `EXECUTOR_NOT_VENDORED` — The reviewed TypeScript implementation lives in /Users/yifan/woven/backend and is not a pinned, versioned dependency of this repository.
-- `DEEPSEEK_SECRET_MISSING` — A least-privilege Modal secret containing DEEPSEEK_API_KEY must exist before a real generation can run.
-- `PRIVATE_DATA_PLANE_MISSING` — Private upload, mode-700 run workspaces, TTL deletion, signed download, and raw-chat deletion need a hosted implementation and tests.
-- `COST_INCOMPLETE` — Chromium/Ghostscript compute, Modal resources, storage, egress, retries, and delivered-output yield are not measured.
-- `LIVE_FIXTURE_QA_PENDING` — The safe demo fixture must pass the vendored backend suite and one full Modal run before readiness can change.
+- None for this reviewed runtime scope.
 
 Required environment variable names (values never belong in this repository):
 
-- `DEEPSEEK_API_KEY`
+- `LLM_API_KEY`
+- `LLM_BASE_URL`
+- `LLM_MODEL`
 
 ## Contract
 
 - Submit: `POST /v1/runs` → `202` with `run_id`, `call_id`, and `result_url`
 - Poll: `GET /v1/runs/{call_id}` → `202 running` or the validated output
 - Invalid input: `422` before spawn
-- Blocked release: `503` before spawn
+- Blocked release: `503` before spawn when `readiness.can_submit` is false
 - Input/UI contract: `manifest.json`
-- Pricing evidence: `pricing-report.json` (display estimate `$0.40`, not chargeable)
+- Pricing evidence: `pricing-report.json` (`$0.40` per run)
 
 Prompt assets:
 
-- `prompts/chapter.txt`
-- `prompts/editorial.txt`
-- `prompts/essence.txt`
-- `prompts/plan.txt`
+- `prompts/run.txt`
 
 ## Rebuild and test
 
@@ -46,9 +39,7 @@ python3 packages/skill-to-modal/compiler.py \
 python3 -m pytest -q -p no:cacheprovider containers/woven-storybook-pipeline/tests/test_contract.py
 ```
 
-Deployment is intentionally gated on readiness review. Once the generated
-manifest says `can_submit: true`, required provider capabilities exist, and
-tests pass:
+Deploy after the named Modal secret exists and the offline tests pass:
 
 ```bash
 modal deploy containers/woven-storybook-pipeline/modal_app.py
