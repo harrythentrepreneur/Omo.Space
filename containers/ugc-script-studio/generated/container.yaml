@@ -1,0 +1,4 @@
+slug: ugc-script-studio
+runtime_class: single-llm
+entrypoint: modal_app.py
+proxy_auth_required: true

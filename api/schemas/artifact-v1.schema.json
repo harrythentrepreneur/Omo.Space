@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cognition.local/schemas/artifact-v1.schema.json",
+  "type": "object",
+  "required": ["id", "kind", "media_type", "filename", "url", "expires_at", "size_bytes", "checksum_sha256"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "kind": { "type": "string", "minLength": 1 },
+    "media_type": { "type": "string", "minLength": 1 },
+    "filename": { "type": "string", "minLength": 1 },
+    "url": { "type": "string", "minLength": 1 },
+    "expires_at": { "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }] },
+    "size_bytes": { "anyOf": [{ "type": "null" }, { "type": "integer" }] },
+    "checksum_sha256": { "anyOf": [{ "type": "null" }, { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }] }
+  }
+}

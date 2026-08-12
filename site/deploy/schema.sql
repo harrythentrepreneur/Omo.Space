@@ -37,20 +37,60 @@ CREATE TABLE IF NOT EXISTS run_requests (
   idempotency_key TEXT NOT NULL,
   request_hash    TEXT NOT NULL,
   slug            TEXT NOT NULL,
+  workflow_version TEXT NOT NULL DEFAULT '1.0.0',
   cost_cents      INTEGER NOT NULL,
-  state           TEXT NOT NULL CHECK (state IN ('reserved', 'running', 'succeeded', 'refunded')),
+  state           TEXT NOT NULL DEFAULT 'reserved' CHECK (state IN ('reserved', 'running', 'succeeded', 'refunded')),
+  execution_status TEXT NOT NULL DEFAULT 'claimed' CHECK (execution_status IN ('claimed', 'queued', 'dispatching', 'succeeded', 'failed')),
+  billing_status TEXT NOT NULL DEFAULT 'unbilled' CHECK (billing_status IN ('unbilled', 'reserved', 'captured', 'refund_due', 'refunded')),
+  input_json      TEXT,
+  accepted_json   TEXT,
+  result_json     TEXT,
+  artifact_json   TEXT,
+  error_json      TEXT,
   response_json   TEXT,
   http_status     INTEGER,
+  dispatch_owner  TEXT,
+  dispatch_lease_expires_at TEXT,
+  attempt_count   INTEGER NOT NULL DEFAULT 0,
+  dispatched_at   TEXT,
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL,
   UNIQUE (user_id, idempotency_key)
 );
 
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS workflow_version TEXT NOT NULL DEFAULT '1.0.0';
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS execution_status TEXT NOT NULL DEFAULT 'claimed';
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS billing_status TEXT NOT NULL DEFAULT 'unbilled';
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS input_json TEXT;
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS accepted_json TEXT;
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS result_json TEXT;
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS artifact_json TEXT;
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS error_json TEXT;
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS dispatch_owner TEXT;
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS dispatch_lease_expires_at TEXT;
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE run_requests ADD COLUMN IF NOT EXISTS dispatched_at TEXT;
+
+UPDATE run_requests
+SET execution_status = CASE
+    WHEN state = 'succeeded' THEN 'succeeded'
+    WHEN state = 'refunded' THEN 'failed'
+    WHEN state = 'running' THEN 'dispatching'
+    ELSE execution_status
+  END,
+  billing_status = CASE
+    WHEN state = 'succeeded' THEN 'captured'
+    WHEN state = 'refunded' THEN 'refunded'
+    WHEN state IN ('reserved', 'running') AND billing_status = 'unbilled' THEN 'reserved'
+    ELSE billing_status
+  END
+WHERE execution_status = 'claimed' OR billing_status = 'unbilled';
+
 CREATE INDEX IF NOT EXISTS idx_run_requests_user_updated
   ON run_requests (user_id, updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_run_requests_stale
-  ON run_requests (state, updated_at);
+  ON run_requests (execution_status, dispatch_lease_expires_at, updated_at);
 
 -- Async execution telemetry is separate from the billing state machine so
 -- existing installations can add it without rewriting run_requests. Progress
