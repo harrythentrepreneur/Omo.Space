@@ -19,7 +19,7 @@
       '.omo-nav-row>.omo-nav-brand{flex:1 1 auto}' +
       '.omo-nav-brand{gap:7px}' +
       '.omo-nav-brand .wordmark{min-height:44px;align-self:auto}' +
-      '.omo-nav-menu-toggle{width:44px;height:44px;min-height:44px;padding:0;border:0;border-radius:999px;background:#E8E8E6;color:var(--pine,#17352C);box-shadow:none;transition:background-color .15s ease}' +
+      '.omo-nav-menu-toggle{width:36px;height:36px;min-height:36px;padding:0;border:0;border-radius:999px;background:#E8E8E6;color:var(--pine,#17352C);box-shadow:none;transition:background-color .15s ease}' +
       '.omo-nav-menu-toggle:hover,.omo-nav-menu-toggle[aria-expanded="true"]{border-color:transparent;background:#F6F0E7;box-shadow:none;transform:none}' +
       '.omo-nav-menu-toggle:focus-visible{border-color:transparent;background:#F6F0E7;outline:3px solid rgba(255,107,61,.3);outline-offset:2px}' +
       '.omo-nav-chevron{position:relative;display:block;width:13px;height:13px;font-size:0;line-height:1;transition:transform .15s ease}' +
@@ -40,13 +40,13 @@
       '.omo-nav-credit-spinner{width:13px;height:13px;flex:0 0 13px;border:2px solid var(--mint,#BDEFD4);border-top-color:var(--pine,#17352C);border-radius:50%;animation:omo-nav-credit-spin .7s linear infinite}' +
       '.omo-nav-credit.is-balance-unavailable .omo-nav-credit-icon{opacity:.52}' +
       '@keyframes omo-nav-credit-spin{to{transform:rotate(360deg)}}' +
-      '.omo-nav-workflow-identity{min-width:0;max-width:min(310px,calc(100vw - 214px));min-height:44px;display:inline-flex;align-items:center;gap:8px;flex:0 1 auto;color:var(--pine,#17352C);text-decoration:none}' +
+      '.omo-nav-workflow-identity{min-width:0;max-width:min(310px,calc(100vw - 190px));min-height:40px;display:inline-flex;align-items:center;gap:8px;flex:0 1 auto;color:var(--pine,#17352C);text-decoration:none}' +
       '.omo-nav-workflow-identity:hover,.omo-nav-workflow-identity:focus-visible{color:var(--pine,#17352C);text-decoration:none}' +
       '.omo-nav-workflow-identity:focus-visible{outline:3px solid rgba(255,107,61,.34);outline-offset:2px}' +
       '.omo-nav-context-thumb{width:30px;height:30px;display:grid;place-items:center;flex:0 0 30px;overflow:hidden;border-radius:8px;background:var(--cream,#F4F1E8);font-size:17px}' +
       '.omo-nav-context-thumb img{width:100%;height:100%;display:block;object-fit:cover}' +
       '.omo-nav-context-name{min-width:0;overflow:hidden;color:var(--pine,#17352C);font:600 15px/1.12 "Fraunces",Georgia,serif;letter-spacing:-.015em;text-overflow:ellipsis;white-space:nowrap}' +
-      '@media(max-width:760px){.omo-site-header>.omo-nav-row{width:100%;padding-inline:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}.omo-nav-row>.omo-nav-brand{min-width:0}.omo-nav-menu{position:static}.omo-nav-popover{max-height:calc(100dvh - 84px);overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}.omo-nav-login{max-width:42vw;overflow:hidden;text-overflow:ellipsis}}' +
+      '@media(max-width:820px){.omo-site-header>.omo-nav-row{width:100%;padding-inline:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}.omo-nav-row>.omo-nav-brand{min-width:0;position:static}.omo-nav-menu{position:static}.omo-nav-menu-toggle{width:44px;height:44px;min-height:44px}.omo-nav-popover{max-height:calc(100dvh - 84px);overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}.omo-nav-login{min-height:44px;max-width:42vw;overflow:hidden;text-overflow:ellipsis}.omo-nav-workflow-identity{min-height:44px}}' +
       '@media(max-width:480px){.omo-nav-popover{left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));width:auto;max-width:none}.omo-nav-workflow-identity{max-width:calc(100vw - 214px);gap:6px}.omo-nav-context-thumb{width:28px;height:28px;flex-basis:28px}.omo-nav-context-name{font-size:13px}}' +
       '@media(prefers-reduced-motion:reduce){.omo-nav-credit-spinner{animation:omo-nav-credit-pulse 1s ease-in-out infinite alternate}@keyframes omo-nav-credit-pulse{to{opacity:.45}}}';
     document.head.appendChild(style);
