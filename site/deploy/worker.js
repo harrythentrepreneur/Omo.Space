@@ -1329,6 +1329,7 @@ async function handleCheckout(request, env) {
   if (userId) params.set('metadata[user_id]', userId);
   if (email) params.set('customer_email', email);
 
+  let checkoutStage = 'stripe_request';
   try {
     const stripeHeaders = stripeCheckoutHeaders(secretKey);
     if (callerIdempotencyKey) {
@@ -1348,10 +1349,16 @@ async function handleCheckout(request, env) {
     if (!data || !data.id || !checkoutUrl || checkoutUrl.origin !== 'https://checkout.stripe.com') {
       return json({ error: 'stripe returned an invalid checkout session' }, 502, cors());
     }
+    checkoutStage = 'purchase_record';
     await recordPendingPurchase(env, data.id, listing, email);
     return json({ url: checkoutUrl.toString() }, 200, cors());
   } catch (e) {
-    return json({ error: 'stripe unavailable' }, 502, cors());
+    console.error('checkout session failed', {
+      stage: checkoutStage,
+      code: String(e && e.code || '').slice(0, 80),
+      message: String(e && e.message || 'unknown error').slice(0, 240),
+    });
+    return json({ error: checkoutStage === 'purchase_record' ? 'purchase recording unavailable' : 'stripe unavailable' }, 502, cors());
   }
 }
 
