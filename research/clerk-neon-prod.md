@@ -93,9 +93,12 @@ Do not commit secret values. Only publishable keys belong in
 
 ## Stripe readiness audit and founder runbook
 
-Last audited 2026-08-13. Live Stripe secrets and routing are configured, but
-catalog sales and authenticated top-ups remain **fail-closed until the full
-additive Neon schema is applied**.
+Last audited 2026-08-13. Live Stripe and Neon secret names and routing are
+configured, but the Neon URL is not injected locally, managed credential
+policy prohibits reading secret-bearing history/config files, and the Worker
+has no protected migration route. Catalog sales and authenticated top-ups
+therefore remain **fail-closed until the founder securely injects the URL or
+runs the full additive Neon schema personally**.
 
 ### Live route and code audit
 

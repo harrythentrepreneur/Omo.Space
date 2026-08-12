@@ -6,11 +6,13 @@ hosted Worker route, live marketplace listing, and real provider-backed Modal
 run were produced by this process. Creator upload intake now has a real queue;
 review, deploy credentials, canaries, and publication are intentionally still
 agent gates rather than an unattended CI job. **Production schema gate:** live
-logs prove `purchases` is absent, and `submissions`, `topup_sessions`,
-`stripe_events`, and `stripe_topups` are not proven present. `psql` is not
-installed in this workspace and Wrangler can list but cannot reveal
-`NEON_DATABASE_URL`; the founder must either provide the connection string through a secure environment
-binding or run the migration command below, then verify every additive table.
+logs prove `purchases` is absent, and the other additive tables are not proven
+present. On 2026-08-13, Wrangler confirmed the `NEON_DATABASE_URL` secret name,
+but the URL was not injected locally; managed credential policy prohibited
+reading shell history or secret-bearing files, local `psql` was unavailable,
+and the Worker had no protected migration route. The founder must securely
+inject the URL for the command below or run it personally, then verify all 12
+public table names.
 
 ## Site upload → queued → live (V1)
 
