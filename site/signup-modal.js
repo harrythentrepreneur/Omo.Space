@@ -3,6 +3,70 @@
 (function () {
   'use strict';
 
+  function ensureStyles() {
+    if (document.querySelector('link[href$="signup-modal.css"]')) return;
+    var stylesheet = document.createElement('link');
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = 'signup-modal.css';
+    document.head.appendChild(stylesheet);
+  }
+
+  function ensureMarkup() {
+    if (document.getElementById('signup-modal')) return;
+    var wrapper = document.createElement('div');
+    wrapper.innerHTML = [
+      '<div class="auth-modal" id="signup-modal" hidden>',
+        '<section class="auth-modal__card" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" aria-describedby="auth-modal-subtitle">',
+          '<button class="auth-modal__close" id="auth-modal-close" type="button" aria-label="Close">&times;</button>',
+          '<img class="auth-modal__logo" src="logo-sweet-pastel.svg" alt="Omo">',
+          '<div class="auth-modal__view" id="auth-form-view">',
+            '<h2 class="auth-modal__heading" id="auth-modal-title">Create your Omo account</h2>',
+            '<p class="auth-modal__subheading" id="auth-modal-subtitle">to run AI helpers and keep what you build</p>',
+            '<form class="auth-modal__form" id="auth-form" novalidate>',
+              '<div class="auth-modal__field signup-only">',
+                '<input class="auth-modal__input" id="auth-first-name" name="firstName" type="text" autocomplete="given-name" placeholder=" " maxlength="80" required>',
+                '<label class="auth-modal__label" for="auth-first-name">First name</label>',
+              '</div>',
+              '<div class="auth-modal__field signup-only">',
+                '<input class="auth-modal__input" id="auth-last-name" name="lastName" type="text" autocomplete="family-name" placeholder=" " maxlength="80" required>',
+                '<label class="auth-modal__label" for="auth-last-name">Last name</label>',
+              '</div>',
+              '<div class="auth-modal__field">',
+                '<input class="auth-modal__input" id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder=" " maxlength="254" required>',
+                '<label class="auth-modal__label" for="auth-email">Email</label>',
+              '</div>',
+              '<div class="auth-modal__field">',
+                '<input class="auth-modal__input" id="auth-password" name="password" type="password" autocomplete="new-password" placeholder=" " minlength="8" maxlength="128" required>',
+                '<label class="auth-modal__label" for="auth-password">Password</label>',
+              '</div>',
+              '<p class="auth-modal__message" id="auth-error" role="alert" hidden></p>',
+              '<button class="auth-modal__submit" id="auth-submit" type="submit" disabled>Sign up</button>',
+              '<p class="auth-modal__fine-print signup-only">By signing up, you agree to our <a href="terms.html" target="_blank" rel="noopener">Terms</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>',
+            '</form>',
+            '<p class="auth-modal__switch"><span id="auth-switch-copy">Already have an account?</span> <button class="auth-modal__switch-button" id="auth-switch" type="button">Log in</button></p>',
+          '</div>',
+          '<div class="auth-modal__view" id="auth-verification-view" hidden>',
+            '<h2 class="auth-modal__heading" id="auth-verification-title">Check your email</h2>',
+            '<p class="auth-modal__verification-copy">Enter the verification code sent to <strong id="auth-verification-email"></strong>.</p>',
+            '<form class="auth-modal__form" id="auth-verification-form" novalidate>',
+              '<div class="auth-modal__field">',
+                '<input class="auth-modal__input" id="auth-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder=" " minlength="6" maxlength="6" required>',
+                '<label class="auth-modal__label" for="auth-code">Verification code</label>',
+              '</div>',
+              '<p class="auth-modal__message" id="auth-verification-error" role="alert" hidden></p>',
+              '<button class="auth-modal__submit" id="auth-verify" type="submit" disabled>Verify email</button>',
+              '<p class="auth-modal__resend-row">Didn\'t get it? <button class="auth-modal__resend" id="auth-resend" type="button">Send a new code</button></p>',
+            '</form>',
+          '</div>',
+        '</section>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(wrapper.firstChild);
+  }
+
+  ensureStyles();
+  ensureMarkup();
+
   var modal = document.getElementById('signup-modal');
   var card = modal && modal.querySelector('.auth-modal__card');
   var logo = modal && modal.querySelector('.auth-modal__logo');
@@ -322,17 +386,13 @@
   resendButton.addEventListener('click', resendCode);
   document.addEventListener('keydown', handleKeydown);
 
-  Array.prototype.forEach.call(document.querySelectorAll('a[href*="signup.html"]'), function (link) {
-    if (!link.matches('[data-omo-login], #sell-login')) return;
-    link.addEventListener('click', function (event) {
-      event.preventDefault();
-      open('login');
-    });
-  });
-
   window.OmoSignupModal = {
     open: function () { open('signup'); },
     openSignIn: function () { open('login'); },
+    close: close
+  };
+  window.OmoAuth = {
+    open: function (nextMode) { open(nextMode); },
     close: close
   };
 

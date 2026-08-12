@@ -1,6 +1,8 @@
 (function () {
   'use strict';
 
+  var authModalPromise = null;
+
   function isSignedIn() {
     if (window.ClerkAuth && typeof window.ClerkAuth.isSignedIn === 'function') {
       return window.ClerkAuth.isSignedIn();
@@ -23,7 +25,58 @@
       links[i].href = href;
       links[i].textContent = label;
       links[i].hidden = false;
+      if (signedIn) links[i].removeAttribute('aria-haspopup');
+      else links[i].setAttribute('aria-haspopup', 'dialog');
     }
+
+    if (!signedIn) loadAuthModal();
+  }
+
+  function authModalApi() {
+    if (window.OmoAuth && typeof window.OmoAuth.open === 'function') return window.OmoAuth;
+    if (window.OmoSignupModal && typeof window.OmoSignupModal.openSignIn === 'function') {
+      return {
+        open: function (mode) {
+          if (mode === 'login') window.OmoSignupModal.openSignIn();
+          else window.OmoSignupModal.open();
+        }
+      };
+    }
+    return null;
+  }
+
+  function loadAuthModal() {
+    var api = authModalApi();
+    if (api) return Promise.resolve(api);
+    if (authModalPromise) return authModalPromise;
+
+    authModalPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'signup-modal.js';
+      script.onload = function () {
+        var loadedApi = authModalApi();
+        if (loadedApi) resolve(loadedApi);
+        else reject(new Error('The Omo login popup did not initialize.'));
+      };
+      script.onerror = function () {
+        reject(new Error('The Omo login popup could not be loaded.'));
+      };
+      document.head.appendChild(script);
+    });
+
+    return authModalPromise;
+  }
+
+  function handleLoginClick(event) {
+    var link = event.target.closest && event.target.closest('[data-omo-login]');
+    if (!link || isSignedIn()) return;
+
+    event.preventDefault();
+    loadAuthModal().then(function (api) {
+      api.open('login');
+    }).catch(function (error) {
+      window.console.error(error);
+    });
   }
 
   function subscribeToAuthChanges() {
@@ -88,6 +141,7 @@
 
     syncLoginLinks();
     if (!subscribeToAuthChanges()) loadAuthAdapter();
+    document.addEventListener('click', handleLoginClick);
 
     window.addEventListener('storage', function (event) {
       if (event.key === 'cognition_user') syncLoginLinks();
