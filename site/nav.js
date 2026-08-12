@@ -43,7 +43,7 @@
       '.omo-nav-static-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
       '.omo-nav-logout{margin-top:6px;padding-top:0;border-top:0}' +
       '.omo-nav-popover .omo-nav-logout>a{color:#4D5B56}' +
-      '.omo-nav-login{min-width:96px;justify-content:center}.omo-nav-login.omo-nav-auth-pending{width:96px;max-width:96px;padding-inline:12px;pointer-events:none;border-color:transparent;background:#E1E9E3;box-shadow:none}.omo-nav-auth-skeleton{width:48px;height:8px;border-radius:999px;background:rgba(23,53,44,.16)}' +
+      '.omo-nav-login{min-width:96px;justify-content:center}' +
       '.omo-nav-login.omo-nav-credit{width:96px;min-width:96px;max-width:96px;gap:6px;padding-inline:9px;border-radius:999px;font-variant-numeric:tabular-nums}' +
       '.omo-nav-credit-icon{font-size:16px;line-height:1}' +
       '.omo-nav-credit-amount{min-width:0;overflow:hidden;text-overflow:ellipsis}' +
@@ -216,30 +216,6 @@
     for (var i = 0; i < links.length; i += 1) renderCreditLink(links[i], balanceCents, state);
   }
 
-  function renderAuthPlaceholder(link) {
-    if (link.getAttribute('data-omo-auth-state') === 'pending') return;
-
-    var skeleton = document.createElement('span');
-    skeleton.className = 'omo-nav-auth-skeleton';
-    skeleton.setAttribute('aria-hidden', 'true');
-    link.textContent = '';
-    link.appendChild(skeleton);
-    link.href = 'signup.html';
-    link.hidden = false;
-    link.classList.remove('omo-nav-credit');
-    link.classList.remove('is-balance-loading');
-    link.classList.remove('is-balance-unavailable');
-    link.classList.add('omo-nav-auth-pending');
-    link.setAttribute('data-omo-auth-state', 'pending');
-    link.setAttribute('aria-label', 'Checking account');
-    link.setAttribute('aria-live', 'polite');
-    link.setAttribute('aria-busy', 'true');
-    link.setAttribute('tabindex', '-1');
-    link.removeAttribute('aria-haspopup');
-    link.removeAttribute('aria-controls');
-    link.removeAttribute('title');
-  }
-
   function renderSignedOutLink(link) {
     link.href = 'signup.html';
     link.hidden = false;
@@ -273,7 +249,7 @@
         links[i].removeAttribute('aria-haspopup');
         links[i].removeAttribute('aria-controls');
       } else {
-        renderAuthPlaceholder(links[i]);
+        renderSignedOutLink(links[i]);
       }
     }
   }
@@ -564,7 +540,7 @@
       syncLoginLinks();
     }).catch(function () {
       // A Clerk load failure is not evidence that the user is signed out.
-      // Keep the neutral/optimistic state instead of showing a wrong login.
+      // Keep the hinted pill, or the no-hint signed-out default, unchanged.
       authResolutionStarted = false;
     });
     return true;
@@ -803,7 +779,7 @@
     });
   }
 
-  // nav.js is deferred in the page head, so replace the literal HTML "Log in"
+  // nav.js is deferred in the page head, so apply the persisted sign-in hint
   // before DOMContentLoaded/first paint. Clerk chooses the real state later.
   installCreditStyles();
   primeAuthLinks();
