@@ -590,6 +590,11 @@
           .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
+      function storefrontCopy(value) {
+        return String(value == null ? '' : value)
+          .replace(/\ba free\b/gi, 'an included')
+          .replace(/\bfree\b/gi, 'included');
+      }
       function fmtUsd(v) { return '$' + Number(v).toFixed(2); }
       function listingText(p) {
         return [p.name, p.promise, p.category, p.marketCategory, p.subcategory, (p.tags || []).join(' ')].join(' ').toLowerCase();
@@ -806,7 +811,7 @@
         if (isComingSoon(p)) {
           return visual + '<h2 class="detail-name" id="detail-name">' + esc(p.name) + '</h2>' +
             '<p class="detail-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +
-            '<p class="detail-desc">' + esc(p.desc || p.promise) + '</p>' +
+            '<p class="detail-desc">' + esc(storefrontCopy(p.desc || p.promise)) + '</p>' +
             '<section class="detail-section"><h3>Coming soon</h3><p>This helper is still being hosted and reviewed. It cannot run or charge yet.</p></section>';
         }
         var inputs = p.inputs || [];
@@ -814,7 +819,7 @@
         var examples = p.exampleOut || [];
         return visual + '<h2 class="detail-name" id="detail-name">' + esc(p.name) + '</h2>' +
           '<p class="detail-maker">by <span class="maker-handle">' + esc(p.maker) + '</span> &middot; ' + esc(p.makerName) + ' &middot; ' + esc(p.version) + '</p>' +
-          '<div class="detail-upvote-row">' + upvoteBtnHTML(p) + '</div><p class="detail-desc">' + esc(p.desc) + '</p>' +
+          '<div class="detail-upvote-row">' + upvoteBtnHTML(p) + '</div><p class="detail-desc">' + esc(storefrontCopy(p.desc)) + '</p>' +
           (p.reelUrl || p.video || p.github ? '<p class="detail-links">' +
             (p.reelUrl ? '<a class="chip-link" href="' + esc(p.reelUrl) + '" target="_blank" rel="noopener">▶ Watch the creator\'s reel</a>' : '') +
             (p.video ? '<a class="chip-link" href="' + esc(p.video) + '" target="_blank" rel="noopener">▶ Watch the video</a>' : '') +

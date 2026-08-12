@@ -1068,6 +1068,11 @@
           .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       };
+      function storefrontCopy(value) {
+        return String(value == null ? '' : value)
+          .replace(/\ba free\b/gi, 'an included')
+          .replace(/\bfree\b/gi, 'included');
+      }
 
       /* ── Catalog products ────────────────────────────────────── */
       var PRODUCTS = {};
@@ -1329,7 +1334,7 @@
           '<h2 class="detail-name" id="detail-name">' + ESC(p.name) + '</h2>' +
           '<p class="detail-maker">by <span class="maker-handle">' + ESC(p.maker) + '</span> &middot; ' + ESC(p.makerName) + ' &middot; ' + ESC(p.version) + '</p>' +
           '<div class="detail-upvote-row">' + upvoteBtnHTML(p) + '</div>' +
-          '<p class="detail-desc">' + ESC(p.desc) + '</p>' +
+          '<p class="detail-desc">' + ESC(storefrontCopy(p.desc)) + '</p>' +
           '<p class="detail-email">Made by <span class="maker-handle">' + ESC(p.maker) + '</span>.</p>' +
           (p.reelUrl || p.video || p.github ? '<p class="detail-links">' +
             (p.reelUrl ? '<a class="chip-link" href="' + ESC(p.reelUrl) + '" target="_blank" rel="noopener">▶ Watch the creator\'s reel</a> ' : '') +
