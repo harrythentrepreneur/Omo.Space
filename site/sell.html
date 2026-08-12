@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <meta name="theme-color" content="#F2F6F1">
+  <meta name="theme-color" content="#F8F7F5">
   <meta name="robots" content="index,follow">
   <meta name="description" content="Sell the skill.md files and AI workflows you already built on the Omo marketplace.">
   <link rel="canonical" href="https://omo.space/sell.html">
@@ -25,26 +25,23 @@
   <title>Sell Your Workflow on Omo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet">
   <style>
     :root {
-      --canvas: #F2F6F1;
+      --canvas: #F8F7F5;
       --surface: #FFFFFF;
       --pine: #17352C;
       --orange: #FF6B3D;
       --mint: #BDEFD4;
       --moss: #6F7E77;
-      --rule: #D9E2DC;
-      --display: "Fraunces", Georgia, serif;
+      --rule: #DDE3DF;
       --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     *, *::before, *::after { box-sizing: border-box; }
     html { min-width: 320px; overflow-x: hidden; background: var(--canvas); }
     body {
       min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0; overflow-x: hidden;
-      background:
-        radial-gradient(circle at 86% 16%, rgba(189, 239, 212, .55) 0 9%, transparent 9.2%),
-        var(--canvas);
+      background: var(--canvas);
       color: var(--pine); font-family: var(--body); line-height: 1.58; text-rendering: optimizeLegibility;
     }
     button, input { font: inherit; }
@@ -53,58 +50,66 @@
     img { display: block; max-width: 100%; }
     :where(a, button, input):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
     .page-shell {
-      width: min(100% - 48px, 1040px); min-height: 100vh; min-height: 100dvh; margin-inline: auto;
-      padding: 28px 0 max(34px, env(safe-area-inset-bottom)); display: grid; grid-template-rows: auto 1fr auto;
+      width: min(100% - 32px, 520px); min-height: 100vh; min-height: 100dvh; margin-inline: auto;
+      padding: max(42px, env(safe-area-inset-top)) 0 max(24px, env(safe-area-inset-bottom));
+      display: grid; grid-template-rows: auto 1fr auto;
     }
-    .sell-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
-    .wordmark-logo { width: auto; height: 34px; }
-    .back-link {
-      min-height: 44px; display: inline-flex; align-items: center; color: var(--moss); font-size: 14px;
-      font-weight: 700; text-underline-offset: 4px;
-    }
-    .back-link:hover { color: var(--pine); }
-    .sell-main { display: grid; place-items: center; padding: 76px 0 84px; }
-    .sell-copy { width: min(100%, 690px); text-align: center; }
-    .eyebrow {
-      display: inline-flex; margin-bottom: 22px; padding: 6px 13px; border: 1px solid var(--rule);
-      border-radius: 999px; background: var(--surface); color: var(--moss); font-size: 12px;
-      font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
-    }
+    .sell-header { display: flex; justify-content: center; }
+    .wordmark { display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark-logo { width: 112px; height: auto; }
+    .sell-main { display: grid; place-items: center; padding: 70px 0 76px; }
+    .sell-copy { width: min(100%, 440px); text-align: center; }
     h1 {
-      margin: 0 0 28px; font: 600 clamp(46px, 8vw, 76px)/.99 var(--display);
+      margin: 0; font-size: clamp(31px, 7vw, 38px); font-weight: 700; line-height: 1.13;
       letter-spacing: -.035em; text-wrap: balance;
     }
-    h1 em { color: var(--orange); font-style: italic; }
-    .sell-body { max-width: 600px; margin: 0 auto; color: var(--moss); font-size: clamp(17px, 2vw, 19px); text-wrap: pretty; }
-    .sell-body p { margin: 0 0 18px; }
-    .sell-body strong { color: var(--pine); }
+    .sell-subtitle {
+      max-width: 390px; margin: 14px auto 30px; color: var(--moss); font-size: 15px; line-height: 1.6;
+      text-wrap: pretty;
+    }
+    .seller-card {
+      padding: 28px; border: 1px solid var(--rule); border-radius: 16px; background: var(--surface);
+      box-shadow: 0 12px 34px rgba(23, 53, 44, .055); text-align: left;
+    }
+    .seller-card h2 { margin: 0 0 18px; font-size: 17px; line-height: 1.35; letter-spacing: -.01em; }
+    .earning-list { margin: 0 0 24px; padding: 0; display: grid; gap: 14px; list-style: none; }
+    .earning-list li { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 10px; }
+    .check {
+      width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%;
+      background: rgba(189, 239, 212, .72); color: var(--pine); font-size: 12px; font-weight: 700;
+    }
+    .earning-label { color: #40574f; font-size: 14px; }
+    .earning-share { color: var(--pine); font-size: 14px; font-weight: 700; white-space: nowrap; }
     .signup-button {
-      min-height: 56px; margin-top: 20px; padding: 0 28px; border: 1px solid var(--pine); border-radius: 11px;
-      background: var(--pine); color: #fff; font-weight: 700; transition: transform .12s ease, box-shadow .12s ease;
+      width: 100%; min-height: 52px; padding: 0 22px; border: 1px solid var(--pine); border-radius: 8px;
+      background: var(--pine); color: #fff; font-size: 15px; font-weight: 700;
+      transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
     }
-    .signup-button:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(23, 53, 44, .2); }
-    .login-note { margin: 18px 0 0; color: var(--moss); font-size: 14px; }
-    .login-link { padding: 0; border: 0; background: transparent; color: var(--pine); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
-    .waitlist-form { max-width: 520px; margin: 30px auto 0; padding-top: 26px; border-top: 1px solid var(--rule); }
-    .waitlist-label { display: block; margin-bottom: 11px; color: var(--moss); font-size: 14px; }
-    .waitlist-row { display: flex; gap: 8px; }
+    .signup-button:hover { background: #21483d; transform: translateY(-1px); box-shadow: 0 7px 18px rgba(23, 53, 44, .16); }
+    .login-note { margin: 16px 0 0; color: var(--moss); font-size: 13px; text-align: center; }
+    .login-link { color: var(--pine); font-weight: 700; text-underline-offset: 3px; }
+    .waitlist-form { margin: 24px 0 0; padding-top: 22px; border-top: 1px solid var(--rule); }
+    .waitlist-label { display: block; margin-bottom: 11px; color: var(--moss); font-size: 12px; line-height: 1.5; text-align: center; }
+    .waitlist-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
     .waitlist-input {
-      flex: 1; min-width: 0; height: 50px; padding: 0 16px; border: 1px solid var(--rule);
-      border-radius: 10px; background: var(--surface); color: var(--pine);
+      min-width: 0; height: 46px; padding: 0 13px; border: 1px solid #CCD6D0;
+      border-radius: 8px; background: #fff; color: var(--pine); font-size: 14px;
     }
-    .waitlist-input:focus { border-color: var(--orange); outline: none; }
-    .waitlist-submit { min-height: 50px; margin: 0; white-space: nowrap; }
+    .waitlist-input::placeholder { color: #95A19B; }
+    .waitlist-input:focus { border-color: var(--orange); outline: 3px solid rgba(255, 107, 61, .11); }
+    .waitlist-submit { width: auto; min-height: 46px; padding-inline: 16px; white-space: nowrap; font-size: 13px; }
     .waitlist-submit:disabled { cursor: wait; opacity: .7; }
-    .waitlist-note { margin: 10px 0 0; color: var(--pine); font-size: 14px; font-weight: 700; }
+    .waitlist-note { margin: 10px 0 0; color: var(--pine); font-size: 12px; font-weight: 700; text-align: center; }
     .waitlist-note[data-state="error"] { color: #8c2e16; }
     .page-footer {
-      padding-top: 20px; border-top: 1px solid var(--rule); display: flex; align-items: center;
-      justify-content: space-between; gap: 16px; color: var(--moss); font-size: 13px;
+      display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px;
+      color: #87918C; font-size: 12px; text-align: center;
     }
     .page-footer p { margin: 0; }
-    .footer-links { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .footer-links a { min-height: 44px; display: inline-flex; align-items: center; font-weight: 700; text-underline-offset: 3px; }
+    .footer-links { display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .footer-links a { text-decoration: none; }
+    .footer-links a:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 3px; }
+    .footer-dot { color: #B2B9B5; }
 
     body.auth-modal-open { overflow: hidden; }
     .auth-modal[hidden], .auth-modal__view[hidden], .signup-only[hidden] { display: none; }
@@ -163,19 +168,17 @@
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
     @media (max-width: 600px) {
-      .page-shell { width: calc(100% - 32px); padding-top: max(18px, env(safe-area-inset-top)); }
-      .sell-header { gap: 16px; }
-      .back-link { font-size: 13px; }
-      .sell-main { padding: 54px 0 64px; place-items: start center; }
-      h1 { font-size: clamp(42px, 13vw, 58px); }
-      .sell-body { font-size: 17px; }
-      .signup-button { width: 100%; }
-      .waitlist-row { flex-direction: column; }
-      .waitlist-submit { width: 100%; }
-      .page-footer { align-items: flex-start; flex-direction: column; gap: 4px; }
+      .page-shell { padding-top: max(28px, env(safe-area-inset-top)); }
+      .wordmark-logo { width: 102px; }
+      .sell-main { padding: 52px 0 58px; place-items: start center; }
+      .sell-subtitle { margin-bottom: 24px; }
+      .seller-card { padding: 24px 20px; border-radius: 14px; }
     }
     @media (max-width: 420px) {
-      .wordmark-logo { height: 30px; }
+      .earning-list li { grid-template-columns: 22px 1fr; row-gap: 1px; }
+      .earning-share { grid-column: 2; }
+      .waitlist-row { grid-template-columns: 1fr; }
+      .waitlist-submit { width: 100%; }
       .auth-modal { padding: 12px; }
       .auth-modal__card { padding: 34px 22px 26px; border-radius: 15px; }
     }
@@ -183,54 +186,44 @@
       *, *::before, *::after { transition: none !important; animation: none !important; }
     }
   </style>
-  <link rel="stylesheet" href="nav-footer.css">
-  <script defer src="nav.js"></script>
 </head>
 <body>
   <div class="page-shell">
-    <header class="sell-header omo-nav-row">
-      <div class="omo-nav-brand">
-        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
-        <div class="omo-nav-menu">
-          <button class="omo-nav-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true"><span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
-          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
-            <a href="index.html">Discover</a>
-            <a href="sell.html" aria-current="page">Sell Workflow</a>
-          </nav>
-        </div>
-      </div>
-      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
+    <header class="sell-header">
+      <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo"></a>
     </header>
 
     <main class="sell-main">
       <section class="sell-copy" aria-labelledby="sell-title">
-        <p class="eyebrow">Sell on Omo</p>
-        <h1 id="sell-title">Sell your workflow on the <em>marketplace.</em></h1>
-        <div class="sell-body">
-          <p>You built a skill.md or workflow that already does useful work. List it on Omo so other people can find it without setting up GitHub, payments, or hosting.</p>
-          <p>Buyers can download the files and run them themselves, or run the workflow on our cloud while Omo handles the API keys and billing.</p>
-          <p>You keep <strong>85% of every store sale</strong>, <strong>95% when the buyer comes from your own link</strong>, and <strong>85% of the positive margin on API runs</strong>.</p>
+        <h1 id="sell-title">Sell your workflow on the marketplace</h1>
+        <p class="sell-subtitle">Share the AI workflows you already built. Omo handles discovery, payments, and cloud runs.</p>
+        <div class="seller-card">
+          <h2>How you earn</h2>
+          <ul class="earning-list">
+            <li><span class="check" aria-hidden="true">✓</span><span class="earning-label">Sell through the Omo store</span><span class="earning-share">Keep 85%</span></li>
+            <li><span class="check" aria-hidden="true">✓</span><span class="earning-label">Share your own sales link</span><span class="earning-share">Keep 95%</span></li>
+            <li><span class="check" aria-hidden="true">✓</span><span class="earning-label">Cloud API runs</span><span class="earning-share">85% of margin</span></li>
+          </ul>
+          <button class="signup-button" id="create-account" type="button">Create your account</button>
+          <p class="login-note">Already have an account? <a class="login-link" id="sell-login" href="signup.html">Log in</a></p>
+          <form class="waitlist-form" data-waitlist-form data-source="sell" novalidate>
+            <label class="waitlist-label" for="sell-waitlist-email">Not ready yet? Get launch updates and early seller invites.</label>
+            <div class="waitlist-row">
+              <input class="waitlist-input" id="sell-waitlist-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required>
+              <button class="signup-button waitlist-submit" type="submit">Join waitlist</button>
+            </div>
+            <p class="waitlist-note" data-waitlist-note role="status" aria-live="polite" hidden></p>
+          </form>
         </div>
-        <button class="signup-button" id="create-account" type="button">Create your account</button>
-        <p class="login-note">Already have an account? <a class="login-link" id="sell-login" href="signup.html">Log in</a></p>
-        <form class="waitlist-form" data-waitlist-form data-source="sell" novalidate>
-          <label class="waitlist-label" for="sell-waitlist-email">Want launch updates and early seller invites? Join the waitlist.</label>
-          <div class="waitlist-row">
-            <input class="waitlist-input" id="sell-waitlist-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required>
-            <button class="signup-button waitlist-submit" type="submit">Join the waitlist</button>
-          </div>
-          <p class="waitlist-note" data-waitlist-note role="status" aria-live="polite" hidden></p>
-        </form>
       </section>
     </main>
-    <footer class="page-footer omo-footer">
-      <p>Omo — useful AI helpers, ready to run.</p>
-      <nav class="footer-links omo-footer-links" aria-label="Footer">
-        <a href="about.html">About</a>
-        <a href="sell.html" aria-current="page">Sell yours</a>
-        <a href="creators.html">For creators</a>
+    <footer class="page-footer">
+      <p>© 2026 Omo</p><span class="footer-dot" aria-hidden="true">·</span>
+      <nav class="footer-links" aria-label="Footer">
         <a href="terms.html">Terms</a>
+        <span class="footer-dot" aria-hidden="true">·</span>
         <a href="privacy.html">Privacy</a>
+        <span class="footer-dot" aria-hidden="true">·</span>
         <a href="support.html">Support</a>
       </nav>
     </footer>
