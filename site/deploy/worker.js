@@ -206,6 +206,45 @@ const MAX_TOPUP_USD_DEFAULT = 1000;
 const MAX_SUBMISSION_BYTES = 200 * 1024;
 const USER_ID_RE = /^user_[A-Za-z0-9_-]{1,80}$/;
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
+const STRIPE_CHECKOUT_API_VERSION = '2025-09-30.clover';
+const OMO_CHECKOUT_LOGO_URL = 'https://omo.space/logo-sweet-pastel.svg';
+const OMO_CHECKOUT_ICON_URL = 'https://omo.space/favicon-512.png';
+
+// Checkout Session branding is request-scoped in Clover. Supplying every
+// visual field prevents this shared Stripe account's PhonicsMaker defaults
+// from leaking into Omo's hosted Checkout page; the Account is never mutated.
+function applyOmoCheckoutBranding(params) {
+  params.set('locale', 'auto');
+  params.set('submit_type', 'pay');
+  params.set('branding_settings[display_name]', 'Omo');
+  params.set('branding_settings[background_color]', '#F8F7F5');
+  params.set('branding_settings[button_color]', '#17352C');
+  params.set('branding_settings[border_style]', 'rounded');
+  params.set('branding_settings[font_family]', 'nunito');
+  params.set('branding_settings[logo][type]', 'url');
+  params.set('branding_settings[logo][url]', OMO_CHECKOUT_LOGO_URL);
+  params.set('branding_settings[icon][type]', 'url');
+  params.set('branding_settings[icon][url]', OMO_CHECKOUT_ICON_URL);
+}
+
+function stripeCheckoutHeaders(secretKey) {
+  return {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Authorization: `Bearer ${secretKey}`,
+    'Stripe-Version': STRIPE_CHECKOUT_API_VERSION,
+  };
+}
+
+function purchaseCancelUrl(request, slug) {
+  const workflowUrl = `https://omo.space/workflow.html?slug=${encodeURIComponent(slug)}`;
+  try {
+    const referer = new URL(String(request.headers.get('referer') || ''));
+    if (referer.origin !== 'https://omo.space') return workflowUrl;
+    if (referer.pathname === '/dashboard.html') return 'https://omo.space/dashboard.html';
+    if (referer.pathname === '/' || referer.pathname === '/index.html') return 'https://omo.space/';
+  } catch {}
+  return workflowUrl;
+}
 
 // ── Router ─────────────────────────────────────────────────────────────────
 // Each route maps to { handler } (POST-only by default) or { handler, methods }
@@ -1262,25 +1301,36 @@ async function handleCheckout(request, env) {
   if (callerIdempotencyKey && !IDEMPOTENCY_KEY_RE.test(callerIdempotencyKey)) {
     return json({ error: 'Invalid Idempotency-Key (8-128 URL-safe characters).' }, 400, cors());
   }
+  let userId = '';
+  if (isRealMode(env) && request.headers.get('authorization')) {
+    const auth = await authenticateAccount(request, env, false);
+    if (auth.ok) userId = auth.userId;
+  }
   const params = new URLSearchParams();
   params.set('mode', 'payment');
+  applyOmoCheckoutBranding(params);
   params.set('success_url', `https://omo.space/?purchased=${encodeURIComponent(slug)}&session_id={CHECKOUT_SESSION_ID}`);
-  params.set('cancel_url', 'https://omo.space/?purchased=cancelled');
+  params.set('cancel_url', purchaseCancelUrl(request, slug));
+  params.set('custom_text[submit][message]', `Purchasing the ${listing.name} workflow`);
+  // Stripe renders after_submit below the pay button before payment, so keep
+  // this conditional instead of implying that an unpaid order is fulfilled.
+  params.set('custom_text[after_submit][message]', 'Enjoy your workflow — after payment, find it in your Omo dashboard');
   params.set('line_items[0][quantity]', '1');
   params.set('line_items[0][price_data][currency]', 'usd');
   params.set('line_items[0][price_data][product_data][name]', listing.name);
+  params.set('line_items[0][price_data][product_data][description]', `${listing.name} workflow and prompts from Omo.`);
   params.set('line_items[0][price_data][unit_amount]', String(listing.licensePriceCents));
   params.set('metadata[type]', 'catalog_license');
+  params.set('metadata[flow]', 'purchase');
   params.set('metadata[slug]', slug);
+  params.set('metadata[workflow]', listing.name);
   params.set('metadata[amount_cents]', String(listing.licensePriceCents));
   params.set('metadata[currency]', 'usd');
+  if (userId) params.set('metadata[user_id]', userId);
   if (email) params.set('customer_email', email);
 
   try {
-    const stripeHeaders = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Bearer ${secretKey}`,
-    };
+    const stripeHeaders = stripeCheckoutHeaders(secretKey);
     if (callerIdempotencyKey) {
       stripeHeaders['Idempotency-Key'] = `omo-checkout-${await sha256Hex(`catalog-license\u0000${slug}\u0000${callerIdempotencyKey}`)}`;
     }
@@ -1524,27 +1574,30 @@ async function handleTopup(request, env) {
 
   const params = new URLSearchParams();
   params.set('mode', 'payment');
+  applyOmoCheckoutBranding(params);
   // Credits are fulfilled synchronously from checkout.session.completed.
   // Restrict Checkout to cards so delayed payment methods cannot create a
   // completed-but-not-yet-paid fulfillment gap.
   params.set('payment_method_types[0]', 'card');
   params.set('success_url', 'https://omo.space/billing.html?topup=success&session_id={CHECKOUT_SESSION_ID}');
   params.set('cancel_url', 'https://omo.space/billing.html?topup=cancelled');
+  params.set('custom_text[submit][message]', 'Topping up Omo credits');
+  // after_submit is below the pay button, not a post-payment success screen.
+  params.set('custom_text[after_submit][message]', 'Thank you — your Omo credits are on the way after payment');
   params.set('client_reference_id', userId);
   params.set('metadata[user_id]', userId);
   params.set('metadata[type]', 'credits_topup');
+  params.set('metadata[flow]', 'topup');
   params.set('metadata[amount_cents]', String(cents));
   params.set('metadata[currency]', 'usd');
   params.set('line_items[0][quantity]', '1');
   params.set('line_items[0][price_data][currency]', 'usd');
   params.set('line_items[0][price_data][product_data][name]', 'Omo credits');
+  params.set('line_items[0][price_data][product_data][description]', `Adds $${(cents / 100).toFixed(2)} to your Omo balance.`);
   params.set('line_items[0][price_data][unit_amount]', String(cents));
 
   try {
-    const stripeHeaders = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Bearer ${secretKey}`,
-    };
+    const stripeHeaders = stripeCheckoutHeaders(secretKey);
     if (callerIdempotencyKey) {
       stripeHeaders['Idempotency-Key'] = `omo-topup-${await sha256Hex(`credits-topup\u0000${userId}\u0000${cents}\u0000${callerIdempotencyKey}`)}`;
     }

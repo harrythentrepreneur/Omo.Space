@@ -388,7 +388,10 @@ check('checkout: unknown slug returns 404 without calling Stripe', unknownChecko
 
 const csResponse = await worker.fetch(mkReq('POST', '/api/checkout', {
   slug: 'ugc-script-studio', priceUsd: 0.01, email: 'buyer@example.com',
-}, { Origin: 'https://omo.space', 'Idempotency-Key': 'checkout-router-0001' }), stripeEnv);
+}, {
+  Origin: 'https://omo.space', Referer: 'https://omo.space/workflow.html?slug=ugc-script-studio',
+  'Idempotency-Key': 'checkout-router-0001',
+}), stripeEnv);
 const cs = await csResponse.json();
 check('checkout: guest buyer needs no auth and receives hosted Stripe URL', csResponse.status === 200 && cs.url === 'https://checkout.stripe.com/c/pay/test_123');
 check('checkout: real-mode CORS allows the production storefront', csResponse.headers.get('Access-Control-Allow-Origin') === 'https://omo.space');
@@ -397,19 +400,20 @@ const sc = stripeCalls[stripeCalls.length - 1];
 const scParams = new URLSearchParams(sc.body);
 check('checkout: posts form-encoded to Stripe sessions API', sc.url === 'https://api.stripe.com/v1/checkout/sessions');
 check('checkout: unit_amount is server catalog price (client price ignored)', scParams.get('line_items[0][price_data][unit_amount]') === '3900');
-check('checkout: currency + mode + quantity set', scParams.get('line_items[0][price_data][currency]') === 'usd' && scParams.get('mode') === 'payment' && scParams.get('line_items[0][quantity]') === '1');
-check('checkout: product name comes from the server catalog', scParams.get('line_items[0][price_data][product_data][name]') === 'UGC Script Studio');
+check('checkout: currency + mode + quantity + locale + submit type set', scParams.get('line_items[0][price_data][currency]') === 'usd' && scParams.get('mode') === 'payment' && scParams.get('line_items[0][quantity]') === '1' && scParams.get('locale') === 'auto' && scParams.get('submit_type') === 'pay');
+check('checkout: product and scoped custom text name the server catalog workflow', scParams.get('line_items[0][price_data][product_data][name]') === 'UGC Script Studio' && scParams.get('line_items[0][price_data][product_data][description]') === 'UGC Script Studio workflow and prompts from Omo.' && scParams.get('custom_text[submit][message]') === 'Purchasing the UGC Script Studio workflow' && scParams.get('custom_text[after_submit][message]') === 'Enjoy your workflow — after payment, find it in your Omo dashboard');
 check('checkout: success_url carries slug + Stripe session placeholder', scParams.get('success_url') === 'https://omo.space/?purchased=ugc-script-studio&session_id={CHECKOUT_SESSION_ID}');
-check('checkout: cancel_url set', scParams.get('cancel_url') === 'https://omo.space/?purchased=cancelled');
+check('checkout: cancel_url returns to the originating workflow listing', scParams.get('cancel_url') === 'https://omo.space/workflow.html?slug=ugc-script-studio');
 check('checkout: buyer email forwarded', scParams.get('customer_email') === 'buyer@example.com');
-check('checkout: ownership metadata pins catalog amount + currency', scParams.get('metadata[type]') === 'catalog_license' && scParams.get('metadata[slug]') === 'ugc-script-studio' && scParams.get('metadata[amount_cents]') === '3900' && scParams.get('metadata[currency]') === 'usd');
-check('checkout: bearer auth uses the secret (never logged)', (sc.headers.Authorization || '') === 'Bearer sk_test_fake_secret');
+check('checkout: ownership metadata pins workflow, flow, amount + currency', scParams.get('metadata[type]') === 'catalog_license' && scParams.get('metadata[flow]') === 'purchase' && scParams.get('metadata[slug]') === 'ugc-script-studio' && scParams.get('metadata[workflow]') === 'UGC Script Studio' && scParams.get('metadata[amount_cents]') === '3900' && scParams.get('metadata[currency]') === 'usd');
+check('checkout: secret + Clover version and complete Omo branding are request-scoped', (sc.headers.Authorization || '') === 'Bearer sk_test_fake_secret' && sc.headers['Stripe-Version'] === '2025-09-30.clover' && scParams.get('branding_settings[display_name]') === 'Omo' && scParams.get('branding_settings[background_color]') === '#F8F7F5' && scParams.get('branding_settings[button_color]') === '#17352C' && scParams.get('branding_settings[border_style]') === 'rounded' && scParams.get('branding_settings[font_family]') === 'nunito' && scParams.get('branding_settings[logo][url]') === 'https://omo.space/logo-sweet-pastel.svg' && scParams.get('branding_settings[icon][url]') === 'https://omo.space/favicon-512.png');
 check('checkout: caller idempotency is scoped before Stripe', /^omo-checkout-[0-9a-f]{64}$/.test(sc.headers['Idempotency-Key'] || '') && sc.headers['Idempotency-Key'] !== 'checkout-router-0001');
 
 const authedCheckout = await worker.fetch(mkReq('POST', '/api/checkout', {
   slug: 'listing-copy-engine', email: 'member@example.com',
 }, user111Headers), stripeEnv);
-check('checkout: authenticated callers use the same guest-compatible contract', authedCheckout.status === 200);
+const authedCheckoutParams = new URLSearchParams(stripeCalls.at(-1).body);
+check('checkout: verified callers add user metadata without changing the guest-compatible contract', authedCheckout.status === 200 && authedCheckoutParams.get('metadata[user_id]') === 'user_111');
 
 const stripeWebhookSecret = 'whsec_router_purchase_secret';
 const purchaseEvent = {
@@ -740,9 +744,9 @@ check('topup: returns Stripe Checkout url', tp.url === 'https://checkout.stripe.
 
 const tpc = stripeCalls[stripeCalls.length - 1];
 const tpcParams = new URLSearchParams(tpc.body);
-check('topup: custom $7, cards only, and caller idempotency are pinned at Stripe', tpcParams.get('line_items[0][price_data][unit_amount]') === '700' && tpcParams.get('payment_method_types[0]') === 'card' && /^omo-topup-[0-9a-f]{64}$/.test(tpc.headers['Idempotency-Key'] || ''));
-check('topup: success_url returns directly to billing with the session placeholder', tpcParams.get('success_url') === 'https://omo.space/billing.html?topup=success&session_id={CHECKOUT_SESSION_ID}');
-check('topup: verified user overrides body user in reference + metadata', tpcParams.get('client_reference_id') === 'user_111' && tpcParams.get('metadata[user_id]') === 'user_111');
+check('topup: custom $7 Omo credits, cards only, locale, text, version + idempotency are pinned at Stripe', tpcParams.get('line_items[0][price_data][unit_amount]') === '700' && tpcParams.get('line_items[0][price_data][product_data][name]') === 'Omo credits' && tpcParams.get('line_items[0][price_data][product_data][description]') === 'Adds $7.00 to your Omo balance.' && tpcParams.get('payment_method_types[0]') === 'card' && tpcParams.get('locale') === 'auto' && tpcParams.get('submit_type') === 'pay' && tpcParams.get('custom_text[submit][message]') === 'Topping up Omo credits' && tpcParams.get('custom_text[after_submit][message]') === 'Thank you — your Omo credits are on the way after payment' && tpc.headers['Stripe-Version'] === '2025-09-30.clover' && /^omo-topup-[0-9a-f]{64}$/.test(tpc.headers['Idempotency-Key'] || ''));
+check('topup: success and cancel URLs return directly to billing', tpcParams.get('success_url') === 'https://omo.space/billing.html?topup=success&session_id={CHECKOUT_SESSION_ID}' && tpcParams.get('cancel_url') === 'https://omo.space/billing.html?topup=cancelled');
+check('topup: verified user overrides body user in reference + scoped metadata', tpcParams.get('client_reference_id') === 'user_111' && tpcParams.get('metadata[user_id]') === 'user_111' && tpcParams.get('metadata[type]') === 'credits_topup' && tpcParams.get('metadata[flow]') === 'topup');
 
 const topupEvent = {
   id: 'evt_credit_topup_123',

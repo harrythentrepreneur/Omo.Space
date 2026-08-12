@@ -115,6 +115,48 @@ configure, but broad live catalog sales are **not yet fulfillment-ready**.
   `https://omo.space/api/topup` in Stripe.
 - Local verification passes: balance 22/22, router 91/91, cost model 11/11.
 
+### Checkout branding isolation (implemented 2026-08-13)
+
+The earlier assumption that hosted Checkout only supports account-level
+branding is no longer correct. Stripe added Checkout Session
+`branding_settings` in API version `2025-09-30.clover`; it explicitly overrides
+the account's branding for that Session. Omo now pins **only** the two Session
+creation requests to that version and sends a complete per-session appearance:
+
+- display name `Omo`, the existing Omo logo and square icon by public HTTPS URL;
+- canvas `#F8F7F5`, pine button `#17352C`, rounded controls, and Nunito;
+- `locale=auto`, `submit_type=pay`, flow-specific `custom_text`, and clear inline
+  product names/descriptions (`<workflow title>` or `Omo credits` plus the exact
+  amount);
+- purchase metadata for type/flow/slug/workflow/amount/currency and, when the
+  request carries a verified Clerk token, user ID; top-up metadata always has
+  the verified user ID plus type/flow/amount/currency;
+- purchase success returns to the existing catalog success handler and cancel
+  returns to the originating Omo page (with the workflow listing as fallback);
+  top-ups return to `billing.html` for both success and cancellation.
+
+Stripe's `custom_text.after_submit` is displayed below the payment button
+**before** payment, not on the success page. The copy therefore says “after
+payment” instead of claiming that credits/workflow access already exists.
+Terms-acceptance text is intentionally omitted: enabling it would require
+`consent_collection[terms_of_service]=required` and an account-configured terms
+URL, neither of which this change needs.
+
+This does not mutate the shared Account object or Dashboard settings, so it
+does not restyle PhonicsMaker Checkout. The isolation is not complete outside
+the Checkout page: Stripe documents that the account business name can still
+appear in terms, receipts, and other surfaces, and Checkout-created invoices
+still use Dashboard branding. A **separate Stripe account for Omo is the
+recommended clean boundary** for checkout, receipts, legal identity, disputes,
+and reporting; creating/activating it requires the founder's identity and bank
+steps. Changing shared account-level branding remains not recommended because
+it would affect PhonicsMaker.
+
+Official references: [Clover branding change](https://docs.stripe.com/changelog/clover/2025-09-30/checkout-sessions-branding-settings),
+[Session create parameters](https://docs.stripe.com/api/checkout/sessions/create?api-version=2025-09-30.clover),
+[hosted Checkout appearance](https://docs.stripe.com/payments/checkout/customization/appearance?payment-ui=stripe-hosted&integration=api),
+and [multiple Stripe accounts](https://docs.stripe.com/get-started/account/multiple-accounts).
+
 ### Gaps to fix in a follow-up code change
 
 1. `woven-relationship-book-maker` is exposed by the storefront
