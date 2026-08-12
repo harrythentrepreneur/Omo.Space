@@ -87,17 +87,131 @@ Do not commit secret values. Only publishable keys belong in
   repo's installed official `@neondatabase/serverless` driver.
 - Local suites: balance 22/22, router 91/91, cost model 11/11.
 
-## Stripe checkout contract
+## Stripe readiness audit and founder runbook
 
-`POST /api/checkout` is intentionally guest-accessible so landing-page buyers
-do not need a Clerk session. It accepts a required catalog `slug`, an optional
-`email`, and an optional `Idempotency-Key` header. Any client `priceUsd` is
-ignored: the Worker resolves the listing name and one-time price from
-`SERVER_CATALOG`, returns 404 for an unknown slug, returns 501 until
-`STRIPE_SECRET_KEY` exists, and otherwise returns `{ "url": "https://checkout.stripe.com/..." }`.
-Stripe collects the buyer email when it is omitted. Signed-in callers use the
-same contract; ownership is durably keyed by the Checkout Session and the
-Stripe-collected buyer email after the signed webhook completes.
+Last audited 2026-08-12. The supported-listing test-card loop is ready to
+configure, but broad live catalog sales are **not yet fulfillment-ready**.
+
+### Live route and code audit
+
+- `POST /api/checkout` is guest-accessible, resolves name and price from the
+  server catalog, ignores client pricing, creates a hosted Checkout Session,
+  and records a pending purchase. The signed paid webhook advances that row
+  idempotently (`site/deploy/worker.js:1036-1095`, `1320-1347`, `2233-2303`).
+- Authenticated `POST /api/topup` enforces the server user and $5-$1,000 range,
+  sends success/cancel back to the dashboard, records the pending session, and
+  credits Neon exactly once after a signed paid event
+  (`site/deploy/worker.js:1175-1317`, `2306-2446`).
+- Stripe signatures are checked against the raw body with a five-minute
+  timestamp tolerance (`site/deploy/worker.js:2520-2538`). The one shared
+  webhook route is `POST /api/topup`; it handles both catalog purchases and
+  credit top-ups when the `Stripe-Signature` header is present.
+- Read-only invalid-signature probes returned HTTP 501 `stripe webhook not
+  configured` from both `https://omo.space/api/topup` (Vercel rewrite) and
+  `https://cognition-demos.harrythentrepreneurr.workers.dev/api/topup`
+  (Cloudflare). A valid-slug checkout probe also returned HTTP 501 `stripe not
+  configured`. This proves both origins currently serve the intended handler
+  and neither Stripe Worker secret is configured. Use the stable public URL
+  `https://omo.space/api/topup` in Stripe.
+- Local verification passes: balance 22/22, router 91/91, cost model 11/11.
+
+### Gaps to fix in a follow-up code change
+
+1. `woven-relationship-book-maker` is exposed by the storefront
+   (`site/ig-more.js:406`) but is absent from `SERVER_CATALOG`
+   (`site/deploy/worker.js:154-187`), so its buy button receives 404 at
+   `site/deploy/worker.js:1040-1042`.
+2. Many valid custom two-decimal top-ups are rejected: the Worker requires
+   `amount_usd * 100` to be an exact safe integer
+   (`site/deploy/worker.js:1194-1197`), but binary floating point makes values
+   such as 5.02 become 501.999... cents. The preset $20/$50/$100/$200 chips
+   work; custom cents need a follow-up fix.
+3. A paid catalog purchase only becomes a completed Neon row. The success URL
+   returns to the home page (`site/deploy/worker.js:1058`), where the query
+   parameters are trusted directly into local storage without server
+   verification (`site/menu-workflows.js:34-58`). The Library then labels that
+   local value purchased (`site/library.js:52-55`, `116-146`), but no verified
+   ownership/download API or file delivery exists. Payment recording works;
+   fulfillment does not, and the local ownership display is forgeable.
+4. The workflow-page checkout omits an `Idempotency-Key`
+   (`site/workflow.html:1139-1142`), and top-up session creation sends none to
+   Stripe (`site/deploy/worker.js:1229-1235`). A retry can create another unpaid
+   session; fulfillment itself remains idempotent.
+5. Only `checkout.session.completed` is handled, and only when
+   `payment_status=paid` (`site/deploy/worker.js:1269-1279`). Keep delayed
+   payment methods disabled for now or add `checkout.session.async_payment_succeeded`.
+6. The dashboard makes one delayed balance refresh after return
+   (`site/dashboard.html:1397-1400`); a slow webhook can leave a stale balance
+   until manual reload.
+7. The publishable key is only a browser configuration/demo flag and loads
+   Stripe.js; hosted Checkout is created by the Worker. The code does not
+   enforce test/live pairing (`site/stripe.js:14-20`, `120-137`). Always install
+   matching-mode publishable, secret, and webhook keys.
+8. Before payments, confirm production Neon has `purchases`, `topup_sessions`,
+   `stripe_events`, and `stripe_topups` from `site/deploy/schema.sql`; only
+   `users` and `runs` were previously production-verified.
+
+### Exact founder steps: Stripe test mode
+
+Identity-bound actions (email, password, phone, 2FA, identity/business details,
+and bank access) are founder-only; never give them to an agent.
+
+1. Open `https://dashboard.stripe.com`. Create an account if needed, enter the
+   founder email/password, verify email and phone, and enable 2FA. Leave **Test
+   mode** on. Account activation, business details, and bank details can wait
+   while proving the test loop.
+2. In Stripe, open **Developers -> API keys**. Confirm Test mode, then copy the
+   test publishable key and reveal/copy the test secret key. Keep them in the
+   founder's password manager; never paste either into chat or commit history.
+3. Open **Developers (or Workbench) -> Webhooks -> Add endpoint/destination**.
+   Choose the account events source, set endpoint URL to
+   `https://omo.space/api/topup`, select only `checkout.session.completed`, and
+   create it. Open the endpoint and reveal/copy its signing secret. Test and
+   live webhook signing secrets are different.
+4. Put values in these locations (names only):
+   - Test publishable key -> `site/key-config.js`,
+     `STRIPE_PUBLISHABLE_KEY` (public by design).
+   - Test secret key -> Worker secret `STRIPE_SECRET_KEY`.
+   - Test webhook signing secret -> Worker secret `STRIPE_WEBHOOK_SECRET`.
+
+   From `site/deploy`, let Wrangler prompt securely; do not put values in the
+   command line:
+
+   ```bash
+   cd /Users/yifan/marketplace/site/deploy
+   npx wrangler secret put STRIPE_SECRET_KEY
+   npx wrangler secret put STRIPE_WEBHOOK_SECRET
+   npx wrangler deploy
+   ```
+
+5. Deploy the publishable-key change from the repository root:
+
+   ```bash
+   cd /Users/yifan/marketplace
+   npx vercel --prod --yes
+   ```
+
+   Do not skip the Worker deploy after setting the Worker secrets.
+6. Verify a supported listing such as **UGC Script Studio**: click Buy, confirm
+   Stripe-hosted Checkout opens, use test card `4242 4242 4242 4242`, any
+   future expiry, any CVC/postcode, and complete payment. In Stripe, open the
+   webhook endpoint's Events/Deliveries and require HTTP 200. In Neon,
+   `purchases.state` must become `completed` once, with the expected slug and
+   cents. The current site does not yet deliver the purchased file.
+7. Sign in to Omo, top up at least $5, use the same test card, and return to
+   `dashboard.html?topup=success`. Require a 200 webhook delivery, an `applied`
+   `topup_sessions` row, one top-up ledger entry, and the exact balance increase.
+   Reload once if the webhook arrives after the dashboard's refresh.
+
+### Promote to live mode later
+
+Complete Stripe's activation checklist personally: business/legal profile,
+representative verification, customer-facing details, and payout bank account.
+Switch Stripe to Live mode; obtain the live publishable and secret keys; create
+a **live-mode** webhook to the same `https://omo.space/api/topup` URL; then
+replace all three matching-mode values and deploy the Worker and storefront
+again. Do not use Stripe test cards in live mode. Fix the fulfillment gaps above
+before inviting real catalog buyers.
 
 ## Waitlist contract
 
