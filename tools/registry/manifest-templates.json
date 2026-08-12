@@ -1,0 +1,70 @@
+{
+  "llm": {
+    "spec_version": "omo.llm-tool/v1",
+    "prompt": {
+      "review_status": "placeholder_requires_human_review",
+      "system_template": "[REVIEW REQUIRED — NOT EXECUTABLE] Replace this placeholder with the reviewed PhonicsMaker tool prompt before activation.",
+      "user_template": "Use only this validated JSON input: {{ input_json }}",
+      "few_shot": [],
+      "template_engine": "omo-safe-template/v1"
+    },
+    "model_policy": {
+      "adapter_key": "openai-compatible-prod",
+      "adapter_version": 1,
+      "model": "REVIEW_REQUIRED",
+      "temperature": 0.2,
+      "max_output_tokens": 1200,
+      "timeout_seconds": 60,
+      "max_attempts": 2,
+      "response_format": "json_schema",
+      "review_status": "provider_and_model_not_approved"
+    },
+    "safety": {
+      "policy_key": "education-default@1",
+      "data_class": "ordinary",
+      "log_input": false,
+      "log_output": false,
+      "child_data": "do_not_request_or_retain_sensitive_learner_data"
+    },
+    "artifact_policy": {
+      "kind": "none",
+      "max_bytes": 0
+    }
+  },
+  "runtime": {
+    "spec_version": "omo.runtime-tool/v1",
+    "execution_kind": "declarative_artifact_pipeline",
+    "runtime_family": "omo-pdf@1",
+    "runner_release": "stable",
+    "network_policy": {
+      "mode": "adapter_only",
+      "hosts": []
+    },
+    "safety": {
+      "policy_key": "education-artifact@1",
+      "data_class": "ordinary",
+      "log_input": false,
+      "log_output": false,
+      "child_data": "do_not_request_or_retain_sensitive_learner_data"
+    },
+    "artifact_policy": {
+      "kind": "private_versioned_files",
+      "roles": [
+        "pdf",
+        "thumbnail",
+        "editable_json"
+      ],
+      "max_bytes": 52428800,
+      "retention_days": 30
+    },
+    "readiness": {
+      "can_submit": false,
+      "blockers": [
+        "shared_tier_1_runner_not_deployed",
+        "private_artifact_adapter_not_approved",
+        "workflow_qa_not_complete",
+        "pricing_not_measured"
+      ]
+    }
+  }
+}

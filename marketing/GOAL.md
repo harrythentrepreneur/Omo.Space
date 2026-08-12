@@ -26,14 +26,15 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
-- State: payment infrastructure is deployed fail-closed; Stripe/routing work, but production is missing the additive payment/upload tables.
+- State: payment infrastructure is deployed fail-closed; Stripe/routing work and the production registry is populated, but production is still missing the additive payment/upload tables.
 - Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit, fast signup-grant visibility, live secrets/routes, request-safe Neon access, 10/10 unauthenticated live canary, checkout orphan-session expiry, 24-listing honesty audit, four text-free phonics marketplace thumbnails, and 12 locally compiled/tested/priced PhonicsMaker workflow bundles.
 - Artifact runtime: a shared deterministic ReportLab renderer, owner-scoped immutable local artifact store, no-refresh Codex subscription image bridge, exact contract/integration notes, and real-PDF smoke test now exist under `tools/render/` for the worksheet, illustrated-story, and edit-studio workflows; targeted renderer/adapter/compiler/host tests are green, with no registration or deployment.
 - Local OSS prep: all 12 first-party PhonicsMaker skill directories plus the org profile, contribution boilerplate, and square avatar are staged under oss/ for later publication; no GitHub or external write was made.
 - Strategy artifact: researched and ranked 25 education-SaaS targets in `marketing/edtech-kill-list.md`; first ship queue is Diffit, MagicSchool, Twee, Formative, then Kahoot feature outcomes.
 - Creator research artifact: ranked 40 verified-or-explicitly-flagged prospects in `marketing/creator-dm-list.md`, led by creators who already demonstrate Diffit, MagicSchool, Twee, Formative, or Kahoot; no outreach was sent.
+- Registry-first import: production Neon now has 120 versioned `tools` rows (96 PhonicsMaker + the 24-listing live parity baseline); all 96 imports are inactive/non-chargeable, the generated `site/ig-registry.js` projection and honest `registry.html` browser are complete, and existing Worker/catalog behavior is unchanged.
 - Next: (1) Harry applies the full `site/deploy/schema.sql`; (2) re-run Woven checkout for HTTP 200 plus expiry and an authenticated top-up canary; (3) build the magic-link free-book grant; (4) Harry pulls the 200-person segment.
-- Blockers: production `purchases`/top-up/submissions schema; existing signed-in account for authenticated canary; paid download fulfillment; magic-link feature; 200-segment; Modal CLI/authentication for nine ready PhonicsMaker single-LLM deployments; reviewed complex-runtime compiler/container support, production owner-authorized artifact storage, pricing, and workflow-specific content/moderation/educator acceptance evidence for the other three PhonicsMaker workflows (their shared local PDF renderer is complete).
+- Blockers: production `purchases`/top-up/submissions schema; existing signed-in account for authenticated canary; paid download fulfillment; magic-link feature; 200-segment; the shared `omo-llm-runner`; the Tier-1 shared runner; chargeable activation/provider canaries; and reviewed production artifact storage, pricing, and workflow-specific content/moderation/educator acceptance evidence for the three imported heavy PhonicsMaker workflows.
 
 ## Metrics (live)
 

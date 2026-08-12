@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browse Omo's registry-first marketplace tools and their honest publication status.">
+  <title>Tool Registry · Omo</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #09090b;
+      --panel: #151518;
+      --line: #2b2b31;
+      --text: #f5f5f4;
+      --muted: #a1a1aa;
+      --accent: #c8ff57;
+      --review: #fbbf24;
+      --draft: #a78bfa;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    a { color: inherit; }
+    header, main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
+    header { padding: 28px 0 24px; border-bottom: 1px solid var(--line); }
+    nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .brand { font-weight: 800; letter-spacing: -.03em; text-decoration: none; }
+    .back { color: var(--muted); font-size: 14px; }
+    .hero { padding: 58px 0 30px; max-width: 780px; }
+    .eyebrow { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 12px 0; font-size: clamp(38px, 7vw, 72px); line-height: .96; letter-spacing: -.055em; }
+    .lede { color: var(--muted); font-size: 18px; line-height: 1.6; }
+    .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .summary span, .chip { border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px; color: var(--muted); font-size: 12px; }
+    .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; margin: 14px 0 24px; }
+    input, select { width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 13px 14px; font: inherit; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding-bottom: 64px; }
+    .card { min-width: 0; border: 1px solid var(--line); border-radius: 18px; padding: 18px; background: var(--panel); display: flex; flex-direction: column; gap: 12px; }
+    .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .status { font-size: 12px; font-weight: 750; }
+    .status-live { color: var(--accent); }
+    .status-review { color: var(--review); }
+    .status-draft { color: var(--draft); }
+    h2 { margin: 0; font-size: 19px; letter-spacing: -.025em; }
+    .slug { color: #71717a; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+    .description { color: var(--muted); font-size: 14px; line-height: 1.5; flex: 1; }
+    .meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+    .price { font-weight: 750; }
+    .unpriced { color: var(--muted); }
+    .live-link { color: var(--accent); font-weight: 700; text-decoration: none; }
+    .empty { color: var(--muted); grid-column: 1 / -1; padding: 60px 0; text-align: center; }
+    @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } .controls { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <nav>
+      <a class="brand" href="index.html">omo</a>
+      <a class="back" href="index.html">Current marketplace →</a>
+    </nav>
+  </header>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Registry-first marketplace</div>
+      <h1>Every tool. Its real status.</h1>
+      <p class="lede">The current marketplace stays live while new PhonicsMaker tools move through prompt, provider, runtime, and QA review. Coming-soon tools cannot run or charge.</p>
+      <div class="summary" id="summary" aria-live="polite"></div>
+    </section>
+    <section class="controls" aria-label="Registry filters">
+      <input id="search" type="search" placeholder="Search tools, makers, and categories" autocomplete="off">
+      <select id="status" aria-label="Filter by status">
+        <option value="all">All statuses</option>
+        <option value="live">Live</option>
+        <option value="review">In review</option>
+        <option value="draft">Draft</option>
+      </select>
+    </section>
+    <section class="grid" id="registry" aria-live="polite"></section>
+  </main>
+  <script src="ig-registry.js"></script>
+  <script>
+    (() => {
+      const tools = Array.isArray(window.OMO_REGISTRY_TOOLS) ? window.OMO_REGISTRY_TOOLS : [];
+      const meta = window.OMO_REGISTRY_META || {};
+      const grid = document.getElementById('registry');
+      const search = document.getElementById('search');
+      const status = document.getElementById('status');
+      const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      })[char]);
+      document.getElementById('summary').innerHTML = [
+        `${meta.count || tools.length} registry records`,
+        `${meta.phonicsmakerCount || 0} PhonicsMaker imports`,
+        `${meta.liveCount || 0} live baseline tools`
+      ].map((label) => `<span>${escapeHtml(label)}</span>`).join('');
+
+      function render() {
+        const query = search.value.trim().toLowerCase();
+        const selected = status.value;
+        const visible = tools.filter((tool) => {
+          const haystack = `${tool.title} ${tool.slug} ${tool.maker} ${tool.category}`.toLowerCase();
+          return (!query || haystack.includes(query)) && (selected === 'all' || tool.status === selected);
+        });
+        if (!visible.length) {
+          grid.innerHTML = '<p class="empty">No registry tools match those filters.</p>';
+          return;
+        }
+        grid.innerHTML = visible.map((tool) => {
+          const price = tool.chargeable && tool.priceLabel
+            ? `<span class="price">${escapeHtml(tool.priceLabel)}</span>`
+            : '<span class="unpriced">Not chargeable</span>';
+          const action = tool.status === 'live'
+            ? `<a class="live-link" href="workflow.html?slug=${encodeURIComponent(tool.slug)}">View live listing →</a>`
+            : '<span class="unpriced">Activation gated</span>';
+          return `<article class="card">
+            <div class="card-top">
+              <span class="chip">${escapeHtml(tool.tierLabel)}</span>
+              <span class="status status-${escapeHtml(tool.status)}">${escapeHtml(tool.statusLabel)}</span>
+            </div>
+            <div><h2>${escapeHtml(tool.title)}</h2><div class="slug">${escapeHtml(tool.slug)}</div></div>
+            <p class="description">${escapeHtml(tool.description)}</p>
+            <div class="meta"><span>${escapeHtml(tool.maker)}</span>${price}</div>
+            <div class="meta"><span>${escapeHtml(tool.category)}</span>${action}</div>
+          </article>`;
+        }).join('');
+      }
+      search.addEventListener('input', render);
+      status.addEventListener('change', render);
+      render();
+    })();
+  </script>
+</body>
+</html>
