@@ -1,0 +1,77 @@
+{
+  "happy_path": {
+    "input": {
+      "dialect": "en-US",
+      "digraph_type": "consonant",
+      "include_explanations": true,
+      "text": "The chick sat by the green shed."
+    },
+    "output": {
+      "occurrences": [
+        {
+          "end": 6,
+          "explanation": "The letters ch commonly represent one consonant sound here.",
+          "start": 4,
+          "text": "ch",
+          "type": "consonant",
+          "word": "chick"
+        },
+        {
+          "end": 2,
+          "explanation": "The letters th represent a consonant digraph here.",
+          "start": 0,
+          "text": "Th",
+          "type": "consonant",
+          "word": "the"
+        },
+        {
+          "end": 29,
+          "explanation": "The letters sh commonly represent one consonant sound here.",
+          "start": 27,
+          "text": "sh",
+          "type": "consonant",
+          "word": "shed"
+        }
+      ],
+      "run_id": "run-fixture-digraph-spotter",
+      "status": "completed",
+      "summary": [
+        "ch",
+        "th",
+        "sh"
+      ],
+      "usage": {
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 360,
+        "provider": "opencode-go"
+      },
+      "warnings": [],
+      "workflow_version": "digraph-spotter@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "dialect": "en-US",
+        "digraph_type": "consonant",
+        "include_explanations": true
+      },
+      "reason": "text is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "dialect": "en-US",
+        "digraph_type": "consonant",
+        "ignore_rules": true,
+        "include_explanations": true,
+        "text": "The chick sat by the green shed."
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

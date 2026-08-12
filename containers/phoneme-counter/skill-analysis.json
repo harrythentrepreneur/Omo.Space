@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Estimate the phoneme count and optional IPA transcription for one English word in a declared dialect, with uncertainty made explicit.",
+  "detected_provider_needs": [],
+  "name": "phoneme-counter",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "analyze",
+      "number": "2",
+      "title": "Analyze"
+    },
+    {
+      "id": "count",
+      "number": "3",
+      "title": "Count"
+    },
+    {
+      "id": "calibrate",
+      "number": "4",
+      "title": "Calibrate"
+    },
+    {
+      "id": "verify-and-return",
+      "number": "5",
+      "title": "Verify and return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "phoneme-counter",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "4ab30f0ffa0041f2d232d38fec59fa31d4be8fd90c7f288778bd9c09de4d5966"
+  },
+  "unresolved": []
+}

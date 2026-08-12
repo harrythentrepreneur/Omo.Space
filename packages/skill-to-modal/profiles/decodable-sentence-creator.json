@@ -1,0 +1,549 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "capabilities": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "execution_kind": "single_llm",
+  "form": [
+    {
+      "field": "phonics_patterns",
+      "widget": "multi_select"
+    },
+    {
+      "field": "num_sentences",
+      "widget": "number"
+    },
+    {
+      "field": "sentence_length",
+      "widget": "select"
+    },
+    {
+      "field": "include_sight_words",
+      "widget": "checkbox"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "phonics_patterns": [
+        "cvc",
+        "sh_digraph"
+      ],
+      "num_sentences": 2,
+      "sentence_length": "short",
+      "include_sight_words": true,
+      "dialect": "en-US"
+    },
+    "output": {
+      "run_id": "run-fixture-decodable-sentence-creator",
+      "status": "completed",
+      "workflow_version": "decodable-sentence-creator@0.1.0",
+      "sentences": [
+        {
+          "text": "The fish can dash.",
+          "target_words": [
+            "fish",
+            "dash"
+          ],
+          "sight_or_irregular_words": [
+            "the"
+          ]
+        },
+        {
+          "text": "A shop has a red bag.",
+          "target_words": [
+            "shop",
+            "has",
+            "red",
+            "bag"
+          ],
+          "sight_or_irregular_words": [
+            "a"
+          ]
+        }
+      ],
+      "coverage": [
+        "cvc",
+        "sh_digraph"
+      ],
+      "warnings": [
+        "Teacher review is required against the learner's exact taught code."
+      ],
+      "usage": {
+        "provider": "opencode-go",
+        "model": "deepseek-v4-flash",
+        "llm_calls": 1,
+        "prompt_tokens": 360,
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016
+      }
+    }
+  },
+  "input_schema": {
+    "$id": "https://omo.space/schemas/decodable-sentence-creator/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "phonics_patterns": {
+        "type": "array",
+        "items": {
+          "enum": [
+            "cvc",
+            "cvcc",
+            "ccvc",
+            "long_a",
+            "long_e",
+            "long_i",
+            "long_o",
+            "long_u",
+            "sh_digraph",
+            "ch_digraph",
+            "th_digraph",
+            "wh_digraph",
+            "ck_digraph",
+            "ai_vowel_team",
+            "ee_vowel_team",
+            "oa_vowel_team"
+          ]
+        },
+        "minItems": 1,
+        "maxItems": 6,
+        "uniqueItems": true
+      },
+      "num_sentences": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+      },
+      "sentence_length": {
+        "enum": [
+          "short",
+          "medium",
+          "long"
+        ]
+      },
+      "include_sight_words": {
+        "type": "boolean"
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      }
+    },
+    "required": [
+      "phonics_patterns",
+      "num_sentences",
+      "sentence_length",
+      "include_sight_words",
+      "dialect"
+    ]
+  },
+  "live": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url_env": "LLM_BASE_URL",
+    "default_base_url": "https://opencode.ai/zen/go/v1",
+    "default_model": "deepseek-v4-flash",
+    "input_rate_per_million_usd": 0.14,
+    "max_tokens": 1200,
+    "modal_secret_name": "omo-skill-providers",
+    "model_env": "LLM_MODEL",
+    "model_output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sentences": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 160
+              },
+              "target_words": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "minItems": 1,
+                "maxItems": 20
+              },
+              "sight_or_irregular_words": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "maxItems": 20
+              }
+            },
+            "required": [
+              "text",
+              "target_words",
+              "sight_or_irregular_words"
+            ]
+          }
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "sentences",
+        "coverage",
+        "warnings"
+      ]
+    },
+    "output_rate_per_million_usd": 0.28,
+    "prompt": "run.txt",
+    "provider": "opencode-go",
+    "temperature": 0.2,
+    "timeout_seconds": 120
+  },
+  "marketplace": {
+    "category": "education",
+    "cover": null,
+    "demo_cap": "Hosted run: structured teacher-reviewable result",
+    "deployment": {
+      "default_endpoint": "https://harrythentrepreneur--cognition-decodable-sentence-creator-api.modal.run",
+      "endpoint_env": "DECODABLE_SENTENCE_CREATOR_MODAL_URL"
+    },
+    "description": "Generate short practice sentences constrained by reviewed phonics patterns, length, dialect, and sight-word policy.",
+    "emoji": "📝",
+    "example_in": "cvc, sh_digraph · 2 · short",
+    "example_out": [
+      "Create targeted practice sentences with irregular words disclosed.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "phonics_patterns": [
+            "cvc",
+            "sh_digraph"
+          ],
+          "num_sentences": 2,
+          "sentence_length": "short",
+          "include_sight_words": true,
+          "dialect": "en-US"
+        },
+        "output_preview": "Create targeted practice sentences with irregular words disclosed.",
+        "title": "Decodable Sentence Creator"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "phonics_patterns: reviewed bounded input",
+      "num_sentences: reviewed bounded input",
+      "sentence_length: reviewed bounded input",
+      "include_sight_words: reviewed bounded input",
+      "dialect: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "maker_name": "PhonicsMaker",
+    "niche": "phonics",
+    "outputs": [
+      "sentences: schema-validated result",
+      "coverage: schema-validated result",
+      "warnings: schema-validated result"
+    ],
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 3,
+    "price_own": 12,
+    "promise": "Create targeted practice sentences with irregular words disclosed.",
+    "slug": "decodable-sentence-creator",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "title": "Decodable Sentence Creator",
+    "ui": {
+      "fields": {
+        "phonics_patterns": {
+          "widget": "multi_select"
+        },
+        "num_sentences": {
+          "widget": "number"
+        },
+        "sentence_length": {
+          "widget": "select"
+        },
+        "include_sight_words": {
+          "widget": "checkbox"
+        },
+        "dialect": {
+          "widget": "select"
+        }
+      },
+      "order": [
+        "phonics_patterns",
+        "num_sentences",
+        "sentence_length",
+        "include_sight_words",
+        "dialect"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13"
+  },
+  "name": "decodable-sentence-creator",
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "num_sentences": 2,
+        "sentence_length": "short",
+        "include_sight_words": true,
+        "dialect": "en-US"
+      },
+      "reason": "phonics_patterns is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "phonics_patterns": [
+          "cvc",
+          "sh_digraph"
+        ],
+        "num_sentences": 2,
+        "sentence_length": "short",
+        "include_sight_words": true,
+        "dialect": "en-US",
+        "ignore_rules": true
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "run_id": {
+        "type": "string",
+        "minLength": 8
+      },
+      "status": {
+        "const": "completed"
+      },
+      "workflow_version": {
+        "const": "decodable-sentence-creator@0.1.0"
+      },
+      "sentences": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 5,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 160
+            },
+            "target_words": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "minItems": 1,
+              "maxItems": 20
+            },
+            "sight_or_irregular_words": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "maxItems": 20
+            }
+          },
+          "required": [
+            "text",
+            "target_words",
+            "sight_or_irregular_words"
+          ]
+        }
+      },
+      "coverage": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "minItems": 1,
+        "maxItems": 6,
+        "uniqueItems": true
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "maxItems": 8
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "opencode-go"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ]
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "sentences",
+      "coverage",
+      "warnings",
+      "usage"
+    ]
+  },
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "hosted_run",
+    "estimates": [
+      {
+        "tier": "hosted_run",
+        "guard_cost_usd": 0,
+        "workflow": {
+          "steps": [
+            {
+              "type": "llm",
+              "role": "educational-result",
+              "model": "deepseek-v4-flash",
+              "estimated_input_tokens": 900,
+              "max_output_tokens": 1200
+            }
+          ]
+        },
+        "notes": [
+          "One bounded schema-validated provider call."
+        ]
+      }
+    ],
+    "quote_status": "modeled",
+    "unpriced_costs": [],
+    "notes": [
+      "Repository 5x markup and $0.10 minimum apply."
+    ]
+  },
+  "prompts": {
+    "run.txt": "Generate exactly the requested number of child-safe sentences in the selected length band and dialect. Emphasize every requested phonics pattern, disclose sight or irregular words, and do not claim full decodability. Return only JSON with sentences, coverage, and warnings."
+  },
+  "readiness": {
+    "can_submit": true,
+    "blockers": []
+  },
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "resources": {
+    "cpu": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 180,
+    "max_containers": 4
+  },
+  "slug": "decodable-sentence-creator",
+  "steps": [
+    {
+      "id": "generate",
+      "type": "llm",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready"
+    }
+  ],
+  "version": "0.1.0"
+}

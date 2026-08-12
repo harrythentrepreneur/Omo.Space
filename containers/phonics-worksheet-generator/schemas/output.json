@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "const": "application/pdf"
+          },
+          "filename": {
+            "maxLength": 160,
+            "minLength": 3,
+            "type": "string"
+          },
+          "kind": {
+            "const": "pdf"
+          },
+          "object_key": {
+            "maxLength": 512,
+            "minLength": 3,
+            "type": "string"
+          },
+          "page_count": {
+            "maximum": 24,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "role": {
+            "enum": [
+              "worksheet",
+              "answer_key"
+            ]
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "role",
+          "object_key",
+          "filename",
+          "content_type",
+          "bytes",
+          "sha256",
+          "page_count"
+        ],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "minItems": 1,
+      "type": "array"
+    },
+    "content_report": {
+      "type": "object"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "usage": {
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "phonics-worksheet-generator@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "artifacts",
+    "content_report",
+    "usage"
+  ],
+  "type": "object"
+}

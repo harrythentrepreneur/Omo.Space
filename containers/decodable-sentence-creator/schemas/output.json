@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "coverage": {
+      "items": {
+        "maxLength": 40,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "sentences": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "sight_or_irregular_words": {
+            "items": {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "target_words": {
+            "items": {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "text": {
+            "maxLength": 160,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "target_words",
+          "sight_or_irregular_words"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "type": "array"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "llm_calls": {
+          "const": 1
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "const": "opencode-go"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_cost_usd"
+      ],
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "maxLength": 240,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "workflow_version": {
+      "const": "decodable-sentence-creator@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "sentences",
+    "coverage",
+    "warnings",
+    "usage"
+  ],
+  "type": "object"
+}

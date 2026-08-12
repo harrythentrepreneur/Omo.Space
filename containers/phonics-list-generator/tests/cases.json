@@ -1,0 +1,125 @@
+{
+  "happy_path": {
+    "input": {
+      "dialect": "en-US",
+      "difficulty_level": "beginner",
+      "phonemes": [
+        "ch",
+        "sh"
+      ],
+      "topic": "farm animals",
+      "word_count": 8
+    },
+    "output": {
+      "coverage": [
+        "ch",
+        "sh"
+      ],
+      "run_id": "run-fixture-phonics-list-generator",
+      "status": "completed",
+      "usage": {
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 360,
+        "provider": "opencode-go"
+      },
+      "warnings": [],
+      "words": [
+        {
+          "matched_phonemes": [
+            "ch"
+          ],
+          "pronunciation_note": "Initial ch as in chick.",
+          "target_position": "initial",
+          "word": "chick"
+        },
+        {
+          "matched_phonemes": [
+            "sh"
+          ],
+          "pronunciation_note": "Initial sh as in shed.",
+          "target_position": "initial",
+          "word": "shed"
+        },
+        {
+          "matched_phonemes": [
+            "ch"
+          ],
+          "pronunciation_note": "Final ch as in lunch.",
+          "target_position": "final",
+          "word": "lunch"
+        },
+        {
+          "matched_phonemes": [
+            "sh"
+          ],
+          "pronunciation_note": "Final sh as in fish.",
+          "target_position": "final",
+          "word": "fish"
+        },
+        {
+          "matched_phonemes": [
+            "ch"
+          ],
+          "pronunciation_note": "Initial ch as in chest.",
+          "target_position": "initial",
+          "word": "chest"
+        },
+        {
+          "matched_phonemes": [
+            "sh"
+          ],
+          "pronunciation_note": "Initial sh as in shell.",
+          "target_position": "initial",
+          "word": "shell"
+        },
+        {
+          "matched_phonemes": [
+            "ch"
+          ],
+          "pronunciation_note": "Final ch as in bench.",
+          "target_position": "final",
+          "word": "bench"
+        },
+        {
+          "matched_phonemes": [
+            "sh"
+          ],
+          "pronunciation_note": "Final sh as in brush.",
+          "target_position": "final",
+          "word": "brush"
+        }
+      ],
+      "workflow_version": "phonics-list-generator@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "dialect": "en-US",
+        "difficulty_level": "beginner",
+        "topic": "farm animals",
+        "word_count": 8
+      },
+      "reason": "phonemes is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "dialect": "en-US",
+        "difficulty_level": "beginner",
+        "ignore_rules": true,
+        "phonemes": [
+          "ch",
+          "sh"
+        ],
+        "topic": "farm animals",
+        "word_count": 8
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

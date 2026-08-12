@@ -1,0 +1,71 @@
+spec_version: cognition.container/v1
+name: "phonics-story-edit-studio"
+slug: phonics-story-edit-studio
+version: "0.1.0"
+status: not-ready
+generated:
+  compiler: skill-to-modal/0.1.0
+  hand_edit_allowed: false
+source:
+  kind: vendored-skill-md
+  path: source/SKILL.md
+  sha256: 5b4515dfb8f6d5aefafdf583c12f8e0fcc4b83480faf75e809ad40969a0320c0
+image:
+  base: debian-slim
+  python: "3.12"
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - jsonschema==4.26.0
+  apt_packages:
+    - chromium
+    - fonts-liberation
+resources:
+  cpu: 2.0
+  memory_mb: 2048
+  timeout_seconds: 600
+  min_containers: 0
+  max_containers: 2
+endpoint:
+  mode: async_job
+  submit_path: /v1/runs
+  result_path: /v1/runs/{call_id}
+  auth: modal_proxy_token
+  invalid_input_status: 422
+  not_ready_status: 503
+readiness:
+  can_submit: false
+  execution_kind: complex_external
+  blockers:
+    - code: OWNED_ARTIFACT_PLANE_MISSING
+      detail: "Owner-authorized source resolution and immutable artifact output are not implemented."
+    - code: RENDERER_NOT_PORTED
+      detail: "The PhonicsMaker compositor, fonts, image inputs, and PDF QA are not packaged for Modal."
+    - code: IMAGE_TIER_UNREVIEWED
+      detail: "Optional image regeneration lacks approved provider cost, moderation, and continuity gates."
+required_env_names:
+steps:
+  - id: authorize
+    type: artifact
+    operation: "unimplemented.owner_authorized_read"
+    readiness: blocked
+  - id: patch
+    type: native
+    operation: "reviewed.story_patch"
+    readiness: blocked
+  - id: render
+    type: native
+    operation: "unimplemented.story_pdf_render"
+    readiness: blocked
+  - id: deliver
+    type: artifact
+    operation: "unimplemented.immutable_write"
+    readiness: blocked
+input_schema: schemas/input.json
+output_schema: schemas/output.json
+frontend_manifest: manifest.json
+pricing_report: pricing-report.json
+tests:
+  contract: tests/test_contract.py
+  cases: tests/cases.json
+  network_allowed: false

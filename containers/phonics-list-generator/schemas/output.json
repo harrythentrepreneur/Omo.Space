@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "coverage": {
+      "items": {
+        "maxLength": 20,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "llm_calls": {
+          "const": 1
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "const": "opencode-go"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_cost_usd"
+      ],
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "maxLength": 240,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 6,
+      "type": "array"
+    },
+    "words": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "matched_phonemes": {
+            "items": {
+              "maxLength": 20,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "pronunciation_note": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "target_position": {
+            "enum": [
+              "initial",
+              "medial",
+              "final",
+              "multiple"
+            ]
+          },
+          "word": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "matched_phonemes",
+          "target_position",
+          "pronunciation_note"
+        ],
+        "type": "object"
+      },
+      "maxItems": 30,
+      "minItems": 5,
+      "type": "array"
+    },
+    "workflow_version": {
+      "const": "phonics-list-generator@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "words",
+    "coverage",
+    "warnings",
+    "usage"
+  ],
+  "type": "object"
+}

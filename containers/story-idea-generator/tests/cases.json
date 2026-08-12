@@ -1,0 +1,71 @@
+{
+  "happy_path": {
+    "input": {
+      "age_band": "8-10",
+      "genre": "gentle mystery",
+      "num_characters": 2,
+      "num_ideas": 3,
+      "setting_keywords": "school garden"
+    },
+    "output": {
+      "constraints_used": [
+        "gentle mystery",
+        "2 main characters",
+        "school garden",
+        "age 8-10"
+      ],
+      "ideas": [
+        {
+          "premise": "Two friends discover that every label in the school garden has been moved overnight. They follow tiny clues through the beds and learn that the mix-up may have started with an animal visitor.",
+          "title": "The Missing Seed Labels",
+          "writing_hook": "What clue do they notice first?"
+        },
+        {
+          "premise": "A trail of muddy prints leads two student gardeners to the locked greenhouse. They must decide whether the visitor is a thief, a helper, or something completely unexpected.",
+          "title": "Footprints by the Greenhouse",
+          "writing_hook": "Describe what they find behind the door."
+        },
+        {
+          "premise": "A small bell rings from the garden each lunchtime, but nobody is there. Two classmates test their theories and uncover a simple secret hidden among the climbing beans.",
+          "title": "The Bell That Rang at Lunch",
+          "writing_hook": "Write the moment the bell rings again."
+        }
+      ],
+      "run_id": "run-fixture-story-idea-generator",
+      "status": "completed",
+      "usage": {
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 360,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "story-idea-generator@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "age_band": "8-10",
+        "num_characters": 2,
+        "num_ideas": 3,
+        "setting_keywords": "school garden"
+      },
+      "reason": "genre is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "age_band": "8-10",
+        "genre": "gentle mystery",
+        "ignore_rules": true,
+        "num_characters": 2,
+        "num_ideas": 3,
+        "setting_keywords": "school garden"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

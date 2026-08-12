@@ -1,0 +1,30 @@
+{
+  "allowlist": [
+    "single_llm"
+  ],
+  "approved": [],
+  "blockers": [
+    {
+      "code": "OWNED_ARTIFACT_PLANE_MISSING",
+      "detail": "Owner-authorized source resolution and immutable artifact output are not implemented."
+    },
+    {
+      "code": "RENDERER_NOT_PORTED",
+      "detail": "The PhonicsMaker compositor, fonts, image inputs, and PDF QA are not packaged for Modal."
+    },
+    {
+      "code": "IMAGE_TIER_UNREVIEWED",
+      "detail": "Optional image regeneration lacks approved provider cost, moderation, and continuity gates."
+    }
+  ],
+  "decision": "blocked",
+  "execution_kind": "complex_external",
+  "requested": [
+    "owner-authorized-private-artifact-read",
+    "immutable-private-artifact-write",
+    "deterministic-story-pdf-render",
+    "optional-image-regeneration"
+  ],
+  "schema_version": "cognition.capabilities/v1",
+  "slug": "phonics-story-edit-studio"
+}

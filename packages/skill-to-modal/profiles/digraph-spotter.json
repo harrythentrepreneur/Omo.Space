@@ -1,0 +1,517 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "capabilities": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "execution_kind": "single_llm",
+  "form": [
+    {
+      "field": "text",
+      "widget": "textarea"
+    },
+    {
+      "field": "digraph_type",
+      "widget": "select"
+    },
+    {
+      "field": "include_explanations",
+      "widget": "checkbox"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "text": "The chick sat by the green shed.",
+      "digraph_type": "consonant",
+      "include_explanations": true,
+      "dialect": "en-US"
+    },
+    "output": {
+      "run_id": "run-fixture-digraph-spotter",
+      "status": "completed",
+      "workflow_version": "digraph-spotter@0.1.0",
+      "occurrences": [
+        {
+          "text": "ch",
+          "word": "chick",
+          "start": 4,
+          "end": 6,
+          "type": "consonant",
+          "explanation": "The letters ch commonly represent one consonant sound here."
+        },
+        {
+          "text": "Th",
+          "word": "the",
+          "start": 0,
+          "end": 2,
+          "type": "consonant",
+          "explanation": "The letters th represent a consonant digraph here."
+        },
+        {
+          "text": "sh",
+          "word": "shed",
+          "start": 27,
+          "end": 29,
+          "type": "consonant",
+          "explanation": "The letters sh commonly represent one consonant sound here."
+        }
+      ],
+      "summary": [
+        "ch",
+        "th",
+        "sh"
+      ],
+      "warnings": [],
+      "usage": {
+        "provider": "opencode-go",
+        "model": "deepseek-v4-flash",
+        "llm_calls": 1,
+        "prompt_tokens": 360,
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016
+      }
+    }
+  },
+  "input_schema": {
+    "$id": "https://omo.space/schemas/digraph-spotter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "text": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 3000
+      },
+      "digraph_type": {
+        "enum": [
+          "all",
+          "consonant",
+          "vowel"
+        ]
+      },
+      "include_explanations": {
+        "type": "boolean"
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      }
+    },
+    "required": [
+      "text",
+      "digraph_type",
+      "include_explanations",
+      "dialect"
+    ]
+  },
+  "live": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url_env": "LLM_BASE_URL",
+    "default_base_url": "https://opencode.ai/zen/go/v1",
+    "default_model": "deepseek-v4-flash",
+    "input_rate_per_million_usd": 0.14,
+    "max_tokens": 1200,
+    "modal_secret_name": "omo-skill-providers",
+    "model_env": "LLM_MODEL",
+    "model_output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "occurrences": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 8
+              },
+              "word": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3000
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3000
+              },
+              "type": {
+                "enum": [
+                  "consonant",
+                  "vowel"
+                ]
+              },
+              "explanation": {
+                "type": "string",
+                "maxLength": 240
+              }
+            },
+            "required": [
+              "text",
+              "word",
+              "start",
+              "end",
+              "type",
+              "explanation"
+            ]
+          }
+        },
+        "summary": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 20
+          },
+          "maxItems": 40,
+          "uniqueItems": true
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "occurrences",
+        "summary",
+        "warnings"
+      ]
+    },
+    "output_rate_per_million_usd": 0.28,
+    "prompt": "run.txt",
+    "provider": "opencode-go",
+    "temperature": 0.2,
+    "timeout_seconds": 120
+  },
+  "marketplace": {
+    "category": "education",
+    "cover": null,
+    "demo_cap": "Hosted run: structured teacher-reviewable result",
+    "deployment": {
+      "default_endpoint": "https://harrythentrepreneur--cognition-digraph-spotter-api.modal.run",
+      "endpoint_env": "DIGRAPH_SPOTTER_MODAL_URL"
+    },
+    "description": "Identify consonant or vowel digraphs in short English text with exact source spans and cautious explanations.",
+    "emoji": "🔎",
+    "example_in": "The chick sat by the green shed. · consonant · true",
+    "example_out": [
+      "Find digraphs and show exactly where they occur.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "text": "The chick sat by the green shed.",
+          "digraph_type": "consonant",
+          "include_explanations": true,
+          "dialect": "en-US"
+        },
+        "output_preview": "Find digraphs and show exactly where they occur.",
+        "title": "Digraph Spotter"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "text: reviewed bounded input",
+      "digraph_type: reviewed bounded input",
+      "include_explanations: reviewed bounded input",
+      "dialect: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "maker_name": "PhonicsMaker",
+    "niche": "phonics",
+    "outputs": [
+      "occurrences: schema-validated result",
+      "summary: schema-validated result",
+      "warnings: schema-validated result"
+    ],
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 3,
+    "price_own": 12,
+    "promise": "Find digraphs and show exactly where they occur.",
+    "slug": "digraph-spotter",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "title": "Digraph Spotter",
+    "ui": {
+      "fields": {
+        "text": {
+          "widget": "textarea"
+        },
+        "digraph_type": {
+          "widget": "select"
+        },
+        "include_explanations": {
+          "widget": "checkbox"
+        },
+        "dialect": {
+          "widget": "select"
+        }
+      },
+      "order": [
+        "text",
+        "digraph_type",
+        "include_explanations",
+        "dialect"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13"
+  },
+  "name": "digraph-spotter",
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "digraph_type": "consonant",
+        "include_explanations": true,
+        "dialect": "en-US"
+      },
+      "reason": "text is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "text": "The chick sat by the green shed.",
+        "digraph_type": "consonant",
+        "include_explanations": true,
+        "dialect": "en-US",
+        "ignore_rules": true
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "run_id": {
+        "type": "string",
+        "minLength": 8
+      },
+      "status": {
+        "const": "completed"
+      },
+      "workflow_version": {
+        "const": "digraph-spotter@0.1.0"
+      },
+      "occurrences": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 200,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 8
+            },
+            "word": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3000
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3000
+            },
+            "type": {
+              "enum": [
+                "consonant",
+                "vowel"
+              ]
+            },
+            "explanation": {
+              "type": "string",
+              "maxLength": 240
+            }
+          },
+          "required": [
+            "text",
+            "word",
+            "start",
+            "end",
+            "type",
+            "explanation"
+          ]
+        }
+      },
+      "summary": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 20
+        },
+        "maxItems": 40,
+        "uniqueItems": true
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "maxItems": 8
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "opencode-go"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ]
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "occurrences",
+      "summary",
+      "warnings",
+      "usage"
+    ]
+  },
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "hosted_run",
+    "estimates": [
+      {
+        "tier": "hosted_run",
+        "guard_cost_usd": 0,
+        "workflow": {
+          "steps": [
+            {
+              "type": "llm",
+              "role": "educational-result",
+              "model": "deepseek-v4-flash",
+              "estimated_input_tokens": 900,
+              "max_output_tokens": 1200
+            }
+          ]
+        },
+        "notes": [
+          "One bounded schema-validated provider call."
+        ]
+      }
+    ],
+    "quote_status": "modeled",
+    "unpriced_costs": [],
+    "notes": [
+      "Repository 5x markup and $0.10 minimum apply."
+    ]
+  },
+  "prompts": {
+    "run.txt": "Identify only requested digraph types in the exact supplied text. Return zero-based start-inclusive/end-exclusive spans whose substring exactly matches text. Explain cautiously and return only JSON with occurrences, summary, and warnings."
+  },
+  "readiness": {
+    "can_submit": true,
+    "blockers": []
+  },
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "resources": {
+    "cpu": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 180,
+    "max_containers": 4
+  },
+  "slug": "digraph-spotter",
+  "steps": [
+    {
+      "id": "generate",
+      "type": "llm",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready"
+    }
+  ],
+  "version": "0.1.0"
+}

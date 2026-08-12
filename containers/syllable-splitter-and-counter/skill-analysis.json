@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Split a bounded list of English words into syllables and return counts with explicit dialect and ambiguity notes.",
+  "detected_provider_needs": [],
+  "name": "syllable-splitter-and-counter",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "split",
+      "number": "2",
+      "title": "Split"
+    },
+    {
+      "id": "count",
+      "number": "3",
+      "title": "Count"
+    },
+    {
+      "id": "calibrate",
+      "number": "4",
+      "title": "Calibrate"
+    },
+    {
+      "id": "verify-and-return",
+      "number": "5",
+      "title": "Verify and return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "syllable-splitter-and-counter",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "3c4d4425b6a87366540c7575d58d96291ae519ff9d5a309f0446c4ddc1feadd3"
+  },
+  "unresolved": []
+}

@@ -1,0 +1,34 @@
+{
+  "chargeable": false,
+  "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
+  "default_tier": "text_edit",
+  "display_price_usd": 1.0,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 0.1,
+      "detail": [],
+      "guard_cost_usd": 0.2,
+      "guarded_price_floor_usd": 1.0,
+      "modeled_cost_usd": 0.0,
+      "notes": [
+        "Projection only; render and artifact costs are unresolved."
+      ],
+      "pricing_cost_usd": 0.2,
+      "tier": "text_edit"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "notes": [
+    "Unavailable until ownership, immutable versioning, and rendering are reviewed."
+  ],
+  "quote_status": "blocked_unpriced",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model.mjs",
+  "unpriced_costs": [
+    "artifact read/write",
+    "PDF render",
+    "optional image regeneration"
+  ]
+}

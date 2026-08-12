@@ -1,0 +1,63 @@
+{
+  "happy_path": {
+    "input": {
+      "dialect": "en-US",
+      "num_examples": 3,
+      "phonics_rule": "silent_e",
+      "target_audience": "elementary"
+    },
+    "output": {
+      "examples": [
+        {
+          "note": "The a has its long sound.",
+          "word": "cape"
+        },
+        {
+          "note": "The e pattern supports the long vowel sound.",
+          "word": "theme"
+        },
+        {
+          "note": "The i has its long sound.",
+          "word": "bike"
+        }
+      ],
+      "exceptions_note": "This is a common pattern, not a rule that explains every word ending in e.",
+      "explanation": "A final e can help the earlier vowel use its long sound, as in cape. The final e is usually not spoken as a separate sound.",
+      "rule": "silent_e",
+      "run_id": "run-fixture-phonics-rule-explainer",
+      "status": "completed",
+      "teacher_review_required": true,
+      "usage": {
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 360,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "phonics-rule-explainer@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "dialect": "en-US",
+        "num_examples": 3,
+        "target_audience": "elementary"
+      },
+      "reason": "phonics_rule is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "dialect": "en-US",
+        "ignore_rules": true,
+        "num_examples": 3,
+        "phonics_rule": "silent_e",
+        "target_audience": "elementary"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

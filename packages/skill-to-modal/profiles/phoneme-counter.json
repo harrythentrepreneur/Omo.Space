@@ -1,0 +1,420 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "capabilities": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "execution_kind": "single_llm",
+  "form": [
+    {
+      "field": "word",
+      "widget": "text"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    },
+    {
+      "field": "show_transcription",
+      "widget": "checkbox"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "word": "ship",
+      "dialect": "en-US",
+      "show_transcription": true
+    },
+    "output": {
+      "run_id": "run-fixture-phoneme-counter",
+      "status": "completed",
+      "workflow_version": "phoneme-counter@0.1.0",
+      "word": "ship",
+      "dialect": "en-US",
+      "phonemes": [
+        "/ʃ/",
+        "/ɪ/",
+        "/p/"
+      ],
+      "phoneme_count": 3,
+      "ipa": "/ʃɪp/",
+      "uncertainty": "This reflects a common en-US pronunciation.",
+      "usage": {
+        "provider": "opencode-go",
+        "model": "deepseek-v4-flash",
+        "llm_calls": 1,
+        "prompt_tokens": 360,
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016
+      }
+    }
+  },
+  "input_schema": {
+    "$id": "https://omo.space/schemas/phoneme-counter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "word": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80,
+        "pattern": "^[A-Za-z'-]+$"
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "show_transcription": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "word",
+      "dialect",
+      "show_transcription"
+    ]
+  },
+  "live": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url_env": "LLM_BASE_URL",
+    "default_base_url": "https://opencode.ai/zen/go/v1",
+    "default_model": "deepseek-v4-flash",
+    "input_rate_per_million_usd": 0.14,
+    "max_tokens": 1200,
+    "modal_secret_name": "omo-skill-providers",
+    "model_env": "LLM_MODEL",
+    "model_output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "word": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "phonemes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "minItems": 1,
+          "maxItems": 30
+        },
+        "phoneme_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "ipa": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "uncertainty": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "word",
+        "dialect",
+        "phonemes",
+        "phoneme_count",
+        "ipa",
+        "uncertainty"
+      ]
+    },
+    "output_rate_per_million_usd": 0.28,
+    "prompt": "run.txt",
+    "provider": "opencode-go",
+    "temperature": 0.2,
+    "timeout_seconds": 120
+  },
+  "marketplace": {
+    "category": "education",
+    "cover": null,
+    "demo_cap": "Hosted run: structured teacher-reviewable result",
+    "deployment": {
+      "default_endpoint": "https://harrythentrepreneur--cognition-phoneme-counter-api.modal.run",
+      "endpoint_env": "PHONEME_COUNTER_MODAL_URL"
+    },
+    "description": "Estimate the phoneme count and optional IPA for one English word in a declared dialect.",
+    "emoji": "🔊",
+    "example_in": "ship · en-US · true",
+    "example_out": [
+      "Count a word's sounds with pronunciation uncertainty made explicit.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "word": "ship",
+          "dialect": "en-US",
+          "show_transcription": true
+        },
+        "output_preview": "Count a word's sounds with pronunciation uncertainty made explicit.",
+        "title": "Phoneme Counter"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "word: reviewed bounded input",
+      "dialect: reviewed bounded input",
+      "show_transcription: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "maker_name": "PhonicsMaker",
+    "niche": "phonics",
+    "outputs": [
+      "word: schema-validated result",
+      "dialect: schema-validated result",
+      "phonemes: schema-validated result",
+      "phoneme_count: schema-validated result",
+      "ipa: schema-validated result",
+      "uncertainty: schema-validated result"
+    ],
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 3,
+    "price_own": 12,
+    "promise": "Count a word's sounds with pronunciation uncertainty made explicit.",
+    "slug": "phoneme-counter",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "title": "Phoneme Counter",
+    "ui": {
+      "fields": {
+        "word": {
+          "widget": "text"
+        },
+        "dialect": {
+          "widget": "select"
+        },
+        "show_transcription": {
+          "widget": "checkbox"
+        }
+      },
+      "order": [
+        "word",
+        "dialect",
+        "show_transcription"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13"
+  },
+  "name": "phoneme-counter",
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "dialect": "en-US",
+        "show_transcription": true
+      },
+      "reason": "word is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "word": "ship",
+        "dialect": "en-US",
+        "show_transcription": true,
+        "ignore_rules": true
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "run_id": {
+        "type": "string",
+        "minLength": 8
+      },
+      "status": {
+        "const": "completed"
+      },
+      "workflow_version": {
+        "const": "phoneme-counter@0.1.0"
+      },
+      "word": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "phonemes": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "minItems": 1,
+        "maxItems": 30
+      },
+      "phoneme_count": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 30
+      },
+      "ipa": {
+        "type": "string",
+        "maxLength": 120
+      },
+      "uncertainty": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "opencode-go"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ]
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "word",
+      "dialect",
+      "phonemes",
+      "phoneme_count",
+      "ipa",
+      "uncertainty",
+      "usage"
+    ]
+  },
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "hosted_run",
+    "estimates": [
+      {
+        "tier": "hosted_run",
+        "guard_cost_usd": 0,
+        "workflow": {
+          "steps": [
+            {
+              "type": "llm",
+              "role": "educational-result",
+              "model": "deepseek-v4-flash",
+              "estimated_input_tokens": 900,
+              "max_output_tokens": 1200
+            }
+          ]
+        },
+        "notes": [
+          "One bounded schema-validated provider call."
+        ]
+      }
+    ],
+    "quote_status": "modeled",
+    "unpriced_costs": [],
+    "notes": [
+      "Repository 5x markup and $0.10 minimum apply."
+    ]
+  },
+  "prompts": {
+    "run.txt": "Analyze one English word in the declared dialect. Return a phoneme array, a count equal to its length, optional IPA as requested, and an explicit uncertainty statement. Return only JSON."
+  },
+  "readiness": {
+    "can_submit": true,
+    "blockers": []
+  },
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "resources": {
+    "cpu": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 180,
+    "max_containers": 4
+  },
+  "slug": "phoneme-counter",
+  "steps": [
+    {
+      "id": "generate",
+      "type": "llm",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready"
+    }
+  ],
+  "version": "0.1.0"
+}

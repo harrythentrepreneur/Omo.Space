@@ -1,0 +1,1 @@
+Analyze one English word in the declared dialect. Return a phoneme array, a count equal to its length, optional IPA as requested, and an explicit uncertainty statement. Return only JSON.

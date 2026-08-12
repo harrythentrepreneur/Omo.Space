@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Generate a small set of child-safe sentences constrained by selected phonics patterns, length, dialect, and sight-word policy.",
+  "detected_provider_needs": [],
+  "name": "decodable-sentence-creator",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "draft",
+      "number": "2",
+      "title": "Draft"
+    },
+    {
+      "id": "annotate",
+      "number": "3",
+      "title": "Annotate"
+    },
+    {
+      "id": "check",
+      "number": "4",
+      "title": "Check"
+    },
+    {
+      "id": "return",
+      "number": "5",
+      "title": "Return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "decodable-sentence-creator",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "de9789e410223c8607961a62553604f150b2eee00c9caabe30f7efebf25b052c"
+  },
+  "unresolved": []
+}

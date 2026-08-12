@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "content_report": {
+      "type": "object"
+    },
+    "qa": {
+      "type": "object"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "title": {
+      "maxLength": 160,
+      "minLength": 1,
+      "type": "string"
+    },
+    "usage": {
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "illustrated-decodable-story-maker@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "title",
+    "artifacts",
+    "content_report",
+    "qa",
+    "usage"
+  ],
+  "type": "object"
+}

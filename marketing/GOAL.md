@@ -27,11 +27,12 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 ## Status
 
 - State: payment infrastructure is deployed fail-closed; Stripe/routing work, but production is missing the additive payment/upload tables.
-- Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit, fast signup-grant visibility, live secrets/routes, request-safe Neon access, 10/10 unauthenticated live canary, checkout orphan-session expiry, 24-listing honesty audit, and four text-free phonics marketplace thumbnails.
+- Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit, fast signup-grant visibility, live secrets/routes, request-safe Neon access, 10/10 unauthenticated live canary, checkout orphan-session expiry, 24-listing honesty audit, four text-free phonics marketplace thumbnails, and 12 locally compiled/tested/priced PhonicsMaker workflow bundles.
 - Local OSS prep: three complete skill directories are staged under oss/ for later publication; phonics-book-maker remains unprepared because the requested source path is missing.
 - Strategy artifact: researched and ranked 25 education-SaaS targets in `marketing/edtech-kill-list.md`; first ship queue is Diffit, MagicSchool, Twee, Formative, then Kahoot feature outcomes.
+- Creator research artifact: ranked 40 verified-or-explicitly-flagged prospects in `marketing/creator-dm-list.md`, led by creators who already demonstrate Diffit, MagicSchool, Twee, Formative, or Kahoot; no outreach was sent.
 - Next: (1) Harry applies the full `site/deploy/schema.sql`; (2) re-run Woven checkout for HTTP 200 plus expiry and an authenticated top-up canary; (3) build the magic-link free-book grant; (4) Harry pulls the 200-person segment.
-- Blockers: production `purchases`/top-up/submissions schema; existing signed-in account for authenticated canary; paid download fulfillment; magic-link feature; 200-segment.
+- Blockers: production `purchases`/top-up/submissions schema; existing signed-in account for authenticated canary; paid download fulfillment; magic-link feature; 200-segment; Modal CLI/authentication for nine ready PhonicsMaker single-LLM deployments; unresolved artifact/image/PDF capabilities for the other three PhonicsMaker workflows.
 
 ## Metrics (live)
 
@@ -51,6 +52,14 @@ From `/Users/yifan/marketplace`, securely provide `NEON_DATABASE_URL` and run
 `psql "$NEON_DATABASE_URL" -f site/deploy/schema.sql`, or run it personally.
 Then verify `purchases`, `topup_sessions`, `stripe_events`, `stripe_topups`, and
 `submissions` exist. Do not paste the connection string into chat or history.
+
+### PROPOSAL phonics-modal-001 — enable the reviewed Modal deployment gate
+
+Provide an environment with the Modal CLI installed and authenticated, then
+rerun `modal config show`. Only after that succeeds, run the nine reviewed
+single-LLM `host.py --register` gates and actual Modal deploy/canary steps. Do
+not deploy the worksheet, illustrated story, or edit-studio bundles while their
+profiles remain fail-closed.
 
 ## Next tick
 

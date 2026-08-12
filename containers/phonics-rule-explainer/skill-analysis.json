@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Explain one reviewed English phonics pattern for a selected audience and return bounded examples, exceptions, and uncertainty notes.",
+  "detected_provider_needs": [],
+  "name": "phonics-rule-explainer",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "explain",
+      "number": "2",
+      "title": "Explain"
+    },
+    {
+      "id": "exemplify",
+      "number": "3",
+      "title": "Exemplify"
+    },
+    {
+      "id": "calibrate",
+      "number": "4",
+      "title": "Calibrate"
+    },
+    {
+      "id": "verify-and-return",
+      "number": "5",
+      "title": "Verify and return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "phonics-rule-explainer",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "e5027826977a6290bd9b036480ca09dc89f14114dd76ae5d3c020ce361c6ab06"
+  },
+  "unresolved": []
+}

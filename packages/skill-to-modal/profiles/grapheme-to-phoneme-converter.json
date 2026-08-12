@@ -1,0 +1,460 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "capabilities": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "execution_kind": "single_llm",
+  "form": [
+    {
+      "field": "text",
+      "widget": "text"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    },
+    {
+      "field": "include_rules_explanation",
+      "widget": "checkbox"
+    },
+    {
+      "field": "include_example_words",
+      "widget": "checkbox"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "text": "ship",
+      "dialect": "en-US",
+      "include_rules_explanation": true,
+      "include_example_words": true
+    },
+    "output": {
+      "run_id": "run-fixture-grapheme-to-phoneme-converter",
+      "status": "completed",
+      "workflow_version": "grapheme-to-phoneme-converter@0.1.0",
+      "input": "ship",
+      "dialect": "en-US",
+      "phonemes": [
+        "/ʃ/",
+        "/ɪ/",
+        "/p/"
+      ],
+      "ipa": "/ʃɪp/",
+      "rules_explanation": "In this word, sh represents /ʃ/, i represents /ɪ/, and p represents /p/.",
+      "example_words": [
+        "shop",
+        "fish"
+      ],
+      "uncertainty": "Mappings depend on the whole word and dialect; this is a common en-US pronunciation.",
+      "usage": {
+        "provider": "opencode-go",
+        "model": "deepseek-v4-flash",
+        "llm_calls": 1,
+        "prompt_tokens": 360,
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016
+      }
+    }
+  },
+  "input_schema": {
+    "$id": "https://omo.space/schemas/grapheme-to-phoneme-converter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "text": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80,
+        "pattern": "^[A-Za-z'-]+$"
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "include_rules_explanation": {
+        "type": "boolean"
+      },
+      "include_example_words": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "text",
+      "dialect",
+      "include_rules_explanation",
+      "include_example_words"
+    ]
+  },
+  "live": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url_env": "LLM_BASE_URL",
+    "default_base_url": "https://opencode.ai/zen/go/v1",
+    "default_model": "deepseek-v4-flash",
+    "input_rate_per_million_usd": 0.14,
+    "max_tokens": 1200,
+    "modal_secret_name": "omo-skill-providers",
+    "model_env": "LLM_MODEL",
+    "model_output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "phonemes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "minItems": 1,
+          "maxItems": 30
+        },
+        "ipa": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "rules_explanation": {
+          "type": "string",
+          "maxLength": 800
+        },
+        "example_words": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "maxItems": 5
+        },
+        "uncertainty": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "input",
+        "dialect",
+        "phonemes",
+        "ipa",
+        "rules_explanation",
+        "example_words",
+        "uncertainty"
+      ]
+    },
+    "output_rate_per_million_usd": 0.28,
+    "prompt": "run.txt",
+    "provider": "opencode-go",
+    "temperature": 0.2,
+    "timeout_seconds": 120
+  },
+  "marketplace": {
+    "category": "education",
+    "cover": null,
+    "demo_cap": "Hosted run: structured teacher-reviewable result",
+    "deployment": {
+      "default_endpoint": "https://harrythentrepreneur--cognition-grapheme-to-phoneme-converter-api.modal.run",
+      "endpoint_env": "GRAPHEME_TO_PHONEME_CONVERTER_MODAL_URL"
+    },
+    "description": "Convert one English word or grapheme to a likely phoneme representation with dialect and context cautions.",
+    "emoji": "🔁",
+    "example_in": "ship · en-US · true",
+    "example_out": [
+      "Map spelling to likely sounds without hiding ambiguity.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "text": "ship",
+          "dialect": "en-US",
+          "include_rules_explanation": true,
+          "include_example_words": true
+        },
+        "output_preview": "Map spelling to likely sounds without hiding ambiguity.",
+        "title": "Grapheme to Phoneme Converter"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "text: reviewed bounded input",
+      "dialect: reviewed bounded input",
+      "include_rules_explanation: reviewed bounded input",
+      "include_example_words: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "maker_name": "PhonicsMaker",
+    "niche": "phonics",
+    "outputs": [
+      "input: schema-validated result",
+      "dialect: schema-validated result",
+      "phonemes: schema-validated result",
+      "ipa: schema-validated result",
+      "rules_explanation: schema-validated result",
+      "example_words: schema-validated result",
+      "uncertainty: schema-validated result"
+    ],
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 3,
+    "price_own": 12,
+    "promise": "Map spelling to likely sounds without hiding ambiguity.",
+    "slug": "grapheme-to-phoneme-converter",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "title": "Grapheme to Phoneme Converter",
+    "ui": {
+      "fields": {
+        "text": {
+          "widget": "text"
+        },
+        "dialect": {
+          "widget": "select"
+        },
+        "include_rules_explanation": {
+          "widget": "checkbox"
+        },
+        "include_example_words": {
+          "widget": "checkbox"
+        }
+      },
+      "order": [
+        "text",
+        "dialect",
+        "include_rules_explanation",
+        "include_example_words"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13"
+  },
+  "name": "grapheme-to-phoneme-converter",
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "dialect": "en-US",
+        "include_rules_explanation": true,
+        "include_example_words": true
+      },
+      "reason": "text is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "text": "ship",
+        "dialect": "en-US",
+        "include_rules_explanation": true,
+        "include_example_words": true,
+        "ignore_rules": true
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "run_id": {
+        "type": "string",
+        "minLength": 8
+      },
+      "status": {
+        "const": "completed"
+      },
+      "workflow_version": {
+        "const": "grapheme-to-phoneme-converter@0.1.0"
+      },
+      "input": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "phonemes": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "minItems": 1,
+        "maxItems": 30
+      },
+      "ipa": {
+        "type": "string",
+        "maxLength": 120
+      },
+      "rules_explanation": {
+        "type": "string",
+        "maxLength": 800
+      },
+      "example_words": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "maxItems": 5
+      },
+      "uncertainty": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "opencode-go"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ]
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "input",
+      "dialect",
+      "phonemes",
+      "ipa",
+      "rules_explanation",
+      "example_words",
+      "uncertainty",
+      "usage"
+    ]
+  },
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "hosted_run",
+    "estimates": [
+      {
+        "tier": "hosted_run",
+        "guard_cost_usd": 0,
+        "workflow": {
+          "steps": [
+            {
+              "type": "llm",
+              "role": "educational-result",
+              "model": "deepseek-v4-flash",
+              "estimated_input_tokens": 900,
+              "max_output_tokens": 1200
+            }
+          ]
+        },
+        "notes": [
+          "One bounded schema-validated provider call."
+        ]
+      }
+    ],
+    "quote_status": "modeled",
+    "unpriced_costs": [],
+    "notes": [
+      "Repository 5x markup and $0.10 minimum apply."
+    ]
+  },
+  "prompts": {
+    "run.txt": "Convert the supplied English word or grapheme to a likely phoneme sequence in the selected dialect. Include explanation/examples only when requested, never claim one universal mapping, and return only JSON."
+  },
+  "readiness": {
+    "can_submit": true,
+    "blockers": []
+  },
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "resources": {
+    "cpu": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 180,
+    "max_containers": 4
+  },
+  "slug": "grapheme-to-phoneme-converter",
+  "steps": [
+    {
+      "id": "generate",
+      "type": "llm",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready"
+    }
+  ],
+  "version": "0.1.0"
+}

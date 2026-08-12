@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "ipa": {
+      "maxLength": 120,
+      "type": "string"
+    },
+    "phoneme_count": {
+      "maximum": 30,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "phonemes": {
+      "items": {
+        "maxLength": 20,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "type": "array"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "uncertainty": {
+      "maxLength": 300,
+      "minLength": 1,
+      "type": "string"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "llm_calls": {
+          "const": 1
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "const": "opencode-go"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_cost_usd"
+      ],
+      "type": "object"
+    },
+    "word": {
+      "maxLength": 80,
+      "minLength": 1,
+      "type": "string"
+    },
+    "workflow_version": {
+      "const": "phoneme-counter@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "word",
+    "dialect",
+    "phonemes",
+    "phoneme_count",
+    "ipa",
+    "uncertainty",
+    "usage"
+  ],
+  "type": "object"
+}

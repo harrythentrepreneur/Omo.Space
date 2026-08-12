@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "example_words": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 5,
+      "type": "array"
+    },
+    "input": {
+      "maxLength": 80,
+      "minLength": 1,
+      "type": "string"
+    },
+    "ipa": {
+      "maxLength": 120,
+      "type": "string"
+    },
+    "phonemes": {
+      "items": {
+        "maxLength": 20,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "type": "array"
+    },
+    "rules_explanation": {
+      "maxLength": 800,
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "uncertainty": {
+      "maxLength": 300,
+      "minLength": 1,
+      "type": "string"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "llm_calls": {
+          "const": 1
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "const": "opencode-go"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_cost_usd"
+      ],
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "grapheme-to-phoneme-converter@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "input",
+    "dialect",
+    "phonemes",
+    "ipa",
+    "rules_explanation",
+    "example_words",
+    "uncertainty",
+    "usage"
+  ],
+  "type": "object"
+}

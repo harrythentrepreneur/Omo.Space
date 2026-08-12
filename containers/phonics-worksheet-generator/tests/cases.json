@@ -1,0 +1,90 @@
+{
+  "happy_path": {
+    "input": {
+      "activity": "sort",
+      "dialect": "en-US",
+      "difficulty": "practice",
+      "focus_patterns": [
+        "ch"
+      ],
+      "focus_type": "grapheme",
+      "grade": "1",
+      "include_answer_key": true,
+      "page_count": 2,
+      "print_mode": "blackline",
+      "teacher_notes": "Use common classroom vocabulary.",
+      "theme": "neutral"
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 42000,
+          "content_type": "application/pdf",
+          "filename": "ch-sort.pdf",
+          "kind": "pdf",
+          "object_key": "fixtures/results/worksheet.pdf",
+          "page_count": 2,
+          "role": "worksheet",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "content_report": {
+        "checks_run": [
+          "answers",
+          "duplicates",
+          "page-render"
+        ],
+        "declared_irregular_words": [],
+        "dialect": "en-US",
+        "focus_patterns": [
+          "ch"
+        ],
+        "item_count": 12,
+        "unresolved_warnings": []
+      },
+      "run_id": "run-fixture-worksheet",
+      "status": "completed",
+      "usage": {
+        "provider_cost_usd": null
+      },
+      "workflow_version": "phonics-worksheet-generator@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-patterns",
+      "input": {
+        "activity": "sort",
+        "dialect": "en-US",
+        "difficulty": "practice",
+        "focus_type": "grapheme",
+        "grade": "1",
+        "include_answer_key": true,
+        "page_count": 2,
+        "print_mode": "blackline",
+        "teacher_notes": "",
+        "theme": "neutral"
+      },
+      "reason": "focus_patterns is required"
+    },
+    {
+      "id": "too-many-pages",
+      "input": {
+        "activity": "sort",
+        "dialect": "en-US",
+        "difficulty": "practice",
+        "focus_patterns": [
+          "ch"
+        ],
+        "focus_type": "grapheme",
+        "grade": "1",
+        "include_answer_key": true,
+        "page_count": 20,
+        "print_mode": "blackline",
+        "teacher_notes": "",
+        "theme": "neutral"
+      },
+      "reason": "page_count is bounded"
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "artifacts": [],
+  "description": "Generate a small set of child-safe sentences constrained by selected phonics patterns, length, dialect, and sight-word policy.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "phonics_patterns",
+      "widget": "multi_select"
+    },
+    {
+      "field": "num_sentences",
+      "widget": "number"
+    },
+    {
+      "field": "sentence_length",
+      "widget": "select"
+    },
+    {
+      "field": "include_sight_words",
+      "widget": "checkbox"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/decodable-sentence-creator/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "include_sight_words": {
+        "type": "boolean"
+      },
+      "num_sentences": {
+        "maximum": 5,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "phonics_patterns": {
+        "items": {
+          "enum": [
+            "cvc",
+            "cvcc",
+            "ccvc",
+            "long_a",
+            "long_e",
+            "long_i",
+            "long_o",
+            "long_u",
+            "sh_digraph",
+            "ch_digraph",
+            "th_digraph",
+            "wh_digraph",
+            "ck_digraph",
+            "ai_vowel_team",
+            "ee_vowel_team",
+            "oa_vowel_team"
+          ]
+        },
+        "maxItems": 6,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "sentence_length": {
+        "enum": [
+          "short",
+          "medium",
+          "long"
+        ]
+      }
+    },
+    "required": [
+      "phonics_patterns",
+      "num_sentences",
+      "sentence_length",
+      "include_sight_words",
+      "dialect"
+    ],
+    "type": "object"
+  },
+  "name": "decodable-sentence-creator",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "decodable-sentence-creator",
+  "version": "0.1.0"
+}

@@ -1,0 +1,72 @@
+spec_version: cognition.container/v1
+name: "illustrated-decodable-story-maker"
+slug: illustrated-decodable-story-maker
+version: "0.1.0"
+status: not-ready
+generated:
+  compiler: skill-to-modal/0.1.0
+  hand_edit_allowed: false
+source:
+  kind: vendored-skill-md
+  path: source/SKILL.md
+  sha256: f9f8469f7e3ccba305fece7395813f74ab390da02d395f3e306783bc0dca48e3
+image:
+  base: debian-slim
+  python: "3.12"
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - jsonschema==4.26.0
+  apt_packages:
+    - chromium
+    - fonts-liberation
+    - ghostscript
+resources:
+  cpu: 2.0
+  memory_mb: 4096
+  timeout_seconds: 1800
+  min_containers: 0
+  max_containers: 1
+endpoint:
+  mode: async_job
+  submit_path: /v1/runs
+  result_path: /v1/runs/{call_id}
+  auth: modal_proxy_token
+  invalid_input_status: 422
+  not_ready_status: 503
+readiness:
+  can_submit: false
+  execution_kind: complex_external
+  blockers:
+    - code: MULTI_PROVIDER_PORT_MISSING
+      detail: "The core RunPod workflow has not been decoupled into a reviewed Modal runtime."
+    - code: IMAGE_AND_ARTIFACT_PLANES_MISSING
+      detail: "Image generation, moderation, PDF composition, and private artifact delivery are not materialized."
+    - code: COST_AND_ACCEPTANCE_EVIDENCE_MISSING
+      detail: "Per-page cost, retry yield, decodability, curriculum, and educator acceptance evidence are unresolved."
+required_env_names:
+steps:
+  - id: story
+    type: llm
+    operation: "unimplemented.story_generation"
+    readiness: blocked
+  - id: illustrate
+    type: api
+    operation: "unimplemented.image_generation"
+    readiness: blocked
+  - id: compose
+    type: native
+    operation: "unimplemented.story_compositor"
+    readiness: blocked
+  - id: deliver
+    type: artifact
+    operation: "unimplemented.private_artifact_write"
+    readiness: blocked
+input_schema: schemas/input.json
+output_schema: schemas/output.json
+frontend_manifest: manifest.json
+pricing_report: pricing-report.json
+tests:
+  contract: tests/test_contract.py
+  cases: tests/cases.json
+  network_allowed: false

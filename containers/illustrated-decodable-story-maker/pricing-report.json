@@ -1,0 +1,46 @@
+{
+  "chargeable": false,
+  "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
+  "default_tier": "seven_page_story",
+  "display_price_usd": 1.62,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 1.61,
+      "detail": [
+        {
+          "cost_usd": 0.00252,
+          "qty": 1,
+          "step": "llm(story)"
+        },
+        {
+          "cost_usd": 0.32,
+          "qty": 8,
+          "step": "api(openai_image)"
+        }
+      ],
+      "guard_cost_usd": 0.1,
+      "guarded_price_floor_usd": 1.62,
+      "modeled_cost_usd": 0.32252,
+      "notes": [
+        "Projection only; current Gemini, Runware, render, storage, and retry costs are not normalized."
+      ],
+      "pricing_cost_usd": 0.32252,
+      "tier": "seven_page_story"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "notes": [
+    "Unavailable until the multi-provider source flow is ported and canaried."
+  ],
+  "quote_status": "blocked_unpriced",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model.mjs",
+  "unpriced_costs": [
+    "PDF compute",
+    "private storage",
+    "moderation and continuity retries",
+    "educator acceptance"
+  ]
+}

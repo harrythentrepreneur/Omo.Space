@@ -1,0 +1,484 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "capabilities": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "execution_kind": "single_llm",
+  "form": [
+    {
+      "field": "misread_word",
+      "widget": "text"
+    },
+    {
+      "field": "target_word",
+      "widget": "text"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    },
+    {
+      "field": "learner_stage",
+      "widget": "select"
+    },
+    {
+      "field": "detail",
+      "widget": "select"
+    },
+    {
+      "field": "include_practice",
+      "widget": "checkbox"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "misread_word": "lap",
+      "target_word": "lamp",
+      "dialect": "en-US",
+      "learner_stage": "developing",
+      "detail": "teacher",
+      "include_practice": true
+    },
+    "output": {
+      "run_id": "run-fixture-phonics-reading-error-coach",
+      "status": "completed",
+      "workflow_version": "phonics-reading-error-coach@0.1.0",
+      "observation": "The attempt lap omits the /m/ sound heard before /p/ in lamp.",
+      "possible_confusions": [
+        "omitted consonant in final blend"
+      ],
+      "explanation": "One possible explanation is difficulty holding both consonants in the final /mp/ sequence. A single attempt cannot establish a stable pattern.",
+      "practice_suggestions": [
+        "Contrast lap and lamp orally, then map each heard phoneme with counters.",
+        "Blend a short set such as camp, damp, and lamp after teacher review."
+      ],
+      "uncertainty": "This is a hypothesis from one supplied attempt, not an assessment or diagnosis.",
+      "teacher_review_required": true,
+      "usage": {
+        "provider": "opencode-go",
+        "model": "deepseek-v4-flash",
+        "llm_calls": 1,
+        "prompt_tokens": 360,
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016
+      }
+    }
+  },
+  "input_schema": {
+    "$id": "https://omo.space/schemas/phonics-reading-error-coach/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "misread_word": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80,
+        "pattern": "^[A-Za-z'-]+$"
+      },
+      "target_word": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80,
+        "pattern": "^[A-Za-z'-]+$"
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "learner_stage": {
+        "enum": [
+          "early",
+          "developing",
+          "consolidating"
+        ]
+      },
+      "detail": {
+        "enum": [
+          "brief",
+          "teacher"
+        ]
+      },
+      "include_practice": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "misread_word",
+      "target_word",
+      "dialect",
+      "learner_stage",
+      "detail",
+      "include_practice"
+    ]
+  },
+  "live": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url_env": "LLM_BASE_URL",
+    "default_base_url": "https://opencode.ai/zen/go/v1",
+    "default_model": "deepseek-v4-flash",
+    "input_rate_per_million_usd": 0.14,
+    "max_tokens": 1200,
+    "modal_secret_name": "omo-skill-providers",
+    "model_env": "LLM_MODEL",
+    "model_output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "observation": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 500
+        },
+        "possible_confusions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 1000
+        },
+        "practice_suggestions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 300
+          },
+          "maxItems": 2
+        },
+        "uncertainty": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 400
+        },
+        "teacher_review_required": {
+          "const": true
+        }
+      },
+      "required": [
+        "observation",
+        "possible_confusions",
+        "explanation",
+        "practice_suggestions",
+        "uncertainty",
+        "teacher_review_required"
+      ]
+    },
+    "output_rate_per_million_usd": 0.28,
+    "prompt": "run.txt",
+    "provider": "opencode-go",
+    "temperature": 0.2,
+    "timeout_seconds": 120
+  },
+  "marketplace": {
+    "category": "education",
+    "cover": null,
+    "demo_cap": "Hosted run: structured teacher-reviewable result",
+    "deployment": {
+      "default_endpoint": "https://harrythentrepreneur--cognition-phonics-reading-error-coach-api.modal.run",
+      "endpoint_env": "PHONICS_READING_ERROR_COACH_MODAL_URL"
+    },
+    "description": "Compare one attempted word with its target and return a cautious, non-diagnostic phonics hypothesis and practice ideas.",
+    "emoji": "🧭",
+    "example_in": "lap · lamp · en-US",
+    "example_out": [
+      "Turn one decoding attempt into a teacher-reviewable observation.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "misread_word": "lap",
+          "target_word": "lamp",
+          "dialect": "en-US",
+          "learner_stage": "developing",
+          "detail": "teacher",
+          "include_practice": true
+        },
+        "output_preview": "Turn one decoding attempt into a teacher-reviewable observation.",
+        "title": "Phonics Reading Error Coach"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "misread_word: reviewed bounded input",
+      "target_word: reviewed bounded input",
+      "dialect: reviewed bounded input",
+      "learner_stage: reviewed bounded input",
+      "detail: reviewed bounded input",
+      "include_practice: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "maker_name": "PhonicsMaker",
+    "niche": "phonics",
+    "outputs": [
+      "observation: schema-validated result",
+      "possible_confusions: schema-validated result",
+      "explanation: schema-validated result",
+      "practice_suggestions: schema-validated result",
+      "uncertainty: schema-validated result",
+      "teacher_review_required: schema-validated result"
+    ],
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 3,
+    "price_own": 12,
+    "promise": "Turn one decoding attempt into a teacher-reviewable observation.",
+    "slug": "phonics-reading-error-coach",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "title": "Phonics Reading Error Coach",
+    "ui": {
+      "fields": {
+        "misread_word": {
+          "widget": "text"
+        },
+        "target_word": {
+          "widget": "text"
+        },
+        "dialect": {
+          "widget": "select"
+        },
+        "learner_stage": {
+          "widget": "select"
+        },
+        "detail": {
+          "widget": "select"
+        },
+        "include_practice": {
+          "widget": "checkbox"
+        }
+      },
+      "order": [
+        "misread_word",
+        "target_word",
+        "dialect",
+        "learner_stage",
+        "detail",
+        "include_practice"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13"
+  },
+  "name": "phonics-reading-error-coach",
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "target_word": "lamp",
+        "dialect": "en-US",
+        "learner_stage": "developing",
+        "detail": "teacher",
+        "include_practice": true
+      },
+      "reason": "misread_word is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "misread_word": "lap",
+        "target_word": "lamp",
+        "dialect": "en-US",
+        "learner_stage": "developing",
+        "detail": "teacher",
+        "include_practice": true,
+        "ignore_rules": true
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "run_id": {
+        "type": "string",
+        "minLength": 8
+      },
+      "status": {
+        "const": "completed"
+      },
+      "workflow_version": {
+        "const": "phonics-reading-error-coach@0.1.0"
+      },
+      "observation": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 500
+      },
+      "possible_confusions": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "minItems": 1,
+        "maxItems": 3
+      },
+      "explanation": {
+        "type": "string",
+        "minLength": 20,
+        "maxLength": 1000
+      },
+      "practice_suggestions": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 300
+        },
+        "maxItems": 2
+      },
+      "uncertainty": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 400
+      },
+      "teacher_review_required": {
+        "const": true
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "opencode-go"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ]
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "observation",
+      "possible_confusions",
+      "explanation",
+      "practice_suggestions",
+      "uncertainty",
+      "teacher_review_required",
+      "usage"
+    ]
+  },
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "hosted_run",
+    "estimates": [
+      {
+        "tier": "hosted_run",
+        "guard_cost_usd": 0,
+        "workflow": {
+          "steps": [
+            {
+              "type": "llm",
+              "role": "educational-result",
+              "model": "deepseek-v4-flash",
+              "estimated_input_tokens": 900,
+              "max_output_tokens": 1200
+            }
+          ]
+        },
+        "notes": [
+          "One bounded schema-validated provider call."
+        ]
+      }
+    ],
+    "quote_status": "modeled",
+    "unpriced_costs": [],
+    "notes": [
+      "Repository 5x markup and $0.10 minimum apply."
+    ]
+  },
+  "prompts": {
+    "run.txt": "Compare only the supplied attempted and target words in the declared dialect. Return one cautious, non-diagnostic hypothesis, at most three confusion labels, at most two practice ideas when requested, explicit uncertainty, and teacher_review_required true. Return only JSON."
+  },
+  "readiness": {
+    "can_submit": true,
+    "blockers": []
+  },
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "resources": {
+    "cpu": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 180,
+    "max_containers": 4
+  },
+  "slug": "phonics-reading-error-coach",
+  "steps": [
+    {
+      "id": "generate",
+      "type": "llm",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready"
+    }
+  ],
+  "version": "0.1.0"
+}

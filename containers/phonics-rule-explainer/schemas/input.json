@@ -1,0 +1,45 @@
+{
+  "$id": "https://omo.space/schemas/phonics-rule-explainer/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "num_examples": {
+      "maximum": 5,
+      "minimum": 2,
+      "type": "integer"
+    },
+    "phonics_rule": {
+      "enum": [
+        "silent_e",
+        "c_rules",
+        "g_rules",
+        "digraphs_sh_ch_th_wh",
+        "vowel_teams_ai_ay",
+        "r_controlled_vowels",
+        "igh_rule",
+        "kn_gn_silent_letters"
+      ]
+    },
+    "target_audience": {
+      "enum": [
+        "early_reader",
+        "elementary",
+        "teacher_parent"
+      ]
+    }
+  },
+  "required": [
+    "phonics_rule",
+    "target_audience",
+    "num_examples",
+    "dialect"
+  ],
+  "type": "object"
+}

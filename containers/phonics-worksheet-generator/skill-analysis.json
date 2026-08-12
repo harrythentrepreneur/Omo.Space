@@ -1,0 +1,89 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "Content-manifest generation is not implemented in the supplied core",
+    "Deterministic HTML/PDF rendering and private artifact storage are not materialized",
+    "Approved visual assets and educator acceptance fixtures are unresolved"
+  ],
+  "description": "Create a bounded, print-ready phonics worksheet and answer key from a grade, target sound or word family, activity type, dialect, page count, and approved visual style.",
+  "detected_provider_needs": [],
+  "name": "phonics-worksheet-generator",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate-the-brief",
+      "number": "1",
+      "title": "Validate the brief"
+    },
+    {
+      "id": "build-the-instructional-manifest",
+      "number": "2",
+      "title": "Build the instructional manifest"
+    },
+    {
+      "id": "check-content-before-art",
+      "number": "3",
+      "title": "Check content before art"
+    },
+    {
+      "id": "resolve-visuals",
+      "number": "4",
+      "title": "Resolve visuals"
+    },
+    {
+      "id": "render-deterministically",
+      "number": "5",
+      "title": "Render deterministically"
+    },
+    {
+      "id": "verify-the-pdf",
+      "number": "6",
+      "title": "Verify the PDF"
+    },
+    {
+      "id": "deliver-privately",
+      "number": "7",
+      "title": "Deliver privately"
+    }
+  ],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "manifest",
+      "operation": "unimplemented.content_manifest",
+      "readiness": "blocked",
+      "type": "llm"
+    },
+    {
+      "id": "render",
+      "operation": "unimplemented.pdf_render",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "deliver",
+      "operation": "unimplemented.private_artifact_write",
+      "readiness": "blocked",
+      "type": "artifact"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "phonics-worksheet-generator",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "3766b71879a8a53f77634ef9ebf5f516e1502a7d0e11a1a1cceca3cc0b0a69a1"
+  },
+  "unresolved": [
+    {
+      "code": "WORKSHEET_RUNTIME_MISSING",
+      "detail": "The supplied PhonicsMaker core has no standalone worksheet content-manifest or renderer."
+    },
+    {
+      "code": "ARTIFACT_PLANE_UNREVIEWED",
+      "detail": "Private artifact write, PDF QA, fonts, and approved assets are not materialized."
+    },
+    {
+      "code": "EDUCATOR_ACCEPTANCE_MISSING",
+      "detail": "Reviewed correctness and decodability fixtures do not exist."
+    }
+  ]
+}

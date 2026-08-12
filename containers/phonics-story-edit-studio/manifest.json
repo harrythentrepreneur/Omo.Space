@@ -1,0 +1,140 @@
+{
+  "artifacts": [
+    {
+      "content_type": "application/pdf",
+      "kind": "pdf",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "json",
+      "required": true
+    }
+  ],
+  "description": "Apply reviewed text, layout, highlighting, title, or optional image changes to an owned PhonicsMaker story and return a new versioned PDF without overwriting the source.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "source_story",
+      "widget": "private_artifact_upload"
+    },
+    {
+      "field": "operations",
+      "widget": "json_editor"
+    },
+    {
+      "field": "output_filename",
+      "widget": "text"
+    }
+  ],
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "operations": {
+        "items": {
+          "maxProperties": 8,
+          "minProperties": 1,
+          "properties": {
+            "operation": {
+              "enum": [
+                "change_scene_text",
+                "change_story_title",
+                "toggle_highlighting",
+                "set_highlight_color",
+                "set_text_style",
+                "set_text_position",
+                "regenerate_scene_image"
+              ]
+            }
+          },
+          "required": [
+            "operation"
+          ],
+          "type": "object"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+      },
+      "output_filename": {
+        "maxLength": 100,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]*$",
+        "type": "string"
+      },
+      "source_story": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "maximum": 10000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "const": "application/json"
+          },
+          "object_key": {
+            "maxLength": 512,
+            "minLength": 3,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key",
+          "content_type",
+          "bytes",
+          "sha256"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "source_story",
+      "operations",
+      "output_filename"
+    ],
+    "type": "object"
+  },
+  "name": "phonics-story-edit-studio",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": false,
+    "currency": "USD",
+    "display_price_usd": 1.0,
+    "label": "Projected $1.00 — unavailable",
+    "quote_status": "blocked_unpriced",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "OWNED_ARTIFACT_PLANE_MISSING",
+        "detail": "Owner-authorized source resolution and immutable artifact output are not implemented."
+      },
+      {
+        "code": "RENDERER_NOT_PORTED",
+        "detail": "The PhonicsMaker compositor, fonts, image inputs, and PDF QA are not packaged for Modal."
+      },
+      {
+        "code": "IMAGE_TIER_UNREVIEWED",
+        "detail": "Optional image regeneration lacks approved provider cost, moderation, and continuity gates."
+      }
+    ],
+    "can_submit": false,
+    "required_env_names": [],
+    "status": "not_ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "phonics-story-edit-studio",
+  "version": "0.1.0"
+}

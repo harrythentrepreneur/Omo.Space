@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "operations": {
+      "items": {
+        "maxProperties": 8,
+        "minProperties": 1,
+        "properties": {
+          "operation": {
+            "enum": [
+              "change_scene_text",
+              "change_story_title",
+              "toggle_highlighting",
+              "set_highlight_color",
+              "set_text_style",
+              "set_text_position",
+              "regenerate_scene_image"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "type": "object"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "type": "array"
+    },
+    "output_filename": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]*$",
+      "type": "string"
+    },
+    "source_story": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "maximum": 10000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "content_type": {
+          "const": "application/json"
+        },
+        "object_key": {
+          "maxLength": 512,
+          "minLength": 3,
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "object_key",
+        "content_type",
+        "bytes",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "source_story",
+    "operations",
+    "output_filename"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,87 @@
+{
+  "artifacts": [],
+  "description": "Identify reviewed consonant and vowel digraphs in bounded English text and return exact spans plus cautious explanations.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "text",
+      "widget": "textarea"
+    },
+    {
+      "field": "digraph_type",
+      "widget": "select"
+    },
+    {
+      "field": "include_explanations",
+      "widget": "checkbox"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/digraph-spotter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "digraph_type": {
+        "enum": [
+          "all",
+          "consonant",
+          "vowel"
+        ]
+      },
+      "include_explanations": {
+        "type": "boolean"
+      },
+      "text": {
+        "maxLength": 3000,
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "text",
+      "digraph_type",
+      "include_explanations",
+      "dialect"
+    ],
+    "type": "object"
+  },
+  "name": "digraph-spotter",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "digraph-spotter",
+  "version": "0.1.0"
+}

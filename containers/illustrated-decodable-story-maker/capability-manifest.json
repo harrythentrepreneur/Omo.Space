@@ -1,0 +1,32 @@
+{
+  "allowlist": [
+    "single_llm"
+  ],
+  "approved": [],
+  "blockers": [
+    {
+      "code": "MULTI_PROVIDER_PORT_MISSING",
+      "detail": "The core RunPod workflow has not been decoupled into a reviewed Modal runtime."
+    },
+    {
+      "code": "IMAGE_AND_ARTIFACT_PLANES_MISSING",
+      "detail": "Image generation, moderation, PDF composition, and private artifact delivery are not materialized."
+    },
+    {
+      "code": "COST_AND_ACCEPTANCE_EVIDENCE_MISSING",
+      "detail": "Per-page cost, retry yield, decodability, curriculum, and educator acceptance evidence are unresolved."
+    }
+  ],
+  "decision": "blocked",
+  "execution_kind": "complex_external",
+  "requested": [
+    "multi-call-story-generation",
+    "image-generation",
+    "child-safety-moderation",
+    "story-pdf-compositor",
+    "private-artifact-write",
+    "educator-content-qa"
+  ],
+  "schema_version": "cognition.capabilities/v1",
+  "slug": "illustrated-decodable-story-maker"
+}

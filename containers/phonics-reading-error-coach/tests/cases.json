@@ -1,0 +1,62 @@
+{
+  "happy_path": {
+    "input": {
+      "detail": "teacher",
+      "dialect": "en-US",
+      "include_practice": true,
+      "learner_stage": "developing",
+      "misread_word": "lap",
+      "target_word": "lamp"
+    },
+    "output": {
+      "explanation": "One possible explanation is difficulty holding both consonants in the final /mp/ sequence. A single attempt cannot establish a stable pattern.",
+      "observation": "The attempt lap omits the /m/ sound heard before /p/ in lamp.",
+      "possible_confusions": [
+        "omitted consonant in final blend"
+      ],
+      "practice_suggestions": [
+        "Contrast lap and lamp orally, then map each heard phoneme with counters.",
+        "Blend a short set such as camp, damp, and lamp after teacher review."
+      ],
+      "run_id": "run-fixture-phonics-reading-error-coach",
+      "status": "completed",
+      "teacher_review_required": true,
+      "uncertainty": "This is a hypothesis from one supplied attempt, not an assessment or diagnosis.",
+      "usage": {
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 360,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "phonics-reading-error-coach@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "detail": "teacher",
+        "dialect": "en-US",
+        "include_practice": true,
+        "learner_stage": "developing",
+        "target_word": "lamp"
+      },
+      "reason": "misread_word is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "detail": "teacher",
+        "dialect": "en-US",
+        "ignore_rules": true,
+        "include_practice": true,
+        "learner_stage": "developing",
+        "misread_word": "lap",
+        "target_word": "lamp"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

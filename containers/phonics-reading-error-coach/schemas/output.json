@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "explanation": {
+      "maxLength": 1000,
+      "minLength": 20,
+      "type": "string"
+    },
+    "observation": {
+      "maxLength": 500,
+      "minLength": 10,
+      "type": "string"
+    },
+    "possible_confusions": {
+      "items": {
+        "maxLength": 100,
+        "minLength": 2,
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "type": "array"
+    },
+    "practice_suggestions": {
+      "items": {
+        "maxLength": 300,
+        "minLength": 8,
+        "type": "string"
+      },
+      "maxItems": 2,
+      "type": "array"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "teacher_review_required": {
+      "const": true
+    },
+    "uncertainty": {
+      "maxLength": 400,
+      "minLength": 10,
+      "type": "string"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "llm_calls": {
+          "const": 1
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "const": "opencode-go"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_cost_usd"
+      ],
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "phonics-reading-error-coach@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "observation",
+    "possible_confusions",
+    "explanation",
+    "practice_suggestions",
+    "uncertainty",
+    "teacher_review_required",
+    "usage"
+  ],
+  "type": "object"
+}

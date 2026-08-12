@@ -1,0 +1,76 @@
+{
+  "artifacts": [],
+  "description": "Estimate the phoneme count and optional IPA transcription for one English word in a declared dialect, with uncertainty made explicit.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "word",
+      "widget": "text"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    },
+    {
+      "field": "show_transcription",
+      "widget": "checkbox"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/phoneme-counter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "show_transcription": {
+        "type": "boolean"
+      },
+      "word": {
+        "maxLength": 80,
+        "minLength": 1,
+        "pattern": "^[A-Za-z'-]+$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "word",
+      "dialect",
+      "show_transcription"
+    ],
+    "type": "object"
+  },
+  "name": "phoneme-counter",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "phoneme-counter",
+  "version": "0.1.0"
+}

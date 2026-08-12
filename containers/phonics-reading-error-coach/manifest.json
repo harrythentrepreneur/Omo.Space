@@ -1,0 +1,110 @@
+{
+  "artifacts": [],
+  "description": "Compare a student's attempted word with the target word and return a cautious phonics-confusion hypothesis plus short, teacher-reviewable practice suggestions.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "misread_word",
+      "widget": "text"
+    },
+    {
+      "field": "target_word",
+      "widget": "text"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    },
+    {
+      "field": "learner_stage",
+      "widget": "select"
+    },
+    {
+      "field": "detail",
+      "widget": "select"
+    },
+    {
+      "field": "include_practice",
+      "widget": "checkbox"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/phonics-reading-error-coach/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "detail": {
+        "enum": [
+          "brief",
+          "teacher"
+        ]
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "include_practice": {
+        "type": "boolean"
+      },
+      "learner_stage": {
+        "enum": [
+          "early",
+          "developing",
+          "consolidating"
+        ]
+      },
+      "misread_word": {
+        "maxLength": 80,
+        "minLength": 1,
+        "pattern": "^[A-Za-z'-]+$",
+        "type": "string"
+      },
+      "target_word": {
+        "maxLength": 80,
+        "minLength": 1,
+        "pattern": "^[A-Za-z'-]+$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "misread_word",
+      "target_word",
+      "dialect",
+      "learner_stage",
+      "detail",
+      "include_practice"
+    ],
+    "type": "object"
+  },
+  "name": "phonics-reading-error-coach",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "phonics-reading-error-coach",
+  "version": "0.1.0"
+}

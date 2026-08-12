@@ -1,0 +1,91 @@
+{
+  "happy_path": {
+    "input": {
+      "operations": [
+        {
+          "new_title": "The Chip Shop Trip",
+          "operation": "change_story_title"
+        }
+      ],
+      "output_filename": "chip-shop-trip",
+      "source_story": {
+        "bytes": 12000,
+        "content_type": "application/json",
+        "object_key": "fixtures/story/source.json",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 90000,
+          "content_type": "application/pdf",
+          "filename": "chip-shop-trip.pdf",
+          "kind": "pdf",
+          "object_key": "fixtures/results/story-v2.pdf",
+          "role": "revised_story",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "bytes": 13000,
+          "content_type": "application/json",
+          "filename": "chip-shop-trip.json",
+          "kind": "json",
+          "object_key": "fixtures/results/story-v2.json",
+          "role": "editable_source",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "new_version": "v2",
+      "operations_applied": [
+        {
+          "operation": "change_story_title"
+        }
+      ],
+      "qa": {
+        "requested_only": true,
+        "source_preserved": true
+      },
+      "run_id": "run-fixture-edit",
+      "source_version": "v1",
+      "status": "completed",
+      "usage": {
+        "provider_cost_usd": null
+      },
+      "workflow_version": "phonics-story-edit-studio@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "bare-url",
+      "input": {
+        "operations": [
+          {
+            "operation": "change_story_title"
+          }
+        ],
+        "output_filename": "story",
+        "source_story": "https://example.com/story.json"
+      },
+      "reason": "source must be an owned artifact descriptor"
+    },
+    {
+      "id": "unknown-operation",
+      "input": {
+        "operations": [
+          {
+            "operation": "delete_source"
+          }
+        ],
+        "output_filename": "story",
+        "source_story": {
+          "bytes": 10,
+          "content_type": "application/json",
+          "object_key": "a/b.json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "reason": "operation is not reviewed"
+    }
+  ]
+}

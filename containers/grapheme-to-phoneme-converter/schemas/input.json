@@ -1,0 +1,33 @@
+{
+  "$id": "https://omo.space/schemas/grapheme-to-phoneme-converter/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "include_example_words": {
+      "type": "boolean"
+    },
+    "include_rules_explanation": {
+      "type": "boolean"
+    },
+    "text": {
+      "maxLength": 80,
+      "minLength": 1,
+      "pattern": "^[A-Za-z'-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text",
+    "dialect",
+    "include_rules_explanation",
+    "include_example_words"
+  ],
+  "type": "object"
+}

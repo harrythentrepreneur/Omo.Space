@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "constraints_used": {
+      "items": {
+        "maxLength": 120,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "ideas": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "premise": {
+            "maxLength": 700,
+            "minLength": 40,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 2,
+            "type": "string"
+          },
+          "writing_hook": {
+            "maxLength": 240,
+            "minLength": 8,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "premise",
+          "writing_hook"
+        ],
+        "type": "object"
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "type": "array"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "llm_calls": {
+          "const": 1
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "const": "opencode-go"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_cost_usd"
+      ],
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "story-idea-generator@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "ideas",
+    "constraints_used",
+    "usage"
+  ],
+  "type": "object"
+}

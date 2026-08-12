@@ -1,0 +1,1 @@
+Convert the supplied English word or grapheme to a likely phoneme sequence in the selected dialect. Include explanation/examples only when requested, never claim one universal mapping, and return only JSON.

@@ -1,0 +1,36 @@
+{
+  "$id": "https://omo.space/schemas/digraph-spotter/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "digraph_type": {
+      "enum": [
+        "all",
+        "consonant",
+        "vowel"
+      ]
+    },
+    "include_explanations": {
+      "type": "boolean"
+    },
+    "text": {
+      "maxLength": 3000,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "text",
+    "digraph_type",
+    "include_explanations",
+    "dialect"
+  ],
+  "type": "object"
+}

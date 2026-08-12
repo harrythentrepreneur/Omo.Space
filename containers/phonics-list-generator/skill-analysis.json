@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Generate a bounded, dialect-aware phonics word list for selected target patterns, topic, and learner difficulty.",
+  "detected_provider_needs": [],
+  "name": "phonics-list-generator",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "generate",
+      "number": "2",
+      "title": "Generate"
+    },
+    {
+      "id": "annotate",
+      "number": "3",
+      "title": "Annotate"
+    },
+    {
+      "id": "verify",
+      "number": "4",
+      "title": "Verify"
+    },
+    {
+      "id": "return",
+      "number": "5",
+      "title": "Return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "phonics-list-generator",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "e01b41ab16ef547264e99fe46c721f30bba4e2dc2a3a47def11689d1b8959278"
+  },
+  "unresolved": []
+}

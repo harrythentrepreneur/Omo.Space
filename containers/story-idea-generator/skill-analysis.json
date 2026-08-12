@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Generate a bounded set of original, child-safe story ideas from optional genre, character-count, and setting constraints.",
+  "detected_provider_needs": [],
+  "name": "story-idea-generator",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "draft",
+      "number": "2",
+      "title": "Draft"
+    },
+    {
+      "id": "bound",
+      "number": "3",
+      "title": "Bound"
+    },
+    {
+      "id": "safety-check",
+      "number": "4",
+      "title": "Safety check"
+    },
+    {
+      "id": "verify-and-return",
+      "number": "5",
+      "title": "Verify and return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "story-idea-generator",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "33cd33478647ee5d5c77ef67473b949ca1004edcbeb542c2470bc2aeb71a0c9f"
+  },
+  "unresolved": []
+}

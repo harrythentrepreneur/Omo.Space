@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activity": {
+      "enum": [
+        "map-write",
+        "sort",
+        "sentence",
+        "passage",
+        "game",
+        "classroom-check"
+      ]
+    },
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "difficulty": {
+      "enum": [
+        "introduce",
+        "practice",
+        "review",
+        "mixed"
+      ]
+    },
+    "focus_patterns": {
+      "items": {
+        "maxLength": 20,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "focus_type": {
+      "enum": [
+        "sound",
+        "grapheme",
+        "word_family"
+      ]
+    },
+    "grade": {
+      "enum": [
+        "prek",
+        "k",
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "include_answer_key": {
+      "type": "boolean"
+    },
+    "page_count": {
+      "maximum": 12,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "print_mode": {
+      "enum": [
+        "blackline",
+        "color"
+      ]
+    },
+    "teacher_notes": {
+      "maxLength": 1000,
+      "type": "string"
+    },
+    "theme": {
+      "maxLength": 80,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "grade",
+    "focus_type",
+    "focus_patterns",
+    "activity",
+    "page_count",
+    "difficulty",
+    "dialect",
+    "print_mode",
+    "theme",
+    "include_answer_key",
+    "teacher_notes"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,182 @@
+{
+  "artifacts": [
+    {
+      "content_type": "application/pdf",
+      "kind": "pdf",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "json",
+      "required": true
+    },
+    {
+      "content_type": "image/jpeg",
+      "kind": "thumbnail",
+      "required": true
+    }
+  ],
+  "description": "Create an original illustrated phonics story, editable source, thumbnail, and print-ready PDF from a bounded phonics and reading-level brief.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "phonemes",
+      "widget": "multi_select"
+    },
+    {
+      "field": "story_idea",
+      "widget": "textarea"
+    },
+    {
+      "field": "difficulty_level",
+      "widget": "select"
+    },
+    {
+      "field": "language_variant",
+      "widget": "select"
+    },
+    {
+      "field": "curriculum",
+      "widget": "select"
+    },
+    {
+      "field": "page_count",
+      "widget": "number"
+    },
+    {
+      "field": "highlight_text",
+      "widget": "checkbox"
+    },
+    {
+      "field": "progressive_highlighting",
+      "widget": "checkbox"
+    },
+    {
+      "field": "printable",
+      "widget": "checkbox"
+    },
+    {
+      "field": "art_style",
+      "widget": "select"
+    }
+  ],
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "art_style": {
+        "enum": [
+          "2d",
+          "watercolor",
+          "paper-cut"
+        ]
+      },
+      "curriculum": {
+        "enum": [
+          "general",
+          "vic",
+          "sg_moe",
+          "us_ccss"
+        ]
+      },
+      "difficulty_level": {
+        "enum": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6"
+        ]
+      },
+      "highlight_text": {
+        "type": "boolean"
+      },
+      "language_variant": {
+        "enum": [
+          "en_au",
+          "en_uk",
+          "en_us",
+          "fr"
+        ]
+      },
+      "page_count": {
+        "maximum": 21,
+        "minimum": 7,
+        "type": "integer"
+      },
+      "phonemes": {
+        "items": {
+          "maxLength": 20,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "printable": {
+        "type": "boolean"
+      },
+      "progressive_highlighting": {
+        "type": "boolean"
+      },
+      "story_idea": {
+        "maxLength": 500,
+        "minLength": 3,
+        "type": "string"
+      }
+    },
+    "required": [
+      "phonemes",
+      "story_idea",
+      "difficulty_level",
+      "language_variant",
+      "curriculum",
+      "page_count",
+      "highlight_text",
+      "progressive_highlighting",
+      "printable",
+      "art_style"
+    ],
+    "type": "object"
+  },
+  "name": "illustrated-decodable-story-maker",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": false,
+    "currency": "USD",
+    "display_price_usd": 1.62,
+    "label": "Projected $1.62 — unavailable",
+    "quote_status": "blocked_unpriced",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "MULTI_PROVIDER_PORT_MISSING",
+        "detail": "The core RunPod workflow has not been decoupled into a reviewed Modal runtime."
+      },
+      {
+        "code": "IMAGE_AND_ARTIFACT_PLANES_MISSING",
+        "detail": "Image generation, moderation, PDF composition, and private artifact delivery are not materialized."
+      },
+      {
+        "code": "COST_AND_ACCEPTANCE_EVIDENCE_MISSING",
+        "detail": "Per-page cost, retry yield, decodability, curriculum, and educator acceptance evidence are unresolved."
+      }
+    ],
+    "can_submit": false,
+    "required_env_names": [],
+    "status": "not_ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "illustrated-decodable-story-maker",
+  "version": "0.1.0"
+}

@@ -1,0 +1,52 @@
+{
+  "happy_path": {
+    "input": {
+      "dialect": "en-US",
+      "show_transcription": true,
+      "word": "ship"
+    },
+    "output": {
+      "dialect": "en-US",
+      "ipa": "/ʃɪp/",
+      "phoneme_count": 3,
+      "phonemes": [
+        "/ʃ/",
+        "/ɪ/",
+        "/p/"
+      ],
+      "run_id": "run-fixture-phoneme-counter",
+      "status": "completed",
+      "uncertainty": "This reflects a common en-US pronunciation.",
+      "usage": {
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 360,
+        "provider": "opencode-go"
+      },
+      "word": "ship",
+      "workflow_version": "phoneme-counter@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "dialect": "en-US",
+        "show_transcription": true
+      },
+      "reason": "word is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "dialect": "en-US",
+        "ignore_rules": true,
+        "show_transcription": true,
+        "word": "ship"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

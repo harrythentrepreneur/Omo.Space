@@ -1,0 +1,30 @@
+{
+  "allowlist": [
+    "single_llm"
+  ],
+  "approved": [],
+  "blockers": [
+    {
+      "code": "WORKSHEET_RUNTIME_MISSING",
+      "detail": "The supplied PhonicsMaker core has no standalone worksheet content-manifest or renderer."
+    },
+    {
+      "code": "ARTIFACT_PLANE_UNREVIEWED",
+      "detail": "Private artifact write, PDF QA, fonts, and approved assets are not materialized."
+    },
+    {
+      "code": "EDUCATOR_ACCEPTANCE_MISSING",
+      "detail": "Reviewed correctness and decodability fixtures do not exist."
+    }
+  ],
+  "decision": "blocked",
+  "execution_kind": "complex_external",
+  "requested": [
+    "deterministic-pdf-render",
+    "private-artifact-write",
+    "approved-asset-library",
+    "educator-content-qa"
+  ],
+  "schema_version": "cognition.capabilities/v1",
+  "slug": "phonics-worksheet-generator"
+}

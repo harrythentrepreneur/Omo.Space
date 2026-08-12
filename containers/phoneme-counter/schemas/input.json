@@ -1,0 +1,29 @@
+{
+  "$id": "https://omo.space/schemas/phoneme-counter/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "show_transcription": {
+      "type": "boolean"
+    },
+    "word": {
+      "maxLength": 80,
+      "minLength": 1,
+      "pattern": "^[A-Za-z'-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "word",
+    "dialect",
+    "show_transcription"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,95 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "Multiple Gemini story and image-prompt calls",
+    "One Runware image generation per cover and scene",
+    "Native image processing, PDF rendering, private storage, and QA retries"
+  ],
+  "description": "Create an original illustrated phonics story, editable source, thumbnail, and print-ready PDF from a bounded phonics and reading-level brief.",
+  "detected_provider_needs": [],
+  "name": "illustrated-decodable-story-maker",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate-the-brief",
+      "number": "1",
+      "title": "Validate the brief"
+    },
+    {
+      "id": "generate-story-text",
+      "number": "2",
+      "title": "Generate story text"
+    },
+    {
+      "id": "plan-illustrations",
+      "number": "3",
+      "title": "Plan illustrations"
+    },
+    {
+      "id": "generate-and-moderate-images",
+      "number": "4",
+      "title": "Generate and moderate images"
+    },
+    {
+      "id": "compose-editable-pages",
+      "number": "5",
+      "title": "Compose editable pages"
+    },
+    {
+      "id": "render-and-verify",
+      "number": "6",
+      "title": "Render and verify"
+    },
+    {
+      "id": "deliver-privately",
+      "number": "7",
+      "title": "Deliver privately"
+    }
+  ],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "story",
+      "operation": "unimplemented.story_generation",
+      "readiness": "blocked",
+      "type": "llm"
+    },
+    {
+      "id": "illustrate",
+      "operation": "unimplemented.image_generation",
+      "readiness": "blocked",
+      "type": "api"
+    },
+    {
+      "id": "compose",
+      "operation": "unimplemented.story_compositor",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "deliver",
+      "operation": "unimplemented.private_artifact_write",
+      "readiness": "blocked",
+      "type": "artifact"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "illustrated-decodable-story-maker",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "f9f8469f7e3ccba305fece7395813f74ab390da02d395f3e306783bc0dca48e3"
+  },
+  "unresolved": [
+    {
+      "code": "MULTI_PROVIDER_PORT_MISSING",
+      "detail": "The core RunPod workflow has not been decoupled into a reviewed Modal runtime."
+    },
+    {
+      "code": "IMAGE_AND_ARTIFACT_PLANES_MISSING",
+      "detail": "Image generation, moderation, PDF composition, and private artifact delivery are not materialized."
+    },
+    {
+      "code": "COST_AND_ACCEPTANCE_EVIDENCE_MISSING",
+      "detail": "Per-page cost, retry yield, decodability, curriculum, and educator acceptance evidence are unresolved."
+    }
+  ]
+}

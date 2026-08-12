@@ -1,0 +1,51 @@
+{
+  "$id": "https://omo.space/schemas/phonics-reading-error-coach/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "detail": {
+      "enum": [
+        "brief",
+        "teacher"
+      ]
+    },
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "include_practice": {
+      "type": "boolean"
+    },
+    "learner_stage": {
+      "enum": [
+        "early",
+        "developing",
+        "consolidating"
+      ]
+    },
+    "misread_word": {
+      "maxLength": 80,
+      "minLength": 1,
+      "pattern": "^[A-Za-z'-]+$",
+      "type": "string"
+    },
+    "target_word": {
+      "maxLength": 80,
+      "minLength": 1,
+      "pattern": "^[A-Za-z'-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "misread_word",
+    "target_word",
+    "dialect",
+    "learner_stage",
+    "detail",
+    "include_practice"
+  ],
+  "type": "object"
+}

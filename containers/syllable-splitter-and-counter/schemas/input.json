@@ -1,0 +1,38 @@
+{
+  "$id": "https://omo.space/schemas/syllable-splitter-and-counter/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dialect": {
+      "enum": [
+        "en-US",
+        "en-GB",
+        "en-AU"
+      ]
+    },
+    "notation": {
+      "enum": [
+        "hyphen",
+        "dots"
+      ]
+    },
+    "words": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 1,
+        "pattern": "^[A-Za-z'-]+$",
+        "type": "string"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "words",
+    "dialect",
+    "notation"
+  ],
+  "type": "object"
+}

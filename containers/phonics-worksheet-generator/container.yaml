@@ -1,0 +1,67 @@
+spec_version: cognition.container/v1
+name: "phonics-worksheet-generator"
+slug: phonics-worksheet-generator
+version: "0.1.0"
+status: not-ready
+generated:
+  compiler: skill-to-modal/0.1.0
+  hand_edit_allowed: false
+source:
+  kind: vendored-skill-md
+  path: source/SKILL.md
+  sha256: 3766b71879a8a53f77634ef9ebf5f516e1502a7d0e11a1a1cceca3cc0b0a69a1
+image:
+  base: debian-slim
+  python: "3.12"
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - jsonschema==4.26.0
+  apt_packages:
+    - chromium
+    - fonts-liberation
+resources:
+  cpu: 2.0
+  memory_mb: 2048
+  timeout_seconds: 600
+  min_containers: 0
+  max_containers: 2
+endpoint:
+  mode: async_job
+  submit_path: /v1/runs
+  result_path: /v1/runs/{call_id}
+  auth: modal_proxy_token
+  invalid_input_status: 422
+  not_ready_status: 503
+readiness:
+  can_submit: false
+  execution_kind: complex_external
+  blockers:
+    - code: WORKSHEET_RUNTIME_MISSING
+      detail: "The supplied PhonicsMaker core has no standalone worksheet content-manifest or renderer."
+    - code: ARTIFACT_PLANE_UNREVIEWED
+      detail: "Private artifact write, PDF QA, fonts, and approved assets are not materialized."
+    - code: EDUCATOR_ACCEPTANCE_MISSING
+      detail: "Reviewed correctness and decodability fixtures do not exist."
+required_env_names:
+steps:
+  - id: manifest
+    type: llm
+    operation: "unimplemented.content_manifest"
+    readiness: blocked
+  - id: render
+    type: native
+    operation: "unimplemented.pdf_render"
+    readiness: blocked
+  - id: deliver
+    type: artifact
+    operation: "unimplemented.private_artifact_write"
+    readiness: blocked
+input_schema: schemas/input.json
+output_schema: schemas/output.json
+frontend_manifest: manifest.json
+pricing_report: pricing-report.json
+tests:
+  contract: tests/test_contract.py
+  cases: tests/cases.json
+  network_allowed: false

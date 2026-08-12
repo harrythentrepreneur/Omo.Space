@@ -1,0 +1,42 @@
+{
+  "$id": "https://omo.space/schemas/story-idea-generator/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "age_band": {
+      "enum": [
+        "5-7",
+        "8-10",
+        "11-13"
+      ]
+    },
+    "genre": {
+      "maxLength": 80,
+      "minLength": 1,
+      "type": "string"
+    },
+    "num_characters": {
+      "maximum": 10,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "num_ideas": {
+      "maximum": 10,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "setting_keywords": {
+      "maxLength": 240,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "genre",
+    "num_characters",
+    "setting_keywords",
+    "num_ideas",
+    "age_band"
+  ],
+  "type": "object"
+}

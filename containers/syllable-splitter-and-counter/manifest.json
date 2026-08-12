@@ -1,0 +1,85 @@
+{
+  "artifacts": [],
+  "description": "Split a bounded list of English words into syllables and return counts with explicit dialect and ambiguity notes.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "words",
+      "widget": "textarea"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    },
+    {
+      "field": "notation",
+      "widget": "select"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/syllable-splitter-and-counter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "notation": {
+        "enum": [
+          "hyphen",
+          "dots"
+        ]
+      },
+      "words": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z'-]+$",
+          "type": "string"
+        },
+        "maxItems": 30,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      }
+    },
+    "required": [
+      "words",
+      "dialect",
+      "notation"
+    ],
+    "type": "object"
+  },
+  "name": "syllable-splitter-and-counter",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "syllable-splitter-and-counter",
+  "version": "0.1.0"
+}

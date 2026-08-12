@@ -1,0 +1,189 @@
+{
+  "artifacts": [
+    {
+      "content_type": "application/pdf",
+      "kind": "pdf",
+      "required": true
+    }
+  ],
+  "description": "Create a bounded, print-ready phonics worksheet and answer key from a grade, target sound or word family, activity type, dialect, page count, and approved visual style.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "grade",
+      "widget": "select"
+    },
+    {
+      "field": "focus_type",
+      "widget": "select"
+    },
+    {
+      "field": "focus_patterns",
+      "widget": "multi_select"
+    },
+    {
+      "field": "activity",
+      "widget": "select"
+    },
+    {
+      "field": "page_count",
+      "widget": "number"
+    },
+    {
+      "field": "difficulty",
+      "widget": "select"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    },
+    {
+      "field": "print_mode",
+      "widget": "select"
+    },
+    {
+      "field": "theme",
+      "widget": "text"
+    },
+    {
+      "field": "include_answer_key",
+      "widget": "checkbox"
+    },
+    {
+      "field": "teacher_notes",
+      "widget": "textarea"
+    }
+  ],
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "activity": {
+        "enum": [
+          "map-write",
+          "sort",
+          "sentence",
+          "passage",
+          "game",
+          "classroom-check"
+        ]
+      },
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "difficulty": {
+        "enum": [
+          "introduce",
+          "practice",
+          "review",
+          "mixed"
+        ]
+      },
+      "focus_patterns": {
+        "items": {
+          "maxLength": 20,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 6,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "focus_type": {
+        "enum": [
+          "sound",
+          "grapheme",
+          "word_family"
+        ]
+      },
+      "grade": {
+        "enum": [
+          "prek",
+          "k",
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "include_answer_key": {
+        "type": "boolean"
+      },
+      "page_count": {
+        "maximum": 12,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "print_mode": {
+        "enum": [
+          "blackline",
+          "color"
+        ]
+      },
+      "teacher_notes": {
+        "maxLength": 1000,
+        "type": "string"
+      },
+      "theme": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "grade",
+      "focus_type",
+      "focus_patterns",
+      "activity",
+      "page_count",
+      "difficulty",
+      "dialect",
+      "print_mode",
+      "theme",
+      "include_answer_key",
+      "teacher_notes"
+    ],
+    "type": "object"
+  },
+  "name": "phonics-worksheet-generator",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": false,
+    "currency": "USD",
+    "display_price_usd": 2.5,
+    "label": "Projected $2.50 — unavailable",
+    "quote_status": "blocked_unpriced",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "WORKSHEET_RUNTIME_MISSING",
+        "detail": "The supplied PhonicsMaker core has no standalone worksheet content-manifest or renderer."
+      },
+      {
+        "code": "ARTIFACT_PLANE_UNREVIEWED",
+        "detail": "Private artifact write, PDF QA, fonts, and approved assets are not materialized."
+      },
+      {
+        "code": "EDUCATOR_ACCEPTANCE_MISSING",
+        "detail": "Reviewed correctness and decodability fixtures do not exist."
+      }
+    ],
+    "can_submit": false,
+    "required_env_names": [],
+    "status": "not_ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "phonics-worksheet-generator",
+  "version": "0.1.0"
+}

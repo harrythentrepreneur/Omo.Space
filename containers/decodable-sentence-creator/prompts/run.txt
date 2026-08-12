@@ -1,0 +1,1 @@
+Generate exactly the requested number of child-safe sentences in the selected length band and dialect. Emphasize every requested phonics pattern, disclose sight or irregular words, and do not claim full decodability. Return only JSON with sentences, coverage, and warnings.

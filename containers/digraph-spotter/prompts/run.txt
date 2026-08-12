@@ -1,0 +1,1 @@
+Identify only requested digraph types in the exact supplied text. Return zero-based start-inclusive/end-exclusive spans whose substring exactly matches text. Explain cautiously and return only JSON with occurrences, summary, and warnings.

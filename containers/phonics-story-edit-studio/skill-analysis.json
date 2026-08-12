@@ -1,0 +1,95 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "Owner-authorized artifact resolution and immutable versioning are not materialized",
+    "The source compositor depends on fonts, images, native rendering, and storage",
+    "Optional image regeneration needs provider cost, moderation, and continuity QA"
+  ],
+  "description": "Apply reviewed text, layout, highlighting, title, or optional image changes to an owned PhonicsMaker story and return a new versioned PDF without overwriting the source.",
+  "detected_provider_needs": [],
+  "name": "phonics-story-edit-studio",
+  "parsed_workflow_steps": [
+    {
+      "id": "authorize-and-validate",
+      "number": "1",
+      "title": "Authorize and validate"
+    },
+    {
+      "id": "create-an-immutable-working-version",
+      "number": "2",
+      "title": "Create an immutable working version"
+    },
+    {
+      "id": "normalize-operations",
+      "number": "3",
+      "title": "Normalize operations"
+    },
+    {
+      "id": "apply-changes",
+      "number": "4",
+      "title": "Apply changes"
+    },
+    {
+      "id": "render",
+      "number": "5",
+      "title": "Render"
+    },
+    {
+      "id": "verify",
+      "number": "6",
+      "title": "Verify"
+    },
+    {
+      "id": "deliver-privately",
+      "number": "7",
+      "title": "Deliver privately"
+    }
+  ],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "authorize",
+      "operation": "unimplemented.owner_authorized_read",
+      "readiness": "blocked",
+      "type": "artifact"
+    },
+    {
+      "id": "patch",
+      "operation": "reviewed.story_patch",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "render",
+      "operation": "unimplemented.story_pdf_render",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "deliver",
+      "operation": "unimplemented.immutable_write",
+      "readiness": "blocked",
+      "type": "artifact"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "phonics-story-edit-studio",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "5b4515dfb8f6d5aefafdf583c12f8e0fcc4b83480faf75e809ad40969a0320c0"
+  },
+  "unresolved": [
+    {
+      "code": "OWNED_ARTIFACT_PLANE_MISSING",
+      "detail": "Owner-authorized source resolution and immutable artifact output are not implemented."
+    },
+    {
+      "code": "RENDERER_NOT_PORTED",
+      "detail": "The PhonicsMaker compositor, fonts, image inputs, and PDF QA are not packaged for Modal."
+    },
+    {
+      "code": "IMAGE_TIER_UNREVIEWED",
+      "detail": "Optional image regeneration lacks approved provider cost, moderation, and continuity gates."
+    }
+  ]
+}

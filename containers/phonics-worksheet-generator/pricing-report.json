@@ -1,0 +1,41 @@
+{
+  "chargeable": false,
+  "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
+  "default_tier": "worksheet",
+  "display_price_usd": 2.5,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 0.1,
+      "detail": [
+        {
+          "cost_usd": 0.0028,
+          "qty": 1,
+          "step": "llm(content-manifest)"
+        }
+      ],
+      "guard_cost_usd": 0.5,
+      "guarded_price_floor_usd": 2.5,
+      "modeled_cost_usd": 0.0028,
+      "notes": [
+        "Projection only; renderer, assets, storage, and QA remain unpriced."
+      ],
+      "pricing_cost_usd": 0.5,
+      "tier": "worksheet"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "notes": [
+    "Unavailable until all external capabilities and costs are reviewed."
+  ],
+  "quote_status": "blocked_unpriced",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model.mjs",
+  "unpriced_costs": [
+    "PDF compute",
+    "private artifact storage",
+    "approved assets",
+    "educator QA"
+  ]
+}

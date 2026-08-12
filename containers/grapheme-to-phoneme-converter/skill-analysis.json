@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Convert one English word or grapheme to a likely phoneme representation for a declared dialect, with examples and uncertainty controls.",
+  "detected_provider_needs": [],
+  "name": "grapheme-to-phoneme-converter",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "convert",
+      "number": "2",
+      "title": "Convert"
+    },
+    {
+      "id": "explain",
+      "number": "3",
+      "title": "Explain"
+    },
+    {
+      "id": "exemplify",
+      "number": "4",
+      "title": "Exemplify"
+    },
+    {
+      "id": "verify-and-return",
+      "number": "5",
+      "title": "Verify and return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "grapheme-to-phoneme-converter",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "978d396e2adb26f2f47cf7374d4ae984bf178e3c89271bc25e99e1bcb58b75be"
+  },
+  "unresolved": []
+}

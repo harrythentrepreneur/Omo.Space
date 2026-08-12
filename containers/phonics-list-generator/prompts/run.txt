@@ -1,0 +1,1 @@
+Generate exactly the requested number of child-safe English words for the supplied phonemes, topic, difficulty, and dialect. Represent every requested phoneme, avoid duplicates, and do not claim universal pronunciation. Return only JSON with words, coverage, and warnings matching the schema.

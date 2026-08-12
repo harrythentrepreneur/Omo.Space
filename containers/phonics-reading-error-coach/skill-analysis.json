@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Compare a student's attempted word with the target word and return a cautious phonics-confusion hypothesis plus short, teacher-reviewable practice suggestions.",
+  "detected_provider_needs": [],
+  "name": "phonics-reading-error-coach",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "compare",
+      "number": "2",
+      "title": "Compare"
+    },
+    {
+      "id": "calibrate",
+      "number": "3",
+      "title": "Calibrate"
+    },
+    {
+      "id": "suggest",
+      "number": "4",
+      "title": "Suggest"
+    },
+    {
+      "id": "verify-and-return",
+      "number": "5",
+      "title": "Verify and return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "phonics-reading-error-coach",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "f405ce903c74633c5cb069e04194bc2eb03b651b7d9bcca5c5e16821e4ec356b"
+  },
+  "unresolved": []
+}

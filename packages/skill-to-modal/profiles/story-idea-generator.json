@@ -1,0 +1,468 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "capabilities": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "cost_drivers": [
+    "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "execution_kind": "single_llm",
+  "form": [
+    {
+      "field": "genre",
+      "widget": "text"
+    },
+    {
+      "field": "num_characters",
+      "widget": "number"
+    },
+    {
+      "field": "setting_keywords",
+      "widget": "text"
+    },
+    {
+      "field": "num_ideas",
+      "widget": "number"
+    },
+    {
+      "field": "age_band",
+      "widget": "select"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "genre": "gentle mystery",
+      "num_characters": 2,
+      "setting_keywords": "school garden",
+      "num_ideas": 3,
+      "age_band": "8-10"
+    },
+    "output": {
+      "run_id": "run-fixture-story-idea-generator",
+      "status": "completed",
+      "workflow_version": "story-idea-generator@0.1.0",
+      "ideas": [
+        {
+          "title": "The Missing Seed Labels",
+          "premise": "Two friends discover that every label in the school garden has been moved overnight. They follow tiny clues through the beds and learn that the mix-up may have started with an animal visitor.",
+          "writing_hook": "What clue do they notice first?"
+        },
+        {
+          "title": "Footprints by the Greenhouse",
+          "premise": "A trail of muddy prints leads two student gardeners to the locked greenhouse. They must decide whether the visitor is a thief, a helper, or something completely unexpected.",
+          "writing_hook": "Describe what they find behind the door."
+        },
+        {
+          "title": "The Bell That Rang at Lunch",
+          "premise": "A small bell rings from the garden each lunchtime, but nobody is there. Two classmates test their theories and uncover a simple secret hidden among the climbing beans.",
+          "writing_hook": "Write the moment the bell rings again."
+        }
+      ],
+      "constraints_used": [
+        "gentle mystery",
+        "2 main characters",
+        "school garden",
+        "age 8-10"
+      ],
+      "usage": {
+        "provider": "opencode-go",
+        "model": "deepseek-v4-flash",
+        "llm_calls": 1,
+        "prompt_tokens": 360,
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016
+      }
+    }
+  },
+  "input_schema": {
+    "$id": "https://omo.space/schemas/story-idea-generator/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "genre": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "num_characters": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "setting_keywords": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240
+      },
+      "num_ideas": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "age_band": {
+        "enum": [
+          "5-7",
+          "8-10",
+          "11-13"
+        ]
+      }
+    },
+    "required": [
+      "genre",
+      "num_characters",
+      "setting_keywords",
+      "num_ideas",
+      "age_band"
+    ]
+  },
+  "live": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url_env": "LLM_BASE_URL",
+    "default_base_url": "https://opencode.ai/zen/go/v1",
+    "default_model": "deepseek-v4-flash",
+    "input_rate_per_million_usd": 0.14,
+    "max_tokens": 1200,
+    "modal_secret_name": "omo-skill-providers",
+    "model_env": "LLM_MODEL",
+    "model_output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ideas": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 120
+              },
+              "premise": {
+                "type": "string",
+                "minLength": 40,
+                "maxLength": 700
+              },
+              "writing_hook": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 240
+              }
+            },
+            "required": [
+              "title",
+              "premise",
+              "writing_hook"
+            ]
+          }
+        },
+        "constraints_used": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "ideas",
+        "constraints_used"
+      ]
+    },
+    "output_rate_per_million_usd": 0.28,
+    "prompt": "run.txt",
+    "provider": "opencode-go",
+    "temperature": 0.2,
+    "timeout_seconds": 120
+  },
+  "marketplace": {
+    "category": "content",
+    "cover": null,
+    "demo_cap": "Hosted run: structured teacher-reviewable result",
+    "deployment": {
+      "default_endpoint": "https://harrythentrepreneur--cognition-story-idea-generator-api.modal.run",
+      "endpoint_env": "STORY_IDEA_GENERATOR_MODAL_URL"
+    },
+    "description": "Create a bounded set of original, child-safe story premises for classroom writing.",
+    "emoji": "💡",
+    "example_in": "gentle mystery · 2 · school garden",
+    "example_out": [
+      "Turn a few constraints into original student writing ideas.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "genre": "gentle mystery",
+          "num_characters": 2,
+          "setting_keywords": "school garden",
+          "num_ideas": 3,
+          "age_band": "8-10"
+        },
+        "output_preview": "Turn a few constraints into original student writing ideas.",
+        "title": "Story Idea Generator"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "genre: reviewed bounded input",
+      "num_characters: reviewed bounded input",
+      "setting_keywords: reviewed bounded input",
+      "num_ideas: reviewed bounded input",
+      "age_band: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "maker_name": "PhonicsMaker",
+    "niche": "education",
+    "outputs": [
+      "ideas: schema-validated result",
+      "constraints_used: schema-validated result"
+    ],
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 3,
+    "price_own": 12,
+    "promise": "Turn a few constraints into original student writing ideas.",
+    "slug": "story-idea-generator",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "title": "Story Idea Generator",
+    "ui": {
+      "fields": {
+        "genre": {
+          "widget": "text"
+        },
+        "num_characters": {
+          "widget": "number"
+        },
+        "setting_keywords": {
+          "widget": "text"
+        },
+        "num_ideas": {
+          "widget": "number"
+        },
+        "age_band": {
+          "widget": "select"
+        }
+      },
+      "order": [
+        "genre",
+        "num_characters",
+        "setting_keywords",
+        "num_ideas",
+        "age_band"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13"
+  },
+  "name": "story-idea-generator",
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "num_characters": 2,
+        "setting_keywords": "school garden",
+        "num_ideas": 3,
+        "age_band": "8-10"
+      },
+      "reason": "genre is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "genre": "gentle mystery",
+        "num_characters": 2,
+        "setting_keywords": "school garden",
+        "num_ideas": 3,
+        "age_band": "8-10",
+        "ignore_rules": true
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "run_id": {
+        "type": "string",
+        "minLength": 8
+      },
+      "status": {
+        "const": "completed"
+      },
+      "workflow_version": {
+        "const": "story-idea-generator@0.1.0"
+      },
+      "ideas": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            },
+            "premise": {
+              "type": "string",
+              "minLength": 40,
+              "maxLength": 700
+            },
+            "writing_hook": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 240
+            }
+          },
+          "required": [
+            "title",
+            "premise",
+            "writing_hook"
+          ]
+        }
+      },
+      "constraints_used": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "maxItems": 8
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "opencode-go"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ]
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "ideas",
+      "constraints_used",
+      "usage"
+    ]
+  },
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "hosted_run",
+    "estimates": [
+      {
+        "tier": "hosted_run",
+        "guard_cost_usd": 0,
+        "workflow": {
+          "steps": [
+            {
+              "type": "llm",
+              "role": "educational-result",
+              "model": "deepseek-v4-flash",
+              "estimated_input_tokens": 900,
+              "max_output_tokens": 1200
+            }
+          ]
+        },
+        "notes": [
+          "One bounded schema-validated provider call."
+        ]
+      }
+    ],
+    "quote_status": "modeled",
+    "unpriced_costs": [],
+    "notes": [
+      "Repository 5x markup and $0.10 minimum apply."
+    ]
+  },
+  "prompts": {
+    "run.txt": "Generate the requested number of distinct, original, child-safe story ideas using the supplied genre, character count, setting, and age band. Avoid copyrighted characters and imitation. Return only JSON with ideas and constraints_used."
+  },
+  "readiness": {
+    "can_submit": true,
+    "blockers": []
+  },
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "resources": {
+    "cpu": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 180,
+    "max_containers": 4
+  },
+  "slug": "story-idea-generator",
+  "steps": [
+    {
+      "id": "generate",
+      "type": "llm",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready"
+    }
+  ],
+  "version": "0.1.0"
+}

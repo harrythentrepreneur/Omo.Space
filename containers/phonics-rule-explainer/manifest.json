@@ -1,0 +1,96 @@
+{
+  "artifacts": [],
+  "description": "Explain one reviewed English phonics pattern for a selected audience and return bounded examples, exceptions, and uncertainty notes.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "phonics_rule",
+      "widget": "select"
+    },
+    {
+      "field": "target_audience",
+      "widget": "select"
+    },
+    {
+      "field": "num_examples",
+      "widget": "number"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/phonics-rule-explainer/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "num_examples": {
+        "maximum": 5,
+        "minimum": 2,
+        "type": "integer"
+      },
+      "phonics_rule": {
+        "enum": [
+          "silent_e",
+          "c_rules",
+          "g_rules",
+          "digraphs_sh_ch_th_wh",
+          "vowel_teams_ai_ay",
+          "r_controlled_vowels",
+          "igh_rule",
+          "kn_gn_silent_letters"
+        ]
+      },
+      "target_audience": {
+        "enum": [
+          "early_reader",
+          "elementary",
+          "teacher_parent"
+        ]
+      }
+    },
+    "required": [
+      "phonics_rule",
+      "target_audience",
+      "num_examples",
+      "dialect"
+    ],
+    "type": "object"
+  },
+  "name": "phonics-rule-explainer",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "phonics-rule-explainer",
+  "version": "0.1.0"
+}

@@ -1,0 +1,97 @@
+{
+  "artifacts": [],
+  "description": "Generate a bounded set of original, child-safe story ideas from optional genre, character-count, and setting constraints.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "genre",
+      "widget": "text"
+    },
+    {
+      "field": "num_characters",
+      "widget": "number"
+    },
+    {
+      "field": "setting_keywords",
+      "widget": "text"
+    },
+    {
+      "field": "num_ideas",
+      "widget": "number"
+    },
+    {
+      "field": "age_band",
+      "widget": "select"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/story-idea-generator/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "age_band": {
+        "enum": [
+          "5-7",
+          "8-10",
+          "11-13"
+        ]
+      },
+      "genre": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "num_characters": {
+        "maximum": 10,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "num_ideas": {
+        "maximum": 10,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "setting_keywords": {
+        "maxLength": 240,
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "genre",
+      "num_characters",
+      "setting_keywords",
+      "num_ideas",
+      "age_band"
+    ],
+    "type": "object"
+  },
+  "name": "story-idea-generator",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "story-idea-generator",
+  "version": "0.1.0"
+}

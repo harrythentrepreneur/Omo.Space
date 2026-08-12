@@ -1,0 +1,100 @@
+{
+  "happy_path": {
+    "input": {
+      "art_style": "2d",
+      "curriculum": "general",
+      "difficulty_level": "2",
+      "highlight_text": true,
+      "language_variant": "en_us",
+      "page_count": 7,
+      "phonemes": [
+        "ch"
+      ],
+      "printable": true,
+      "progressive_highlighting": false,
+      "story_idea": "A child helps a chick find its red lunch box."
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 120000,
+          "content_type": "application/pdf",
+          "filename": "the-chicks-lunch.pdf",
+          "kind": "pdf",
+          "object_key": "fixtures/results/story.pdf",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "bytes": 22000,
+          "content_type": "application/json",
+          "filename": "the-chicks-lunch.json",
+          "kind": "json",
+          "object_key": "fixtures/results/story.json",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "bytes": 8000,
+          "content_type": "image/jpeg",
+          "filename": "the-chicks-lunch.jpg",
+          "kind": "thumbnail",
+          "object_key": "fixtures/results/thumb.jpg",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "content_report": {
+        "page_count": 7,
+        "phonemes": [
+          "ch"
+        ]
+      },
+      "qa": {
+        "all_pages_rendered": true,
+        "educator_reviewed": true
+      },
+      "run_id": "run-fixture-story",
+      "status": "completed",
+      "title": "The Chick's Lunch",
+      "usage": {
+        "images_generated": 8,
+        "llm_calls": 3,
+        "provider_cost_usd": 0.02
+      },
+      "workflow_version": "illustrated-decodable-story-maker@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-phonemes",
+      "input": {
+        "art_style": "2d",
+        "curriculum": "general",
+        "difficulty_level": "2",
+        "highlight_text": true,
+        "language_variant": "en_us",
+        "page_count": 7,
+        "printable": true,
+        "progressive_highlighting": false,
+        "story_idea": "A chick has lunch."
+      },
+      "reason": "phonemes are required"
+    },
+    {
+      "id": "too-many-pages",
+      "input": {
+        "art_style": "2d",
+        "curriculum": "general",
+        "difficulty_level": "2",
+        "highlight_text": true,
+        "language_variant": "en_us",
+        "page_count": 50,
+        "phonemes": [
+          "ch"
+        ],
+        "printable": true,
+        "progressive_highlighting": false,
+        "story_idea": "A chick has lunch."
+      },
+      "reason": "page count is bounded"
+    }
+  ]
+}

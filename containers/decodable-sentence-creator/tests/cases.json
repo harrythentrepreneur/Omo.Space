@@ -1,0 +1,85 @@
+{
+  "happy_path": {
+    "input": {
+      "dialect": "en-US",
+      "include_sight_words": true,
+      "num_sentences": 2,
+      "phonics_patterns": [
+        "cvc",
+        "sh_digraph"
+      ],
+      "sentence_length": "short"
+    },
+    "output": {
+      "coverage": [
+        "cvc",
+        "sh_digraph"
+      ],
+      "run_id": "run-fixture-decodable-sentence-creator",
+      "sentences": [
+        {
+          "sight_or_irregular_words": [
+            "the"
+          ],
+          "target_words": [
+            "fish",
+            "dash"
+          ],
+          "text": "The fish can dash."
+        },
+        {
+          "sight_or_irregular_words": [
+            "a"
+          ],
+          "target_words": [
+            "shop",
+            "has",
+            "red",
+            "bag"
+          ],
+          "text": "A shop has a red bag."
+        }
+      ],
+      "status": "completed",
+      "usage": {
+        "completion_tokens": 260,
+        "estimated_cost_usd": 0.00016,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 360,
+        "provider": "opencode-go"
+      },
+      "warnings": [
+        "Teacher review is required against the learner's exact taught code."
+      ],
+      "workflow_version": "decodable-sentence-creator@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-required",
+      "input": {
+        "dialect": "en-US",
+        "include_sight_words": true,
+        "num_sentences": 2,
+        "sentence_length": "short"
+      },
+      "reason": "phonics_patterns is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "dialect": "en-US",
+        "ignore_rules": true,
+        "include_sight_words": true,
+        "num_sentences": 2,
+        "phonics_patterns": [
+          "cvc",
+          "sh_digraph"
+        ],
+        "sentence_length": "short"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

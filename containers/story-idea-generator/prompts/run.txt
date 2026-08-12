@@ -1,0 +1,1 @@
+Generate the requested number of distinct, original, child-safe story ideas using the supplied genre, character count, setting, and age band. Avoid copyrighted characters and imitation. Return only JSON with ideas and constraints_used.

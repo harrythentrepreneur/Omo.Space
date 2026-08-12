@@ -1,0 +1,104 @@
+{
+  "artifacts": [],
+  "description": "Generate a bounded, dialect-aware phonics word list for selected target patterns, topic, and learner difficulty.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "phonemes",
+      "widget": "multi_select"
+    },
+    {
+      "field": "topic",
+      "widget": "text"
+    },
+    {
+      "field": "difficulty_level",
+      "widget": "select"
+    },
+    {
+      "field": "dialect",
+      "widget": "select"
+    },
+    {
+      "field": "word_count",
+      "widget": "number"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/phonics-list-generator/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "difficulty_level": {
+        "enum": [
+          "beginner",
+          "intermediate",
+          "advanced"
+        ]
+      },
+      "phonemes": {
+        "items": {
+          "maxLength": 20,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 8,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "topic": {
+        "maxLength": 120,
+        "type": "string"
+      },
+      "word_count": {
+        "maximum": 30,
+        "minimum": 5,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "phonemes",
+      "topic",
+      "difficulty_level",
+      "dialect",
+      "word_count"
+    ],
+    "type": "object"
+  },
+  "name": "phonics-list-generator",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "phonics-list-generator",
+  "version": "0.1.0"
+}
