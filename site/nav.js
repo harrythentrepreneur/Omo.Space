@@ -3,8 +3,10 @@
 
   var authModalPromise = null;
   var contextualCatalogPromise = null;
+  var balanceClientPromise = null;
+  var balanceInFlight = null;
   var balanceRequestId = 0;
-  var DEMO_BALANCE_KEY = 'omo_balance_v1';
+  var BALANCE_CACHE_PREFIX = 'omo_nav_balance_v1:';
 
   function installCreditStyles() {
     if (document.getElementById('omo-nav-credit-styles')) return;
@@ -17,7 +19,7 @@
       '.omo-nav-row>.omo-nav-brand{flex:1 1 auto}' +
       '.omo-nav-brand{gap:7px}' +
       '.omo-nav-brand .wordmark{min-height:44px;align-self:auto}' +
-      '.omo-nav-menu-toggle{width:36px;height:36px;min-height:36px;padding:0;border:0;border-radius:999px;background:#E8E8E6;color:var(--pine,#17352C);box-shadow:none;transition:background-color .15s ease}' +
+      '.omo-nav-menu-toggle{width:44px;height:44px;min-height:44px;padding:0;border:0;border-radius:999px;background:#E8E8E6;color:var(--pine,#17352C);box-shadow:none;transition:background-color .15s ease}' +
       '.omo-nav-menu-toggle:hover,.omo-nav-menu-toggle[aria-expanded="true"]{border-color:transparent;background:#F6F0E7;box-shadow:none;transform:none}' +
       '.omo-nav-menu-toggle:focus-visible{border-color:transparent;background:#F6F0E7;outline:3px solid rgba(255,107,61,.3);outline-offset:2px}' +
       '.omo-nav-chevron{position:relative;display:block;width:13px;height:13px;font-size:0;line-height:1;transition:transform .15s ease}' +
@@ -32,16 +34,21 @@
       '.omo-nav-static-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
       '.omo-nav-logout{margin-top:6px;padding-top:0;border-top:0}' +
       '.omo-nav-popover .omo-nav-logout>a{color:#4D5B56}' +
-      '.omo-nav-login.omo-nav-credit{min-width:40px;gap:6px;padding-inline:11px;border-radius:999px;font-variant-numeric:tabular-nums}' +
+      '.omo-nav-login{min-height:44px}.omo-nav-login.omo-nav-credit{width:96px;min-width:96px;max-width:96px;gap:6px;padding-inline:9px;border-radius:999px;font-variant-numeric:tabular-nums}' +
       '.omo-nav-credit-icon{font-size:16px;line-height:1}' +
-      '.omo-nav-workflow-identity{min-width:0;max-width:min(310px,calc(100vw - 190px));min-height:40px;display:inline-flex;align-items:center;gap:8px;flex:0 1 auto;color:var(--pine,#17352C);text-decoration:none}' +
+      '.omo-nav-credit-amount{min-width:0;overflow:hidden;text-overflow:ellipsis}' +
+      '.omo-nav-credit-spinner{width:13px;height:13px;flex:0 0 13px;border:2px solid var(--mint,#BDEFD4);border-top-color:var(--pine,#17352C);border-radius:50%;animation:omo-nav-credit-spin .7s linear infinite}' +
+      '.omo-nav-credit.is-balance-unavailable .omo-nav-credit-icon{opacity:.52}' +
+      '@keyframes omo-nav-credit-spin{to{transform:rotate(360deg)}}' +
+      '.omo-nav-workflow-identity{min-width:0;max-width:min(310px,calc(100vw - 214px));min-height:44px;display:inline-flex;align-items:center;gap:8px;flex:0 1 auto;color:var(--pine,#17352C);text-decoration:none}' +
       '.omo-nav-workflow-identity:hover,.omo-nav-workflow-identity:focus-visible{color:var(--pine,#17352C);text-decoration:none}' +
       '.omo-nav-workflow-identity:focus-visible{outline:3px solid rgba(255,107,61,.34);outline-offset:2px}' +
       '.omo-nav-context-thumb{width:30px;height:30px;display:grid;place-items:center;flex:0 0 30px;overflow:hidden;border-radius:8px;background:var(--cream,#F4F1E8);font-size:17px}' +
       '.omo-nav-context-thumb img{width:100%;height:100%;display:block;object-fit:cover}' +
       '.omo-nav-context-name{min-width:0;overflow:hidden;color:var(--pine,#17352C);font:600 15px/1.12 "Fraunces",Georgia,serif;letter-spacing:-.015em;text-overflow:ellipsis;white-space:nowrap}' +
-      '@media(max-width:760px){.omo-site-header>.omo-nav-row{width:min(1160px,calc(100% - 32px))}}' +
-      '@media(max-width:480px){.omo-nav-popover{left:0;width:min(292px,calc(100vw - 24px));max-width:calc(100vw - 24px)}.omo-nav-login.omo-nav-credit{padding-inline:9px}.omo-nav-workflow-identity{max-width:calc(100vw - 180px);gap:6px}.omo-nav-context-thumb{width:28px;height:28px;flex-basis:28px}.omo-nav-context-name{font-size:13px}}';
+      '@media(max-width:760px){.omo-site-header>.omo-nav-row{width:100%;padding-inline:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}.omo-nav-row>.omo-nav-brand{min-width:0}.omo-nav-menu{position:static}.omo-nav-popover{max-height:calc(100dvh - 84px);overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}.omo-nav-login{max-width:42vw;overflow:hidden;text-overflow:ellipsis}}' +
+      '@media(max-width:480px){.omo-nav-popover{left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));width:auto;max-width:none}.omo-nav-workflow-identity{max-width:calc(100vw - 214px);gap:6px}.omo-nav-context-thumb{width:28px;height:28px;flex-basis:28px}.omo-nav-context-name{font-size:13px}}' +
+      '@media(prefers-reduced-motion:reduce){.omo-nav-credit-spinner{animation:omo-nav-credit-pulse 1s ease-in-out infinite alternate}@keyframes omo-nav-credit-pulse{to{opacity:.45}}}';
     document.head.appendChild(style);
   }
 
@@ -74,85 +81,158 @@
     return (Math.max(0, Number(cents)) / 100).toFixed(2);
   }
 
-  function renderCreditLink(link, balanceCents) {
+  function balanceCacheKey(userId) {
+    return BALANCE_CACHE_PREFIX + encodeURIComponent(String(userId));
+  }
+
+  function readCachedBalance(userId) {
+    if (!userId) return null;
+    try {
+      var cached = JSON.parse(window.localStorage.getItem(balanceCacheKey(userId)) || 'null');
+      var cents = Number(cached && cached.balanceCents);
+      var cachedAt = Number(cached && cached.cachedAt);
+      if (!cached || cached.userId !== userId || !isFinite(cents) || cents < 0 ||
+          Math.round(cents) !== cents || !isFinite(cachedAt) || cachedAt <= 0) return null;
+      return { balanceCents: cents, cachedAt: cachedAt };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeCachedBalance(account) {
+    var userId = String(account && account.userId || '');
+    var cents = Number(account && account.balanceCents);
+    if (!userId || !isFinite(cents) || cents < 0 || Math.round(cents) !== cents) return;
+    try {
+      window.localStorage.setItem(balanceCacheKey(userId), JSON.stringify({
+        userId: userId,
+        balanceCents: cents,
+        cachedAt: Date.now()
+      }));
+    } catch (error) {}
+  }
+
+  function renderCreditLink(link, balanceCents, state) {
     var hasBalance = balanceCents != null && isFinite(Number(balanceCents));
     var formatted = hasBalance ? formatBalance(balanceCents) : '';
     var icon = document.createElement('span');
-    icon.className = 'omo-nav-credit-icon';
+    icon.className = state === 'loading' ? 'omo-nav-credit-spinner' : 'omo-nav-credit-icon';
     icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = '\u25d2';
+    if (state !== 'loading') icon.textContent = '\u25d2';
 
     link.textContent = '';
     link.appendChild(icon);
-    if (hasBalance) {
+    if (state !== 'unavailable') {
       var amount = document.createElement('span');
-      amount.textContent = '$' + formatted;
+      amount.className = 'omo-nav-credit-amount';
+      amount.textContent = hasBalance ? '$' + formatted : '$\u2026';
       link.appendChild(amount);
     }
     link.classList.add('omo-nav-credit');
-    link.setAttribute('aria-label', hasBalance ? '$' + formatted + ' in credits \u2014 view billing' : 'Credits \u2014 view billing');
-    link.title = hasBalance ? '$' + formatted + ' in credits' : 'Credits';
-  }
+    link.classList.remove('is-balance-loading');
+    link.classList.remove('is-balance-unavailable');
+    link.removeAttribute('aria-busy');
+    link.setAttribute('aria-live', 'polite');
 
-  function demoBalanceCents() {
-    var user = currentUser();
-    if (!user || !user.demo) return null;
-
-    try {
-      var raw = window.localStorage.getItem(DEMO_BALANCE_KEY);
-      var saved = Number(raw);
-      return raw != null && isFinite(saved) ? Math.round(saved * 100) : 500;
-    } catch (error) {
-      return 500;
+    if (state === 'loading') {
+      link.classList.add('is-balance-loading');
+      link.setAttribute('aria-busy', 'true');
+      link.setAttribute('aria-label', hasBalance ? '$' + formatted + ' in credits, refreshing' : 'Loading credit balance');
+      link.title = hasBalance ? 'Refreshing $' + formatted + ' balance' : 'Loading balance';
+    } else if (state === 'unavailable') {
+      link.classList.add('is-balance-unavailable');
+      link.setAttribute('aria-label', 'Balance unavailable \u2014 view billing');
+      link.title = 'Balance unavailable';
+    } else {
+      link.setAttribute('aria-label', '$' + formatted + ' in credits \u2014 view billing');
+      link.title = '$' + formatted + ' in credits';
     }
   }
 
-  function getClerkSessionToken() {
-    if (window.Clerk && window.Clerk.session && typeof window.Clerk.session.getToken === 'function') {
-      return window.Clerk.session.getToken().then(function (token) {
-        if (!token) throw new Error('No auth token.');
-        return token;
-      });
-    }
-    return Promise.reject(new Error('No verified session.'));
+  function renderAllCreditLinks(balanceCents, state) {
+    var links = document.querySelectorAll('[data-omo-login]');
+    for (var i = 0; i < links.length; i += 1) renderCreditLink(links[i], balanceCents, state);
   }
 
-  function balanceCentsFromResponse(data) {
-    if (data && data.balance_cents != null && isFinite(Number(data.balance_cents))) {
-      return Math.round(Number(data.balance_cents));
+  function loadCreditsClient() {
+    if (window.OmoCredits && typeof window.OmoCredits.getBalance === 'function') {
+      return Promise.resolve(window.OmoCredits);
     }
+    if (balanceClientPromise) return balanceClientPromise;
 
-    var dollars = data && (data.balance_usd != null ? data.balance_usd : data.balance);
-    return dollars != null && isFinite(Number(dollars)) ? Math.round(Number(dollars) * 100) : null;
+    balanceClientPromise = new Promise(function (resolve, reject) {
+      var script = document.querySelector('script[src="credits.js"],script[src$="/credits.js"]');
+      var created = false;
+      if (!script) {
+        script = document.createElement('script');
+        script.src = 'credits.js';
+        script.async = true;
+        script.setAttribute('data-omo-credits-client', '');
+        created = true;
+      }
+
+      function loaded() {
+        if (window.OmoCredits && typeof window.OmoCredits.getBalance === 'function') resolve(window.OmoCredits);
+        else reject(new Error('The balance client did not initialize.'));
+      }
+      script.addEventListener('load', loaded, { once: true });
+      script.addEventListener('error', function () {
+        reject(new Error('The balance client could not be loaded.'));
+      }, { once: true });
+      if (created) document.head.appendChild(script);
+      else window.setTimeout(function () {
+        if (window.OmoCredits && typeof window.OmoCredits.getBalance === 'function') resolve(window.OmoCredits);
+        else if (document.readyState !== 'loading') reject(new Error('The balance client did not initialize.'));
+      }, 0);
+    });
+    return balanceClientPromise;
   }
 
-  function refreshCreditBalance(requestId) {
-    var fallback = demoBalanceCents();
-    if (fallback != null) {
-      var demoLinks = document.querySelectorAll('[data-omo-login]');
-      for (var i = 0; i < demoLinks.length; i += 1) renderCreditLink(demoLinks[i], fallback);
+  function requestCreditBalance(userId) {
+    if (balanceInFlight && balanceInFlight.userId === userId) return balanceInFlight.promise;
+    var promise = loadCreditsClient().then(function (client) {
+      return client.getBalance();
+    });
+    balanceInFlight = { userId: userId, promise: promise };
+    promise.then(function () {
+      if (balanceInFlight && balanceInFlight.promise === promise) balanceInFlight = null;
+    }, function () {
+      if (balanceInFlight && balanceInFlight.promise === promise) balanceInFlight = null;
+    });
+    return promise;
+  }
+
+  function refreshCreditBalance(requestId, userId) {
+    requestCreditBalance(userId).then(function (account) {
+      var activeUser = currentUser();
+      if (requestId !== balanceRequestId || !activeUser || activeUser.id !== userId) return;
+      writeCachedBalance(account);
+      renderAllCreditLinks(account.balanceCents, 'ready');
+    }).catch(function () {
+      var activeUser = currentUser();
+      if (requestId !== balanceRequestId || !activeUser || activeUser.id !== userId) return;
+      renderAllCreditLinks(null, 'unavailable');
+    });
+  }
+
+  function handleCreditUpdate(event) {
+    var account = event && event.detail;
+    var activeUser = currentUser();
+    if (!account || !activeUser || account.userId !== activeUser.id || !isSignedIn()) return;
+    if (account.mode === 'loading' || account.balanceCents == null || !isFinite(Number(account.balanceCents))) {
+      var cached = readCachedBalance(activeUser.id);
+      renderAllCreditLinks(cached && cached.balanceCents, 'loading');
+      return;
     }
-
-    getClerkSessionToken().then(function (token) {
-      return fetch('/api/me', {
-        headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
-      });
-    }).then(function (response) {
-      return response.json().catch(function () { return {}; }).then(function (data) {
-        return { ok: response.ok, data: data };
-      });
-    }).then(function (result) {
-      if (requestId !== balanceRequestId || !isSignedIn() || !result.ok || !result.data.ok) return;
-      var balanceCents = balanceCentsFromResponse(result.data);
-      if (balanceCents == null) return;
-
-      var links = document.querySelectorAll('[data-omo-login]');
-      for (var i = 0; i < links.length; i += 1) renderCreditLink(links[i], balanceCents);
-    }).catch(function () {});
+    writeCachedBalance(account);
+    renderAllCreditLinks(account.balanceCents, 'ready');
   }
 
   function syncLoginLinks() {
     var signedIn = isSignedIn();
+    var user = signedIn ? currentUser() : null;
+    var userId = user && user.id;
+    var cached = userId ? readCachedBalance(userId) : null;
     var href = signedIn ? 'billing.html' : 'signup.html';
     var requestId = ++balanceRequestId;
     var links = document.querySelectorAll('[data-omo-login]');
@@ -160,13 +240,17 @@
       links[i].href = href;
       links[i].hidden = false;
       if (signedIn) {
-        renderCreditLink(links[i], null);
+        renderCreditLink(links[i], cached && cached.balanceCents, 'loading');
         links[i].removeAttribute('aria-haspopup');
         links[i].removeAttribute('aria-controls');
       } else {
         links[i].classList.remove('omo-nav-credit');
+        links[i].classList.remove('is-balance-loading');
+        links[i].classList.remove('is-balance-unavailable');
         links[i].textContent = 'Log in';
         links[i].removeAttribute('aria-label');
+        links[i].removeAttribute('aria-live');
+        links[i].removeAttribute('aria-busy');
         links[i].removeAttribute('title');
         links[i].removeAttribute('aria-controls');
         links[i].setAttribute('aria-haspopup', 'dialog');
@@ -174,7 +258,8 @@
     }
 
     if (signedIn) {
-      refreshCreditBalance(requestId);
+      if (userId) refreshCreditBalance(requestId, userId);
+      else renderAllCreditLinks(null, 'unavailable');
     } else {
       loadAuthModal();
       var popovers = document.querySelectorAll('.omo-nav-popover');
@@ -466,6 +551,8 @@
     function closeMenu(returnFocus) {
       if (toggle.getAttribute('aria-expanded') !== 'true') return;
       toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', 'Menu');
+      toggle.title = 'Menu';
       popover.hidden = true;
       if (returnFocus) toggle.focus();
     }
@@ -473,6 +560,8 @@
     toggle.addEventListener('click', function () {
       var shouldOpen = toggle.getAttribute('aria-expanded') !== 'true';
       toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+      toggle.setAttribute('aria-label', shouldOpen ? 'Close menu' : 'Menu');
+      toggle.title = shouldOpen ? 'Close menu' : 'Menu';
       popover.hidden = !shouldOpen;
       if (shouldOpen) window.setTimeout(function () { syncLogoutItem(popover); }, 0);
     });
@@ -485,18 +574,28 @@
       if (!menu.contains(event.target)) closeMenu(false);
     });
 
+    document.addEventListener('focusin', function (event) {
+      if (!menu.contains(event.target)) closeMenu(false);
+    });
+
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape') closeMenu(true);
     });
+
+    window.addEventListener('resize', function () { closeMenu(false); });
+    window.addEventListener('pagehide', function () { closeMenu(false); });
   }
 
   function init() {
     installCreditStyles();
+    window.addEventListener('omo:credits', handleCreditUpdate);
+    // Start account I/O before catalog/menu decoration. Billing's shared
+    // request is reused when it is already in flight.
+    syncLoginLinks();
     installContextualWorkflowIdentity();
     var menus = document.querySelectorAll('.omo-nav-menu');
     for (var i = 0; i < menus.length; i += 1) initMenu(menus[i]);
 
-    syncLoginLinks();
     if (!subscribeToAuthChanges()) loadAuthAdapter();
     document.addEventListener('click', handleLoginClick);
     document.addEventListener('click', handleLogoutClick);
@@ -517,7 +616,7 @@
 (function (doc) {
   var style = doc.createElement('link');
   style.rel = 'stylesheet';
-  style.href = 'menu-workflows.css?v=4';
+  style.href = 'menu-workflows.css?v=5';
   doc.head.appendChild(style);
 
   var script = doc.createElement('script');
