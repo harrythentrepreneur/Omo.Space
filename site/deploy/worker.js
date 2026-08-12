@@ -235,6 +235,19 @@ function stripeCheckoutHeaders(secretKey) {
   };
 }
 
+async function expireStripeCheckoutSession(secretKey, sessionId) {
+  if (!secretKey || !/^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(String(sessionId || ''))) return false;
+  try {
+    const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}/expire`, {
+      method: 'POST',
+      headers: stripeCheckoutHeaders(secretKey),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 function purchaseCancelUrl(request, slug) {
   const workflowUrl = `https://omo.space/workflow.html?slug=${encodeURIComponent(slug)}`;
   try {
@@ -1330,6 +1343,7 @@ async function handleCheckout(request, env) {
   if (email) params.set('customer_email', email);
 
   let checkoutStage = 'stripe_request';
+  let stripeSessionId = '';
   try {
     const stripeHeaders = stripeCheckoutHeaders(secretKey);
     if (callerIdempotencyKey) {
@@ -1349,16 +1363,24 @@ async function handleCheckout(request, env) {
     if (!data || !data.id || !checkoutUrl || checkoutUrl.origin !== 'https://checkout.stripe.com') {
       return json({ error: 'stripe returned an invalid checkout session' }, 502, cors());
     }
+    stripeSessionId = data.id;
     checkoutStage = 'purchase_record';
     await recordPendingPurchase(env, data.id, listing, email);
     return json({ url: checkoutUrl.toString() }, 200, cors());
   } catch (e) {
+    const sessionExpired = checkoutStage === 'purchase_record'
+      ? await expireStripeCheckoutSession(secretKey, stripeSessionId)
+      : false;
     console.error('checkout session failed', {
       stage: checkoutStage,
       code: String(e && e.code || '').slice(0, 80),
       message: String(e && e.message || 'unknown error').slice(0, 240),
+      session_expired: sessionExpired,
     });
-    return json({ error: checkoutStage === 'purchase_record' ? 'purchase recording unavailable' : 'stripe unavailable' }, 502, cors());
+    if (checkoutStage === 'purchase_record') {
+      return json({ error: 'purchase recording unavailable', session_expired: sessionExpired }, 503, cors());
+    }
+    return json({ error: 'stripe unavailable' }, 502, cors());
   }
 }
 

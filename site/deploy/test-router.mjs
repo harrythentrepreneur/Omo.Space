@@ -156,7 +156,7 @@ const sandbox = {
       return { ok: true, status: 200, json: async () => ({ keys: [clerkJwk] }) };
     }
     if (String(url).includes('api.stripe.com')) {
-      stripeCalls.push({ url: String(url), body: String(opts.body), headers: opts.headers });
+      stripeCalls.push({ url: String(url), method: opts.method, body: String(opts.body), headers: opts.headers });
       return {
         ok: true,
         status: 200,
@@ -413,6 +413,20 @@ check('checkout: buyer email forwarded', scParams.get('customer_email') === 'buy
 check('checkout: ownership metadata pins workflow, flow, amount + currency', scParams.get('metadata[type]') === 'catalog_license' && scParams.get('metadata[flow]') === 'purchase' && scParams.get('metadata[slug]') === 'ugc-script-studio' && scParams.get('metadata[workflow]') === 'UGC Script Studio' && scParams.get('metadata[amount_cents]') === '3900' && scParams.get('metadata[currency]') === 'usd');
 check('checkout: secret + Clover version and complete Omo branding are request-scoped', (sc.headers.Authorization || '') === 'Bearer sk_test_fake_secret' && sc.headers['Stripe-Version'] === '2025-09-30.clover' && scParams.get('branding_settings[display_name]') === 'Omo' && scParams.get('branding_settings[background_color]') === '#F8F7F5' && scParams.get('branding_settings[button_color]') === '#17352C' && scParams.get('branding_settings[border_style]') === 'rounded' && scParams.get('branding_settings[font_family]') === 'nunito' && scParams.get('branding_settings[logo][url]') === 'https://omo.space/logo-sweet-pastel.svg' && scParams.get('branding_settings[icon][url]') === 'https://omo.space/favicon-512.png');
 check('checkout: caller idempotency is scoped before Stripe', /^omo-checkout-[0-9a-f]{64}$/.test(sc.headers['Idempotency-Key'] || '') && sc.headers['Idempotency-Key'] !== 'checkout-router-0001');
+
+const persistenceFailureEnv = {
+  ...stripeEnv,
+  BALANCE_DB: { prepare() { throw Object.assign(new Error('missing purchases table'), { code: '42P01' }); } },
+};
+const failedPersistenceResponse = await worker.fetch(mkReq('POST', '/api/checkout', {
+  slug: 'ugc-script-studio',
+}, { 'Idempotency-Key': 'checkout-router-db-failure' }), persistenceFailureEnv);
+const failedPersistence = await failedPersistenceResponse.json();
+const expireCall = stripeCalls.at(-1);
+check('checkout: persistence failure expires the unpaid Stripe session and fails closed',
+  failedPersistenceResponse.status === 503 && failedPersistence.error === 'purchase recording unavailable' &&
+  failedPersistence.session_expired === true &&
+  expireCall.url === 'https://api.stripe.com/v1/checkout/sessions/cs_test_123/expire' && expireCall.method === 'POST');
 
 const authedCheckout = await worker.fetch(mkReq('POST', '/api/checkout', {
   slug: 'listing-copy-engine', email: 'member@example.com',
