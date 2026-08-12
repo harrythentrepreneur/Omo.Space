@@ -75,4 +75,3 @@ to assessment generation, not Formative's live classroom platform.
 - Use only Omo-owned prompts, schemas, layouts, evaluation rubrics, and sample
   outputs. Never ingest or mimic competitor templates or examples.
 - Re-check the linked price immediately before recording or posting every reel.
-
