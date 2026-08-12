@@ -6,7 +6,7 @@ status: canary
 
 source:
   kind: repository
-  path: site/ig-more.js
+  path: site/catalog.js
   listing_slug: claude-seo-skill-replaces-2k-mo-agency
 
 image:

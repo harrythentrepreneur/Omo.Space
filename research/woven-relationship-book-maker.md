@@ -1,6 +1,6 @@
 # Woven Relationship Book Maker — server-catalog follow-up
 
-The browser catalog loads `site/ig-more.js` automatically in both `index.html`
+The browser catalog loads `site/catalog.js` automatically in both `index.html`
 and `dashboard.html`. The Worker does not: `site/deploy/worker.js` owns a static
 `CATALOG_ROWS` snapshot and ignores client-supplied workflow, prompt, and price
 values in real mode.

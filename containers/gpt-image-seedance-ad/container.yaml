@@ -6,7 +6,7 @@ status: canary
 
 source:
   kind: repository
-  path: site/ig-more.js
+  path: site/catalog.js
   listing_slug: gpt-image-seedance-product-ad
   inspiration_listing_slug: product-image-cinematic-ad-seedance-2-0
   creator: "@artart.en"

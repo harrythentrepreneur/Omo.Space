@@ -175,7 +175,7 @@ appear in:
 containers/<slug>/
 site/run-manifests/<marketplace-slug>.json
 site/deploy/hosted-skills.generated.mjs
-site/ig-more.js  (only the marked generated block)
+site/catalog.js  (only the marked generated block)
 ```
 
 4. Prove there is no drift:
