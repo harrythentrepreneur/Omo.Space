@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omo Menu Concept 3 — Playful Chips</title>
+  <style>
+    :root { --pine:#17352c; --mint:#bdefd4; --orange:#ff6b3d; --canvas:#f2f6f1; --cream:#f4f1e8; }
+    * { box-sizing:border-box; }
+    html, body { min-height:100%; }
+    body { margin:0; color:var(--pine); background:var(--canvas); font-family:"DM Sans","Avenir Next",Avenir,system-ui,sans-serif; }
+    button, a { font:inherit; }
+    button:focus-visible, a:focus-visible { outline:3px solid rgba(255,107,61,.42); outline-offset:3px; }
+    .site-header { height:76px; padding:0 clamp(18px,5vw,64px); display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(23,53,44,.1); background:rgba(242,246,241,.92); }
+    .logo { color:var(--pine); font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:34px; font-weight:800; letter-spacing:-3px; line-height:1; text-decoration:none; }
+    .header-actions { display:flex; align-items:center; gap:12px; }
+    .menu-trigger { width:52px; height:42px; display:grid; place-items:center; color:var(--pine); border:0; background:var(--mint); clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px)); cursor:pointer; transition:.18s ease; }
+    .menu-trigger:hover { background:#a9eac7; transform:translateY(-2px) rotate(-1deg); }
+    .menu-trigger svg { width:19px; transition:transform .18s ease; }
+    .menu-trigger[aria-expanded="true"] svg { transform:rotate(180deg); }
+    .login { height:44px; padding:0 18px; display:inline-flex; align-items:center; color:var(--pine); text-decoration:none; font-weight:750; border-radius:999px; }
+    .login:hover { color:white; background:var(--orange); }
+    main { min-height:calc(100vh - 76px); padding:54px clamp(20px,6vw,80px); overflow:hidden; }
+    .hero { position:relative; max-width:610px; }
+    .sticker { display:inline-block; margin-bottom:18px; padding:8px 12px; color:white; background:var(--orange); border-radius:999px; font-size:11px; font-weight:850; letter-spacing:.1em; text-transform:uppercase; transform:rotate(-2deg); }
+    h1 { margin:0; font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:clamp(44px,7vw,80px); line-height:.95; letter-spacing:-.05em; }
+    .hero p:last-child { max-width:450px; color:rgba(23,53,44,.64); font-size:17px; line-height:1.6; }
+    .menu-shell { position:absolute; z-index:10; top:88px; right:clamp(18px,5vw,64px); width:min(420px,calc(100vw - 28px)); filter:drop-shadow(0 18px 26px rgba(23,53,44,.16)); }
+    .menu-shell[hidden] { display:none; }
+    .menu-card { max-height:calc(100dvh - 102px); overflow:auto; padding:22px; background:white; clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,11px 100%,0 calc(100% - 11px)); }
+    .top-links { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+    .menu-link { min-height:44px; padding:0 13px; display:flex; align-items:center; justify-content:space-between; color:var(--pine); background:var(--cream); text-decoration:none; font-weight:750; clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px)); }
+    .menu-link:hover { background:var(--mint); }
+    .menu-link.sell { color:white; background:var(--orange); }
+    .menu-link.sell:hover { background:#ec572e; }
+    .rule { height:1px; margin:20px 0 17px; background:rgba(23,53,44,.15); }
+    .section-title { margin:0 0 13px; font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:23px; letter-spacing:-.025em; }
+    .workflow-list { display:grid; gap:9px; }
+    .workflow { position:relative; min-height:58px; padding:7px 10px 7px 8px; display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:10px; align-items:center; color:var(--pine); text-decoration:none; clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px)); transition:transform .16s ease; }
+    .workflow:hover { transform:translateX(3px); }
+    .workflow.upvoted { background:var(--mint); }
+    .workflow.bought { background:var(--cream); }
+    .workflow.bought::after { position:absolute; top:0; right:0; width:18px; height:18px; background:var(--orange); clip-path:polygon(100% 0,100% 100%,0 0); content:""; }
+    .workflow.combo { border:1px solid rgba(23,53,44,.18); background:white; }
+    .thumb { width:40px; height:40px; display:grid; place-items:center; border-radius:10px; background:rgba(255,255,255,.72); font-size:21px; }
+    .workflow-copy { min-width:0; }
+    .workflow-name { display:block; overflow:hidden; font-size:13px; font-weight:750; text-overflow:ellipsis; white-space:nowrap; }
+    .status { display:block; margin-top:2px; color:rgba(23,53,44,.6); font-size:9px; font-weight:750; letter-spacing:.04em; }
+    .run { color:var(--orange); font-size:20px; font-weight:900; }
+    .empty-preview { margin-top:10px; min-height:54px; padding:9px 12px; display:flex; align-items:center; gap:10px; color:rgba(23,53,44,.62); border:1px dashed rgba(23,53,44,.3); background:var(--canvas); clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px)); font-size:11px; line-height:1.35; }
+    .empty-preview b { display:block; color:var(--pine); }
+    .empty-icon { font-size:23px; }
+    .logout { width:100%; min-height:44px; padding:0 12px; color:rgba(23,53,44,.68); border:0; background:transparent; text-align:left; cursor:pointer; font-weight:700; }
+    .logout:hover { color:var(--orange); }
+    @media (max-width:480px) {
+      .site-header { height:68px; padding:0 14px; }
+      .logo { font-size:30px; }
+      main { padding:38px 20px; }
+      .menu-shell { top:76px; right:8px; width:calc(100vw - 16px); }
+      .menu-card { max-height:calc(100dvh - 84px); padding:17px; }
+      .top-links { gap:7px; }
+      .menu-link { padding-inline:10px; font-size:13px; }
+    }
+    @media (prefers-reduced-motion:reduce) { * { transition:none!important; } }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="#" aria-label="Omo home">omo</a>
+    <div class="header-actions">
+      <button class="menu-trigger" type="button" aria-label="Toggle account menu" aria-expanded="true" aria-controls="account-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <a class="login" href="#">Log in</a>
+    </div>
+  </header>
+  <main><div class="hero"><span class="sticker">Menu study 03</span><h1>Little tools,<br>full of character.</h1><p>Friendly workflow chips make a practical menu feel like a tiny personal collection.</p></div></main>
+  <div class="menu-shell" id="account-menu">
+    <nav class="menu-card" aria-label="Account menu">
+      <div class="top-links">
+        <a class="menu-link" href="#"><span>Discover</span><span aria-hidden="true">✦</span></a>
+        <a class="menu-link sell" href="#"><span>Sell Workflow</span><span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="rule"></div>
+      <section aria-labelledby="your-workflows-3">
+        <h2 class="section-title" id="your-workflows-3">Your workflows</h2>
+        <div class="workflow-list">
+          <a class="workflow upvoted" href="#"><span class="thumb" aria-hidden="true">✍️</span><span class="workflow-copy"><span class="workflow-name">LinkedIn Post Polisher</span><span class="status">Upvoted</span></span><span class="run" aria-hidden="true">→</span></a>
+          <a class="workflow bought" href="#"><span class="thumb" aria-hidden="true">🐇</span><span class="workflow-copy"><span class="workflow-name">Research Rabbit</span><span class="status">Bought</span></span><span class="run" aria-hidden="true">→</span></a>
+          <a class="workflow combo" href="#"><span class="thumb" aria-hidden="true">🌞</span><span class="workflow-copy"><span class="workflow-name">Sunday Reset Coach</span><span class="status">Bought · Upvoted</span></span><span class="run" aria-hidden="true">→</span></a>
+        </div>
+        <div class="empty-preview" aria-label="Empty state preview"><span class="empty-icon" aria-hidden="true">🌱</span><span><b>Empty state</b>Nothing planted yet. Discover a workflow to start.</span></div>
+      </section>
+      <div class="rule"></div>
+      <button class="logout" type="button">Log out</button>
+    </nav>
+  </div>
+  <script>
+    (() => {
+      const trigger = document.querySelector('.menu-trigger');
+      const menu = document.querySelector('#account-menu');
+      const setOpen = (open) => { trigger.setAttribute('aria-expanded', String(open)); menu.hidden = !open; };
+      trigger.addEventListener('click', () => setOpen(trigger.getAttribute('aria-expanded') !== 'true'));
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { setOpen(false); trigger.focus(); } });
+    })();
+  </script>
+</body>
+</html>

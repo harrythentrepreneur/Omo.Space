@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omo Menu Concept 1 — Warm Card</title>
+  <style>
+    :root { --pine:#17352c; --mint:#bdefd4; --orange:#ff6b3d; --canvas:#f2f6f1; --cream:#f4f1e8; }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body { margin:0; color:var(--pine); background:var(--canvas); font-family:"DM Sans","Avenir Next",Avenir,system-ui,sans-serif; }
+    button, a { font:inherit; }
+    button:focus-visible, a:focus-visible { outline:3px solid rgba(255,107,61,.42); outline-offset:3px; }
+    .site-header { height:76px; padding:0 clamp(18px,5vw,64px); display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(23,53,44,.10); background:rgba(242,246,241,.94); }
+    .logo { color:var(--pine); font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:34px; font-weight:800; letter-spacing:-3px; text-decoration:none; line-height:1; }
+    .header-actions { display:flex; align-items:center; gap:12px; }
+    .menu-trigger { width:44px; height:44px; border:1px solid rgba(23,53,44,.22); border-radius:50%; color:var(--pine); background:var(--cream); display:grid; place-items:center; cursor:pointer; transition:.2s ease; }
+    .menu-trigger:hover, .menu-trigger[aria-expanded="true"] { transform:translateY(-1px); background:var(--mint); border-color:var(--pine); }
+    .menu-trigger svg { width:19px; transition:transform .2s ease; }
+    .menu-trigger[aria-expanded="true"] svg { transform:rotate(180deg); }
+    .login { height:44px; padding:0 18px; display:inline-flex; align-items:center; color:var(--pine); text-decoration:none; font-weight:700; border-radius:999px; }
+    .login:hover { background:rgba(189,239,212,.55); }
+    main { min-height:calc(100vh - 76px); padding:54px clamp(20px,6vw,80px); }
+    .backdrop-copy { max-width:550px; }
+    .eyebrow { margin:0 0 12px; color:var(--orange); font-size:12px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+    h1 { margin:0; font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:clamp(42px,7vw,78px); line-height:.96; letter-spacing:-.045em; }
+    .backdrop-copy p:last-child { max-width:440px; margin-top:24px; color:rgba(23,53,44,.66); font-size:17px; line-height:1.6; }
+    .menu-shell { position:absolute; z-index:10; top:88px; right:clamp(18px,5vw,64px); width:min(394px,calc(100vw - 28px)); filter:drop-shadow(0 22px 24px rgba(70,54,30,.16)) drop-shadow(0 4px 8px rgba(70,54,30,.08)); }
+    .menu-shell[hidden] { display:none; }
+    .menu-card { max-height:calc(100dvh - 102px); overflow:auto; padding:24px; background:var(--cream); clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px)); }
+    .menu-label { margin:0 0 12px; font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:25px; letter-spacing:-.025em; }
+    .primary-links { display:grid; gap:7px; }
+    .menu-link { min-height:44px; padding:0 14px; display:flex; align-items:center; justify-content:space-between; color:var(--pine); border-radius:10px; text-decoration:none; font-weight:700; }
+    .menu-link:hover { background:rgba(189,239,212,.62); }
+    .menu-link.sell { color:white; background:var(--orange); box-shadow:0 5px 0 rgba(126,42,17,.14); }
+    .menu-link.sell:hover { background:#ed582e; transform:translateY(-1px); }
+    .rule { height:1px; margin:20px 0; background:rgba(23,53,44,.16); }
+    .section-title { margin:0 0 13px; font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:22px; letter-spacing:-.02em; }
+    .workflows { display:grid; gap:8px; }
+    .workflow { min-height:44px; padding:9px 11px 9px 13px; display:flex; gap:12px; align-items:center; justify-content:space-between; color:var(--pine); background:rgba(255,255,255,.38); text-decoration:none; border-radius:9px; }
+    .workflow:hover { background:white; }
+    .workflow-name { min-width:0; font-size:14px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .status { flex:none; padding:5px 9px; color:var(--pine); background:var(--mint); border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.02em; }
+    .empty-preview { margin-top:12px; padding:14px; border:1px dashed rgba(23,53,44,.28); border-radius:10px; text-align:center; }
+    .empty-preview small { display:block; margin-bottom:4px; color:rgba(23,53,44,.48); font-size:9px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+    .empty-preview span { color:rgba(23,53,44,.66); font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:15px; }
+    .logout { width:100%; min-height:44px; padding:0 14px; color:rgba(23,53,44,.72); border:0; border-radius:9px; background:transparent; text-align:left; cursor:pointer; font-weight:650; }
+    .logout:hover { color:var(--pine); background:rgba(255,107,61,.10); }
+    @media (max-width:480px) {
+      .site-header { height:68px; padding:0 14px; }
+      .logo { font-size:30px; }
+      main { padding:38px 20px; }
+      .menu-shell { top:76px; right:8px; width:calc(100vw - 16px); }
+      .menu-card { max-height:calc(100dvh - 84px); padding:19px; }
+      .workflow { gap:8px; }
+      .status { padding-inline:7px; font-size:9px; }
+    }
+    @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important; transition:none!important; } }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="#" aria-label="Omo home">omo</a>
+    <div class="header-actions">
+      <button class="menu-trigger" type="button" aria-label="Toggle account menu" aria-expanded="true" aria-controls="account-menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <a class="login" href="#">Log in</a>
+    </div>
+  </header>
+  <main>
+    <div class="backdrop-copy"><p class="eyebrow">Menu study 01</p><h1>Warm, useful,<br>distinctly Omo.</h1><p>A crafted cream card with mint signals and one confident orange action.</p></div>
+  </main>
+  <div class="menu-shell" id="account-menu">
+    <nav class="menu-card" aria-label="Account menu">
+      <h2 class="menu-label">Menu</h2>
+      <div class="primary-links">
+        <a class="menu-link" href="#"><span>Discover</span><span aria-hidden="true">→</span></a>
+        <a class="menu-link sell" href="#"><span>Sell Workflow</span><span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="rule"></div>
+      <section aria-labelledby="your-workflows-1">
+        <h3 class="section-title" id="your-workflows-1">Your workflows</h3>
+        <div class="workflows">
+          <a class="workflow" href="#"><span class="workflow-name">LinkedIn Post Polisher</span><span class="status">Upvoted</span></a>
+          <a class="workflow" href="#"><span class="workflow-name">Research Rabbit</span><span class="status">Bought</span></a>
+          <a class="workflow" href="#"><span class="workflow-name">Sunday Reset Coach</span><span class="status">Bought · Upvoted</span></a>
+        </div>
+        <div class="empty-preview" aria-label="Empty state preview"><small>Empty state</small><span>Your next favorite workflow will live here.</span></div>
+      </section>
+      <div class="rule"></div>
+      <button class="logout" type="button">Log out</button>
+    </nav>
+  </div>
+  <script>
+    (() => {
+      const trigger = document.querySelector('.menu-trigger');
+      const menu = document.querySelector('#account-menu');
+      const setOpen = (open) => { trigger.setAttribute('aria-expanded', String(open)); menu.hidden = !open; };
+      trigger.addEventListener('click', () => setOpen(trigger.getAttribute('aria-expanded') !== 'true'));
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { setOpen(false); trigger.focus(); } });
+    })();
+  </script>
+</body>
+</html>

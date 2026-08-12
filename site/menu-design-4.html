@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omo Menu Concept 4 — Editorial</title>
+  <style>
+    :root { --pine:#17352c; --mint:#bdefd4; --orange:#ff6b3d; --canvas:#f2f6f1; --cream:#f4f1e8; }
+    * { box-sizing:border-box; }
+    html, body { min-height:100%; }
+    body { margin:0; color:var(--pine); background:var(--cream); font-family:"DM Sans","Avenir Next",Avenir,system-ui,sans-serif; }
+    button, a { font:inherit; }
+    button:focus-visible, a:focus-visible { outline:2px solid var(--orange); outline-offset:4px; }
+    .site-header { height:76px; padding:0 clamp(18px,5vw,64px); display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(23,53,44,.14); background:rgba(244,241,232,.94); }
+    .logo { color:var(--pine); font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:34px; font-weight:800; letter-spacing:-3px; line-height:1; text-decoration:none; }
+    .header-actions { display:flex; align-items:center; gap:14px; }
+    .menu-trigger { position:relative; width:40px; height:44px; display:grid; place-items:center; color:var(--pine); border:0; background:transparent; cursor:pointer; }
+    .menu-trigger::after { position:absolute; right:5px; bottom:4px; left:5px; height:1px; background:var(--pine); transform:scaleX(0); transform-origin:left; transition:transform .2s ease; content:""; }
+    .menu-trigger:hover::after, .menu-trigger[aria-expanded="true"]::after { transform:scaleX(1); }
+    .menu-trigger svg { width:18px; transition:transform .2s ease; }
+    .menu-trigger[aria-expanded="true"] svg { transform:rotate(180deg); }
+    .login { height:44px; padding:0 4px; display:inline-flex; align-items:center; color:var(--pine); border-bottom:1px solid transparent; text-decoration:none; font-size:14px; font-weight:650; }
+    .login:hover { border-color:var(--orange); }
+    main { min-height:calc(100vh - 76px); padding:64px clamp(20px,7vw,96px); background:linear-gradient(90deg,transparent 0 72%,rgba(189,239,212,.22) 72%); }
+    .hero { max-width:560px; }
+    .folio { margin:0 0 20px; color:var(--orange); font-size:10px; font-weight:800; letter-spacing:.22em; text-transform:uppercase; }
+    h1 { margin:0; font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:clamp(45px,7vw,82px); font-weight:500; line-height:.95; letter-spacing:-.045em; }
+    .hero > p:last-child { max-width:420px; margin-top:25px; color:rgba(23,53,44,.62); font-size:16px; line-height:1.7; }
+    .menu-card { position:absolute; z-index:10; top:88px; right:clamp(18px,5vw,64px); width:min(404px,calc(100vw - 28px)); max-height:calc(100dvh - 102px); overflow:auto; padding:26px 28px 22px; background:#fffefa; box-shadow:0 24px 56px rgba(23,53,44,.12); }
+    .menu-card[hidden] { display:none; }
+    .menu-label { margin:0 0 14px; color:rgba(23,53,44,.44); font-size:9px; font-weight:800; letter-spacing:.2em; text-transform:uppercase; }
+    .menu-link { min-height:43px; display:flex; align-items:center; justify-content:space-between; color:var(--pine); border-top:1px solid rgba(23,53,44,.13); text-decoration:none; font-size:15px; font-weight:550; }
+    .menu-link:last-child { border-bottom:1px solid rgba(23,53,44,.13); }
+    .menu-link:hover { padding-left:7px; color:var(--orange); }
+    .sell-mark { color:var(--orange); font-size:15px; }
+    .section-head { margin-top:27px; }
+    .section-title { margin:0; font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:27px; font-weight:500; letter-spacing:-.03em; }
+    .orange-rule { width:52px; height:2px; margin:11px 0 10px; background:var(--orange); }
+    .workflow { min-height:52px; padding:9px 0; display:flex; align-items:center; justify-content:space-between; gap:16px; color:var(--pine); border-bottom:1px solid rgba(23,53,44,.13); text-decoration:none; }
+    .workflow:hover .workflow-name { color:var(--orange); }
+    .workflow-name { min-width:0; overflow:hidden; font-size:14px; font-weight:550; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
+    .status { flex:none; color:rgba(23,53,44,.5); font-size:8px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; }
+    .empty-preview { padding:14px 0 15px; color:rgba(23,53,44,.5); border-bottom:1px solid rgba(23,53,44,.13); font-family:"Fraunces",Georgia,"Times New Roman",serif; font-size:14px; font-style:italic; line-height:1.45; }
+    .empty-preview span { display:block; margin-bottom:3px; color:var(--orange); font-family:"DM Sans","Avenir Next",Avenir,system-ui,sans-serif; font-size:8px; font-style:normal; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+    .logout { width:100%; min-height:44px; margin-top:14px; padding:0; color:rgba(23,53,44,.65); border:0; background:transparent; text-align:left; cursor:pointer; font-size:13px; font-weight:600; }
+    .logout:hover { color:var(--orange); }
+    @media (max-width:480px) {
+      .site-header { height:68px; padding:0 14px; }
+      .logo { font-size:30px; }
+      main { padding:44px 20px; background:var(--cream); }
+      .menu-card { top:76px; right:8px; width:calc(100vw - 16px); max-height:calc(100dvh - 84px); padding:22px 20px 18px; }
+      .workflow { gap:8px; }
+      .status { font-size:7px; letter-spacing:.1em; }
+    }
+    @media (prefers-reduced-motion:reduce) { * { transition:none!important; } }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="#" aria-label="Omo home">omo</a>
+    <div class="header-actions">
+      <button class="menu-trigger" type="button" aria-label="Toggle account menu" aria-expanded="true" aria-controls="account-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <a class="login" href="#">Log in</a>
+    </div>
+  </header>
+  <main><div class="hero"><p class="folio">Menu study 04 · Editorial</p><h1>A quieter way to find your work.</h1><p>Typography, rhythm, and hairline rules do the work. Orange appears only as an editorial annotation.</p></div></main>
+  <nav class="menu-card" id="account-menu" aria-label="Account menu">
+    <p class="menu-label">Menu</p>
+    <a class="menu-link" href="#"><span>Discover</span><span aria-hidden="true">01</span></a>
+    <a class="menu-link" href="#"><span>Sell Workflow</span><span class="sell-mark" aria-hidden="true">↗</span></a>
+    <section aria-labelledby="your-workflows-4">
+      <div class="section-head"><h2 class="section-title" id="your-workflows-4">Your workflows</h2><div class="orange-rule"></div></div>
+      <a class="workflow" href="#"><span class="workflow-name">LinkedIn Post Polisher</span><span class="status">Upvoted</span></a>
+      <a class="workflow" href="#"><span class="workflow-name">Research Rabbit</span><span class="status">Bought</span></a>
+      <a class="workflow" href="#"><span class="workflow-name">Sunday Reset Coach</span><span class="status">Bought · Upvoted</span></a>
+      <div class="empty-preview" aria-label="Empty state preview"><span>Empty state</span>Your saved workflows will be collected here.</div>
+    </section>
+    <button class="logout" type="button">Log out</button>
+  </nav>
+  <script>
+    (() => {
+      const trigger = document.querySelector('.menu-trigger');
+      const menu = document.querySelector('#account-menu');
+      const setOpen = (open) => { trigger.setAttribute('aria-expanded', String(open)); menu.hidden = !open; };
+      trigger.addEventListener('click', () => setOpen(trigger.getAttribute('aria-expanded') !== 'true'));
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { setOpen(false); trigger.focus(); } });
+    })();
+  </script>
+</body>
+</html>
