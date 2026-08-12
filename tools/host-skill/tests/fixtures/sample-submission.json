@@ -1,0 +1,4 @@
+{
+  "name": "sample-creator-workflow",
+  "content": "---\nname: sample-creator-workflow\ndescription: Turn a supplied topic into a concise three-point outline.\n---\n\n## Workflow\n\n1. **Read the topic:** Use only the supplied facts.\n2. **Draft the outline:** Return exactly three concise points.\n"
+}

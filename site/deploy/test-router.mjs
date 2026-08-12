@@ -212,6 +212,9 @@ const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'ut
 const creditsSource = fs.readFileSync(path.join(here, '..', 'credits.js'), 'utf8');
 const indexSource = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
 const runPageSource = fs.readFileSync(path.join(here, '..', 'run.html'), 'utf8');
+const sellSource = fs.readFileSync(path.join(here, '..', 'sell.html'), 'utf8');
+const hostSource = fs.readFileSync(path.join(here, '..', 'host.html'), 'utf8');
+const uploadSource = fs.readFileSync(path.join(here, '..', 'upload.js'), 'utf8');
 const catalogSandbox = { window: {} };
 vm.createContext(catalogSandbox);
 vm.runInContext(fs.readFileSync(path.join(here, '..', 'ig-more.js'), 'utf8'), catalogSandbox, { filename: 'ig-more.js' });
@@ -240,6 +243,7 @@ check('catalog: Facebook Ads listing and hosted manifest publish the modeled $0.
 check('catalog cards: per-run prices render to two decimal places', indexSource.includes("Number(p.runPrice || p.priceRun || 0).toFixed(2)"));
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
 check('run page: empty API base dispatches through the deployed same-origin Worker rewrite', runPageSource.includes("function workerBase() { return API_BASE || window.location.origin; }"));
+check('creator upload: seller CTA reaches a real file-reading authenticated queue with explicit preview-only fallback', sellSource.includes('href="host.html#upload"') && hostSource.includes('id="upload-form"') && uploadSource.includes('await selectedFile.text()') && uploadSource.includes("fetch(apiBase() + '/api/submit'") && uploadSource.includes("Authorization: 'Bearer ' + token") && uploadSource.includes('if (isFilePreview())') && !uploadSource.includes('startProgress'));
 
 let browserCheckoutCall = null;
 const stripeClientSandbox = {
@@ -277,7 +281,7 @@ check('router: GET returns 405', get.status === 405);
 // Unknown route → 404
 const nf = await worker.fetch(mkReq('POST', '/api/nope', {}), env);
 const nfBody = await nf.json();
-check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 9);
+check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 10);
 
 // Public waitlist signup: normalized insert, validation, and duplicate replay.
 const waitlistAddedResponse = await worker.fetch(mkReq('POST', '/api/waitlist', {
@@ -296,6 +300,45 @@ const waitlistDuplicateResponse = await worker.fetch(mkReq('POST', '/api/waitlis
 }), env);
 const waitlistDuplicate = await waitlistDuplicateResponse.json();
 check('waitlist: duplicate email returns already without error', waitlistDuplicateResponse.status === 200 && waitlistDuplicate.ok === true && waitlistDuplicate.status === 'already');
+
+// Authenticated creator submission: bounded Markdown, canonical metadata, and
+// owner/content idempotency. It queues data but never executes the upload.
+const submissionContent = '---\nname: sample-workflow\ndescription: A safe sample creator workflow.\n---\n\n## Workflow\n\n1. **Read:** Read the brief.\n';
+const submitMissingAuth = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Sample workflow', content: submissionContent,
+}), realEnv);
+check('submit: real mode requires a Clerk session', submitMissingAuth.status === 401);
+
+const creatorToken = await clerkToken('user_creator');
+const creatorHeaders = { Authorization: `Bearer ${creatorToken}`, Origin: 'https://omo.space' };
+const submitAddedResponse = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Sample workflow', content: submissionContent, visibility: 'public',
+}, creatorHeaders), realEnv);
+const submitAdded = await submitAddedResponse.json();
+check('submit: valid Markdown queues with server-derived slug', submitAddedResponse.status === 202 && submitAdded.ok === true && /^sub_[0-9a-f]{32}$/.test(submitAdded.id) && submitAdded.slug === 'sample-workflow' && submitAdded.status === 'queued' && submitAdded.duplicate === false);
+
+const submitDuplicate = await (await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Sample workflow', content: submissionContent,
+}, creatorHeaders), realEnv)).json();
+check('submit: same owner and content replay returns the same queue record', submitDuplicate.id === submitAdded.id && submitDuplicate.status === 'queued' && submitDuplicate.duplicate === true);
+
+const submitMismatch = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Different workflow', content: submissionContent,
+}, creatorHeaders), realEnv);
+const submitPrivate = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Sample workflow', content: submissionContent, visibility: 'private',
+}, creatorHeaders), realEnv);
+check('submit: name mismatch and unsupported private hosting fail closed', submitMismatch.status === 400 && submitPrivate.status === 400);
+
+const boundaryPrefix = '---\nname: boundary-workflow\ndescription: Boundary-sized creator workflow.\n---\n\n## Workflow\n\n1. **Read:** Read.\n';
+const boundaryContent = boundaryPrefix + 'x'.repeat(200 * 1024 - Buffer.byteLength(boundaryPrefix));
+const submitBoundary = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Boundary workflow', content: boundaryContent,
+}, creatorHeaders), realEnv);
+const submitOversize = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Boundary workflow', content: boundaryContent + 'x',
+}, creatorHeaders), realEnv);
+check('submit: 200 KiB is accepted and the next byte is rejected', submitBoundary.status === 202 && submitOversize.status === 400);
 
 // Generic /api/run route
 const run = await (await worker.fetch(mkReq('POST', '/api/run', {

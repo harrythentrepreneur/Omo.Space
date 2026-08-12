@@ -8,6 +8,7 @@
 //                                         authenticates, requires idempotency, and debits credits
 //   POST /api/checkout                 → guest Stripe Checkout {slug, email?}
 //   POST /api/waitlist                 → public waitlist signup {email, source?}
+//   POST /api/submit                   → authenticated creator Markdown intake
 //   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
@@ -202,6 +203,7 @@ const SERVER_CATALOG = new Map(CATALOG_ROWS.map((row) => {
 }));
 
 const MAX_TOPUP_USD_DEFAULT = 1000;
+const MAX_SUBMISSION_BYTES = 200 * 1024;
 const USER_ID_RE = /^user_[A-Za-z0-9_-]{1,80}$/;
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
 
@@ -216,6 +218,7 @@ const ROUTES = {
   '/api/run': { handler: handleGenericRun }, // any catalog skill: {slug, system_prompt, fields:{...}, user_id?}
   '/api/checkout': { handler: handleCheckout }, // Guest Stripe Checkout: {slug, email?}; client price is ignored
   '/api/waitlist': { handler: handleWaitlist }, // Public waitlist signup: {email, source?}
+  '/api/submit': { handler: handleSubmission }, // Creator queue: {name, content, visibility:'public'}
   '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
   '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
   '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $5 grant
@@ -1327,6 +1330,100 @@ async function handleWaitlist(request, env) {
   return json({ ok: true, status: 'added', message: "You're on the list — we'll email you when it opens 🎉" }, 200, cors());
 }
 
+// ── Route: creator workflow intake ──────────────────────────────────────
+// The Worker stores Markdown as untrusted data. It does not compile or execute
+// it. The agent-side processor owns the reviewed profile and deployment gates.
+
+function submissionSlug(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function parseSubmissionMarkdown(content) {
+  if (typeof content !== 'string' || !content.trim()) {
+    return { error: 'content_required', message: 'Paste or upload workflow Markdown.' };
+  }
+  if (content.includes('\0')) {
+    return { error: 'invalid_content', message: 'Workflow Markdown cannot contain NUL bytes.' };
+  }
+  const sizeBytes = new TextEncoder().encode(content).length;
+  if (sizeBytes > MAX_SUBMISSION_BYTES) {
+    return { error: 'content_too_large', message: `Workflow Markdown must be ${MAX_SUBMISSION_BYTES} bytes or smaller.` };
+  }
+  const lines = content.split(/\r?\n/);
+  if (!lines.length || lines[0].trim() !== '---') {
+    return { error: 'invalid_frontmatter', message: 'Markdown must begin with YAML frontmatter.' };
+  }
+  const end = lines.slice(1).findIndex((line) => line.trim() === '---');
+  if (end < 0) {
+    return { error: 'invalid_frontmatter', message: 'Markdown frontmatter is not closed.' };
+  }
+  const values = {};
+  lines.slice(1, end + 1).forEach((line) => {
+    const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*?)\s*$/.exec(line);
+    if (!match || !match[2] || match[2] === '|' || match[2] === '>') return;
+    values[match[1]] = match[2].replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, (_all, double, single) => double ?? single);
+  });
+  const name = String(values.name || '').trim();
+  const description = String(values.description || '').trim();
+  if (!name || !description) {
+    return { error: 'invalid_frontmatter', message: 'Frontmatter requires one-line name and description values.' };
+  }
+  if (name.length > 120) return { error: 'name_too_long', message: 'Frontmatter names allow 120 characters.' };
+  if (description.length > 500) return { error: 'description_too_long', message: 'Frontmatter descriptions allow 500 characters.' };
+  const slug = submissionSlug(name);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 100) {
+    return { error: 'invalid_name', message: 'The frontmatter name does not produce a valid workflow slug.' };
+  }
+  return { name, description, slug, content, sizeBytes };
+}
+
+async function handleSubmission(request, env) {
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+
+  let userId = '';
+  if (isRealMode(env)) {
+    const auth = await authenticateAccount(request, env, false);
+    if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors());
+    userId = auth.userId;
+  } else {
+    userId = String(body.user_id || '').trim();
+  }
+  if (!validUserId(userId)) {
+    return json({ ok: false, error: 'authentication_required', message: 'Sign in before submitting a workflow.' }, 401, cors());
+  }
+  if (body.visibility && body.visibility !== 'public') {
+    return json({ ok: false, error: 'unsupported_visibility', message: 'Private workflow hosting is not available yet.' }, 400, cors());
+  }
+
+  const parsed = parseSubmissionMarkdown(body.content);
+  if (parsed.error) return json({ ok: false, ...parsed }, 400, cors());
+  const suppliedName = String(body.name || '').trim();
+  if (!suppliedName) {
+    return json({ ok: false, error: 'name_required', message: 'Give the workflow a name.' }, 400, cors());
+  }
+  if (suppliedName.length > 120) {
+    return json({ ok: false, error: 'name_too_long', message: 'Workflow names allow 120 characters.' }, 400, cors());
+  }
+  if (submissionSlug(suppliedName) !== parsed.slug) {
+    return json({ ok: false, error: 'name_mismatch', message: 'Workflow name must match the name in Markdown frontmatter.' }, 400, cors());
+  }
+
+  const sourceSha256 = await sha256Hex(parsed.content);
+  const id = `sub_${(await sha256Hex(`${userId}\u0000${sourceSha256}`)).slice(0, 32)}`;
+  const stored = await insertSubmission(env, {
+    id, userId, name: parsed.name, slug: parsed.slug, content: parsed.content, sourceSha256,
+  });
+  return json({
+    ok: true,
+    id: stored.id,
+    slug: parsed.slug,
+    status: stored.status,
+    duplicate: stored.duplicate,
+    message: stored.duplicate ? 'This workflow is already in your queue.' : 'Queued for Omo review and hosting.',
+  }, 202, cors());
+}
+
 // ── Route: dashboard /api/me ──────────────────────────────────────────────
 // Real: GET/POST /api/me with a Clerk bearer token. Mock: the legacy
 // ?user_id=… / {user_id} form remains available for the local demo. →
@@ -1630,6 +1727,7 @@ const mockPendingTopups = new Map();
 const mockPurchases = new Map();
 const mockPurchaseEvents = new Set();
 const mockWaitlist = new Map();
+const mockSubmissions = new Map();
 const clerkJwksCache = new Map();
 
 function neonDatabaseUrl(env) {
@@ -1721,6 +1819,44 @@ async function insertWaitlistEntry(env, email, source) {
   if (mockWaitlist.has(email)) return false;
   mockWaitlist.set(email, { email, source, created_at: new Date().toISOString() });
   return true;
+}
+
+async function insertSubmission(env, submission) {
+  const now = new Date().toISOString();
+  const values = [
+    submission.id, submission.userId, submission.name, submission.slug,
+    submission.content, submission.sourceSha256, 'queued', now, now,
+  ];
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-submission-insert-v1',
+      'INSERT INTO submissions (id,user_id,name,slug,content,source_sha256,status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (user_id,source_sha256) DO NOTHING RETURNING id,status',
+      values
+    ));
+    if (result.rowCount === 1) return { ...result.rows[0], duplicate: false };
+    const existing = await getNeonPool(env).query(prepared(
+      'omo-submission-existing-v1',
+      'SELECT id,status FROM submissions WHERE user_id = $1 AND source_sha256 = $2',
+      [submission.userId, submission.sourceSha256]
+    ));
+    if (!existing.rows[0]) throw new Error('submission insert conflict could not be resolved');
+    return { ...existing.rows[0], duplicate: true };
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare('INSERT OR IGNORE INTO submissions (id,user_id,name,slug,content,source_sha256,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
+      .bind(...values).run();
+    const existing = await env.BALANCE_DB
+      .prepare('SELECT id,status FROM submissions WHERE user_id = ? AND source_sha256 = ?')
+      .bind(submission.userId, submission.sourceSha256).first();
+    if (!existing) throw new Error('submission insert conflict could not be resolved');
+    return { ...existing, duplicate: Number(result && result.meta && result.meta.changes) !== 1 };
+  }
+  const key = `${submission.userId}\u0000${submission.sourceSha256}`;
+  if (mockSubmissions.has(key)) return { ...mockSubmissions.get(key), duplicate: true };
+  const record = { ...submission, status: 'queued', created_at: now, updated_at: now };
+  mockSubmissions.set(key, record);
+  return { id: record.id, status: record.status, duplicate: false };
 }
 
 function balanceSecret(env) {

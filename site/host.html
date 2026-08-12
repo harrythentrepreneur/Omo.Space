@@ -9,20 +9,20 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#4F3F59">
-  <title>Host Your skill.md — Live in About 30 Minutes | Omo</title>
-  <meta name="description" content="Upload a skill.md and turn your AI workflow into a hosted API in about 30 minutes. Pay per run, keep it private, or sell it on the Omo marketplace.">
+  <title>Submit Your skill.md for Hosting | Omo</title>
+  <meta name="description" content="Upload a skill.md or workflow.md to Omo's reviewed hosting queue. We compile, test, price, canary, and publish approved workflows.">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="https://omo.space/host.html">
-  <meta property="og:title" content="Host Your skill.md — Live in About 30 Minutes | Omo">
-  <meta property="og:description" content="Upload a skill.md and turn your AI workflow into a hosted API in about 30 minutes. Pay per run, keep it private, or sell it on the Omo marketplace.">
+  <meta property="og:title" content="Submit Your skill.md for Hosting | Omo">
+  <meta property="og:description" content="Upload a skill.md or workflow.md to Omo's reviewed hosting queue. Approved workflows pass tests and canaries before publishing.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Omo">
   <meta property="og:url" content="https://omo.space/host.html">
   <meta property="og:image" content="https://omo.space/favicon-512.png">
   <meta property="og:image:alt" content="Omo">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Host Your skill.md — Live in About 30 Minutes | Omo">
-  <meta name="twitter:description" content="Upload a skill.md and turn your AI workflow into a hosted API in about 30 minutes. Pay per run, keep it private, or sell it on the Omo marketplace.">
+  <meta name="twitter:title" content="Submit Your skill.md for Hosting | Omo">
+  <meta name="twitter:description" content="Upload a skill.md or workflow.md to Omo's reviewed hosting queue. Approved workflows pass tests and canaries before publishing.">
   <meta name="twitter:image" content="https://omo.space/favicon-512.png">
   <meta name="twitter:image:alt" content="Omo">
   <script type="application/ld+json">
@@ -35,7 +35,7 @@
           "name": "What formats work?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Any skill.md or workflow markdown. We parse the prompts, steps, and tool calls, whether it is a simple skill or a multi-step workflow."
+            "text": "A .md file up to 200 KB with one-line name and description values in YAML frontmatter. Every file can enter review; only approved runtime profiles advance to deployment."
           }
         },
         {
@@ -51,7 +51,7 @@
           "name": "Can I keep it private?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. Private workflows run only for you and never appear in the public marketplace."
+            "text": "Not yet. This first submission flow accepts public marketplace workflows while owner-only routing is built."
           }
         },
         {
@@ -398,9 +398,9 @@
     <section class="hero" aria-labelledby="hero-title">
       <div class="shell hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> Omo Host · live in ~30 min</p>
-          <h1 class="hero-title" id="hero-title">Host your skill.md. <em>Your AI workflow</em> goes live in ~30 minutes.</h1>
-          <p class="hero-sub">Any workflow, any skill.md — from a simple LLM skill to a multi-step workflow. Upload it, we prepare it, and in about 30 minutes you have a hosted API you can call (or keep private for yourself).</p>
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> Omo Host · reviewed publishing</p>
+          <h1 class="hero-title" id="hero-title">Upload your skill.md. <em>We’ll put it through the gates.</em></h1>
+          <p class="hero-sub">Submit the workflow you already use. Omo queues it for creator review, then approved workflows are compiled, tested, priced, canaried, and published as hosted marketplace APIs.</p>
           <div class="hero-actions">
             <a class="button button-accent" href="#upload">Upload your workflow <span aria-hidden="true">↓</span></a>
             <a class="button button-secondary" href="index.html#feed">See the store</a>
@@ -411,15 +411,15 @@
           <div class="recipe-card sig-cut">
             <div class="recipe-top">
               <span class="recipe-file">skill.md</span>
-              <span class="recipe-live">READY</span>
+              <span class="recipe-live">QUEUED</span>
             </div>
-            <h2>Your workflow,<br>now callable.</h2>
+            <h2>Your workflow,<br>queued safely.</h2>
             <div class="recipe-line">Read the brief</div>
             <div class="recipe-line">Run the tools</div>
             <div class="recipe-line">Return the result</div>
             <div class="recipe-output">
-              <strong>POST /v1/run/your-skill</strong>
-              <span>Hosted keys · metered billing · one call</span>
+              <strong>Review → tests → canaries</strong>
+              <span>Then a hosted, metered marketplace API</span>
             </div>
           </div>
         </div>
@@ -437,17 +437,17 @@
           <article class="step-card sig-cut">
             <span class="step-number">1</span>
             <h3>Upload your skill.md / workflow code.md</h3>
-            <p>Any workflow markdown works. We parse the prompts, steps, and tool calls from the file you already have.</p>
+            <p>Submit a .md file with one-line name and description frontmatter. Every upload can enter review; it is never executed as code.</p>
           </article>
           <article class="step-card">
             <span class="step-number">2</span>
             <h3>We build + test it</h3>
-            <p>Containers, API keys, and pricing are set automatically, then we test the workflow from end to end.</p>
+            <p>For approved runtime profiles, Omo generates the container and price, then tests the workflow from end to end.</p>
           </article>
           <article class="step-card">
             <span class="step-number">3</span>
-            <h3>Live in ~30 minutes</h3>
-            <p>Pay per run from your credits, or list it publicly on the Omo marketplace and earn whenever others run it.</p>
+            <h3>Publish after every gate passes</h3>
+            <p>Approved workflows go live only after their runtime profile, tests, Modal canary, Worker route, and billing canary pass.</p>
           </article>
         </div>
       </div>
@@ -478,7 +478,7 @@
         <div class="upload-intro">
           <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> The upload bench</p>
           <h2 class="section-title" id="upload-title">Hand us the markdown. We’ll take it from here.</h2>
-          <p class="section-copy">Choose whether your workflow belongs in the store or stays yours alone. You can change that choice later.</p>
+          <p class="section-copy">Public marketplace submissions are open. Private owner-only hosting is coming later.</p>
         </div>
 
         <div class="workbench">
@@ -491,7 +491,7 @@
                 <label class="file-trigger" for="skill-file">
                   <span class="upload-mark" aria-hidden="true">↑</span>
                   <span class="drop-title">Choose a skill.md or drop it here</span>
-                  <span class="drop-copy" id="file-help">skill.md, code.md, or any Markdown workflow file</span>
+                  <span class="drop-copy" id="file-help">.md · max 200 KB · name + description frontmatter required</span>
                   <span class="file-name" id="file-name">No file chosen yet</span>
                 </label>
               </div>
@@ -501,10 +501,6 @@
                 <label class="field" for="workflow-name">
                   <span class="field-label">Workflow name</span>
                   <input class="text-input" id="workflow-name" name="name" type="text" maxlength="80" placeholder="e.g. Product photo maker" autocomplete="off" required>
-                </label>
-                <label class="field field-wide" for="workflow-description">
-                  <span class="field-label">Description <span aria-hidden="true">·</span> optional</span>
-                  <textarea class="text-area" id="workflow-description" name="description" maxlength="500" placeholder="What does it make, and who is it for?"></textarea>
                 </label>
               </div>
 
@@ -518,37 +514,37 @@
                   </span>
                 </label>
                 <label class="visibility-option">
-                  <input type="radio" name="visibility" value="private">
+                  <input type="radio" name="visibility" value="private" disabled>
                   <span class="visibility-choice">
                     <strong>Keep it private</strong>
-                    <span>Only you can run it. It won’t appear in the store.</span>
+                    <span>Coming later — owner-only routing is not available in this first version.</span>
                   </span>
                 </label>
               </div>
 
               <div class="submit-row">
-                <button class="button button-primary" id="upload-submit" type="submit">Start hosting <span aria-hidden="true">→</span></button>
+                <button class="button button-primary" id="upload-submit" type="submit">Submit for hosting <span aria-hidden="true">→</span></button>
                 <p class="submit-note">Free credits to start. No monthly hosting fee.</p>
               </div>
             </form>
 
             <div class="progress-panel" id="upload-progress" role="status" aria-live="polite" hidden>
-              <h3 class="progress-title">Your workflow is on the bench.</h3>
+              <h3 class="progress-title">Your workflow is queued.</h3>
               <ol class="progress-steps">
                 <li class="progress-step" data-progress-step="0"><span class="progress-dot">✓</span><span>Uploaded</span></li>
-                <li class="progress-step" data-progress-step="1"><span class="progress-dot">2</span><span>Parsing your skill.md</span></li>
-                <li class="progress-step" data-progress-step="2"><span class="progress-dot">3</span><span>Building the container</span></li>
-                <li class="progress-step" data-progress-step="3"><span class="progress-dot">4</span><span>Testing…</span></li>
-                <li class="progress-step" data-progress-step="4"><span class="progress-dot">5</span><span>Live in ~30 minutes</span></li>
+                <li class="progress-step" data-progress-step="1"><span class="progress-dot">2</span><span>Queued for agent review</span></li>
+                <li class="progress-step" data-progress-step="2"><span class="progress-dot">3</span><span>Compile, test + price after review</span></li>
+                <li class="progress-step" data-progress-step="3"><span class="progress-dot">4</span><span>Modal + Omo canaries</span></li>
+                <li class="progress-step" data-progress-step="4"><span class="progress-dot">5</span><span>Publish after every gate passes</span></li>
               </ol>
-              <p class="progress-demo">This is the demo flow for now — the real builder pipeline is being wired. We’ve saved this submission in your browser.</p>
+              <p class="progress-demo">Queued is not live. An Omo agent reviews the runtime profile; tests and canaries must pass before publishing.</p>
             </div>
           </div>
 
           <aside class="hosted-card" aria-labelledby="hosted-title">
             <div class="hosted-head">
-              <h3 id="hosted-title">Your hosted workflows</h3>
-              <p>Submissions from this browser appear here.</p>
+              <h3 id="hosted-title">Your submissions</h3>
+              <p>Recent queue receipts from this browser appear here.</p>
             </div>
             <p class="hosted-empty" id="hosted-empty">Nothing on the bench yet. Your first upload will show up here.</p>
             <ul class="hosted-list" id="hosted-list"></ul>
@@ -567,7 +563,7 @@
         <div class="faq-list">
           <details class="faq-item">
             <summary>What formats work?</summary>
-            <p>Any skill.md or workflow markdown. We parse the prompts, steps, and tool calls, whether it is a simple skill or a multi-step workflow.</p>
+            <p>A .md file up to 200 KB with one-line <code>name</code> and <code>description</code> values in YAML frontmatter. Every valid file can enter review; only an approved runtime profile can advance to deployment.</p>
           </details>
           <details class="faq-item">
             <summary>How much does it cost?</summary>
@@ -575,7 +571,7 @@
           </details>
           <details class="faq-item">
             <summary>Can I keep it private?</summary>
-            <p>Yes. Private workflows run only for you and never appear in the public marketplace.</p>
+            <p>Not yet. This first version accepts public marketplace workflows while owner-only routing is built.</p>
           </details>
           <details class="faq-item">
             <summary>What about listing publicly?</summary>

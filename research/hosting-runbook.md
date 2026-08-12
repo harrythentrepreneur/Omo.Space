@@ -1,11 +1,110 @@
 # Omo SKILL.md hosting runbook
 
-**Status:** production process, 2026-08-12. The reference proof is
-`facebook-ads-copywriter`: its bundle, catalog profile, schema-driven form, and
-hosted Worker route were produced by this process; its Modal endpoint completed
-a real provider-backed run. The changed Cloudflare Worker is tested and
-deploy-ready but still needs an existing Cloudflare OAuth session or
-`CLOUDFLARE_API_TOKEN` before the production marketplace can use that route.
+**Status:** agent-assisted production process, 2026-08-12. The reference proof
+is `facebook-ads-copywriter`: its bundle, catalog profile, schema-driven form,
+hosted Worker route, live marketplace listing, and real provider-backed Modal
+run were produced by this process. Creator upload intake now has a real queue;
+review, deploy credentials, canaries, and publication are intentionally still
+agent gates rather than an unattended CI job.
+
+## Site upload → queued → live (V1)
+
+Before this version, `sell.html` and `creators.html` offered only signup and
+waitlist flows. The otherwise-unlinked `host.html` looked like an uploader, but
+`upload.js` stored only a filename/status in `localStorage` and animated a fake
+“live” sequence. There was no `/api/submit`, submissions table, GitHub issue
+handoff, or queue processor.
+
+The real V1 is deliberately honest: **upload → queued → agent-assisted review
+and deployment → live**. Uploaded Markdown is never executed. A file does not
+become runnable until a trusted profile defines schemas, fixtures, provider and
+secret names, bounded resources, pricing, marketplace copy, and the expected
+Modal endpoint.
+
+### One-time production setup
+
+Apply the additive queue schema before deploying the Worker route:
+
+```bash
+psql "$NEON_DATABASE_URL" -f site/deploy/schema.sql
+cd site/deploy
+npx wrangler deploy
+```
+
+The production Worker needs its existing Clerk, Neon, provider, and Modal Proxy
+Token secrets. Do not deploy `/api/submit` against Neon before the `submissions`
+table exists.
+
+### Every creator submission
+
+1. A signed-in creator opens `host.html`, selects a public `.md` file of at
+   most 200 KiB, and supplies a workflow name. `upload.js` reads the actual
+   content and sends a Clerk bearer token to `POST /api/submit`. `file://`
+   preview is the only local-only demo path.
+2. The Worker requires scalar frontmatter `name` and `description`, derives the
+   slug server-side, rejects mismatched names and private hosting, stores the
+   content as untrusted data, and returns HTTP `202` with `{id, status:
+   "queued"}`. Replaying identical content for the same creator returns the
+   same queue record and never duplicates work.
+3. An agent claims the oldest queued item:
+
+```bash
+python3 tools/host-skill/process-submissions.py
+```
+
+   Invalid content becomes `failed`; an existing package/container slug becomes
+   `needs_review` with `slug_collision`; and a new slug without a reviewed
+   profile becomes `needs_review` with `reviewed_profile_required`. No compile,
+   command, provider call, registration, or spend occurs in those states.
+4. For review, export only the selected record to a private local file. The
+   command prints metadata and a SHA-256, never the Markdown itself:
+
+```bash
+python3 tools/host-skill/process-submissions.py \
+  --export-review sub_… --review-dir /private/tmp/omo-review
+```
+
+   Review the Markdown as hostile input. Create
+   `packages/skill-to-modal/profiles/<slug>.json` only after resolving exact
+   input/output schemas, positive and negative fixtures, prompt, provider,
+   secret names, runtime bounds, readiness, costs, UI, and deployment endpoint.
+   A copied “nearest” profile is not approval.
+5. Requeue/process the reviewed item without external deployment first:
+
+```bash
+python3 tools/host-skill/process-submissions.py --id sub_…
+```
+
+   This runs `host.py` without `--register`, which compiles the container, runs
+   compiler/host and generated contract tests, and verifies pricing. Any failure
+   stops before Modal and sets a bounded failure code. Success becomes
+   `ready_for_deploy`.
+6. The agent starts the external promotion gates:
+
+```bash
+python3 tools/host-skill/process-submissions.py --id sub_… --deploy
+```
+
+   In order, the script reruns the local gate, deploys the generated Modal app,
+   submits and polls the reviewed happy fixture with the existing Proxy Token,
+   validates the result schema, runs `host.py --register` and
+   `--register --check`, runs all four Worker suites, then deploys the Worker.
+   Registration writes the hosted profile, run manifest, generated Worker
+   registry, and marked catalog entry only after the direct Modal canary passes.
+   Success is `ready_for_publish`, not yet `deployed`.
+7. Review the diff; run the full verification below; commit and push to `main`.
+   Confirm the Vercel production listing/run manifest, then perform one signed-in
+   Omo billing canary (balance before, run, terminal valid output, exact debit,
+   balance after). Only then record the live state:
+
+```bash
+python3 tools/host-skill/process-submissions.py --mark-deployed sub_…
+```
+
+The queue consumer is not a daemon and cannot invent a reviewed profile. An Omo
+agent runs it and owns the review/canary/publish decisions. Fully automatic CI
+may later claim approved profiles, but must preserve the same gates and may not
+turn arbitrary uploaded Markdown into executable code.
 
 ## What “the gig” is
 
@@ -29,7 +128,7 @@ bounded, schema-validated `single_llm` call. Media, browser, private-data,
 native-code, or multi-provider skills must declare blockers and return
 `503 WORKFLOW_NOT_READY` before spawn or spend until their assets are reviewed.
 
-## New skill in under 15 minutes of agent time
+## New reviewed skill in under 15 minutes of agent time
 
 Prerequisites: Python 3.12 with `pytest`, `modal`, `fastapi`, and `jsonschema`;
 Node.js; an authenticated Modal CLI; the named Modal secret
@@ -158,7 +257,7 @@ node test-cost.mjs
 Also run `node --check` on the catalog, Worker, generated registry, and changed
 test scripts, followed by `git diff --check` and `--register --check`.
 
-## Current proof and remaining gate
+## Current proof and remaining gates
 
 Facebook Ads Copywriter deployed at
 `https://harrythentrepreneur--cognition-facebook-ads-copywriter-api.modal.run`.
@@ -166,8 +265,9 @@ Authenticated direct evidence: submit `202`, poll `200`, three ads, one LLM
 call, 349 prompt tokens, 780 completion tokens, estimated provider cost
 `$0.00037646`; catalog price `$0.10`.
 
-The production Worker deploy is currently blocked only by missing Cloudflare
-authorization in this non-interactive environment. Wrangler reported that
-`CLOUDFLARE_API_TOKEN` was absent; an OAuth attempt reached the existing-account
-login page and was stopped. Consequently, the production Omo ledger canary is
-not claimed. Once an existing Cloudflare session is authorized, run steps 7–8.
+The upload queue code is locally testable without credentials. A production
+upload is not available until the additive Neon schema and this Worker revision
+are deployed. Every new workflow still requires its own reviewed profile,
+provider/Modal credentials, direct canary, Worker deploy, Vercel publication,
+and Omo billing canary. Audio symbolic animation remains fail-closed on its
+documented Whisper/media/artifact/cost blockers.

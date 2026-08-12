@@ -1,18 +1,33 @@
 # SKILL.md → Modal pipeline
 
-**Status (2026-08-12):** the repeatable hosting product now lives at
-`tools/host-skill/`. One command compiles, tests, prices, and registers a reviewed
-SKILL.md in the schema-driven run UI and a generated hosted-Modal Worker registry.
-Woven remains deployed and runnable; the third proof, Facebook Ads Copywriter,
-is also deployed and completed a real authenticated provider-backed run. The
-generic Worker route is tested and deploy-ready, but its production deploy and
-ledger canary remain gated on existing Cloudflare authorization. The audio
-symbolic-animation contract remains deployed fail-closed and non-chargeable.
+**Status (2026-08-12):** the repeatable hosting product lives at
+`tools/host-skill/`. A signed-in creator can now submit actual SKILL.md or
+workflow Markdown to a durable queue; an Omo agent then reviews, compiles, tests,
+prices, deploys, canaries, registers, and publishes it. Woven and Facebook Ads
+Copywriter are deployed, runnable proofs; audio symbolic animation remains
+deployed fail-closed and non-chargeable.
 
 Exact commands, review decisions, promotion gates, and the under-15-minute flow
 are in [`research/hosting-runbook.md`](hosting-runbook.md).
 
 ## Repeatable hosting product
+
+The site intake and trusted build are separate security boundaries:
+
+- `site/host.html` + `site/upload.js` read the selected Markdown and call the
+  authenticated `POST /api/submit` route. The route validates scalar
+  frontmatter and a 200 KiB UTF-8 limit, derives identity, and writes an
+  idempotent `queued` row to Neon.
+- `tools/host-skill/process-submissions.py` atomically claims queue rows. An
+  unknown profile or slug collision stops at `needs_review`; source Markdown is
+  never executed and cannot overwrite an existing skill.
+- With a trusted profile, the processor invokes the existing host command,
+  Modal deploy/direct canary, registration/drift checks, Worker suites/deploy,
+  then stops at `ready_for_publish`. Commit/Vercel verification and the Omo
+  ledger canary remain explicit agent gates before `deployed`.
+
+This is agent-assisted deployment, not unattended upload-to-execution. The
+complete numbered loop and exact commands are in the runbook.
 
 `tools/host-skill/host.py <SKILL.md> --register` now owns the end-to-end build:
 
@@ -28,9 +43,10 @@ Woven and future generated profiles now use one generic Worker path for schema
 validation, idempotent reservation, Proxy Token dispatch, polling, output
 validation, settlement, and refunds. `--register --check` detects drift.
 
-Pipeline coverage: **15 passed** for parsing, ordered analysis, deterministic
-generation, capability gates, registry determinism, endpoint policy, and
-idempotent catalog registration.
+Pipeline coverage includes parsing, ordered analysis, deterministic generation,
+capability gates, registry determinism, endpoint policy, idempotent catalog
+registration, creator-intake byte/frontmatter validation, review gating, and
+collision-safe resume behavior.
 
 ## Third-skill proof — Facebook Ads Copywriter
 
@@ -49,10 +65,10 @@ idempotent catalog registration.
   provider cost `$0.00037646`
 
 The catalog entry, exact schemas, example hydration, UI hints, and phases are
-generated in `site/run-manifests/facebook-ads-copywriter.json`. The Worker test
-proves a `$5.00 → $4.90` debit after valid Modal completion and rejection before
-spend for invalid input. Production settlement is not yet claimed: Wrangler
-could not deploy without an existing Cloudflare login or API token.
+generated in `site/run-manifests/facebook-ads-copywriter.json`; it is live as
+the 24th listing. The Worker test proves a `$5.00 → $4.90` debit after valid
+Modal completion and rejection before spend for invalid input. A fresh
+production customer-ledger canary is still required for any new Worker release.
 
 This milestone does **not** claim that the complete source Woven workflow is
 hosted. Version `woven-storybook-pipeline@0.2.0` is the already-advertised text

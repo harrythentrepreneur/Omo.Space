@@ -136,6 +136,13 @@
     }
     .signup-button:hover { background: #21483D; box-shadow: 0 10px 0 rgba(23, 53, 44, .12); transform: translateY(-2px); }
     .signup-button:active { box-shadow: 0 4px 0 rgba(23, 53, 44, .12); transform: translateY(2px); }
+    .upload-button {
+      min-width: 228px; min-height: 56px; display: inline-flex; align-items: center; justify-content: center;
+      margin-left: 9px; padding: 0 27px; border: 2px solid var(--pine); border-radius: 999px;
+      background: var(--mint); color: var(--pine); font-size: 15px; font-weight: 700; text-decoration: none;
+      box-shadow: 0 8px 0 rgba(23, 53, 44, .09); transition: transform .14s ease, box-shadow .14s ease, background-color .14s ease;
+    }
+    .upload-button:hover { background: #AEE8C7; box-shadow: 0 10px 0 rgba(23, 53, 44, .09); transform: translateY(-2px); }
     .login-note { margin: 17px 0 0; color: var(--moss); font-size: 13px; }
     .login-link { color: var(--pine); font-weight: 700; text-underline-offset: 4px; }
 
@@ -208,6 +215,8 @@
       .waitlist-row { grid-template-columns: 1fr; border-radius: 19px; }
       .waitlist-input { text-align: center; }
       .waitlist-submit { width: 100%; }
+      .action-group { display: grid; gap: 12px; }
+      .signup-button, .upload-button { width: 100%; margin-left: 0; }
       .page-footer { margin-top: 56px; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -264,6 +273,7 @@
 
         <div class="action-group">
           <button class="signup-button" id="create-account" type="button">Create your account</button>
+          <a class="upload-button" href="host.html#upload">Upload your workflow →</a>
           <p class="login-note">Already creating on Omo? <a class="login-link" id="sell-login" href="signup.html">Log in</a></p>
         </div>
 
