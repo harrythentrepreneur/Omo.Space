@@ -1,19 +1,24 @@
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
+.coverage
+htmlcov/
 .venv/
 venv/
 
-# Vercel
+# Platform state
 .vercel/
+.wrangler/
+.codex/
 
 # Node
 node_modules/
 
 # Env / secrets — NEVER commit real keys
-.env
-.env.*
+.env*
 !.env.example
+*.local
 *.pem
 
 # OS
@@ -21,4 +26,3 @@ node_modules/
 
 # Local server logs
 *.log
-.vercel
