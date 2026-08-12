@@ -115,10 +115,10 @@
     if (!slug) {
       try { slug = validOpenTarget(new URLSearchParams(window.location.search).get('open')); } catch (error) {}
     }
-    return 'dashboard.html' + (slug ? '?open=' + encodeURIComponent(slug) : '');
+    return slug ? 'workflow.html?slug=' + encodeURIComponent(slug) : 'dashboard.html';
   }
 
-  function redirectToDashboard() {
+  function redirectAfterAuth() {
     window.location.assign(redirectTarget());
   }
 
@@ -258,7 +258,7 @@
     if (!sessionId || !window.Clerk || typeof window.Clerk.setActive !== 'function') {
       throw new Error('Your account is ready, but the session could not be started. Please log in.');
     }
-    return Promise.resolve(window.Clerk.setActive({ session: sessionId })).then(redirectToDashboard);
+    return Promise.resolve(window.Clerk.setActive({ session: sessionId })).then(redirectAfterAuth);
   }
 
   function serviceUnavailable(message) {
@@ -327,7 +327,7 @@
     if (!window.ClerkAuth) return Promise.reject(new Error('Demo sign-in is unavailable. Please refresh and try again.'));
     var action = kind === 'signup' ? window.ClerkAuth.signUp : window.ClerkAuth.signIn;
     if (typeof action !== 'function') return Promise.reject(new Error('Demo sign-in is unavailable. Please refresh and try again.'));
-    return Promise.resolve(action.call(window.ClerkAuth)).then(redirectToDashboard);
+    return Promise.resolve(action.call(window.ClerkAuth)).then(redirectAfterAuth);
   }
 
   function submitRealSignUp() {
