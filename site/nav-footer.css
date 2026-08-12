@@ -65,6 +65,32 @@
   border-color: var(--pine, #17352C);
 }
 
+/* nav.js is deferred, so mask the literal fallback until auth is classified. */
+.omo-nav-login[data-omo-login]:not([data-omo-auth-state]) {
+  position: relative;
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+  padding-inline: 12px;
+  pointer-events: none;
+  border-color: transparent;
+  background: #E1E9E3;
+  color: transparent;
+  box-shadow: none;
+}
+
+.omo-nav-login[data-omo-login]:not([data-omo-auth-state])::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(23, 53, 44, .16);
+  transform: translate(-50%, -50%);
+}
+
 .omo-nav-menu-toggle:hover,
 .omo-nav-menu-toggle:focus-visible,
 .omo-nav-menu-toggle[aria-expanded="true"],

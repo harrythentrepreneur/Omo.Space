@@ -6,7 +6,14 @@
   var balanceClientPromise = null;
   var balanceInFlight = null;
   var balanceRequestId = 0;
+  var authResolutionStarted = false;
+  var authResolved = false;
+  var authSubscribed = false;
+  var authLinksPrimed = false;
+  var lastResolvedAuthKey = '';
   var BALANCE_CACHE_PREFIX = 'omo_nav_balance_v1:';
+  var AUTH_HINT_KEY = 'omo_nav_auth_hint_v1';
+  var AUTH_HINT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
   function installCreditStyles() {
     if (document.getElementById('omo-nav-credit-styles')) return;
@@ -34,7 +41,8 @@
       '.omo-nav-static-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
       '.omo-nav-logout{margin-top:6px;padding-top:0;border-top:0}' +
       '.omo-nav-popover .omo-nav-logout>a{color:#4D5B56}' +
-      '.omo-nav-login{min-height:44px}.omo-nav-login.omo-nav-credit{width:96px;min-width:96px;max-width:96px;gap:6px;padding-inline:9px;border-radius:999px;font-variant-numeric:tabular-nums}' +
+      '.omo-nav-login{min-width:96px;justify-content:center}.omo-nav-login.omo-nav-auth-pending{width:96px;max-width:96px;padding-inline:12px;pointer-events:none;border-color:transparent;background:#E1E9E3;box-shadow:none}.omo-nav-auth-skeleton{width:48px;height:8px;border-radius:999px;background:rgba(23,53,44,.16)}' +
+      '.omo-nav-login.omo-nav-credit{width:96px;min-width:96px;max-width:96px;gap:6px;padding-inline:9px;border-radius:999px;font-variant-numeric:tabular-nums}' +
       '.omo-nav-credit-icon{font-size:16px;line-height:1}' +
       '.omo-nav-credit-amount{min-width:0;overflow:hidden;text-overflow:ellipsis}' +
       '.omo-nav-credit-spinner{width:13px;height:13px;flex:0 0 13px;border:2px solid var(--mint,#BDEFD4);border-top-color:var(--pine,#17352C);border-radius:50%;animation:omo-nav-credit-spin .7s linear infinite}' +
@@ -75,6 +83,53 @@
     } catch (error) {
       return null;
     }
+  }
+
+  function persistedUser() {
+    try {
+      var user = JSON.parse(window.localStorage.getItem('cognition_user') || 'null');
+      return user && user.id ? user : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function demoAuthConfigured() {
+    if (window.location && window.location.protocol === 'file:') return true;
+    var key = typeof window.CLERK_PUBLISHABLE_KEY === 'string'
+      ? window.CLERK_PUBLISHABLE_KEY.trim()
+      : '';
+    return !!key && (key === 'pk_test_placeholder' || !/^pk_(test|live)_/.test(key));
+  }
+
+  function readSignedInHint() {
+    var demoUser = demoAuthConfigured() ? persistedUser() : null;
+    if (demoUser) return { userId: String(demoUser.id) };
+
+    try {
+      var hint = JSON.parse(window.localStorage.getItem(AUTH_HINT_KEY) || 'null');
+      var age = Date.now() - Number(hint && hint.confirmedAt);
+      if (!hint || hint.state !== 'signed-in' || !hint.userId || !isFinite(age) ||
+          age < 0 || age > AUTH_HINT_MAX_AGE_MS) return null;
+      return { userId: String(hint.userId) };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeSignedInHint(userId) {
+    if (!userId) return;
+    try {
+      window.localStorage.setItem(AUTH_HINT_KEY, JSON.stringify({
+        state: 'signed-in',
+        userId: String(userId),
+        confirmedAt: Date.now()
+      }));
+    } catch (error) {}
+  }
+
+  function clearSignedInHint() {
+    try { window.localStorage.removeItem(AUTH_HINT_KEY); } catch (error) {}
   }
 
   function formatBalance(cents) {
@@ -128,10 +183,13 @@
       amount.textContent = hasBalance ? '$' + formatted : '$\u2026';
       link.appendChild(amount);
     }
+    link.classList.remove('omo-nav-auth-pending');
     link.classList.add('omo-nav-credit');
     link.classList.remove('is-balance-loading');
     link.classList.remove('is-balance-unavailable');
     link.removeAttribute('aria-busy');
+    link.removeAttribute('tabindex');
+    link.setAttribute('data-omo-auth-state', 'signed-in');
     link.setAttribute('aria-live', 'polite');
 
     if (state === 'loading') {
@@ -152,6 +210,68 @@
   function renderAllCreditLinks(balanceCents, state) {
     var links = document.querySelectorAll('[data-omo-login]');
     for (var i = 0; i < links.length; i += 1) renderCreditLink(links[i], balanceCents, state);
+  }
+
+  function renderAuthPlaceholder(link) {
+    if (link.getAttribute('data-omo-auth-state') === 'pending') return;
+
+    var skeleton = document.createElement('span');
+    skeleton.className = 'omo-nav-auth-skeleton';
+    skeleton.setAttribute('aria-hidden', 'true');
+    link.textContent = '';
+    link.appendChild(skeleton);
+    link.href = 'signup.html';
+    link.hidden = false;
+    link.classList.remove('omo-nav-credit');
+    link.classList.remove('is-balance-loading');
+    link.classList.remove('is-balance-unavailable');
+    link.classList.add('omo-nav-auth-pending');
+    link.setAttribute('data-omo-auth-state', 'pending');
+    link.setAttribute('aria-label', 'Checking account');
+    link.setAttribute('aria-live', 'polite');
+    link.setAttribute('aria-busy', 'true');
+    link.setAttribute('tabindex', '-1');
+    link.removeAttribute('aria-haspopup');
+    link.removeAttribute('aria-controls');
+    link.removeAttribute('title');
+  }
+
+  function renderSignedOutLink(link) {
+    link.href = 'signup.html';
+    link.hidden = false;
+    link.classList.remove('omo-nav-auth-pending');
+    link.classList.remove('omo-nav-credit');
+    link.classList.remove('is-balance-loading');
+    link.classList.remove('is-balance-unavailable');
+    link.textContent = 'Log in';
+    link.setAttribute('data-omo-auth-state', 'signed-out');
+    link.setAttribute('aria-haspopup', 'dialog');
+    link.removeAttribute('aria-label');
+    link.removeAttribute('aria-live');
+    link.removeAttribute('aria-busy');
+    link.removeAttribute('tabindex');
+    link.removeAttribute('title');
+    link.removeAttribute('aria-controls');
+  }
+
+  function primeAuthLinks() {
+    if (authResolved || lastResolvedAuthKey || authLinksPrimed) return;
+    var hint = readSignedInHint();
+    var cached = hint ? readCachedBalance(hint.userId) : null;
+    var links = document.querySelectorAll('[data-omo-login]');
+    if (!links.length) return;
+    authLinksPrimed = true;
+    for (var i = 0; i < links.length; i += 1) {
+      if (hint) {
+        links[i].href = 'billing.html';
+        links[i].hidden = false;
+        renderCreditLink(links[i], cached && cached.balanceCents, 'loading');
+        links[i].removeAttribute('aria-haspopup');
+        links[i].removeAttribute('aria-controls');
+      } else {
+        renderAuthPlaceholder(links[i]);
+      }
+    }
   }
 
   function loadCreditsClient() {
@@ -229,42 +349,42 @@
   }
 
   function syncLoginLinks() {
+    if (!authResolved) {
+      primeAuthLinks();
+      return;
+    }
+
     var signedIn = isSignedIn();
     var user = signedIn ? currentUser() : null;
     var userId = user && user.id;
+    var authKey = signedIn ? 'signed-in:' + (userId || '') : 'signed-out';
+    if (authKey === lastResolvedAuthKey) return;
+    lastResolvedAuthKey = authKey;
     var cached = userId ? readCachedBalance(userId) : null;
-    var href = signedIn ? 'billing.html' : 'signup.html';
     var requestId = ++balanceRequestId;
     var links = document.querySelectorAll('[data-omo-login]');
     for (var i = 0; i < links.length; i += 1) {
-      links[i].href = href;
-      links[i].hidden = false;
       if (signedIn) {
+        links[i].href = 'billing.html';
+        links[i].hidden = false;
         renderCreditLink(links[i], cached && cached.balanceCents, 'loading');
         links[i].removeAttribute('aria-haspopup');
         links[i].removeAttribute('aria-controls');
       } else {
-        links[i].classList.remove('omo-nav-credit');
-        links[i].classList.remove('is-balance-loading');
-        links[i].classList.remove('is-balance-unavailable');
-        links[i].textContent = 'Log in';
-        links[i].removeAttribute('aria-label');
-        links[i].removeAttribute('aria-live');
-        links[i].removeAttribute('aria-busy');
-        links[i].removeAttribute('title');
-        links[i].removeAttribute('aria-controls');
-        links[i].setAttribute('aria-haspopup', 'dialog');
+        renderSignedOutLink(links[i]);
       }
     }
 
     if (signedIn) {
+      writeSignedInHint(userId);
       if (userId) refreshCreditBalance(requestId, userId);
       else renderAllCreditLinks(null, 'unavailable');
     } else {
+      clearSignedInHint();
       loadAuthModal();
-      var popovers = document.querySelectorAll('.omo-nav-popover');
-      for (var j = 0; j < popovers.length; j += 1) syncLogoutItem(popovers[j]);
     }
+    var popovers = document.querySelectorAll('.omo-nav-popover');
+    for (var j = 0; j < popovers.length; j += 1) syncLogoutItem(popovers[j]);
   }
 
   function authModalApi() {
@@ -304,7 +424,12 @@
 
   function handleLoginClick(event) {
     var link = event.target.closest && event.target.closest('[data-omo-login]');
-    if (!link || isSignedIn()) return;
+    if (!link) return;
+    if (link.getAttribute('data-omo-auth-state') === 'pending') {
+      event.preventDefault();
+      return;
+    }
+    if (isSignedIn()) return;
 
     event.preventDefault();
     loadAuthModal().then(function (api) {
@@ -365,7 +490,38 @@
 
   function subscribeToAuthChanges() {
     if (!window.ClerkAuth || typeof window.ClerkAuth.onAuthChange !== 'function') return false;
-    window.ClerkAuth.onAuthChange(syncLoginLinks);
+    if (authSubscribed) return true;
+    authSubscribed = true;
+    window.ClerkAuth.onAuthChange(function () {
+      if (authResolved) syncLoginLinks();
+    });
+    return true;
+  }
+
+  function beginAuthResolution() {
+    if (!window.ClerkAuth) return false;
+    subscribeToAuthChanges();
+    if (authResolutionStarted) return true;
+    authResolutionStarted = true;
+
+    var ready;
+    try {
+      ready = typeof window.ClerkAuth.ensureLoaded === 'function'
+        ? window.ClerkAuth.ensureLoaded()
+        : null;
+    } catch (error) {
+      authResolutionStarted = false;
+      return true;
+    }
+
+    Promise.resolve(ready).then(function () {
+      authResolved = true;
+      syncLoginLinks();
+    }).catch(function () {
+      // A Clerk load failure is not evidence that the user is signed out.
+      // Keep the neutral/optimistic state instead of showing a wrong login.
+      authResolutionStarted = false;
+    });
     return true;
   }
 
@@ -379,8 +535,7 @@
 
     function loadClerk() {
       loadScript('clerk.js', function () {
-        syncLoginLinks();
-        subscribeToAuthChanges();
+        beginAuthResolution();
       });
     }
 
@@ -588,15 +743,13 @@
 
   function init() {
     installCreditStyles();
+    primeAuthLinks();
     window.addEventListener('omo:credits', handleCreditUpdate);
-    // Start account I/O before catalog/menu decoration. Billing's shared
-    // request is reused when it is already in flight.
-    syncLoginLinks();
     installContextualWorkflowIdentity();
     var menus = document.querySelectorAll('.omo-nav-menu');
     for (var i = 0; i < menus.length; i += 1) initMenu(menus[i]);
 
-    if (!subscribeToAuthChanges()) loadAuthAdapter();
+    if (!beginAuthResolution()) loadAuthAdapter();
     document.addEventListener('click', handleLoginClick);
     document.addEventListener('click', handleLogoutClick);
 
@@ -604,6 +757,11 @@
       if (event.key === 'cognition_user') syncLoginLinks();
     });
   }
+
+  // nav.js is deferred in the page head, so replace the literal HTML "Log in"
+  // before DOMContentLoaded/first paint. Clerk chooses the real state later.
+  installCreditStyles();
+  primeAuthLinks();
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
