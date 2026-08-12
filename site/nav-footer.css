@@ -25,6 +25,12 @@
 
 .omo-nav-brand .wordmark { flex: 0 0 auto; }
 
+.omo-nav-brand .wordmark-logo {
+  display: block;
+  width: auto;
+  height: 34px;
+}
+
 .omo-nav-menu {
   position: relative;
   flex: 0 0 auto;
