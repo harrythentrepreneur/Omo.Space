@@ -1,7 +1,9 @@
 # PhonicsMaker's 96 tools in Omo's repeatable structure
 
-Research date: 2026-08-13  
-Scope: architecture and conversion specification only; no build, deployment, catalog, Worker, site, or container changes  
+Research date: 2026-08-13
+
+Scope: architecture and conversion specification only; no build, deployment, catalog, Worker, site, or container changes
+
 Decision: convert the wrappers into Omo; do not bolt the PhonicsMaker application onto Omo
 
 ## Executive conclusion
