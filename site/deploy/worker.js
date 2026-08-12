@@ -506,7 +506,7 @@ async function handleGenericRun(request, env) {
         shortfall_usd: check.shortfallUsd,
         minimum_topup_usd: MIN_TOPUP_USD,
         suggested_amounts_usd: topupAmounts(),
-        topup_url: '/dashboard.html?topup=needed',
+        topup_url: '/billing.html?topup=needed',
         run_id: runId,
         state: 'refunded',
       };
@@ -566,7 +566,7 @@ async function handleGenericRun(request, env) {
         result.message = 'That used your remaining credits. Top up from $5 whenever you are ready to run another helper.';
         result.minimum_topup_usd = MIN_TOPUP_USD;
         result.suggested_amounts_usd = topupAmounts();
-        result.topup_url = '/dashboard.html?topup=needed';
+        result.topup_url = '/billing.html?topup=needed';
       }
       if (runRequest) await finishRunRequest(env, runId, 'succeeded', result, 200);
       settled = true;
@@ -1354,7 +1354,9 @@ async function handleMe(request, env, url) {
   if (!userId) return json({ error: 'Send user_id.' }, 400, cors());
   if (!validUserId(userId)) return json({ error: 'invalid user_id' }, 400, cors());
 
-  const { record } = await getUserRecord(env, userId);
+  const firstRead = await getUserRecord(env, userId);
+  await reconcileStaleReservations(env, userId);
+  const record = (await getUserRecord(env, userId)).record;
   const runs = await listRuns(env, userId, 50);
   return json({
     ok: true,
@@ -1362,6 +1364,7 @@ async function handleMe(request, env, url) {
     balance_usd: +(record.balance_cents / 100).toFixed(2),
     balance_cents: record.balance_cents,
     currency: 'usd',
+    signup_granted: firstRead.created,
     api_key: record.api_key,
     mock: databaseKind(env) === 'mock',
     runs: runs.map((r) => ({
@@ -1395,6 +1398,11 @@ async function handleTopup(request, env) {
     userId = String(body.user_id || '').trim();
   }
 
+  const callerIdempotencyKey = String(request.headers.get('idempotency-key') || '').trim();
+  if (real && !IDEMPOTENCY_KEY_RE.test(callerIdempotencyKey)) {
+    return json({ error: 'Invalid Idempotency-Key (8-128 URL-safe characters).' }, 400, cors());
+  }
+
   const minTopupUsd = boundedNumber(env.MIN_TOPUP_USD, 1, MAX_TOPUP_USD_DEFAULT, MIN_TOPUP_USD);
   const maxTopupUsd = boundedNumber(env.MAX_TOPUP_USD, minTopupUsd, 100000, MAX_TOPUP_USD_DEFAULT);
   const amountUsd = body.amount_usd;
@@ -1419,8 +1427,12 @@ async function handleTopup(request, env) {
 
   const params = new URLSearchParams();
   params.set('mode', 'payment');
-  params.set('success_url', 'https://omo.space/dashboard.html?topup=success');
-  params.set('cancel_url', 'https://omo.space/dashboard.html?topup=cancelled');
+  // Credits are fulfilled synchronously from checkout.session.completed.
+  // Restrict Checkout to cards so delayed payment methods cannot create a
+  // completed-but-not-yet-paid fulfillment gap.
+  params.set('payment_method_types[0]', 'card');
+  params.set('success_url', 'https://omo.space/billing.html?topup=success&session_id={CHECKOUT_SESSION_ID}');
+  params.set('cancel_url', 'https://omo.space/billing.html?topup=cancelled');
   params.set('client_reference_id', userId);
   params.set('metadata[user_id]', userId);
   params.set('metadata[type]', 'credits_topup');
@@ -1432,23 +1444,29 @@ async function handleTopup(request, env) {
   params.set('line_items[0][price_data][unit_amount]', String(cents));
 
   try {
+    const stripeHeaders = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Bearer ${secretKey}`,
+    };
+    if (callerIdempotencyKey) {
+      stripeHeaders['Idempotency-Key'] = `omo-topup-${await sha256Hex(`credits-topup\u0000${userId}\u0000${cents}\u0000${callerIdempotencyKey}`)}`;
+    }
     const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Bearer ${secretKey}`,
-      },
+      headers: stripeHeaders,
       body: params.toString(),
     });
     if (!res.ok) {
       return json({ error: `stripe error ${res.status}` }, 502, cors());
     }
     const data = await res.json();
-    if (!data || !data.url || (real && !data.id)) {
-      return json({ error: 'stripe returned no checkout url' }, 502, cors());
+    let checkoutUrl;
+    try { checkoutUrl = new URL(data && data.url); } catch { checkoutUrl = null; }
+    if (!data || !data.id || !checkoutUrl || checkoutUrl.origin !== 'https://checkout.stripe.com') {
+      return json({ error: 'stripe returned an invalid checkout session' }, 502, cors());
     }
     if (real) await recordPendingTopup(env, data.id, userId, cents, 'usd');
-    return json({ url: data.url, session_id: data.id || undefined }, 200, cors());
+    return json({ url: checkoutUrl.toString(), session_id: data.id }, 200, cors());
   } catch (e) {
     return json({ error: 'stripe unavailable' }, 502, cors());
   }
@@ -1497,7 +1515,7 @@ async function handleStripeWebhook(request, env) {
   let userId = '';
   if (isRealMode(env)) {
     const pending = await getPendingTopup(env, session.id);
-    if (!pending || pending.state === 'applied' || pending.amount_cents !== amountCents ||
+    if (!pending || !['pending', 'applied'].includes(pending.state) || pending.amount_cents !== amountCents ||
         pending.currency !== 'usd' || !validUserId(pending.user_id)) {
       return json({ ok: true, ignored: true }, 200, cors());
     }
@@ -2236,9 +2254,10 @@ async function reconcileStaleReservations(env, userId) {
     ).slice(0, 20);
   }
   for (const row of rows) {
-    if (row.slug === DEMELLO_SLUG && row.updated_at >= demelloCutoff) continue;
+    const longRunningHosted = row.slug === DEMELLO_SLUG || HOSTED_MODAL_SKILLS.has(row.slug);
+    if (longRunningHosted && row.updated_at >= demelloCutoff) continue;
     const response = { error: 'stale_reservation_refunded', run_id: row.run_id, state: 'refunded' };
-    const claimed = await claimStaleRunRefund(env, row.run_id, row.slug === DEMELLO_SLUG ? demelloCutoff : cutoff, response);
+    const claimed = await claimStaleRunRefund(env, row.run_id, longRunningHosted ? demelloCutoff : cutoff, response);
     if (claimed && await runDebitExists(env, row.run_id)) {
       await refundRunCredits(env, userId, Number(row.cost_cents), row.run_id);
     }

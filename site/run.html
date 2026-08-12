@@ -473,6 +473,7 @@
   <script src="ig-more.js"></script>
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
+  <script src="credits.js"></script>
   <script>
     (async function () {
       'use strict';
@@ -514,7 +515,7 @@
         } catch (error) { return null; }
       }
       function signedIn() { return !!currentUser(); }
-      function updateCreditNote() {
+      function renderCreditNote(account) {
         var note = el('credit-note');
         if (!note) return;
         if (!signedIn()) {
@@ -522,12 +523,29 @@
           note.textContent = '';
           return;
         }
-        var rawBalance = safeStorage('omo_balance_v1');
-        var balance = rawBalance == null ? NaN : Number(rawBalance);
-        note.textContent = isFinite(balance)
-          ? formatPrice(balance) + ' in credits · this run uses ' + formatPrice(runtimeDefinition && runtimeDefinition.price_usd)
-          : 'This run uses your Omo credits · live balance is in the header';
+        if (account && account.mode === 'loading') note.textContent = 'Loading your live balance…';
+        else if (account && account.balanceCents != null && isFinite(Number(account.balanceCents))) {
+          note.textContent = (account.mode === 'preview' ? 'Local preview: ' : '') + formatPrice(Number(account.balanceCents) / 100) + ' in credits · this run uses ' + formatPrice(runtimeDefinition && runtimeDefinition.price_usd);
+        } else note.textContent = 'Live balance unavailable · no amount is shown until it can be verified';
         note.hidden = false;
+      }
+      function updateCreditNote() {
+        if (!signedIn()) { renderCreditNote(null); return Promise.resolve(); }
+        renderCreditNote({ mode: 'loading' });
+        if (!window.OmoCredits || typeof window.OmoCredits.getBalance !== 'function') {
+          renderCreditNote(null);
+          return Promise.resolve();
+        }
+        var user = currentUser();
+        var userId = user && user.id;
+        return window.OmoCredits.getBalance().then(function (account) {
+          var current = currentUser();
+          if (current && current.id === userId) renderCreditNote(account);
+        }).catch(function () { renderCreditNote(null); });
+      }
+      function refreshCreditsAfterRun() {
+        if (!window.OmoCredits || typeof window.OmoCredits.refresh !== 'function') return;
+        window.OmoCredits.refresh().then(renderCreditNote).catch(function () { renderCreditNote(null); });
       }
       function openSignup() {
         var options = { open: listing.slug, destination: 'run' };
@@ -1446,6 +1464,7 @@
             updateResponseJson(result.data);
             var status = runStatus(result.data);
             if (status === 'failed' || status === 'refunded' || status === 'cancelled') {
+              refreshCreditsAfterRun();
               handleRunError(terminalError(result.data), result.data);
               return;
             }
@@ -1457,6 +1476,7 @@
             showServerProgress(result.data);
             if (status === 'delivered' || status === 'completed' || status === 'succeeded') {
               activeRun = null;
+              refreshCreditsAfterRun();
               setProgress('Delivered', 100, 'complete', false, 'delivered');
               renderOutput(result.data);
               return;
@@ -1483,6 +1503,7 @@
           return requestJson(workerBase() + '/api/run', { method: 'POST', headers: headers, body: JSON.stringify(payload) });
         }).then(function (result) {
           updateResponseJson(result.data);
+          refreshCreditsAfterRun();
           if (result.status === 402 || result.data.error === 'insufficient_balance') {
             handleRunError('You need more credits for this run. Top up from your dashboard, then try again.', result.data);
             return;
@@ -1541,8 +1562,14 @@
       el('run-view').hidden = false;
 
       if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') window.ClerkAuth.onAuthChange(updateCreditNote);
+      window.addEventListener('omo:credits', function (event) {
+        var account = event && event.detail;
+        var user = currentUser();
+        if (account && user && account.userId === user.id) renderCreditNote(account);
+      });
       window.addEventListener('storage', function (event) {
-        if (event.key === 'cognition_user' || event.key === 'omo_balance_v1') updateCreditNote();
+        if (event.key === 'cognition_user') updateCreditNote();
+        if (window.location.protocol === 'file:' && event.key === 'omo_balance_v1') refreshCreditsAfterRun();
       });
 
       el('run-form').addEventListener('submit', function (event) {

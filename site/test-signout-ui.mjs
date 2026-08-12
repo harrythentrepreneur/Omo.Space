@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const dashboard = fs.readFileSync(new URL('./dashboard.html', import.meta.url), 'utf8');
+const billing = fs.readFileSync(new URL('./billing.html', import.meta.url), 'utf8');
 const nav = fs.readFileSync(new URL('./nav.js', import.meta.url), 'utf8');
 
 assert.match(
@@ -20,8 +21,8 @@ assert.match(
   'dashboard must show a visible retryable sign-out failure',
 );
 assert.match(
-  dashboard,
-  /var refreshRequestId = requestId[\s\S]*?refreshRequestId !== accountRequestId[\s\S]*?current\.id !== userId/,
+  billing,
+  /var refreshUserId = refreshUser && refreshUser\.id[\s\S]*?current && current\.id === refreshUserId/,
   'delayed top-up refresh must not cross logout or account changes',
 );
 assert.match(

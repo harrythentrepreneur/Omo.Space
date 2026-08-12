@@ -225,9 +225,10 @@
           <span class="secure-label">Stripe secure</span>
         </div>
         <p class="balance-label">Available balance</p>
-        <p class="credit-balance" id="credit-balance" aria-live="polite">$5.00</p>
+        <p class="credit-balance" id="credit-balance" aria-live="polite">Loading…</p>
         <p class="empty-credit-note" id="empty-credit-note" hidden>You’re out of credits, but you can keep going in seconds — top up from $5 below.</p>
-        <p class="auth-notice" id="auth-notice" hidden>Sign in to manage credits and see recent usage.</p>
+        <p class="auth-notice" id="auth-notice" hidden>Sign in to see your balance.</p>
+        <p class="auth-notice" id="preview-notice" hidden>Local preview balance — not real credits.</p>
         <form id="topup-form" novalidate>
           <div class="amount-row" role="group" aria-label="Top-up amount">
             <button class="amount-chip is-active" type="button" data-amount="20" aria-pressed="true">$20</button>
@@ -291,18 +292,18 @@
 
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
+  <script src="credits.js"></script>
   <script src="stripe.js"></script>
   <script>
     (function () {
       'use strict';
 
-      var BALANCE_KEY = 'omo_balance_v1';
       var USAGE_KEY = 'omo_usage_v1';
       var API_KEY = 'omo_apikey_v1';
       var chosenAmount = 20;
       var requestId = 0;
       var revealed = false;
-      var account = { mode: 'loading', balanceUsd: 5, apiKey: '', runs: [] };
+      var account = { mode: 'loading', userId: '', balanceUsd: null, balanceCents: null, apiKey: '', runs: [] };
       var form = document.getElementById('topup-form');
       var customAmount = document.getElementById('custom-amount');
       var topupButton = document.getElementById('topup-btn');
@@ -338,11 +339,6 @@
         } catch (error) {
           return null;
         }
-      }
-
-      function isDemoUser(user) {
-        var key = String(window.CLERK_PUBLISHABLE_KEY || '').trim();
-        return window.location.protocol === 'file:' || !!(user && user.demo) || !/^pk_(?:test|live)_/.test(key) || key === 'pk_test_placeholder';
       }
 
       function getSessionToken() {
@@ -382,25 +378,6 @@
           return Array.isArray(runs) ? runs : [];
         } catch (error) {
           return [];
-        }
-      }
-
-      function updateNavBalance(balanceUsd) {
-        var links = document.querySelectorAll('[data-omo-login].omo-nav-credit');
-        for (var i = 0; i < links.length; i += 1) {
-          var link = links[i];
-          var icon = document.createElement('span');
-          var amount = document.createElement('span');
-          icon.className = 'omo-nav-credit-icon';
-          icon.setAttribute('aria-hidden', 'true');
-          icon.textContent = '\u25d2';
-          amount.textContent = formatUsd(balanceUsd);
-          link.textContent = '';
-          link.appendChild(icon);
-          link.appendChild(amount);
-          link.href = 'billing.html';
-          link.setAttribute('aria-label', formatUsd(balanceUsd) + ' in credits — view billing');
-          link.title = formatUsd(balanceUsd) + ' in credits';
         }
       }
 
@@ -477,16 +454,21 @@
 
       function render() {
         var signedIn = !!currentUser();
-        document.getElementById('credit-balance').textContent = formatUsd(account.balanceUsd);
-        document.getElementById('empty-credit-note').hidden = !signedIn || account.balanceUsd > 0;
+        var balance = document.getElementById('credit-balance');
+        if (!signedIn) balance.textContent = '—';
+        else if (account.mode === 'loading') balance.textContent = 'Loading…';
+        else if (account.balanceCents != null && isFinite(Number(account.balanceCents))) balance.textContent = formatUsd(Number(account.balanceCents) / 100);
+        else balance.textContent = 'Unavailable';
+        document.getElementById('empty-credit-note').hidden = !signedIn || account.balanceCents == null || account.balanceCents > 0;
         document.getElementById('auth-notice').hidden = signedIn;
+        document.getElementById('preview-notice').hidden = account.mode !== 'preview';
         document.getElementById('api-base-label').textContent = apiBase() || 'Same origin';
-        for (var i = 0; i < amountChips.length; i += 1) amountChips[i].disabled = !signedIn;
-        customAmount.disabled = !signedIn;
-        topupButton.disabled = !signedIn;
+        var canTopup = signedIn && (account.mode === 'server' || account.mode === 'preview');
+        for (var i = 0; i < amountChips.length; i += 1) amountChips[i].disabled = !canTopup;
+        customAmount.disabled = !canTopup;
+        topupButton.disabled = !canTopup;
         renderUsage();
         renderApiKey();
-        if (signedIn) updateNavBalance(account.balanceUsd);
       }
 
       function showNote(message, state) {
@@ -495,67 +477,74 @@
         note.className = 'form-note' + (state === 'ok' ? ' is-ok' : state === 'error' ? ' is-err' : '');
       }
 
-      function loadDemoAccount(user) {
-        var savedBalance = Number(storageGet(BALANCE_KEY));
-        account.mode = 'mock';
-        account.balanceUsd = isFinite(savedBalance) ? savedBalance : 5;
-        account.apiKey = storageGet(API_KEY) || demoApiKey(user.id);
-        account.runs = runsFromStorage();
-        storageSet(BALANCE_KEY, String(account.balanceUsd));
-        storageSet(API_KEY, account.apiKey);
-        render();
-      }
-
       function refresh() {
         var user = currentUser();
         var activeRequest = ++requestId;
         if (!user) {
           account.mode = 'unavailable';
-          account.balanceUsd = 0;
+          account.userId = '';
+          account.balanceUsd = null;
+          account.balanceCents = null;
           account.apiKey = '';
           account.runs = [];
           revealed = false;
           render();
-          showNote('Sign in to manage credits and see recent usage.', 'error');
-          return Promise.resolve(account);
-        }
-
-        if (isDemoUser(user)) {
-          loadDemoAccount(user);
+          showNote('Sign in to see your balance.', '');
           return Promise.resolve(account);
         }
 
         account.mode = 'loading';
-        return getSessionToken().then(function (token) {
-          return fetch(apiBase() + '/api/me', {
-            headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
-          });
-        }).then(function (response) {
-          return response.json().catch(function () { return {}; }).then(function (data) {
-            return { ok: response.ok, data: data };
-          });
-        }).then(function (result) {
-          if (activeRequest !== requestId) return account;
-          var data = result.data || {};
-          if (!result.ok || !data.ok) throw new Error(data.message || 'Your billing details could not be loaded.');
-          account.mode = 'server';
-          if (data.balance_cents != null && isFinite(Number(data.balance_cents))) account.balanceUsd = Number(data.balance_cents) / 100;
-          else account.balanceUsd = Number(data.balance_usd != null ? data.balance_usd : data.balance);
-          if (!isFinite(account.balanceUsd)) account.balanceUsd = 0;
-          account.apiKey = data.api_key || '';
-          account.runs = Array.isArray(data.runs) ? data.runs : [];
-          storageSet(BALANCE_KEY, String(account.balanceUsd));
-          if (account.apiKey) storageSet(API_KEY, account.apiKey);
-          storageSet(USAGE_KEY, JSON.stringify(account.runs));
+        account.userId = user.id;
+        account.balanceUsd = null;
+        account.balanceCents = null;
+        account.apiKey = '';
+        account.runs = [];
+        render();
+        if (!window.OmoCredits || typeof window.OmoCredits.getBalance !== 'function') {
+          account.mode = 'unavailable';
+          render();
+          showNote('The balance service could not be loaded.', 'error');
+          return Promise.resolve(account);
+        }
+        return window.OmoCredits.getBalance({ force: true }).then(function (data) {
+          var activeUser = currentUser();
+          if (activeRequest !== requestId || !activeUser || activeUser.id !== user.id) return account;
+          account.mode = data.mode;
+          account.userId = data.userId;
+          account.balanceCents = data.balanceCents;
+          account.balanceUsd = data.balanceUsd;
+          account.apiKey = data.apiKey || (data.mode === 'preview' ? storageGet(API_KEY) || demoApiKey(user.id) : '');
+          account.runs = Array.isArray(data.runs) ? data.runs : (data.mode === 'preview' ? runsFromStorage() : []);
+          if (data.mode === 'preview' && account.apiKey) storageSet(API_KEY, account.apiKey);
           render();
           return account;
         }).catch(function (error) {
-          if (activeRequest !== requestId) return account;
+          var activeUser = currentUser();
+          if (activeRequest !== requestId || !activeUser || activeUser.id !== user.id) return account;
           account.mode = 'unavailable';
+          account.balanceUsd = null;
+          account.balanceCents = null;
+          account.apiKey = '';
+          account.runs = [];
           showNote(error && error.message ? error.message : 'Your billing details could not be loaded.', 'error');
           render();
           return account;
         });
+      }
+
+      function applyPublishedCredits(event) {
+        var data = event && event.detail;
+        var user = currentUser();
+        if (!data || !user || data.userId !== user.id) return;
+        account.mode = data.mode;
+        account.userId = data.userId;
+        account.balanceCents = data.balanceCents;
+        account.balanceUsd = data.balanceUsd;
+        if (data.mode !== 'loading') {
+          account.apiKey = data.apiKey || (data.mode === 'preview' ? storageGet(API_KEY) || demoApiKey(user.id) : '');
+          account.runs = Array.isArray(data.runs) ? data.runs : [];
+        }
+        render();
       }
 
       function setSelectedAmount(amount) {
@@ -584,10 +573,38 @@
 
       function finishDemoTopup(result, amount) {
         account.balanceUsd = result && isFinite(Number(result.balance)) ? Number(result.balance) : account.balanceUsd + amount;
-        storageSet(BALANCE_KEY, String(account.balanceUsd));
-        render();
-        setBusy(false);
-        showNote('Demo top-up added ' + formatUsd(amount) + ' to your local balance.', 'ok');
+        storageSet('omo_balance_v1', String(account.balanceUsd));
+        window.OmoCredits.refresh().then(function (data) {
+          account.balanceCents = data.balanceCents;
+          account.balanceUsd = data.balanceUsd;
+          render();
+        }).finally(function () {
+          setBusy(false);
+          showNote('Preview top-up added ' + formatUsd(amount) + ' to the local preview balance.', 'ok');
+        });
+      }
+
+      function newTopupIdempotencyKey(userId, cents) {
+        var fingerprint = String(userId) + ':' + String(cents);
+        try {
+          var saved = JSON.parse(window.sessionStorage.getItem('omo_topup_attempt_v1') || 'null');
+          if (saved && saved.fingerprint === fingerprint && /^topup-[A-Za-z0-9-]{8,128}$/.test(saved.key || '')) return saved.key;
+        } catch (error) {}
+        var key;
+        try { if (window.crypto && typeof window.crypto.randomUUID === 'function') return 'topup-' + window.crypto.randomUUID(); } catch (error) {}
+        key = 'topup-' + Date.now() + '-' + Math.random().toString(36).slice(2, 14);
+        try { window.sessionStorage.setItem('omo_topup_attempt_v1', JSON.stringify({ fingerprint: fingerprint, key: key })); } catch (error) {}
+        return key;
+      }
+
+      function rememberTopupKey(userId, cents) {
+        var key = newTopupIdempotencyKey(userId, cents);
+        try { window.sessionStorage.setItem('omo_topup_attempt_v1', JSON.stringify({ fingerprint: String(userId) + ':' + String(cents), key: key })); } catch (error) {}
+        return key;
+      }
+
+      function clearTopupKey() {
+        try { window.sessionStorage.removeItem('omo_topup_attempt_v1'); } catch (error) {}
       }
 
       function submitTopup(event) {
@@ -604,10 +621,11 @@
         showNote('', '');
 
         if (account.mode === 'server') {
+          var topupKey = rememberTopupKey(account.userId, cents);
           getSessionToken().then(function (token) {
             return fetch(apiBase() + '/api/topup', {
               method: 'POST',
-              headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+              headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'Idempotency-Key': topupKey },
               body: JSON.stringify({ amount_usd: amount })
             });
           }).then(function (response) {
@@ -616,7 +634,11 @@
             });
           }).then(function (result) {
             if (!result.ok || !result.data.url) throw new Error(result.data.error || 'Checkout could not start right now.');
-            window.location.assign(result.data.url);
+            var checkoutUrl;
+            try { checkoutUrl = new URL(result.data.url); } catch (error) { checkoutUrl = null; }
+            if (!checkoutUrl || checkoutUrl.origin !== 'https://checkout.stripe.com') throw new Error('Checkout returned an invalid URL.');
+            clearTopupKey();
+            window.location.assign(checkoutUrl.toString());
           }).catch(function (error) {
             setBusy(false);
             showNote(error && error.message ? error.message : 'Checkout could not start right now.', 'error');
@@ -624,9 +646,9 @@
           return;
         }
 
-        if (!window.StripePay || typeof window.StripePay.topup !== 'function') {
+        if (account.mode !== 'preview' || !window.StripePay || typeof window.StripePay.topup !== 'function') {
           setBusy(false);
-          showNote('Stripe checkout could not be loaded.', 'error');
+          showNote('Sign in with a verified account before topping up.', 'error');
           return;
         }
         window.StripePay.topup(amount, {
@@ -671,8 +693,9 @@
       });
 
       form.addEventListener('submit', submitTopup);
+      window.addEventListener('omo:credits', applyPublishedCredits);
       window.addEventListener('storage', function (event) {
-        if (event.key === BALANCE_KEY || event.key === USAGE_KEY || event.key === API_KEY || event.key === 'cognition_user') refresh();
+        if (window.location.protocol === 'file:' && (event.key === 'omo_balance_v1' || event.key === USAGE_KEY || event.key === API_KEY || event.key === 'cognition_user')) refresh();
       });
       if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') window.ClerkAuth.onAuthChange(refresh);
 
@@ -685,7 +708,16 @@
         else if (topupResult === 'cancelled') showNote('Top-up cancelled — your balance was not changed.', 'error');
         else if (topupResult === 'needed') showNote('You’re out of credits. Choose an amount to keep going.', '');
         refresh();
-        if (topupResult === 'success') window.setTimeout(refresh, 1500);
+        if (topupResult === 'success') {
+          var refreshUser = currentUser();
+          var refreshUserId = refreshUser && refreshUser.id;
+          [1000, 2500, 5000].forEach(function (delay) {
+            window.setTimeout(function () {
+              var current = currentUser();
+              if (refreshUserId && current && current.id === refreshUserId) refresh();
+            }, delay);
+          });
+        }
       } catch (error) {
         refresh();
       }

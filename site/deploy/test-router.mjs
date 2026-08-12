@@ -208,7 +208,8 @@ function check(name, cond) {
 }
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
-const creditsModalSource = fs.readFileSync(path.join(here, '..', 'credits-modal.js'), 'utf8');
+const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
+const creditsSource = fs.readFileSync(path.join(here, '..', 'credits.js'), 'utf8');
 const indexSource = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
 const runPageSource = fs.readFileSync(path.join(here, '..', 'run.html'), 'utf8');
 const catalogSandbox = { window: {} };
@@ -227,10 +228,10 @@ const canonical = (value) => Array.isArray(value)
   : value && typeof value === 'object'
     ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]))
     : value;
-check('dashboard: server account loads /api/me with a Clerk session bearer', dashboardSource.includes('window.Clerk.session.getToken()') && dashboardSource.includes("fetch(API_BASE + '/api/me', { headers: { Authorization: 'Bearer ' + token"));
+check('account client: dashboard uses the shared Clerk-authenticated /api/me balance', dashboardSource.includes('<script src="credits.js"></script>') && dashboardSource.includes('window.OmoCredits.getBalance') && creditsSource.includes("fetch(apiBase() + '/api/me'") && creditsSource.includes("Authorization: 'Bearer ' + token"));
 check('dashboard: cloud-run network errors never fall back to a mock after POST', (dashboardSource.match(/startMockVideoRun\(form, product\);/g) || []).length === 1 && dashboardSource.includes('The submission outcome is unknown') && dashboardSource.includes('Reconcile run'));
 check('dashboard: terminal 5xx run states are handled before indefinite retry', dashboardSource.includes("terminalStatus === 'failed' || terminalStatus === 'refunded'") && dashboardSource.includes("status === 'failed' || status === 'refunded'"));
-check('credits modal: server top-ups post to /api/topup with a Clerk bearer', creditsModalSource.includes("fetch(apiBase() + '/api/topup'") && creditsModalSource.includes("Authorization: 'Bearer ' + token"));
+check('billing: server top-ups post to /api/topup with Clerk bearer + persistent idempotency', billingSource.includes("fetch(apiBase() + '/api/topup'") && billingSource.includes("Authorization: 'Bearer ' + token") && billingSource.includes("'Idempotency-Key': topupKey") && billingSource.includes('omo_topup_attempt_v1'));
 check('dashboard: hosted video form exposes the sample-only provider gate', dashboardSource.includes('Hosted staging currently accepts only sample-demello-10s'));
 check('run manifest: Woven browser schemas stay aligned with generated container input/output', JSON.stringify(canonical(wovenRunManifest.input_schema)) === JSON.stringify(canonical(wovenContainerInput)) && JSON.stringify(canonical(wovenRunManifest.output_schema)) === JSON.stringify(canonical(wovenContainerOutput)));
 check('catalog: Woven listing and hosted manifest publish the same $0.40 run price', wovenListing.runPrice === 0.4 && wovenRunManifest.price_usd === 0.4 && wovenListing.runManifest === 'run-manifests/woven-relationship-book-maker.json');
@@ -690,13 +691,14 @@ const badTopupType = await worker.fetch(mkReq('POST', '/api/topup', { user_id: '
 const badTopupMax = await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_111', amount_usd: 1000.01 }, user111Headers), stripeEnv);
 check('topup: rejects below-min, string, and over-max amounts', badTopup2.status === 400 && badTopupType.status === 400 && badTopupMax.status === 400);
 
-const tp = await (await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_attacker', amount_usd: 7 }, user111Headers), stripeEnv)).json();
+const topupHeaders = { ...user111Headers, 'Idempotency-Key': 'topup-router-0001' };
+const tp = await (await worker.fetch(mkReq('POST', '/api/topup', { user_id: 'user_attacker', amount_usd: 7 }, topupHeaders), stripeEnv)).json();
 check('topup: returns Stripe Checkout url', tp.url === 'https://checkout.stripe.com/c/pay/test_123');
 
 const tpc = stripeCalls[stripeCalls.length - 1];
 const tpcParams = new URLSearchParams(tpc.body);
-check('topup: custom $7 becomes a 700-cent unit_amount', tpcParams.get('line_items[0][price_data][unit_amount]') === '700');
-check('topup: success_url goes to dashboard', (tpcParams.get('success_url') || '').includes('dashboard.html?topup=success'));
+check('topup: custom $7, cards only, and caller idempotency are pinned at Stripe', tpcParams.get('line_items[0][price_data][unit_amount]') === '700' && tpcParams.get('payment_method_types[0]') === 'card' && /^omo-topup-[0-9a-f]{64}$/.test(tpc.headers['Idempotency-Key'] || ''));
+check('topup: success_url returns directly to billing with the session placeholder', tpcParams.get('success_url') === 'https://omo.space/billing.html?topup=success&session_id={CHECKOUT_SESSION_ID}');
 check('topup: verified user overrides body user in reference + metadata', tpcParams.get('client_reference_id') === 'user_111' && tpcParams.get('metadata[user_id]') === 'user_111');
 
 const topupEvent = {
@@ -709,7 +711,9 @@ const topupEvent = {
 };
 const topupWebhook = await worker.fetch(await signedStripeRequest(topupEvent, stripeWebhookSecret), purchaseWebhookEnv);
 const topupWebhookBody = await topupWebhook.json();
-check('topup webhook: shared signed endpoint still fulfills credits', topupWebhook.status === 200 && topupWebhookBody.ok === true && topupWebhookBody.applied === true && topupWebhookBody.user_id === 'user_111');
+const topupReplay = await worker.fetch(await signedStripeRequest(topupEvent, stripeWebhookSecret), purchaseWebhookEnv);
+const topupReplayBody = await topupReplay.json();
+check('topup webhook: signed fulfillment applies once and event/session replay cannot double credit', topupWebhook.status === 200 && topupWebhookBody.ok === true && topupWebhookBody.applied === true && topupWebhookBody.user_id === 'user_111' && topupReplay.status === 200 && topupReplayBody.ok === true && topupReplayBody.applied === false && topupReplayBody.balance_cents === topupWebhookBody.balance_cents);
 
 // ── /api/clerk-webhook (user.created → $5 grant) ──────────────────────────
 

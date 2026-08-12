@@ -553,6 +553,7 @@
   <script src="ig-more.js"></script>
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
+  <script src="credits.js"></script>
   <script src="stripe.js"></script>
   <script>
     (function () {
@@ -567,9 +568,7 @@
       } catch (error) {}
 
       var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
-      var BAL_KEY = 'omo_balance_v1';
       var KEY_KEY = 'omo_apikey_v1';
-      var USE_KEY = 'omo_usage_v1';
       var SEEN_KEY = 'omo_seen_dashboard';
       var VOTE_KEY = 'cognition_votes_v1';
 
@@ -1111,6 +1110,7 @@
               var status = runStatus(data);
               if (status === 'failed' || status === 'refunded' || status === 'cancelled') {
                 activeVideoRun = null;
+                refreshBalanceAfterRun();
                 showVideoProgress(form, data);
                 var failedNode = form.querySelector('[data-demo-status]');
                 failedNode.setAttribute('data-state', 'error');
@@ -1127,6 +1127,7 @@
               showVideoProgress(form, data);
               if (status === 'delivered' || status === 'completed' || status === 'succeeded') {
                 activeVideoRun = null;
+                refreshBalanceAfterRun();
                 renderDeliveredVideo(form, product, data);
                 return;
               }
@@ -1182,6 +1183,7 @@
           })
           .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, status: response.status, data: data }; }); })
           .then(function (result) {
+            refreshBalanceAfterRun();
             if (result.status === 402 || result.data.error === 'insufficient_balance') {
               form._pendingVideoSubmission = null;
               resetVideoRun(form); status.textContent = ''; if (creditEmpty) creditEmpty.hidden = false; return;
@@ -1250,42 +1252,58 @@
         }
         return null;
       }
-      function loadMock(user) {
-        account.mode = 'mock';
-        var balance = parseFloat(lsGet(BAL_KEY));
-        account.balanceUsd = isFinite(balance) ? balance : 5;
-        account.apiKey = lsGet(KEY_KEY) || defaultKey(user.id);
-        account.runs = [];
-        try { var raw = lsGet(USE_KEY); if (raw) { var runs = JSON.parse(raw); if (Array.isArray(runs)) account.runs = runs; } } catch (e) {}
-        lsSet(BAL_KEY, String(account.balanceUsd)); lsSet(KEY_KEY, account.apiKey);
+      function applyCreditAccount(data, user) {
+        if (data.mode === 'loading') {
+          account.mode = 'loading';
+          account.userId = user.id;
+          account.balanceUsd = null;
+          return;
+        }
+        account.mode = data.mode === 'preview' ? 'mock' : 'server';
+        account.userId = user.id;
+        account.balanceUsd = data.balanceUsd;
+        account.apiKey = data.apiKey || (data.mode === 'preview' ? lsGet(KEY_KEY) || defaultKey(user.id) : '');
+        account.runs = Array.isArray(data.runs) ? data.runs : [];
+        if (data.mode === 'preview' && account.apiKey) lsSet(KEY_KEY, account.apiKey);
       }
       function markAccountUnavailable(message) {
-        account.mode = 'unavailable'; account.balanceUsd = 0; account.apiKey = ''; account.runs = [];
+        account.mode = 'unavailable'; account.balanceUsd = null; account.apiKey = ''; account.runs = [];
         showNote(message || 'Your verified account session is unavailable. Sign in again.', true);
       }
       function loadAccount(user) {
         var requestId = ++accountRequestId;
         var userId = user.id;
         account.userId = userId; lsSet(SEEN_KEY, '1');
-        var canFetch = typeof fetch === 'function' && window.location && window.location.protocol !== 'file:';
-        if (!canFetch) { loadMock(user); return; }
-        getClerkSessionToken().then(function (token) {
-          return fetch(API_BASE + '/api/me', { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' } });
-        })
-          .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, data: data }; }); })
-          .then(function (result) {
-            if (requestId !== accountRequestId || account.userId !== userId) return;
-            var data = result.data || {};
-            if (!result.ok || !data.ok) { markAccountUnavailable(data.message || 'Your verified account session could not be loaded. Sign in again.'); return; }
-            account.mode = 'server';
-            account.balanceUsd = Number(data.balance_usd != null ? data.balance_usd : data.balance);
-            account.apiKey = data.api_key || '';
-            account.runs = data.runs || [];
-            lsSet(BAL_KEY, String(account.balanceUsd)); if (account.apiKey) lsSet(KEY_KEY, account.apiKey); lsSet(USE_KEY, JSON.stringify(account.runs));
+        if (!window.OmoCredits || typeof window.OmoCredits.getBalance !== 'function') {
+          markAccountUnavailable('The balance service could not be loaded.');
+          return;
+        }
+        window.OmoCredits.getBalance({ force: true }).then(function (data) {
+            var active = currentUser();
+            if (requestId !== accountRequestId || account.userId !== userId || !active || active.id !== userId) return;
+            applyCreditAccount(data, user);
           }).catch(function (error) {
             if (requestId !== accountRequestId || account.userId !== userId) return;
             markAccountUnavailable(error && error.message);
           });
+      }
+      function refreshBalanceAfterRun() {
+        var user = currentUser();
+        var userId = user && user.id;
+        if (!userId || account.mode === 'mock' || !window.OmoCredits || typeof window.OmoCredits.refresh !== 'function') return Promise.resolve();
+        return window.OmoCredits.refresh().then(function (data) {
+          var active = currentUser();
+          if (!active || active.id !== userId || account.userId !== userId) return;
+          applyCreditAccount(data, active);
+        }).catch(function () {
+          /* The run result remains visible; the nav keeps its quiet unknown state on refresh failure. */
+        });
+      }
+      function applyPublishedCredits(event) {
+        var data = event && event.detail;
+        var user = currentUser();
+        if (!data || !user || data.userId !== user.id) return;
+        applyCreditAccount(data, user);
       }
       function clearAccountState() {
         accountRequestId += 1;
@@ -1410,7 +1428,11 @@
                 if (!result.data.ok) { status.setAttribute('data-state', 'error'); status.textContent = result.data.message || result.data.error || 'The workflow could not run.'; return; }
                 resultBox.innerHTML = renderDemoOutput(result.data.output !== undefined ? result.data.output : result.data); resultBox.hidden = false; status.textContent = 'Done — that’s the real helper output.';
               }).catch(function () { status.setAttribute('data-state', 'error'); status.textContent = 'Could not reach the cloud runner right now.'; })
-              .finally(function () { runButton.disabled = false; runButton.textContent = 'Run on our cloud — ≈ $' + Number(product.runPrice || product.priceRun || 0).toFixed(2) + ' / run'; });
+              .finally(function () {
+                refreshBalanceAfterRun();
+                runButton.disabled = false;
+                runButton.textContent = 'Run on our cloud — ≈ $' + Number(product.runPrice || product.priceRun || 0).toFixed(2) + ' / run';
+              });
           });
         }
         if (closeBtn) closeBtn.addEventListener('click', function () { cancelActiveVideoRun(); if (dialog.close) dialog.close(); else dialog.removeAttribute('open'); });
@@ -1451,6 +1473,7 @@
         if (el('gate-signin-btn')) el('gate-signin-btn').addEventListener('click', signIn);
         if (el('top-signin-btn')) el('top-signin-btn').addEventListener('click', signIn);
         if (window.ClerkAuth && ClerkAuth.onAuthChange) ClerkAuth.onAuthChange(refreshAuth);
+        window.addEventListener('omo:credits', applyPublishedCredits);
       }
 
       renderSidebar();
