@@ -1,0 +1,318 @@
+/* Shared mobile conventions for Omo's top-level pages. Desktop begins above 820px. */
+@media (max-width: 820px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .shell,
+  .dash-shell,
+  .api-shell,
+  .sell-nav-shell,
+  .run-shell {
+    width: 100% !important;
+    max-width: var(--shell, 1160px);
+    margin-inline: auto;
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-left: max(16px, env(safe-area-inset-left));
+  }
+
+  button,
+  .button,
+  .omo-nav-menu-toggle,
+  .omo-nav-login {
+    min-height: 44px;
+  }
+
+  body .skip-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+  select,
+  textarea {
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  pre,
+  code,
+  .api-auth,
+  .demo-raw {
+    max-width: 100%;
+  }
+
+  pre,
+  .api-auth,
+  .demo-raw,
+  .table-wrap {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .omo-footer-links a {
+    min-height: 44px;
+  }
+
+  /* Storefront and catalogue filters wrap so every option is visible. */
+  .feed-tools .filter-row,
+  .catalog-tools .filter-row {
+    width: 100%;
+    margin-inline: 0;
+    padding: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    overflow: visible;
+  }
+
+  .filter-chip,
+  .niche-item {
+    min-height: 44px;
+  }
+
+  /* Workflow gallery: edge-to-edge stage and wrapping, thumb-sized controls. */
+  .media-gallery {
+    width: 100%;
+    margin-inline: 0;
+  }
+
+  .media-thumbnails,
+  .media-thumbnails.is-single {
+    display: flex;
+    flex-wrap: wrap;
+    grid-template-columns: none;
+    gap: 10px;
+    overflow: visible;
+  }
+
+  .media-thumbnail,
+  .media-thumbnails.is-single .media-thumbnail {
+    width: calc((100% - 20px) / 3);
+    min-width: 72px;
+    min-height: 44px;
+    flex: 0 1 calc((100% - 20px) / 3);
+  }
+
+  .media-dot {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+  }
+
+  .media-dot::before {
+    position: absolute;
+    inset: 17px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .58);
+    content: "";
+  }
+
+  .media-dot.is-active { background: transparent; }
+  .media-dot.is-active::before { background: #fff; transform: scale(1.22); }
+
+  .offer-info {
+    width: 44px;
+    height: 44px;
+    right: 0;
+  }
+
+  .offer-info-mark {
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+  }
+
+  .offer-tooltip,
+  .offer-powered,
+  .offer-powered span {
+    font-size: 12px;
+  }
+
+  /* Run keeps its established stacked mobile order; controls and copy are enlarged. */
+  .field-control { font-size: 16px; }
+  .panel-back {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+  }
+
+  .use-example { min-height: 44px; }
+  .panel-kicker,
+  .example-label,
+  .field-help,
+  .field-error,
+  .form-status,
+  .credit-note,
+  .privacy-note,
+  .count,
+  .made-chip,
+  .example-overline,
+  .example-caption,
+  .example-input,
+  .example-output,
+  .use-example,
+  .status-label,
+  .phase-list,
+  .progress-note,
+  .run-id,
+  .output-tag,
+  .artifact-link,
+  .action-button {
+    font-size: 12px;
+  }
+
+  /* Billing order is credits -> usage -> API in the DOM; make every action roomy. */
+  .button--quiet { min-height: 44px; }
+  .api-foot a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* The creator form's flex:1 otherwise collapses its input in a column. */
+  .creator-waitlist-input {
+    width: 100%;
+    height: 48px;
+    flex: 0 0 auto;
+  }
+
+  /* API/MCP wide content stays local to its own scroll surface. */
+  .key-box code {
+    display: block;
+    overflow-x: auto;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  .copy-button { min-height: 44px; }
+  body .upvote-btn .upvote-arrow { font-size: 12px; }
+  .note-kicker,
+  .method,
+  .recipe-live,
+  .eyebrow,
+  .secure-label {
+    font-size: 12px;
+  }
+
+  /* Signup modal controls need the same 44px interaction floor. */
+  body .auth-modal__close {
+    width: 46px;
+    height: 46px;
+  }
+
+  body .auth-modal__fine-print { font-size: 12px; }
+  body .auth-modal__fine-print a,
+  body .auth-modal__switch-button,
+  body .auth-modal__resend {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Inline support/legal links get a comfortable vertical hit area. */
+  .text-link,
+  .foot a,
+  .hero-note a,
+  .step a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .login-link {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .creator-badge,
+  .economics-label,
+  .cover-card--center::after,
+  .page-footer:not(.omo-footer),
+  .page-footer:not(.omo-footer) .footer-links a {
+    font-size: 12px;
+  }
+
+  .page-footer:not(.omo-footer) .footer-links a {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 6px;
+  }
+
+  /* Keep the decorative sell collage inside the tablet viewport. */
+  .showcase-stage {
+    left: 0;
+    width: 100%;
+    transform: none;
+  }
+
+  .cover-card--far-left,
+  .cover-card--far-right { display: none; }
+  .cover-card--left { left: 22%; }
+  .cover-card--center { left: 50%; }
+  .cover-card--right { left: 78%; }
+}
+
+@media (max-width: 480px) {
+  /* Sell keeps the layered cover idea without placing real cards off-canvas. */
+  .showcase {
+    height: 248px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
+  }
+
+  .showcase-stage {
+    left: 0;
+    width: 100%;
+    transform: none;
+  }
+
+  .cover-card { width: 112px; }
+  .cover-card--center { width: 140px; }
+  .cover-card--far-left,
+  .cover-card--far-right { display: none; }
+  .cover-card--left { left: 22%; }
+  .cover-card--center { left: 50%; }
+  .cover-card--right { left: 78%; }
+  .creator-badge { left: calc(50% + 34px); bottom: 11px; }
+  .spark--one { left: calc(50% - 104px); }
+  .spark--two { right: calc(50% - 112px); }
+
+  .economics {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  .economics-item {
+    min-height: 86px;
+    padding: 16px;
+  }
+
+  .economics-item + .economics-item {
+    border-top: 1px solid var(--rule);
+    border-left: 0;
+  }
+
+  .economics-label { font-size: 12px; }
+
+  .page-footer:not(.omo-footer) {
+    gap: 4px 10px;
+    font-size: 12px;
+  }
+
+}

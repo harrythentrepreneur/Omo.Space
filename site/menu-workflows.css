@@ -19,6 +19,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .omo-nav-popover .omo-nav-workflow-link {
@@ -127,11 +128,31 @@
   border-top: 0;
 }
 
-@media (max-width: 400px) {
-  .omo-nav-popover {
-    left: 0;
-    width: min(292px, calc(100vw - 24px));
+@media (max-width: 820px) {
+  .omo-nav-workflows {
+    min-height: 0;
   }
 
-  .omo-nav-workflows-list { max-height: min(218px, 38vh); }
+  .omo-nav-workflows-label {
+    margin-top: 3px;
+    font-size: 12px;
+  }
+
+  .omo-nav-workflow-status { font-size: 12px; }
+  .omo-nav-workflows-empty { font-size: 12px; }
+
+  .omo-nav-workflows-list {
+    max-height: min(260px, 38dvh);
+    padding-bottom: max(2px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 400px) {
+  .omo-nav-popover {
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    width: auto;
+  }
+
+  .omo-nav-workflows-list { max-height: min(218px, 36dvh); }
 }

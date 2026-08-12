@@ -169,7 +169,7 @@
 
 @media (max-width: 760px) {
   .omo-nav-row {
-    min-height: 64px;
+    min-height: 68px;
     align-items: center;
     flex-direction: row;
     gap: 10px;
@@ -177,7 +177,7 @@
   }
 
   .omo-nav-brand {
-    position: relative;
+    position: static;
     gap: 7px;
   }
 
@@ -188,8 +188,9 @@
     height: 30px;
   }
 
-  .omo-nav-menu-toggle { padding-inline: 9px; }
+  .omo-nav-menu-toggle { min-width: 44px; padding-inline: 9px; }
   .omo-nav-login { padding-inline: 13px; }
+  .omo-nav-popover a { min-height: 44px; }
 
   .omo-footer .footer-row { flex-direction: column; }
   .omo-footer-links { width: 100%; }
@@ -203,7 +204,7 @@
 
   .omo-nav-menu-toggle,
   .omo-nav-login {
-    min-height: 38px;
+    min-height: 44px;
     padding-inline: 9px;
     font-size: 12px;
   }
