@@ -12,7 +12,7 @@
   <title>Run a workflow | Omo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Fraunces:opsz,wght@9..144,600;9..144,700&amp;display=swap" rel="stylesheet">
   <style>
     :root {
       --canvas: #f6f2e9;
@@ -30,6 +30,7 @@
       --danger: #a43525;
       --code: #102a21;
       --font: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --display: "Fraunces", Georgia, serif;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --shadow: 0 16px 42px rgba(23, 53, 44, .065);
     }
@@ -59,7 +60,7 @@
     }
     [hidden] { display: none !important; }
     .sig-cut { border-radius: 16px 16px 5px 16px; }
-    .shell { width: min(1380px, calc(100% - 48px)); margin-inline: auto; }
+    .shell { width: min(1680px, calc(100% - 32px)); margin-inline: auto; }
     .sr-only {
       position: absolute;
       width: 1px;
@@ -94,7 +95,7 @@
     .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
     .wordmark-logo { width: auto; height: 32px; }
 
-    .run-main { padding: 25px 0 78px; }
+    .run-main { padding: 21px 0 78px; }
     .crumb {
       min-height: 38px;
       display: inline-flex;
@@ -124,9 +125,11 @@
     }
     .listing-title {
       margin-bottom: 7px;
+      font-family: var(--display);
       font-size: clamp(31px, 4vw, 46px);
+      font-weight: 700;
       line-height: 1.07;
-      letter-spacing: -.045em;
+      letter-spacing: -.035em;
       overflow-wrap: anywhere;
       text-wrap: balance;
     }
@@ -150,9 +153,9 @@
 
     .workbench {
       display: grid;
-      grid-template-columns: minmax(340px, .64fr) minmax(0, 1.36fr);
+      grid-template-columns: minmax(360px, 32.5%) minmax(0, 1fr);
       align-items: start;
-      gap: 18px;
+      gap: 16px;
     }
     .input-panel, .examples-panel, .exchange-panel {
       min-width: 0;
@@ -163,12 +166,13 @@
     }
     .input-panel {
       position: sticky;
-      top: 84px;
-      max-height: calc(100vh - 100px);
+      top: 72px;
+      height: clamp(500px, calc(100dvh - 310px), 790px);
+      max-height: calc(100dvh - 88px);
       display: flex;
       flex-direction: column;
     }
-    .right-workspace { min-width: 0; display: grid; gap: 18px; }
+    .right-workspace { min-width: 0; display: grid; gap: 16px; }
     .panel-head {
       min-height: 61px;
       display: flex;
@@ -182,7 +186,8 @@
     .panel-title::before { width: 9px; height: 9px; border-radius: 50%; background: var(--orange); content: ""; }
     .panel-kicker { color: var(--moss); font: 700 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
 
-    .form-body { padding: 20px; overflow-y: auto; }
+    .form-shell { min-height: 0; display: flex; flex: 1; flex-direction: column; }
+    .form-scroll { min-height: 0; flex: 1; padding: 20px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
     .form-intro { margin-bottom: 18px; color: var(--moss); font-size: 13px; }
     .form-fields { display: grid; gap: 17px; }
     .field { min-width: 0; }
@@ -239,13 +244,11 @@
     .fixed-badge { flex: 0 0 auto; color: var(--moss); font: 700 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
     .field-error { min-height: 16px; margin: 5px 0 0; color: var(--danger); font-size: 11px; }
     .form-actions {
-      position: sticky;
-      bottom: -20px;
-      z-index: 2;
-      margin: 20px -20px -20px;
-      padding: 17px 20px 18px;
+      flex: 0 0 auto;
+      padding: 16px 20px 17px;
       border-top: 1px solid var(--rule);
       background: #fbfcf9;
+      box-shadow: 0 -10px 24px rgba(23, 53, 44, .045);
     }
     .run-button, .action-button, .use-example, .copy-button {
       min-height: 42px;
@@ -268,7 +271,38 @@
     .run-button:disabled { cursor: wait; opacity: .72; }
     .form-status { min-height: 18px; margin: 9px 0 0; color: var(--moss); font-size: 11px; text-align: center; }
     .form-status[data-state="error"] { color: var(--danger); }
+    .credit-note {
+      margin: 8px 0 0;
+      padding: 7px 9px;
+      border: 1px solid #c9e3d4;
+      border-radius: 8px 8px 3px 8px;
+      background: var(--mint-soft);
+      color: #365349;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+    }
     .privacy-note { margin: 2px 0 0; color: var(--moss); font-size: 10px; text-align: center; }
+
+    .workspace-head { overflow-x: auto; scrollbar-width: none; }
+    .workspace-head::-webkit-scrollbar { display: none; }
+    .workspace-tabs { min-width: max-content; display: flex; align-items: center; gap: 4px; }
+    .workspace-tab {
+      min-height: 35px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px;
+      border-radius: 8px;
+      color: var(--moss);
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .workspace-tab:hover { background: #f1f5f2; color: var(--pine); }
+    .workspace-tab.active { background: var(--mint-soft); color: var(--pine); }
+    .count { min-width: 20px; padding: 3px 6px; border-radius: 99px; background: var(--mint); color: var(--pine); font: 700 9px/1 var(--mono); text-align: center; }
+    .view-label { flex: 0 0 auto; color: var(--moss); font: 700 9px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; }
 
     .examples-intro {
       display: flex;
@@ -277,7 +311,7 @@
       gap: 18px;
       padding: 18px 20px 0;
     }
-    .examples-intro h2 { margin-bottom: 4px; font-size: 19px; letter-spacing: -.025em; }
+    .examples-intro h2 { margin-bottom: 4px; font-family: var(--display); font-size: 21px; letter-spacing: -.025em; }
     .examples-intro p { max-width: 610px; margin: 0; color: var(--moss); font-size: 12px; }
     .example-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px 20px 20px; }
     .example-grid.single { grid-template-columns: minmax(0, 1fr); }
@@ -291,14 +325,12 @@
     }
     .example-card:hover { transform: translateY(-2px); border-color: #b3c3ba; box-shadow: 0 10px 25px rgba(23, 53, 44, .08); }
     .example-visual {
-      min-height: 86px;
+      aspect-ratio: 16 / 9;
       position: relative;
       display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 14px;
+      align-items: center;
+      justify-content: center;
       overflow: hidden;
-      padding: 15px;
       border-bottom: 1px solid var(--rule);
       background: linear-gradient(135deg, #d9f4e6, #f8eedb);
     }
@@ -311,15 +343,20 @@
     }
     .example-visual::before { width: 92px; height: 92px; left: -34px; top: -42px; }
     .example-visual::after { width: 66px; height: 66px; right: -18px; bottom: -38px; }
-    .example-glyph { position: relative; z-index: 1; font-size: 30px; line-height: 1; }
-    .made-chip { position: relative; z-index: 1; padding: 5px 8px; border-radius: 99px; background: rgba(23, 53, 44, .88); color: #fff; font-size: 9px; font-weight: 700; }
+    .example-art { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; display: block; object-fit: cover; }
+    .example-card:nth-child(2) .example-art { object-position: 50% 42%; }
+    .example-card:nth-child(3) .example-art { object-position: 50% 58%; }
+    .example-card:nth-child(4) .example-art { object-position: 50% 35%; }
+    .example-glyph { position: relative; z-index: 1; font-size: 34px; line-height: 1; }
+    .made-chip { position: absolute; top: 10px; left: 10px; z-index: 2; padding: 5px 8px; border-radius: 99px; background: rgba(23, 53, 44, .88); color: #fff; font-size: 9px; font-weight: 700; backdrop-filter: blur(7px); }
     .example-copy { padding: 14px; }
     .example-overline { margin: 0 0 5px; color: var(--orange); font: 700 9px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
     .example-copy h3 { margin-bottom: 5px; font-size: 15px; line-height: 1.3; letter-spacing: -.015em; }
-    .example-caption { margin-bottom: 9px; color: #435c53; font-size: 11px; }
+    .example-caption { margin-bottom: 7px; color: var(--moss); font: 700 9px/1.3 var(--mono); letter-spacing: .03em; }
+    .example-input { min-height: 54px; display: -webkit-box; margin-bottom: 10px; overflow: hidden; color: #435c53; font-size: 11px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
     .example-output { min-height: 47px; margin-bottom: 11px; padding: 9px 10px; border-left: 3px solid var(--mint); background: var(--mint-soft); color: #365349; font-size: 11px; line-height: 1.4; }
-    .use-example { min-height: 44px; gap: 6px; padding: 0 11px; background: #fff; color: var(--pine); font-size: 11px; }
-    .use-example:hover { background: var(--mint); }
+    .use-example { position: absolute; right: 10px; bottom: 10px; z-index: 3; min-height: 38px; gap: 6px; padding: 0 11px; border-color: rgba(255,255,255,.4); background: rgba(23, 53, 44, .92); color: #fff; box-shadow: 0 7px 22px rgba(23,53,44,.22); font-size: 11px; backdrop-filter: blur(7px); }
+    .use-example:hover { border-color: var(--pine); background: var(--mint); color: var(--pine); }
     .use-example::before { color: var(--orange); font-size: 13px; content: "↙"; }
 
     .exchange-body { padding: 20px; }
@@ -365,7 +402,7 @@
     .response-code { min-height: 100%; max-height: 470px; padding: 14px; border-radius: 10px 10px 3px 10px; background: var(--pine); color: #dff6e8; }
     .friendly-output { min-height: 100%; padding: 17px; border: 1px solid #efc8b8; border-radius: 11px 11px 3px 11px; background: var(--orange-soft); }
     .output-tag { margin: 0 0 7px; color: #9b4a2c; font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-    .friendly-output h3 { margin-bottom: 8px; font-size: 19px; letter-spacing: -.025em; }
+    .friendly-output h3 { margin-bottom: 8px; font-family: var(--display); font-size: 21px; letter-spacing: -.025em; }
     .friendly-output h4 { margin: 15px 0 6px; font-size: 14px; }
     .friendly-output p, .friendly-output li { color: #43574f; font-size: 12px; line-height: 1.55; }
     .friendly-output ul, .friendly-output ol { margin: 0 0 10px; padding-left: 20px; }
@@ -406,9 +443,9 @@
     @media (max-width: 800px) {
       .title-row { align-items: flex-start; flex-direction: column; gap: 12px; }
       .workbench { grid-template-columns: 1fr; }
-      .input-panel { position: static; max-height: none; display: block; }
-      .form-body { overflow: visible; }
-      .form-actions { position: static; }
+      .input-panel { position: static; height: auto; min-height: 0; max-height: none; display: block; }
+      .form-shell { display: block; }
+      .form-scroll { overflow: visible; }
       .example-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .example-grid.single, .response-layout { grid-template-columns: 1fr; }
     }
@@ -420,10 +457,14 @@
       .listing-promise { font-size: 15px; }
       .price-chip { min-height: 36px; }
       .panel-head { min-height: 56px; padding-inline: 15px; }
-      .form-body, .exchange-body { padding: 16px 15px; }
-      .form-actions { margin: 18px -15px -16px; padding: 15px; }
+      .form-scroll, .exchange-body { padding: 16px 15px; }
+      .form-actions { padding: 15px; }
       .examples-intro { padding: 16px 15px 0; }
       .example-grid { grid-template-columns: 1fr; padding: 14px 15px 16px; }
+      .workspace-head { padding-inline: 10px; }
+      .workspace-tab { padding-inline: 8px; }
+      .workspace-tab:nth-child(3) { display: none; }
+      .view-label { display: none; }
       .phase-list { gap: 3px; font-size: 8px; }
       .phase-list span.done::before { display: none; }
       .below { flex-direction: column; gap: 5px; }
@@ -473,26 +514,31 @@
         <aside class="input-panel sig-cut" aria-labelledby="inputs-title">
           <header class="panel-head">
             <h2 class="panel-title" id="inputs-title">Inputs</h2>
-            <span class="panel-kicker">Live request</span>
+            <span class="panel-kicker">Fixed request rail</span>
           </header>
-          <div class="form-body">
-            <p class="form-intro">Add the details this workflow should use. Examples guide the shape; your words stay yours.</p>
-            <form id="run-form" novalidate>
+          <form class="form-shell" id="run-form" novalidate>
+            <div class="form-scroll">
+              <p class="form-intro">Add the details this workflow should use. Examples guide the shape; your words stay yours.</p>
               <div class="form-fields" id="input-fields"></div>
-              <div class="form-actions">
-                <button class="run-button" id="run-button" type="submit"></button>
-                <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
-                <p class="privacy-note">Omo validates the request before any paid work starts.</p>
-              </div>
-            </form>
-          </div>
+            </div>
+            <div class="form-actions">
+              <button class="run-button" id="run-button" type="submit"></button>
+              <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+              <p class="credit-note" id="credit-note" hidden></p>
+              <p class="privacy-note">Omo validates the request before any paid work starts.</p>
+            </div>
+          </form>
         </aside>
 
         <div class="right-workspace">
-          <section class="examples-panel sig-cut" aria-labelledby="examples-title">
-            <header class="panel-head">
-              <h2 class="panel-title">Examples</h2>
-              <span class="panel-kicker" id="example-count">Complete requests</span>
+          <section class="examples-panel sig-cut" id="examples" aria-labelledby="examples-title">
+            <header class="panel-head workspace-head">
+              <nav class="workspace-tabs" aria-label="Run workspace">
+                <a class="workspace-tab active" href="#examples">▧ Examples <span class="count" id="example-count">0</span></a>
+                <a class="workspace-tab" href="#request-workspace">{ } Request</a>
+                <a class="workspace-tab" href="#response-workspace">↗ Response</a>
+              </nav>
+              <span class="view-label">▦ Gallery</span>
             </header>
             <div class="examples-intro">
               <div>
@@ -509,7 +555,7 @@
               <span class="panel-kicker">Cloud workspace</span>
             </header>
             <div class="exchange-body">
-              <section class="request-block" aria-labelledby="request-title">
+              <section class="request-block" id="request-workspace" aria-labelledby="request-title">
                 <div class="code-head">
                   <h3 class="code-title" id="request-title"><span class="method">POST</span> /api/run · Request JSON</h3>
                   <button class="copy-button" id="copy-json" type="button">Copy JSON</button>
@@ -528,7 +574,7 @@
                 <span class="run-id" id="run-id" hidden></span>
               </section>
 
-              <div class="response-layout">
+              <div class="response-layout" id="response-workspace">
                 <section class="response-column" aria-labelledby="response-title">
                   <div class="code-head"><h3 class="code-title" id="response-title">Response JSON</h3></div>
                   <pre class="response-code" id="response-json">{
@@ -612,6 +658,21 @@
         } catch (error) { return null; }
       }
       function signedIn() { return !!currentUser(); }
+      function updateCreditNote() {
+        var note = el('credit-note');
+        if (!note) return;
+        if (!signedIn()) {
+          note.hidden = true;
+          note.textContent = '';
+          return;
+        }
+        var rawBalance = safeStorage('omo_balance_v1');
+        var balance = rawBalance == null ? NaN : Number(rawBalance);
+        note.textContent = isFinite(balance)
+          ? formatPrice(balance) + ' in credits · this run uses ' + formatPrice(runtimeDefinition && runtimeDefinition.price_usd)
+          : 'This run uses your Omo credits · live balance is in the header';
+        note.hidden = false;
+      }
       function openSignup() {
         var options = { open: listing.slug, destination: 'run' };
         if (window.OmoAuth && typeof window.OmoAuth.open === 'function') {
@@ -1022,7 +1083,65 @@
         }];
       }
       function exampleList() {
-        return runtimeDefinition.examples && runtimeDefinition.examples.length ? runtimeDefinition.examples : syntheticExample();
+        var examples = runtimeDefinition.examples && runtimeDefinition.examples.length ? runtimeDefinition.examples.slice() : syntheticExample();
+        if (listing.slug === 'woven-relationship-book-maker' && examples.length < 4) {
+          examples = examples.concat([
+            {
+              id: 'dog-park',
+              title: 'The ball thief',
+              caption: 'Playful · short keepsake',
+              input: {
+                how_you_met: 'We met at a dog park when Milo stole Theo’s tennis ball. Coffee the next morning turned into every morning.',
+                favorite_moments: 'Adopting Milo, rainy Sunday walks, and dancing in the kitchen after moving in.',
+                inside_jokes: 'We call Milo the matchmaker and still argue about who threw the first ball.',
+                style: 'playful',
+                length: 'short'
+              },
+              output_preview: 'A playful opening chapter called “The Ball Thief,” with Milo woven through the page plan.'
+            },
+            {
+              id: 'lisbon',
+              title: 'Oranges after tram 28',
+              caption: 'Poetic · long keepsake',
+              input: {
+                how_you_met: 'We were friends first, until one very long goodbye outside the train station changed everything.',
+                favorite_moments: 'Our first Lisbon trip: missing tram 28, sharing oranges on the steps, and walking home under the city lights.',
+                inside_jokes: 'We say “one tiny suitcase” whenever either of us overpacks.',
+                style: 'poetic',
+                length: 'long'
+              },
+              output_preview: 'A sun-washed travel chapter with a six-part page plan and a quiet train-station opening.'
+            },
+            {
+              id: 'yellow-house',
+              title: 'The first shared key',
+              caption: 'Warm · long keepsake',
+              input: {
+                how_you_met: 'We met on a delayed flight and talked until the airport lights switched off.',
+                favorite_moments: 'Two cities, sixteen boxes, and getting the first key to the little yellow house.',
+                inside_jokes: '“One more box” has never meant one more box.',
+                style: 'warm',
+                length: 'long'
+              },
+              output_preview: 'A sincere milestone story with a move-in timeline and a closing spread about home.'
+            }
+          ]);
+        }
+        if (listing.slug === VIDEO_SLUG && examples.length < 4) {
+          var base = examples[0] || syntheticExample()[0];
+          examples = [5, 10, 15, 20].map(function (duration, index) {
+            var titles = ['A five-second ink beat', 'Present-moment reflection', 'A slower brush reveal', 'The complete ink arc'];
+            var previews = ['A compact portrait opening with one clear drawing beat.', 'A paced portrait MP4 with progressive ink-drawing animation.', 'A roomier three-beat sequence with the original reflection.', 'A full four-beat sumi-e arc plus the run-scoped frame set.'];
+            return {
+              id: 'sumi-e-' + duration,
+              title: titles[index],
+              caption: 'Sumi-e · ' + duration + ' seconds',
+              input: { audio: 'sample-demello-10s', style: 'sumi-e', duration: duration },
+              output_preview: previews[index] || previewText(base)
+            };
+          });
+        }
+        return examples;
       }
       function previewText(example) {
         var preview = example.output_preview;
@@ -1030,17 +1149,38 @@
         if (preview && typeof preview === 'object') return preview.text || preview.label || JSON.stringify(preview);
         return 'A finished result built from this complete request.';
       }
+      function exampleInputText(example) {
+        var input = example.input || {};
+        return Object.keys(input).map(function (key) {
+          return (schemaFor(key).title || titleCase(key)) + ': ' + String(input[key]);
+        }).join(' · ');
+      }
+      function exampleVisuals() {
+        var urls = [];
+        if (listing.cover) urls.push(listing.cover);
+        if (Array.isArray(listing.images)) urls = urls.concat(listing.images);
+        return urls.filter(function (url, index) { return url && urls.indexOf(url) === index; });
+      }
       function renderExamples() {
         var examples = exampleList();
+        var visuals = exampleVisuals();
         var grid = el('example-grid');
         grid.innerHTML = '';
         grid.classList.toggle('single', examples.length === 1);
-        el('example-count').textContent = examples.length + (examples.length === 1 ? ' complete request' : ' complete requests');
+        el('example-count').textContent = String(examples.length);
         examples.forEach(function (example, index) {
           var card = document.createElement('article');
           card.className = 'example-card';
           var visual = document.createElement('div');
           visual.className = 'example-visual';
+          if (visuals.length) {
+            var art = document.createElement('img');
+            art.className = 'example-art';
+            art.src = visuals[index % visuals.length];
+            art.alt = '';
+            art.loading = index > 1 ? 'lazy' : 'eager';
+            visual.appendChild(art);
+          }
           var glyph = document.createElement('span');
           glyph.className = 'example-glyph';
           glyph.setAttribute('aria-hidden', 'true');
@@ -1048,7 +1188,7 @@
           var made = document.createElement('span');
           made.className = 'made-chip';
           made.textContent = 'Complete input';
-          visual.appendChild(glyph);
+          if (!visuals.length) visual.appendChild(glyph);
           visual.appendChild(made);
           var copy = document.createElement('div');
           copy.className = 'example-copy';
@@ -1060,6 +1200,9 @@
           var caption = document.createElement('p');
           caption.className = 'example-caption';
           caption.textContent = Object.keys(example.input || {}).length + ' fields · replaces the full request';
+          var input = document.createElement('p');
+          input.className = 'example-input';
+          input.textContent = exampleInputText(example);
           var output = document.createElement('p');
           output.className = 'example-output';
           output.textContent = 'It makes: ' + previewText(example);
@@ -1071,8 +1214,9 @@
           copy.appendChild(overline);
           copy.appendChild(title);
           copy.appendChild(caption);
+          copy.appendChild(input);
           copy.appendChild(output);
-          copy.appendChild(button);
+          visual.appendChild(button);
           card.appendChild(visual);
           card.appendChild(copy);
           grid.appendChild(card);
@@ -1545,7 +1689,13 @@
       renderPhaseList();
       updateRequestPreview();
       el('run-button').textContent = runButtonLabel();
+      updateCreditNote();
       el('run-view').hidden = false;
+
+      if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') window.ClerkAuth.onAuthChange(updateCreditNote);
+      window.addEventListener('storage', function (event) {
+        if (event.key === 'cognition_user' || event.key === 'omo_balance_v1') updateCreditNote();
+      });
 
       el('copy-json').addEventListener('click', function () {
         var text = el('request-json').textContent;
