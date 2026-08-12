@@ -41,6 +41,8 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Open proposals (awaiting Harry)
 
+- **PhonicsMaker contact audit is blocked:** the public Loops REST API has no bulk contact read endpoint. The discovered `/api/v1/zapier/list/mailingListContact` route returns only five unpaginated webhook events, not current list membership. Provide a Loops CSV export of both target lists (with custom properties) or a confirmed read-only bulk endpoint before generating the pilot segment.
+
 ### PROPOSAL schema-001 — apply the additive production schema
 
 From `/Users/yifan/marketplace`, securely provide `NEON_DATABASE_URL` and run
