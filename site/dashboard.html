@@ -1400,7 +1400,12 @@
             renderAccount();
             if (refreshAfterTopup) {
               refreshAfterTopup = false;
-              setTimeout(function () { loadAccount(user); }, 1500);
+              var refreshRequestId = requestId;
+              window.setTimeout(function () {
+                var current = window.ClerkAuth && window.ClerkAuth.getUser ? window.ClerkAuth.getUser() : null;
+                if (refreshRequestId !== accountRequestId || !current || current.id !== userId) return;
+                loadAccount(current);
+              }, 1500);
             }
           }).catch(function (error) {
             if (requestId !== accountRequestId || account.userId !== userId) return;
@@ -1646,7 +1651,16 @@
           button.disabled = true;
           button.setAttribute('aria-busy', 'true');
           button.textContent = 'Signing out…';
-          Promise.resolve(window.ClerkAuth.signOut()).then(function () {
+          var signOutResult;
+          try { signOutResult = window.ClerkAuth.signOut(); }
+          catch (error) {
+            showNote('Sign-out failed. You are still signed in. Please try again.', true);
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            button.textContent = 'Log out';
+            return;
+          }
+          Promise.resolve(signOutResult).then(function () {
             clearAccountState();
             window.location.assign('index.html');
           }).catch(function () {

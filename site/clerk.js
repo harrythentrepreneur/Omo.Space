@@ -182,6 +182,7 @@
         } else {
           realClerkUser = realClerk.user || null;
         }
+        if (!realClerkUser) clearUserState();
         fire();
         finishSignUpRedirect();
       });

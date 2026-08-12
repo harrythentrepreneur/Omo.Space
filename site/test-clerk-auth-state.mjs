@@ -119,8 +119,14 @@ assert.deepEqual(
   'successful sign-out should clear user-bound browser state',
 );
 
+removedStorageKeys.length = 0;
 clerkListener({ user: signedInUser, session: { id: 'sess_456' } });
 clerkListener({ user: null, session: null });
+assert.deepEqual(
+  [...removedStorageKeys].sort(),
+  ['cognition_user', 'omo_apikey_v1', 'omo_balance_v1', 'omo_usage_v1'].sort(),
+  'Clerk-driven sign-out should clear user-bound browser state',
+);
 assert.equal(
   context.window.ClerkAuth.isSignedIn(),
   false,
