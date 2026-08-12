@@ -13,6 +13,7 @@
   var LOAD_TIMEOUT_MS = 15000;
   var USER_KEY = 'cognition_user';
   var realClerk = null;
+  var realClerkUser = null;
   var loadPromise = null;
   var loadError = null;
   var pendingModal = '';
@@ -135,7 +136,7 @@
 
   function finishSignUpRedirect() {
     if (!signUpRedirect) return false;
-    var signedIn = demoMode() ? !!loadUser() : !!(realClerk && realClerk.user);
+    var signedIn = demoMode() ? !!loadUser() : !!realClerkUser;
     if (!signedIn) return false;
     var target = signUpRedirect;
     signUpRedirect = '';
@@ -158,8 +159,17 @@
     catch (error) { reject(error); return; }
     Promise.resolve(ready).then(function () {
       realClerk = window.Clerk;
+      realClerkUser = realClerk.user || null;
       loadError = null;
-      realClerk.addListener(function () {
+      realClerk.addListener(function (resources) {
+        // Clerk delivers the listener payload before every SDK build updates
+        // the singleton's `user` property. Keep the payload as the auth source
+        // of truth so navigation reacts to sign-in/sign-out immediately.
+        if (resources && Object.prototype.hasOwnProperty.call(resources, 'user')) {
+          realClerkUser = resources.user || null;
+        } else {
+          realClerkUser = realClerk.user || null;
+        }
         fire();
         finishSignUpRedirect();
       });
@@ -299,17 +309,17 @@
       finishSignUpRedirect();
       return Promise.resolve(demoUser);
     }
-    if (realClerk && realClerk.user) {
+    if (realClerkUser) {
       finishSignUpRedirect();
-      return Promise.resolve(realClerk.user);
+      return Promise.resolve(realClerkUser);
     }
     return openRealModal('signup');
   }
 
   function currentUser() {
     if (demoMode()) return loadUser();
-    if (!realClerk || !realClerk.user) return null;
-    var user = realClerk.user;
+    if (!realClerkUser) return null;
+    var user = realClerkUser;
     var primaryEmail = user.primaryEmailAddress || (user.emailAddresses && user.emailAddresses[0]);
     return {
       id: user.id,
@@ -330,7 +340,7 @@
 
   window.ClerkAuth = {
     isSignedIn: function () {
-      return demoMode() ? !!loadUser() : !!(realClerk && realClerk.user);
+      return demoMode() ? !!loadUser() : !!realClerkUser;
     },
     signIn: function () {
       return demoMode() ? demoSignIn() : openRealModal('signin');
