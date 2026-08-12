@@ -1,0 +1,1033 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f2e9">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Run input library | Omo</title>
+  <style>
+    :root {
+      --canvas: #f6f2e9;
+      --canvas-deep: #ece5d8;
+      --surface: #fffefa;
+      --pine: #17352c;
+      --pine-2: #244a3d;
+      --moss: #66756e;
+      --mint: #bdefd4;
+      --mint-soft: #ebf8f1;
+      --orange: #ff6b3d;
+      --orange-soft: #fff0e8;
+      --rule: #d8ded7;
+      --rule-dark: #bac6be;
+      --code: #102a21;
+      --danger: #a33c22;
+      --font: "DM Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --shadow: 0 16px 42px rgba(23, 53, 44, .07);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { overflow-x: clip; scroll-behavior: smooth; }
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: clip;
+      background:
+        radial-gradient(circle at 84% 5%, rgba(189, 239, 212, .42), transparent 28rem),
+        linear-gradient(180deg, var(--canvas), #f8f5ee 65%, var(--canvas));
+      color: var(--pine);
+      font: 400 15px/1.5 var(--font);
+    }
+    body, button, input, select, textarea { font: inherit; }
+    button, summary, input[type="range"], input[type="file"] { cursor: pointer; }
+    a { color: inherit; }
+    h1, h2, h3, p, pre { margin-top: 0; }
+    button, input, select, textarea { color: var(--pine); }
+    :where(a, button, input, select, textarea, summary):focus-visible {
+      outline: 3px solid var(--mint);
+      outline-offset: 3px;
+    }
+    .shell { width: min(1420px, calc(100% - 48px)); margin-inline: auto; }
+    .sig-cut { border-radius: 17px 17px 5px 17px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid rgba(216, 222, 215, .92);
+      background: rgba(246, 242, 233, .9);
+      backdrop-filter: blur(14px);
+    }
+    .nav-row {
+      min-height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 44px;
+      color: var(--pine);
+      font-size: 25px;
+      font-weight: 800;
+      letter-spacing: -.07em;
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--pine);
+      border-radius: 50% 50% 16% 50%;
+      background: var(--mint);
+      font-size: 0;
+    }
+    .brand-mark::after { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); content: ""; }
+    .nav-meta { display: flex; align-items: center; gap: 9px; }
+    .status-pill, .version-pill {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 11px;
+      border: 1px solid var(--rule);
+      border-radius: 99px;
+      background: rgba(255, 254, 250, .78);
+      color: var(--moss);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .status-pill::before { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); content: ""; }
+
+    main { padding: 34px 0 86px; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(410px, 1.1fr);
+      gap: 40px;
+      align-items: end;
+      padding: 38px 0 34px;
+    }
+    .eyebrow {
+      margin-bottom: 10px;
+      color: var(--orange);
+      font: 800 10px/1.2 var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h1 {
+      max-width: 760px;
+      margin-bottom: 14px;
+      font-size: clamp(40px, 6vw, 74px);
+      line-height: .98;
+      letter-spacing: -.065em;
+      text-wrap: balance;
+    }
+    .hero-copy { max-width: 700px; margin-bottom: 0; color: #365349; font-size: clamp(16px, 1.5vw, 20px); }
+    .flow-card {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      gap: 9px;
+      padding: 18px;
+      border: 1px solid var(--rule);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .flow-step { min-width: 0; padding: 12px; border: 1px solid var(--rule); border-radius: 11px 11px 3px 11px; background: #fff; }
+    .flow-step strong { display: block; margin-bottom: 3px; font-size: 12px; }
+    .flow-step span { display: block; overflow: hidden; color: var(--moss); font: 600 10px/1.35 var(--mono); text-overflow: ellipsis; }
+    .flow-arrow { color: var(--orange); font-weight: 800; }
+
+    .library-nav {
+      position: sticky;
+      top: 66px;
+      z-index: 15;
+      margin-bottom: 28px;
+      padding: 10px 0;
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      background: rgba(246, 242, 233, .94);
+      backdrop-filter: blur(12px);
+    }
+    .jump-row { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: thin; }
+    .jump-row a {
+      min-height: 34px;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 10px;
+      border: 1px solid var(--rule);
+      border-radius: 99px;
+      background: var(--surface);
+      color: var(--moss);
+      font-size: 11px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .jump-row a:hover { border-color: #a8c8b5; background: var(--mint-soft); color: var(--pine); }
+
+    .demo-section { margin-bottom: 58px; }
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 18px;
+    }
+    .section-head h2 { margin-bottom: 5px; font-size: clamp(25px, 3vw, 36px); letter-spacing: -.045em; }
+    .section-head p { max-width: 680px; margin-bottom: 0; color: var(--moss); }
+    .count-badge { flex: 0 0 auto; color: var(--moss); font: 700 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+
+    .workbench {
+      display: grid;
+      grid-template-columns: minmax(320px, .66fr) minmax(0, 1.34fr);
+      align-items: start;
+      gap: 18px;
+    }
+    .panel {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--rule);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .panel-head {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .panel-title { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 14px; }
+    .panel-title::before { width: 9px; height: 9px; border-radius: 50%; background: var(--orange); content: ""; }
+    .panel-kicker { color: var(--moss); font: 700 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .sample-form { display: grid; gap: 14px; padding: 18px; }
+    .sample-form .run-action { margin-top: 3px; }
+    .examples-wrap { padding: 18px; }
+    .examples-intro { display: flex; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
+    .examples-intro h3 { margin-bottom: 3px; font-size: 18px; letter-spacing: -.025em; }
+    .examples-intro p { margin-bottom: 0; color: var(--moss); font-size: 12px; }
+    .example-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .example-card { min-width: 0; overflow: hidden; border: 1px solid var(--rule); border-radius: 13px 13px 4px 13px; background: #fff; }
+    .example-visual {
+      min-height: 118px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 14px;
+      background:
+        linear-gradient(135deg, rgba(189,239,212,.72), rgba(255,240,232,.8)),
+        var(--canvas);
+    }
+    .example-visual.orange { background: linear-gradient(135deg, #ffe1d4, #f5efdf); }
+    .visual-chip { align-self: flex-start; padding: 5px 8px; border: 1px solid rgba(23,53,44,.14); border-radius: 99px; background: rgba(255,255,255,.72); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .visual-glyph { font-size: 35px; line-height: 1; letter-spacing: -.12em; }
+    .example-body { padding: 14px; }
+    .example-overline { margin-bottom: 4px; color: var(--orange); font: 800 9px/1 var(--mono); letter-spacing: .11em; text-transform: uppercase; }
+    .example-body h4 { margin: 0 0 6px; font-size: 15px; }
+    .example-body p { display: -webkit-box; margin-bottom: 11px; overflow: hidden; color: var(--moss); font-size: 12px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .use-example, .mini-button, .tab-button, .add-button {
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 11px;
+      border: 1px solid var(--pine);
+      border-radius: 8px 8px 3px 8px;
+      background: #fff;
+      color: var(--pine);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .use-example:hover, .mini-button:hover, .add-button:hover { background: var(--mint); }
+
+    .catalogue { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .component-card {
+      min-width: 0;
+      scroll-margin-top: 130px;
+      overflow: hidden;
+      border: 1px solid var(--rule);
+      background: var(--surface);
+      box-shadow: 0 10px 28px rgba(23, 53, 44, .045);
+    }
+    .component-head {
+      min-height: 74px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .component-index { margin-bottom: 3px; color: var(--orange); font: 800 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .component-head h3 { margin-bottom: 0; font-size: 17px; letter-spacing: -.025em; }
+    .schema-chip { flex: 0 0 auto; padding: 6px 8px; border-radius: 99px; background: var(--mint-soft); color: #315b4b; font: 700 9px/1 var(--mono); }
+    .component-body { display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(200px, .96fr); min-height: 252px; }
+    .preview-pane { min-width: 0; padding: 18px; }
+    .schema-pane { min-width: 0; padding: 16px; border-left: 1px solid var(--rule); background: var(--code); color: #d9f5e6; }
+    .pane-label { margin-bottom: 13px; color: var(--moss); font: 800 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .schema-pane .pane-label { color: #8bb7a6; }
+    pre {
+      margin-bottom: 0;
+      overflow: auto;
+      color: #d9f5e6;
+      font: 500 10px/1.55 var(--mono);
+      tab-size: 2;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .component-note { margin: 14px 0 0; color: var(--moss); font-size: 11px; }
+
+    .field { min-width: 0; }
+    .field-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .required { color: var(--orange); }
+    .example-label { color: #8a938e; font: 700 8px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .field-help { margin: -1px 0 7px; color: var(--moss); font-size: 11px; }
+    .control {
+      width: 100%;
+      min-width: 0;
+      min-height: 43px;
+      display: block;
+      padding: 9px 11px;
+      border: 1px solid #c7d1ca;
+      border-radius: 9px 9px 3px 9px;
+      background: #fff;
+      font-size: 13px;
+    }
+    .control::placeholder { color: #8e9a94; opacity: 1; }
+    textarea.control { min-height: 96px; resize: vertical; }
+    .control:focus { border-color: var(--pine); outline: 0; box-shadow: 0 0 0 3px rgba(189,239,212,.5); }
+    .meta-line { display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; color: var(--moss); font-size: 10px; }
+    .input-shell { position: relative; }
+    .input-shell .control { padding-right: 55px; }
+    .suffix { position: absolute; top: 50%; right: 11px; color: var(--moss); font-size: 11px; transform: translateY(-50%); pointer-events: none; }
+    .run-action {
+      width: 100%;
+      min-height: 45px;
+      border: 1px solid var(--pine);
+      border-radius: 10px 10px 3px 10px;
+      background: var(--pine);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .run-action:hover { background: var(--pine-2); }
+
+    .check-row {
+      min-height: 52px;
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      gap: 11px;
+      align-items: center;
+      padding: 10px 11px;
+      border: 1px solid #c7d1ca;
+      border-radius: 10px 10px 3px 10px;
+      background: #fff;
+    }
+    .check-row input { width: 18px; height: 18px; accent-color: var(--pine); }
+    .check-row strong { display: block; font-size: 12px; }
+    .check-row span { display: block; color: var(--moss); font-size: 10px; }
+
+    .upload-zone {
+      min-height: 116px;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      border: 1px dashed #9eb2a6;
+      border-radius: 12px 12px 4px 12px;
+      background: var(--mint-soft);
+      text-align: center;
+    }
+    .upload-zone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .upload-glyph { display: block; margin-bottom: 5px; font-size: 23px; }
+    .upload-zone strong { display: block; font-size: 12px; }
+    .upload-zone small { display: block; margin-top: 3px; color: var(--moss); font-size: 10px; }
+    .file-status { margin: 7px 0 0; overflow-wrap: anywhere; color: var(--moss); font-size: 10px; }
+    .image-preview {
+      width: 64px;
+      height: 48px;
+      display: none;
+      margin: 8px auto 0;
+      object-fit: cover;
+      border: 1px solid var(--rule);
+      border-radius: 7px;
+    }
+    audio { width: 100%; height: 34px; margin-top: 8px; }
+
+    .chips-box {
+      min-height: 74px;
+      display: flex;
+      align-content: flex-start;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid #c7d1ca;
+      border-radius: 10px 10px 3px 10px;
+      background: #fff;
+    }
+    .chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border-radius: 99px; background: var(--mint-soft); font-size: 10px; font-weight: 700; }
+    .chip button { width: 17px; height: 17px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #d3eddf; color: var(--pine); font-size: 11px; }
+    .tag-input { min-width: 120px; flex: 1 1 120px; height: 31px; border: 0; outline: 0; font-size: 11px; }
+
+    .repeat-list { display: grid; gap: 8px; }
+    .pair-row, .kv-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: end; }
+    .sub-label { display: block; margin-bottom: 4px; color: var(--moss); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+    .small-control { min-height: 37px; padding: 7px 8px; }
+    .remove-row { width: 36px; min-height: 37px; padding: 0; border: 1px solid var(--rule); border-radius: 8px 8px 3px 8px; background: #fff; color: var(--danger); font-size: 16px; }
+    .add-button { margin-top: 8px; border-color: var(--rule-dark); }
+
+    .range-wrap { padding: 9px 0; }
+    .range-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .range-value { min-width: 45px; padding: 5px 8px; border-radius: 8px; background: var(--mint-soft); text-align: center; font: 800 12px/1 var(--mono); }
+    input[type="range"] { width: 100%; height: 44px; margin: 0; accent-color: var(--pine); }
+    .range-ends { display: flex; justify-content: space-between; color: var(--moss); font-size: 9px; }
+
+    .editor { overflow: hidden; border: 1px solid #c7d1ca; border-radius: 10px 10px 3px 10px; background: #fff; }
+    .editor-bar { min-height: 35px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; border-bottom: 1px solid var(--rule); background: #f4f6f4; }
+    .language { color: var(--moss); font: 700 9px/1 var(--mono); text-transform: uppercase; }
+    .editor textarea { width: 100%; min-height: 105px; display: block; padding: 10px; border: 0; resize: vertical; outline: 0; font: 500 10px/1.55 var(--mono); }
+    .editor-status { color: var(--moss); font-size: 9px; }
+    .editor-status.valid { color: #216546; }
+    .editor-status.invalid { color: var(--danger); }
+    .tabs { display: flex; gap: 4px; }
+    .tab-button { min-height: 27px; padding: 0 8px; border-color: transparent; border-radius: 6px; background: transparent; font-size: 9px; }
+    .tab-button.active { border-color: var(--rule); background: #fff; }
+    .markdown-preview { min-height: 105px; padding: 11px; color: #365349; font-size: 11px; }
+    .markdown-preview h4 { margin: 0 0 7px; color: var(--pine); font-size: 14px; }
+    .markdown-preview p { margin-bottom: 7px; }
+    .markdown-preview ul { margin: 0; padding-left: 18px; }
+
+    .fixed-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid #b8d7c5; border-radius: 10px 10px 3px 10px; background: var(--mint-soft); }
+    .fixed-summary strong { display: block; font-size: 12px; }
+    .fixed-summary span { color: var(--moss); font-size: 10px; }
+    .lock-chip { flex: 0 0 auto; padding: 6px 8px; border-radius: 99px; background: #fff; font: 700 9px/1 var(--mono); }
+
+    .contract-band {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+      gap: 22px;
+      margin-top: 54px;
+      padding: 25px;
+      border: 1px solid var(--rule);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .contract-band h2 { margin-bottom: 8px; font-size: 26px; letter-spacing: -.04em; }
+    .contract-band p { margin-bottom: 15px; color: var(--moss); }
+    .contract-list { display: grid; gap: 9px; }
+    .contract-item { display: grid; grid-template-columns: 24px 1fr; gap: 9px; align-items: start; font-size: 12px; }
+    .contract-item span:first-child { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 50%; background: var(--mint); font: 800 10px/1 var(--mono); }
+    .contract-code { min-width: 0; padding: 18px; overflow: hidden; border-radius: 12px 12px 4px 12px; background: var(--code); }
+    .price-demo { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
+    .price-demo .run-action { max-width: 260px; }
+    .price-note { color: var(--moss); font-size: 10px; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 30;
+      max-width: min(330px, calc(100% - 36px));
+      padding: 12px 14px;
+      border: 1px solid #96bca5;
+      border-radius: 11px 11px 4px 11px;
+      background: var(--pine);
+      color: #fff;
+      box-shadow: 0 18px 38px rgba(23,53,44,.22);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1080px) {
+      .hero { grid-template-columns: 1fr; gap: 22px; }
+      .flow-card { max-width: 760px; }
+      .catalogue { grid-template-columns: 1fr; }
+      .component-body { grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr); }
+    }
+
+    @media (max-width: 800px) {
+      .shell { width: calc(100% - 28px); }
+      main { padding-top: 18px; }
+      .hero { padding-top: 23px; }
+      h1 { font-size: clamp(38px, 12vw, 60px); }
+      .workbench, .contract-band { grid-template-columns: 1fr; }
+      .example-grid { grid-template-columns: 1fr 1fr; }
+      .library-nav { top: 65px; }
+    }
+
+    @media (max-width: 560px) {
+      .shell { width: calc(100% - 28px); }
+      .nav-row { min-height: 61px; }
+      .version-pill { display: none; }
+      .status-pill { min-height: 32px; padding-inline: 9px; }
+      .brand { font-size: 23px; }
+      main { padding-bottom: 58px; }
+      .hero { padding: 19px 0 26px; }
+      h1 { margin-bottom: 12px; font-size: 41px; }
+      .hero-copy { font-size: 16px; }
+      .flow-card { grid-template-columns: 1fr; padding: 13px; }
+      .flow-arrow { transform: rotate(90deg); text-align: center; }
+      .library-nav { top: 61px; margin-bottom: 23px; }
+      .section-head { align-items: start; flex-direction: column; gap: 7px; }
+      .demo-section { margin-bottom: 44px; }
+      .workbench { gap: 13px; }
+      .example-grid { grid-template-columns: 1fr; }
+      .examples-intro { flex-direction: column; }
+      .component-body { grid-template-columns: 1fr; }
+      .schema-pane { min-height: 196px; border-top: 1px solid var(--rule); border-left: 0; }
+      .component-head { align-items: start; }
+      .component-note { font-size: 10px; }
+      .pair-row, .kv-row { grid-template-columns: 1fr; padding: 10px; border: 1px solid var(--rule); border-radius: 9px; }
+      .remove-row { width: auto; min-height: 34px; font-size: 0; }
+      .remove-row::after { font-size: 10px; font-weight: 800; content: "Remove row"; }
+      .contract-band { padding: 18px; }
+      .price-demo { align-items: stretch; flex-direction: column; }
+      .price-demo .run-action { max-width: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="brand" href="index.html" aria-label="Omo home"><span class="brand-mark" aria-hidden="true"></span>omo</a>
+      <div class="nav-meta">
+        <span class="status-pill">Input library</span>
+        <span class="version-pill">18 components · v1 proposal</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Run page system · design showcase</p>
+          <h1 id="page-title">One input library. Any skill, ready to run.</h1>
+          <p class="hero-copy">Omo reads a skill’s JSON Schema, resolves each property to a prebuilt control, and keeps a safe fallback for the shapes we have not met yet.</p>
+        </div>
+        <div class="flow-card sig-cut" aria-label="Schema to hosted run flow">
+          <div class="flow-step"><strong>Skill container</strong><span>schemas/input.json</span></div>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <div class="flow-step"><strong>Resolver</strong><span>registry + overrides</span></div>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <div class="flow-step"><strong>Hosted form</strong><span>validated request</span></div>
+        </div>
+      </section>
+    </div>
+
+    <nav class="library-nav" aria-label="Component catalogue">
+      <div class="shell jump-row">
+        <a href="#short-text">Text</a><a href="#long-text">Long text</a><a href="#select">Select</a><a href="#number">Number</a><a href="#boolean">Boolean</a><a href="#url">URL</a><a href="#email">Email</a><a href="#file-upload">File</a><a href="#image-upload">Image</a><a href="#audio-upload">Audio</a><a href="#date">Date</a><a href="#tags">Tags</a><a href="#pairs">Pairs</a><a href="#range">Range</a><a href="#code">Code</a><a href="#markdown">Markdown</a><a href="#key-value">Key/value</a><a href="#hidden">Fixed</a>
+      </div>
+    </nav>
+
+    <div class="shell">
+      <section class="demo-section" aria-labelledby="pattern-title">
+        <div class="section-head">
+          <div><p class="eyebrow">The assembled pattern</p><h2 id="pattern-title">Inputs left. Useful examples right.</h2><p>A schema-generated Woven form beside whole-request example cards—the component system in the Runware-inspired Omo layout.</p></div>
+          <span class="count-badge">Live mini demo</span>
+        </div>
+        <div class="workbench">
+          <section class="panel sig-cut" aria-labelledby="demo-inputs-title">
+            <header class="panel-head"><h3 class="panel-title" id="demo-inputs-title">Inputs</h3><span class="panel-kicker">Schema generated</span></header>
+            <form class="sample-form" id="sample-form">
+              <div class="field"><label class="field-label" for="demo-met"><span>How you met <span class="required">*</span></span><span class="example-label">Example</span></label><textarea class="control" id="demo-met" name="how_you_met" required placeholder="We reached for the same travel book…"></textarea></div>
+              <div class="field"><label class="field-label" for="demo-moments"><span>Favorite moments <span class="required">*</span></span><span class="example-label">Example</span></label><textarea class="control" id="demo-moments" name="favorite_moments" required placeholder="Seven years, two cities, and a corgi…"></textarea></div>
+              <div class="field"><label class="field-label" for="demo-style"><span>Writing style <span class="required">*</span></span></label><select class="control" id="demo-style" name="style"><option value="warm">Warm</option><option value="playful">Playful</option><option value="poetic">Poetic</option></select></div>
+              <button class="run-action" type="submit">Run it — ≈ $0.40</button>
+            </form>
+          </section>
+          <section class="panel sig-cut" aria-labelledby="examples-title">
+            <header class="panel-head"><h3 class="panel-title" id="examples-title">Examples</h3><span class="panel-kicker">2 complete requests</span></header>
+            <div class="examples-wrap">
+              <div class="examples-intro"><div><h3>See what good input looks like</h3><p>Each card fills the whole schema-valid request, not just one field.</p></div></div>
+              <div class="example-grid">
+                <article class="example-card">
+                  <div class="example-visual"><span class="visual-chip">Warm · short</span><span class="visual-glyph" aria-hidden="true">○↗♡</span></div>
+                  <div class="example-body"><p class="example-overline">How we met</p><h4>The rainy bookshop</h4><p>One travel book, seven years, two cities, and a sock-stealing corgi.</p><button class="use-example" type="button" data-example="bookshop">Use example</button></div>
+                </article>
+                <article class="example-card">
+                  <div class="example-visual orange"><span class="visual-chip">Playful · short</span><span class="visual-glyph" aria-hidden="true">⌁ ☀ ◡</span></div>
+                  <div class="example-body"><p class="example-overline">First adventure</p><h4>The missed tram</h4><p>Oranges on the steps, a long walk, and city lights appearing together.</p><button class="use-example" type="button" data-example="tram">Use example</button></div>
+                </article>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section aria-labelledby="catalogue-title">
+        <div class="section-head">
+          <div><p class="eyebrow">Prebuilt component registry</p><h2 id="catalogue-title">The complete v1 library</h2><p>Every card pairs the actual control with the smallest schema shape that selects it. Interactions are live.</p></div>
+          <span class="count-badge">18 types</span>
+        </div>
+
+        <div class="catalogue">
+          <article class="component-card sig-cut" id="short-text">
+            <header class="component-head"><div><p class="component-index">01 · Primitive</p><h3>ShortTextField</h3></div><span class="schema-chip">string</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-title"><span>Book title <span class="required">*</span></span><span class="example-label">Example</span></label><p class="field-help">A short name for the finished keepsake.</p><input class="control" id="show-title" value="Seven Years, Two Cities" maxlength="120"><div class="meta-line"><span>Required</span><span>23 / 120</span></div></div><p class="component-note">One line for titles, names, subjects, and concise directions.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "string",
+  "title": "Book title",
+  "minLength": 3,
+  "maxLength": 120,
+  "examples": [
+    "Seven Years, Two Cities"
+  ]
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="long-text">
+            <header class="component-head"><div><p class="component-index">02 · Narrative</p><h3>LongTextField</h3></div><span class="schema-chip">string · long</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-met"><span>How you met <span class="required">*</span></span><span class="example-label">Example</span></label><p class="field-help">Tell the factual beginning of the relationship.</p><textarea class="control" id="show-met" maxlength="1200" placeholder="We met after reaching for the same travel book…"></textarea><div class="meta-line"><span>12–1,200 characters</span><span>Preserves line breaks</span></div></div><p class="component-note">Selected explicitly or when narrative strings exceed 160 characters.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "string",
+  "title": "How you met",
+  "minLength": 12,
+  "maxLength": 1200,
+  "examples": [
+    "We met in a rainy bookshop."
+  ]
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="select">
+            <header class="component-head"><div><p class="component-index">03 · Choice</p><h3>SelectField</h3></div><span class="schema-chip">enum</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-style"><span>Writing style <span class="required">*</span></span></label><p class="field-help">Facts stay unchanged whichever style you choose.</p><select class="control" id="show-style"><option>Warm</option><option>Playful</option><option>Poetic</option></select></div><p class="component-note">Native select in v1; submitted values retain their JSON primitive type.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "string",
+  "title": "Writing style",
+  "enum": [
+    "warm", "playful", "poetic"
+  ],
+  "default": "warm"
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="number">
+            <header class="component-head"><div><p class="component-index">04 · Numeric</p><h3>NumberField</h3></div><span class="schema-chip">number · integer</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-scenes"><span>Scene count <span class="required">*</span></span></label><p class="field-help">How many distinct concepts should be returned?</p><div class="input-shell"><input class="control" id="show-scenes" type="number" min="1" max="12" step="1" value="5"><span class="suffix">scenes</span></div><div class="meta-line"><span>1–12</span><span>Whole numbers</span></div></div><p class="component-note">Empty stays empty; serialization produces a number, never a numeric string.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "integer",
+  "title": "Scene count",
+  "minimum": 1,
+  "maximum": 12,
+  "default": 5
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="boolean">
+            <header class="component-head"><div><p class="component-index">05 · Decision</p><h3>BooleanField</h3></div><span class="schema-chip">boolean</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><label class="check-row"><input type="checkbox" checked><span><strong>Pseudonymize names</strong><span>Replace identifying names before analysis.</span></span></label><p class="component-note">A real checkbox with a row-sized target; required means the key must exist, not “must be true.”</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "boolean",
+  "title": "Pseudonymize names",
+  "description": "Replace identifying names before analysis.",
+  "default": true
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="url">
+            <header class="component-head"><div><p class="component-index">06 · Formatted string</p><h3>UrlField</h3></div><span class="schema-chip">format: uri</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-url"><span>Product page <span class="required">*</span></span><span class="example-label">Example</span></label><p class="field-help">The public page Omo should audit.</p><input class="control" id="show-url" type="url" inputmode="url" value="https://example.com/products/travel-mug" autocapitalize="none" spellcheck="false"></div><p class="component-note">The browser checks shape; the server still owns protocol and SSRF protection.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "string",
+  "format": "uri",
+  "title": "Product page",
+  "pattern": "^https://"
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="email">
+            <header class="component-head"><div><p class="component-index">07 · Formatted string</p><h3>EmailField</h3></div><span class="schema-chip">format: email</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-email"><span>Deliver to</span><span class="example-label">Optional</span></label><p class="field-help">Where should the finished package be sent?</p><input class="control" id="show-email" type="email" inputmode="email" value="maya@example.com" autocapitalize="none"></div><p class="component-note">Validates email grammar, not whether the mailbox exists.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "string",
+  "format": "email",
+  "title": "Deliver to",
+  "maxLength": 254
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="file-upload">
+            <header class="component-head"><div><p class="component-index">08 · Artifact</p><h3>FileUploadField</h3></div><span class="schema-chip">private artifact</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-file"><span>Interview notes <span class="required">*</span></span></label><label class="upload-zone" for="show-file"><input id="show-file" type="file" data-upload="generic" accept=".txt,.pdf,.docx"><span><span class="upload-glyph" aria-hidden="true">↥</span><strong>Choose a file</strong><small>TXT, PDF, or DOCX · up to 20 MB</small></span></label><p class="file-status" data-file-status="generic">No file selected</p></div><p class="component-note">Uploads first; run JSON receives only object key, checksum, bytes, and MIME type.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "object",
+  "required": ["object_key", "sha256", "bytes", "content_type"],
+  "ui": {
+    "widget": "private_artifact_upload"
+  }
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="image-upload">
+            <header class="component-head"><div><p class="component-index">09 · Artifact</p><h3>ImageUploadField</h3></div><span class="schema-chip">image/*</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-image"><span>Product image <span class="required">*</span></span></label><label class="upload-zone" for="show-image"><input id="show-image" type="file" data-upload="image" accept="image/png,image/jpeg,image/webp"><span><span class="upload-glyph" aria-hidden="true">▧</span><strong>Choose an image</strong><small>PNG, JPEG, or WebP · up to 10 MB</small><img class="image-preview" id="image-preview" alt="Selected local preview"></span></label><p class="file-status" data-file-status="image">No image selected</p></div><p class="component-note">Adds thumbnail and dimension checks; transport stays the same private artifact reference.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "object",
+  "title": "Product image",
+  "properties": {
+    "content_type": {
+      "enum": ["image/png", "image/jpeg", "image/webp"]
+    }
+  },
+  "ui": { "widget": "image_upload" }
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="audio-upload">
+            <header class="component-head"><div><p class="component-index">10 · Artifact</p><h3>AudioUploadField</h3></div><span class="schema-chip">audio/*</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-audio"><span>Spoken story <span class="required">*</span></span></label><label class="upload-zone" for="show-audio"><input id="show-audio" type="file" data-upload="audio" accept="audio/mpeg,audio/mp4,audio/wav"><span><span class="upload-glyph" aria-hidden="true">◖))</span><strong>Choose audio</strong><small>MP3, M4A, or WAV · up to 50 MB</small></span></label><p class="file-status" data-file-status="audio">No audio selected</p><audio id="audio-preview" controls hidden></audio></div><p class="component-note">The practice animation schema resolves here through one compatible UI override.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "object",
+  "title": "Audio artifact",
+  "properties": {
+    "bytes": { "maximum": 52428800 },
+    "content_type": {
+      "enum": ["audio/mpeg", "audio/mp4", "audio/wav"]
+    }
+  },
+  "ui": { "widget": "audio_upload" }
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="date">
+            <header class="component-head"><div><p class="component-index">11 · Formatted string</p><h3>DateField</h3></div><span class="schema-chip">format: date</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="show-date"><span>Launch date <span class="required">*</span></span></label><p class="field-help">Used to anchor the rollout plan.</p><input class="control" id="show-date" type="date" value="2026-09-18" min="2026-08-13"></div><p class="component-note">Submits YYYY-MM-DD without accidental timezone conversion.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "string",
+  "format": "date",
+  "title": "Launch date",
+  "formatMinimum": "2026-08-13"
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="tags">
+            <header class="component-head"><div><p class="component-index">12 · Collection</p><h3>TagsListField</h3></div><span class="schema-chip">array&lt;string&gt;</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="tag-input"><span>Creative themes <span class="required">*</span></span><span class="example-label">Enter to add</span></label><div class="chips-box" id="chips-box"><span class="chip">quiet luxury<button type="button" aria-label="Remove quiet luxury">×</button></span><span class="chip">recycled<button type="button" aria-label="Remove recycled">×</button></span><input class="tag-input" id="tag-input" placeholder="Add a theme…"></div><div class="meta-line"><span>2–6 themes</span><span id="tag-count">2 added</span></div></div><p class="component-note">Each item is validated against `items`; duplicate values produce an error.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "array",
+  "title": "Creative themes",
+  "items": { "type": "string", "maxLength": 40 },
+  "minItems": 2,
+  "maxItems": 6,
+  "uniqueItems": true
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="pairs">
+            <header class="component-head"><div><p class="component-index">13 · Collection</p><h3>PairListField</h3></div><span class="schema-chip">array&lt;pair&gt;</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label"><span>Myth and fact pairs <span class="required">*</span></span></label><div class="repeat-list" id="pair-list"><div class="pair-row"><label><span class="sub-label">Myth</span><input class="control small-control" value="AI always invents facts"></label><label><span class="sub-label">Fact</span><input class="control small-control" value="Bounded inputs reduce invention"></label><button class="remove-row" type="button" aria-label="Remove pair">×</button></div></div><button class="add-button" id="add-pair" type="button">+ Add pair</button></div><p class="component-note">Incomplete rows remain invalid; each pair is one atomic array item.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "myth": { "type": "string" },
+      "fact": { "type": "string" }
+    },
+    "required": ["myth", "fact"]
+  }
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="range">
+            <header class="component-head"><div><p class="component-index">14 · Numeric</p><h3>RangeField</h3></div><span class="schema-chip">ui: range</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><div class="range-top"><label class="field-label" for="show-range"><span>Playfulness</span></label><output class="range-value" id="range-value" for="show-range">70%</output></div><p class="field-help">Lively at the top; restrained at the bottom.</p><div class="range-wrap"><input id="show-range" type="range" min="0" max="100" step="5" value="70"><div class="range-ends"><span>Restrained · 0</span><span>Bold · 100</span></div></div></div><p class="component-note">Only an explicit UI hint chooses a slider; numeric bounds alone do not.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "integer",
+  "title": "Playfulness",
+  "minimum": 0,
+  "maximum": 100,
+  "multipleOf": 5,
+  "default": 70,
+  "ui": { "widget": "range" }
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="code">
+            <header class="component-head"><div><p class="component-index">15 · Structured text</p><h3>CodeField</h3></div><span class="schema-chip">content: JSON</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="code-input"><span>Webhook payload <span class="required">*</span></span></label><div class="editor"><div class="editor-bar"><span class="language">JSON</span><span class="editor-status valid" id="code-status">Valid JSON</span></div><textarea id="code-input" spellcheck="false">{
+  "event": "story.ready",
+  "run_id": "run_0042"
+}</textarea></div></div><p class="component-note">A dependency-free monospace editor; JSON gets syntax validation in v1.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "string",
+  "title": "Webhook payload",
+  "contentMediaType": "application/json",
+  "ui": {
+    "widget": "code",
+    "language": "json"
+  }
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="markdown">
+            <header class="component-head"><div><p class="component-index">16 · Structured text</p><h3>MarkdownField</h3></div><span class="schema-chip">text/markdown</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label" for="markdown-input"><span>Launch brief</span></label><div class="editor"><div class="editor-bar"><div class="tabs"><button class="tab-button active" type="button" data-md-tab="write">Write</button><button class="tab-button" type="button" data-md-tab="preview">Preview</button></div><span class="language">Markdown</span></div><textarea id="markdown-input"># A quieter launch
+
+- Lead with the material
+- Show the repair story</textarea><div class="markdown-preview" id="markdown-preview" hidden><h4>A quieter launch</h4><ul><li>Lead with the material</li><li>Show the repair story</li></ul></div></div></div><p class="component-note">Preview is sanitized presentation; submitted Markdown is unchanged.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "string",
+  "title": "Launch brief",
+  "contentMediaType": "text/markdown",
+  "maxLength": 4000
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="key-value">
+            <header class="component-head"><div><p class="component-index">17 · Object</p><h3>KeyValueMapField</h3></div><span class="schema-chip">additionalProperties</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered field</p><div class="field"><label class="field-label"><span>Brand vocabulary</span></label><div class="repeat-list" id="kv-list"><div class="kv-row"><label><span class="sub-label">Avoid</span><input class="control small-control" value="cheap"></label><label><span class="sub-label">Use instead</span><input class="control small-control" value="accessible"></label><button class="remove-row" type="button" aria-label="Remove key value row">×</button></div></div><button class="add-button" id="add-kv" type="button">+ Add term</button></div><p class="component-note">Keys are unique and values recursively follow `additionalProperties`.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "type": "object",
+  "title": "Brand vocabulary",
+  "minProperties": 1,
+  "maxProperties": 20,
+  "additionalProperties": {
+    "type": "string",
+    "maxLength": 80
+  }
+}</pre></div></div>
+          </article>
+
+          <article class="component-card sig-cut" id="hidden">
+            <header class="component-head"><div><p class="component-index">18 · Fixed</p><h3>HiddenConstField</h3></div><span class="schema-chip">const</span></header>
+            <div class="component-body"><div class="preview-pane"><p class="pane-label">Rendered summary</p><div class="fixed-summary"><div><strong>Visual style</strong><span>Sumi-e Japanese ink</span></div><span class="lock-chip">Fixed for this run</span></div><p class="component-note">Injected into JSON but not editable. A summary appears only when it helps explain the run.</p></div><div class="schema-pane"><p class="pane-label">Resolver input</p><pre>{
+  "title": "Visual style",
+  "const": "sumi-e"
+}</pre></div></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="contract-band sig-cut" aria-labelledby="contract-title">
+        <div>
+          <p class="eyebrow">Instant-host manifest</p>
+          <h2 id="contract-title">Five runtime values are enough.</h2>
+          <p>The compiler emits schemas, complete examples, a guarded buyer price, and honest phases. The Run page supplies every reusable visual.</p>
+          <div class="contract-list">
+            <div class="contract-item"><span>1</span><div><strong>Resolve input_schema</strong><br>Registry match, shared field frame, fallback when unknown.</div></div>
+            <div class="contract-item"><span>2</span><div><strong>Fill from examples[]</strong><br>Every card contains a whole schema-valid request.</div></div>
+            <div class="contract-item"><span>3</span><div><strong>Run + render</strong><br>Show ≈ price_usd, follow server phases, render by output_schema.</div></div>
+          </div>
+          <div class="price-demo"><button class="run-action" type="button" id="contract-run">Run it — ≈ $0.40</button><span class="price-note">Output: Markdown story + readable list + raw JSON</span></div>
+        </div>
+        <div class="contract-code"><p class="pane-label">omo.run-manifest/v1</p><pre>{
+  "input_schema": { "type": "object", "properties": {} },
+  "output_schema": { "type": "object", "properties": {} },
+  "examples": [
+    { "id": "rainy-bookshop", "input": {}, "output_preview": {} }
+  ],
+  "price_usd": 0.40,
+  "phases": [
+    { "id": "write", "label": "Writing your story" },
+    { "id": "polish", "label": "Polishing without changing facts" },
+    { "id": "deliver", "label": "Preparing your files" }
+  ]
+}</pre></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var toast = document.getElementById('toast');
+      var toastTimer = 0;
+      function notify(message) {
+        window.clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.hidden = false;
+        toastTimer = window.setTimeout(function () { toast.hidden = true; }, 2200);
+      }
+
+      var examples = {
+        bookshop: {
+          how_you_met: 'We reached for the same travel book on a rainy afternoon.',
+          favorite_moments: 'Seven years, two cities, our first apartment, and adopting a corgi who steals socks.',
+          style: 'warm'
+        },
+        tram: {
+          how_you_met: 'We missed the last tram after our third date and walked home together.',
+          favorite_moments: 'Eating oranges on the steps, getting lost on purpose, and seeing the city lights come on.',
+          style: 'playful'
+        }
+      };
+
+      Array.prototype.forEach.call(document.querySelectorAll('[data-example]'), function (button) {
+        button.addEventListener('click', function () {
+          var values = examples[button.getAttribute('data-example')];
+          if (!values) return;
+          document.getElementById('demo-met').value = values.how_you_met;
+          document.getElementById('demo-moments').value = values.favorite_moments;
+          document.getElementById('demo-style').value = values.style;
+          notify('Complete example added to the request.');
+          if (window.innerWidth <= 800) document.getElementById('demo-inputs-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+
+      document.getElementById('sample-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (!event.currentTarget.reportValidity()) return;
+        notify('Demo request is valid and ready to submit.');
+      });
+
+      function displayBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      }
+
+      Array.prototype.forEach.call(document.querySelectorAll('[data-upload]'), function (input) {
+        input.addEventListener('change', function () {
+          var kind = input.getAttribute('data-upload');
+          var status = document.querySelector('[data-file-status="' + kind + '"]');
+          var file = input.files && input.files[0];
+          if (!file) {
+            status.textContent = kind === 'image' ? 'No image selected' : (kind === 'audio' ? 'No audio selected' : 'No file selected');
+            return;
+          }
+          status.textContent = file.name + ' · ' + displayBytes(file.size) + ' · ready for private upload';
+          if (kind === 'image') {
+            var image = document.getElementById('image-preview');
+            image.src = URL.createObjectURL(file);
+            image.style.display = 'block';
+          }
+          if (kind === 'audio') {
+            var audio = document.getElementById('audio-preview');
+            audio.src = URL.createObjectURL(file);
+            audio.hidden = false;
+          }
+          notify('Local preview ready. The real component uploads before Run.');
+        });
+      });
+
+      var chipsBox = document.getElementById('chips-box');
+      var tagInput = document.getElementById('tag-input');
+      var tagCount = document.getElementById('tag-count');
+      function updateTagCount() {
+        var count = chipsBox.querySelectorAll('.chip').length;
+        tagCount.textContent = count + (count === 1 ? ' added' : ' added');
+      }
+      function bindChip(button) {
+        button.addEventListener('click', function () {
+          button.parentNode.remove();
+          updateTagCount();
+        });
+      }
+      Array.prototype.forEach.call(chipsBox.querySelectorAll('.chip button'), bindChip);
+      function addTag() {
+        var value = tagInput.value.trim().replace(/,$/, '');
+        if (!value) return;
+        var existing = Array.prototype.map.call(chipsBox.querySelectorAll('.chip'), function (chip) { return chip.firstChild.nodeValue.trim().toLowerCase(); });
+        if (existing.indexOf(value.toLowerCase()) !== -1) {
+          notify('That theme is already in the list.');
+          return;
+        }
+        if (existing.length >= 6) {
+          notify('This schema allows at most six themes.');
+          return;
+        }
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.appendChild(document.createTextNode(value));
+        var remove = document.createElement('button');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', 'Remove ' + value);
+        remove.textContent = '×';
+        chip.appendChild(remove);
+        chipsBox.insertBefore(chip, tagInput);
+        bindChip(remove);
+        tagInput.value = '';
+        updateTagCount();
+      }
+      tagInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ',') {
+          event.preventDefault();
+          addTag();
+        }
+      });
+      tagInput.addEventListener('blur', addTag);
+
+      function bindRemoveButtons(root) {
+        Array.prototype.forEach.call(root.querySelectorAll('.remove-row'), function (button) {
+          if (button.getAttribute('data-bound')) return;
+          button.setAttribute('data-bound', 'true');
+          button.addEventListener('click', function () { button.parentNode.remove(); });
+        });
+      }
+      bindRemoveButtons(document);
+
+      document.getElementById('add-pair').addEventListener('click', function () {
+        var row = document.createElement('div');
+        row.className = 'pair-row';
+        row.innerHTML = '<label><span class="sub-label">Myth</span><input class="control small-control" placeholder="Claim to correct"></label><label><span class="sub-label">Fact</span><input class="control small-control" placeholder="Accurate correction"></label><button class="remove-row" type="button" aria-label="Remove pair">×</button>';
+        document.getElementById('pair-list').appendChild(row);
+        bindRemoveButtons(row);
+        row.querySelector('input').focus();
+      });
+
+      document.getElementById('add-kv').addEventListener('click', function () {
+        var row = document.createElement('div');
+        row.className = 'kv-row';
+        row.innerHTML = '<label><span class="sub-label">Avoid</span><input class="control small-control" placeholder="Term"></label><label><span class="sub-label">Use instead</span><input class="control small-control" placeholder="Preferred wording"></label><button class="remove-row" type="button" aria-label="Remove key value row">×</button>';
+        document.getElementById('kv-list').appendChild(row);
+        bindRemoveButtons(row);
+        row.querySelector('input').focus();
+      });
+
+      var range = document.getElementById('show-range');
+      var rangeValue = document.getElementById('range-value');
+      range.addEventListener('input', function () { rangeValue.textContent = range.value + '%'; });
+
+      var codeInput = document.getElementById('code-input');
+      var codeStatus = document.getElementById('code-status');
+      function validateCode() {
+        try {
+          JSON.parse(codeInput.value);
+          codeStatus.textContent = 'Valid JSON';
+          codeStatus.className = 'editor-status valid';
+        } catch (error) {
+          codeStatus.textContent = 'Invalid JSON';
+          codeStatus.className = 'editor-status invalid';
+        }
+      }
+      codeInput.addEventListener('input', validateCode);
+
+      Array.prototype.forEach.call(document.querySelectorAll('[data-md-tab]'), function (button) {
+        button.addEventListener('click', function () {
+          var previewing = button.getAttribute('data-md-tab') === 'preview';
+          document.getElementById('markdown-input').hidden = previewing;
+          document.getElementById('markdown-preview').hidden = !previewing;
+          Array.prototype.forEach.call(document.querySelectorAll('[data-md-tab]'), function (tab) { tab.classList.toggle('active', tab === button); });
+        });
+      });
+
+      document.getElementById('contract-run').addEventListener('click', function () {
+        notify('price_usd → button · phases[] → status · output_schema → renderer');
+      });
+    })();
+  </script>
+</body>
+</html>
