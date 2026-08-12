@@ -544,44 +544,6 @@
     </div>
   </footer>
 
-  <div class="credits-modal" id="credits-modal" hidden>
-    <section class="credits-modal__card" role="dialog" aria-modal="true" aria-labelledby="credits-modal-title" aria-describedby="credits-modal-subtitle">
-      <header class="credits-modal__header">
-        <div class="credits-modal__title-wrap">
-          <h2 class="credits-modal__title" id="credits-modal-title">Credits</h2>
-          <p class="credits-modal__subtitle" id="credits-modal-subtitle">Top up and see where your balance went.</p>
-        </div>
-        <button class="credits-modal__close" id="credits-modal-close" type="button" aria-label="Close credits">✕</button>
-      </header>
-      <div class="credits-modal__body">
-        <section class="credits-modal__section credits-modal__section--topup" id="topup-card" aria-label="Top up credits">
-          <p class="card-intro">Your balance pays for cloud runs. Every new account gets $5 free.</p>
-          <p class="credit-balance" id="credit-balance">$5.00</p>
-          <p class="empty-credit-note" id="empty-credit-note" hidden>You’re out of credits, but you can keep going in seconds — top up from $5 below.</p>
-          <form id="topup-form" novalidate>
-            <div class="amount-row" role="group" aria-label="Top-up amount">
-              <button class="amount-chip is-active" type="button" data-amount="20" aria-pressed="true">$20</button>
-              <button class="amount-chip" type="button" data-amount="50" aria-pressed="false">$50</button>
-              <button class="amount-chip" type="button" data-amount="100" aria-pressed="false">$100</button>
-              <button class="amount-chip" type="button" data-amount="200" aria-pressed="false">$200</button>
-            </div>
-            <label class="custom-amount-row" for="custom-amount"><span class="custom-amount-label">Custom $</span><input class="custom-amount" id="custom-amount" type="number" min="5" step="0.01" inputmode="decimal" placeholder="Minimum $5" aria-describedby="topup-note"></label>
-            <button class="button button-primary button-block" id="topup-btn" type="submit">Top up with Stripe</button>
-            <p class="form-note" id="topup-note" role="status" aria-live="polite"></p>
-          </form>
-        </section>
-        <section class="credits-modal__section" id="usage-card" aria-labelledby="usage-title">
-          <h2 id="usage-title">Recent usage</h2>
-          <p class="card-intro">Signed-in helper runs, newest first.</p>
-          <p class="usage-empty" id="usage-empty">No runs yet — pick a helper and try it.</p>
-          <ul class="usage-list" id="usage-list" hidden></ul>
-          <p class="api-foot">API base: <code id="api-base-label">—</code> · Your <code>omo_</code> key is deterministic per account.</p>
-        </section>
-      </div>
-      <p class="credits-modal__footer">Secure checkout by Stripe · Recent usage can take a moment to appear.</p>
-    </section>
-  </div>
-
   <dialog class="listing-dialog" id="listing-dialog" aria-labelledby="detail-name">
     <button class="dialog-close" id="dialog-close" type="button" aria-label="Close details">✕</button>
     <div class="dialog-body" id="dialog-body"></div>
@@ -595,6 +557,14 @@
   <script>
     (function () {
       'use strict';
+
+      try {
+        var billingReturn = new URLSearchParams(window.location.search || '').get('topup');
+        if (billingReturn === 'success' || billingReturn === 'cancelled' || billingReturn === 'needed') {
+          window.location.replace('billing.html?topup=' + encodeURIComponent(billingReturn));
+          return;
+        }
+      } catch (error) {}
 
       var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
       var BAL_KEY = 'omo_balance_v1';
@@ -827,7 +797,7 @@
           progress +
           '<div class="credit-empty" data-credit-empty hidden><strong>You\'re out of credits</strong>' +
           '<p>Top up $20, $50, $100, or a custom amount (minimum $5).</p>' +
-          '<button class="button button-secondary button-block" type="button" data-action="topup-credits">Top up credits</button></div></form>' +
+          '<a class="button button-secondary button-block" href="billing.html">Top up credits</a></div></form>' +
           '<div class="demo-result" data-demo-result hidden></div></div>';
       }
       function detailHTML(p) {
@@ -1257,8 +1227,6 @@
       /* Credits and API key logic retained from the previous dashboard. */
       var account = { mode: 'unavailable', userId: '', balanceUsd: 0, apiKey: '', runs: [] };
       var accountRequestId = 0;
-      var revealed = false;
-      var refreshAfterTopup = window.location.search && window.location.search.indexOf('topup=success') !== -1;
       function fnv1a(str) {
         var h = 0x811c9dc5;
         for (var j = 0; j < str.length; j++) { h ^= str.charCodeAt(j); h = (h * 0x01000193) >>> 0; }
@@ -1270,31 +1238,11 @@
         return a + b;
       }
       function defaultKey(userId) { return 'omo_' + hashHex(userId + '|omo-demo') + hashHex('omo-demo|' + userId); }
-      function maskKey() { return '••••••••••••••••'; }
       function showNote(message, isError) {
         var notice = el('dash-notice');
         if (!notice) return;
         notice.textContent = message; notice.hidden = false;
         notice.classList.toggle('is-error', !!isError);
-      }
-      function renderAccount() {
-        if (el('credit-balance')) el('credit-balance').textContent = fmtUsd(account.balanceUsd);
-        if (el('empty-credit-note')) el('empty-credit-note').hidden = account.balanceUsd > 0;
-        revealed = false;
-        if (el('api-key-value')) el('api-key-value').textContent = maskKey();
-        if (el('api-key-label')) el('api-key-label').textContent = 'API key';
-        var list = el('usage-list'); var empty = el('usage-empty');
-        if (list && empty && account.runs && account.runs.length) {
-          empty.hidden = true; list.hidden = false;
-          list.innerHTML = account.runs.map(function (run) {
-            var time = '';
-            try { var date = new Date(run.created_at || run.ts); if (!isNaN(date.getTime())) time = date.toLocaleString(); } catch (e) {}
-            return '<li class="usage-row"><span class="usage-slug">' + esc(run.slug) + '</span><span class="usage-cost">' +
-              fmtUsd(run.cost_usd != null ? run.cost_usd : run.costUsd) + '</span><span class="usage-time">' + esc(time) + '</span></li>';
-          }).join('');
-        } else if (list && empty) { empty.hidden = false; list.hidden = true; list.innerHTML = ''; }
-        if (el('api-base-label')) el('api-base-label').textContent = API_BASE || '(same origin)';
-        if (window.OmoCredits && typeof window.OmoCredits.update === 'function') window.OmoCredits.update(account);
       }
       function currentUser() {
         if (window.ClerkAuth && typeof ClerkAuth.isSignedIn === 'function' && ClerkAuth.isSignedIn()) {
@@ -1309,13 +1257,11 @@
         account.apiKey = lsGet(KEY_KEY) || defaultKey(user.id);
         account.runs = [];
         try { var raw = lsGet(USE_KEY); if (raw) { var runs = JSON.parse(raw); if (Array.isArray(runs)) account.runs = runs; } } catch (e) {}
-        lsSet(BAL_KEY, String(account.balanceUsd)); lsSet(KEY_KEY, account.apiKey); renderAccount();
+        lsSet(BAL_KEY, String(account.balanceUsd)); lsSet(KEY_KEY, account.apiKey);
       }
       function markAccountUnavailable(message) {
         account.mode = 'unavailable'; account.balanceUsd = 0; account.apiKey = ''; account.runs = [];
-        renderAccount();
-        var note = el('topup-note');
-        if (note) { note.textContent = message || 'Your verified account session is unavailable. Sign in again.'; note.className = 'form-note is-err'; }
+        showNote(message || 'Your verified account session is unavailable. Sign in again.', true);
       }
       function loadAccount(user) {
         var requestId = ++accountRequestId;
@@ -1336,16 +1282,6 @@
             account.apiKey = data.api_key || '';
             account.runs = data.runs || [];
             lsSet(BAL_KEY, String(account.balanceUsd)); if (account.apiKey) lsSet(KEY_KEY, account.apiKey); lsSet(USE_KEY, JSON.stringify(account.runs));
-            renderAccount();
-            if (refreshAfterTopup) {
-              refreshAfterTopup = false;
-              var refreshRequestId = requestId;
-              window.setTimeout(function () {
-                var current = window.ClerkAuth && window.ClerkAuth.getUser ? window.ClerkAuth.getUser() : null;
-                if (refreshRequestId !== accountRequestId || !current || current.id !== userId) return;
-                loadAccount(current);
-              }, 1500);
-            }
           }).catch(function (error) {
             if (requestId !== accountRequestId || account.userId !== userId) return;
             markAccountUnavailable(error && error.message);
@@ -1358,7 +1294,6 @@
         account.balanceUsd = 0;
         account.apiKey = '';
         account.runs = [];
-        renderAccount();
       }
       function showGate() {
         clearAccountState();
@@ -1381,21 +1316,6 @@
         var user = currentUser();
         if (user) showDashboard(user); else showGate();
       }
-      function copyKey() {
-        var label = el('api-key-label');
-        function done() { if (label) label.textContent = 'Copied ✓'; setTimeout(function () { if (label) label.textContent = 'API key'; }, 1600); }
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(account.apiKey).then(done, done);
-        else { try { window.prompt('Your Omo API key', account.apiKey); } catch (e) {} done(); }
-      }
-      function goToTopup() {
-        if (dialog && (dialog.open || dialog.hasAttribute('open'))) {
-          if (typeof dialog.close === 'function') dialog.close();
-          else dialog.removeAttribute('open');
-        }
-        if (window.OmoCredits && typeof window.OmoCredits.open === 'function') window.OmoCredits.open();
-        else window.dispatchEvent(new CustomEvent('omo:open-credits'));
-      }
-
       function wire() {
         var searchForm = el('search-form'); var searchInput = el('search-input');
         if (searchForm) searchForm.addEventListener('submit', function (event) { event.preventDefault(); currentQuery = searchInput.value.trim().toLowerCase(); renderFeed(); });
@@ -1441,8 +1361,6 @@
             }
             var vote = event.target.closest('[data-upvote]');
             if (vote) { toggleVote(vote.getAttribute('data-upvote')); return; }
-            var topup = event.target.closest('[data-action="topup-credits"]');
-            if (topup) { event.stopPropagation(); goToTopup(); return; }
             var buy = event.target.closest('[data-action="buy"]');
             if (buy) { event.preventDefault(); handleBuy(currentSlug); return; }
             var reel = event.target.closest('.detail-hero-video');
@@ -1533,18 +1451,10 @@
         if (el('gate-signin-btn')) el('gate-signin-btn').addEventListener('click', signIn);
         if (el('top-signin-btn')) el('top-signin-btn').addEventListener('click', signIn);
         if (window.ClerkAuth && ClerkAuth.onAuthChange) ClerkAuth.onAuthChange(refreshAuth);
-        try {
-          if (window.location.search && window.location.search.indexOf('topup=success') !== -1) showNote('Payment complete — refreshing your balance.', false);
-          if (window.location.search && window.location.search.indexOf('topup=cancelled') !== -1) showNote('Top-up cancelled — your balance was not changed.', true);
-          if (window.location.search && window.location.search.indexOf('topup=needed') !== -1) {
-            showNote('You’re out of credits. Choose a suggested amount or top up any amount from $5.', false);
-          }
-        } catch (e) {}
       }
 
       renderSidebar();
       renderFeed();
-      renderAccount();
       wire();
       refreshAuth();
 
@@ -1557,9 +1467,9 @@
         clearFilters: clearFilters,
         refresh: refreshAuth,
         topup: function (amount) {
-          var options = typeof amount === 'number' ? { amount: amount } : {};
-          if (window.OmoCredits && typeof window.OmoCredits.open === 'function') window.OmoCredits.open(options);
-          else window.dispatchEvent(new CustomEvent('omo:open-credits', { detail: options }));
+          var target = 'billing.html';
+          if (typeof amount === 'number') target += '?amount=' + encodeURIComponent(amount);
+          window.location.assign(target);
         }
       };
     })();

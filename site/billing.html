@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#F2F6F1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Manage your Omo credits, review recent usage, and find your API details.">
+  <title>Billing · Omo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; overflow-x: clip; background: var(--canvas); }
+    body {
+      min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0; overflow-x: clip;
+      background:
+        radial-gradient(circle at 14% 13%, rgba(189, 239, 212, .27), transparent 25rem),
+        radial-gradient(circle at 88% 32%, rgba(255, 107, 61, .07), transparent 22rem),
+        var(--canvas);
+      color: var(--pine); font-family: var(--body); font-size: 16px; line-height: 1.5;
+      text-rendering: optimizeLegibility;
+    }
+    body, button, input { font-family: var(--body); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    [hidden] { display: none !important; }
+    :where(a, button, input):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+
+    .skip-link {
+      position: absolute; left: 16px; top: -120px; z-index: 100; padding: 10px 16px;
+      border-radius: 9px; background: var(--pine); color: #fff;
+    }
+    .skip-link:focus { top: 12px; }
+    .page-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+    .site-header { position: sticky; top: 0; z-index: 40; background: rgba(242, 246, 241, .94); backdrop-filter: blur(14px); }
+    .dash-shell { width: min(100% - 48px, var(--shell)); margin-inline: auto; }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark-logo { display: block; width: auto; height: 34px; }
+
+    .billing-main { width: min(100% - 32px, 620px); flex: 1; margin: 54px auto 80px; }
+    .page-head { margin-bottom: 30px; }
+    .eyebrow {
+      margin: 0 0 8px; color: var(--orange); font-size: 11px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase;
+    }
+    h1 {
+      margin: 0; font-family: var(--display); font-size: clamp(38px, 7vw, 52px);
+      font-weight: 600; letter-spacing: -.035em; line-height: 1.04;
+    }
+    .subline { max-width: 540px; margin: 12px 0 0; color: var(--moss); font-size: 16px; line-height: 1.55; }
+
+    .card {
+      position: relative; margin-bottom: 18px; padding: 26px;
+      border: 1px solid var(--rule); border-radius: 16px; background: rgba(255, 255, 255, .94);
+      box-shadow: 0 14px 40px rgba(23, 53, 44, .045);
+    }
+    .card--balance {
+      border-radius: 16px 16px 3px 16px;
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%);
+    }
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+    .card h2 { margin: 0; font-family: var(--display); font-size: 24px; font-weight: 600; line-height: 1.2; }
+    .card-intro { margin: 5px 0 0; color: var(--moss); font-size: 13.5px; line-height: 1.5; }
+    .secure-label {
+      flex: 0 0 auto; padding: 6px 9px; border-radius: 999px; background: #EAF8F0;
+      color: #376252; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .balance-label { margin: 0 0 3px; color: var(--moss); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .credit-balance {
+      margin: 0 0 24px; font-family: var(--display); font-size: clamp(44px, 10vw, 60px);
+      font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.045em; line-height: 1;
+    }
+    .empty-credit-note, .auth-notice {
+      margin: -7px 0 18px; padding: 11px 13px; border-radius: 10px; background: #FFE8E0;
+      color: var(--pine); font-size: 13px; font-weight: 700; line-height: 1.45;
+    }
+    .auth-notice { margin: 0 0 18px; background: #EAF8F0; }
+
+    .amount-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .amount-chip {
+      min-width: 0; min-height: 44px; padding: 0 8px; border: 1px solid var(--rule);
+      border-radius: 10px; background: var(--surface); color: var(--pine); font-size: 14px; font-weight: 700;
+    }
+    .amount-chip:hover { border-color: var(--pine); }
+    .amount-chip.is-active { border-color: var(--pine); background: var(--pine); color: #fff; }
+    .custom-amount-row {
+      display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin-bottom: 12px;
+    }
+    .custom-amount-label { font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .custom-amount {
+      width: 100%; min-width: 0; min-height: 44px; padding: 9px 12px; border: 1px solid var(--rule);
+      border-radius: 10px; background: #fff; color: var(--pine); appearance: textfield;
+    }
+    .custom-amount::-webkit-inner-spin-button { appearance: none; }
+    .custom-amount:focus { border-color: var(--pine); }
+    .button {
+      min-height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 0 18px; border: 1px solid var(--pine); border-radius: 10px; background: var(--pine);
+      color: #fff; font-size: 14px; font-weight: 700; line-height: 1.2; text-decoration: none;
+      transition: transform .14s ease, box-shadow .14s ease, background-color .14s ease;
+    }
+    .button:hover { background: #21483D; box-shadow: 0 7px 18px rgba(23, 53, 44, .15); transform: translateY(-1px); }
+    .button:disabled { opacity: .58; cursor: wait; transform: none; }
+    .button--block { width: 100%; }
+    .button--quiet { min-height: 40px; border-color: var(--rule); background: #fff; color: var(--pine); font-size: 13px; }
+    .button--quiet:hover { border-color: var(--pine); background: #F8FAF8; box-shadow: none; }
+    .form-note { min-height: 1.35em; margin: 10px 0 0; color: var(--moss); font-size: 12.5px; line-height: 1.45; }
+    .form-note.is-ok { color: #216546; font-weight: 700; }
+    .form-note.is-err { color: #A23C20; font-weight: 700; }
+
+    .usage-empty { margin: 0; color: var(--moss); font-size: 14px; }
+    .usage-list { margin: 0; padding: 0; list-style: none; }
+    .usage-row { min-width: 0; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+    .usage-row:first-child { padding-top: 0; }
+    .usage-row:last-child { padding-bottom: 0; border-bottom: 0; }
+    .usage-primary, .usage-meta { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .usage-slug { min-width: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 700; }
+    .usage-cost { flex: 0 0 auto; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .usage-meta { align-items: center; margin-top: 5px; }
+    .usage-time { min-width: 0; color: var(--moss); font-size: 12px; }
+    .usage-status {
+      flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: #EAF8F0;
+      color: #376252; font-size: 10px; font-weight: 700; line-height: 1.3; text-transform: capitalize;
+    }
+    .usage-status.is-running { background: #FFF0E8; color: #9A482D; }
+    .usage-status.is-error { background: #FFE8E0; color: #96391F; }
+
+    .api-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 18px 0 10px; }
+    .api-endpoint { min-width: 0; display: flex; align-items: center; gap: 9px; }
+    .method {
+      flex: 0 0 auto; padding: 4px 8px; border-radius: 6px; background: var(--orange); color: #fff;
+      font: 700 11px/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .api-endpoint code { min-width: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 700; }
+    .api-auth {
+      margin: 0; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px;
+      background: var(--canvas); color: var(--pine); font-size: 12.5px; white-space: nowrap;
+    }
+    .key-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; margin-top: 12px; }
+    .key-box {
+      min-width: 0; min-height: 40px; display: flex; align-items: center; padding: 9px 12px;
+      overflow: hidden; border: 1px solid var(--rule); border-radius: 9px; background: #fff;
+    }
+    .key-box code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+    .api-foot { margin: 14px 0 0; color: var(--moss); font-size: 12px; line-height: 1.5; }
+    .api-foot a { color: var(--pine); font-weight: 700; text-underline-offset: 3px; }
+
+    .footer-note { margin: 0; color: var(--moss); font-size: 13px; }
+    @media (max-width: 520px) {
+      .dash-shell { width: min(100% - 32px, var(--shell)); }
+      .billing-main { margin-top: 38px; margin-bottom: 56px; }
+      .page-head { margin-bottom: 24px; }
+      .card { padding: 21px 18px; border-radius: 14px; }
+      .card--balance { border-radius: 14px 14px 3px 14px; }
+      .card-head { margin-bottom: 18px; }
+      .secure-label { display: none; }
+      .amount-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .custom-amount-row { grid-template-columns: 1fr; gap: 6px; }
+      .api-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+      .key-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .key-box { grid-column: 1 / -1; }
+      .button--quiet { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <script defer src="nav.js"></script>
+</head>
+<body>
+  <div class="page-shell">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header omo-site-header">
+      <div class="dash-shell omo-nav-row">
+        <div class="omo-nav-brand">
+          <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+          <div class="omo-nav-menu">
+            <button class="omo-nav-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true"><span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+            <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+              <a href="index.html">Discover</a>
+              <a href="sell.html">Sell Workflow</a>
+            </nav>
+          </div>
+        </div>
+        <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
+      </div>
+    </header>
+
+    <main class="billing-main" id="main">
+      <header class="page-head">
+        <p class="eyebrow">Account</p>
+        <h1>Billing</h1>
+        <p class="subline">Your balance pays for cloud runs. Every new account gets $5 free.</p>
+      </header>
+
+      <section class="card card--balance" aria-labelledby="balance-title">
+        <div class="card-head">
+          <div>
+            <h2 id="balance-title">Credits</h2>
+            <p class="card-intro">Add credit once, then use it across every hosted helper.</p>
+          </div>
+          <span class="secure-label">Stripe secure</span>
+        </div>
+        <p class="balance-label">Available balance</p>
+        <p class="credit-balance" id="credit-balance" aria-live="polite">$5.00</p>
+        <p class="empty-credit-note" id="empty-credit-note" hidden>You’re out of credits, but you can keep going in seconds — top up from $5 below.</p>
+        <p class="auth-notice" id="auth-notice" hidden>Sign in to manage credits and see recent usage.</p>
+        <form id="topup-form" novalidate>
+          <div class="amount-row" role="group" aria-label="Top-up amount">
+            <button class="amount-chip is-active" type="button" data-amount="20" aria-pressed="true">$20</button>
+            <button class="amount-chip" type="button" data-amount="50" aria-pressed="false">$50</button>
+            <button class="amount-chip" type="button" data-amount="100" aria-pressed="false">$100</button>
+            <button class="amount-chip" type="button" data-amount="200" aria-pressed="false">$200</button>
+          </div>
+          <label class="custom-amount-row" for="custom-amount">
+            <span class="custom-amount-label">Custom $</span>
+            <input class="custom-amount" id="custom-amount" type="number" min="5" step="0.01" inputmode="decimal" placeholder="Minimum $5" aria-describedby="topup-note">
+          </label>
+          <button class="button button--block" id="topup-btn" type="submit">Top up with Stripe</button>
+          <p class="form-note" id="topup-note" role="status" aria-live="polite">Secure checkout by Stripe.</p>
+        </form>
+      </section>
+
+      <section class="card" aria-labelledby="usage-title">
+        <div class="card-head">
+          <div>
+            <h2 id="usage-title">Recent usage</h2>
+            <p class="card-intro">Your latest cloud runs, newest first.</p>
+          </div>
+        </div>
+        <p class="usage-empty" id="usage-empty">No runs yet — pick a helper and try it.</p>
+        <ul class="usage-list" id="usage-list" hidden></ul>
+      </section>
+
+      <section class="card" aria-labelledby="api-title">
+        <div class="card-head">
+          <div>
+            <h2 id="api-title">API</h2>
+            <p class="card-intro">Use the same balance when you run helpers from your own app.</p>
+          </div>
+        </div>
+        <div class="api-row">
+          <div class="api-endpoint"><span class="method">POST</span><code>/api/run</code></div>
+          <span class="card-intro" id="api-base-label">Same origin</span>
+        </div>
+        <pre class="api-auth"><code>Authorization: Bearer omo_…</code></pre>
+        <div class="key-row">
+          <span class="key-box"><code id="api-key-value">••••••••••••••••</code></span>
+          <button class="button button--quiet" id="reveal-key" type="button">Reveal</button>
+          <button class="button button--quiet" id="copy-key" type="button">Copy</button>
+        </div>
+        <p class="api-foot">Keep your key private — anyone with it can spend your credits. <a href="api.html">View API docs →</a></p>
+      </section>
+    </main>
+
+    <footer class="omo-footer">
+      <div class="dash-shell footer-row">
+        <p class="footer-note">Omo — useful AI helpers, ready to run.</p>
+        <nav class="omo-footer-links" aria-label="Footer">
+          <a href="about.html">About</a>
+          <a href="terms.html">Terms</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="support.html">Support</a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+
+  <script src="key-config.js"></script>
+  <script src="clerk.js"></script>
+  <script src="stripe.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      var BALANCE_KEY = 'omo_balance_v1';
+      var USAGE_KEY = 'omo_usage_v1';
+      var API_KEY = 'omo_apikey_v1';
+      var chosenAmount = 20;
+      var requestId = 0;
+      var revealed = false;
+      var account = { mode: 'loading', balanceUsd: 5, apiKey: '', runs: [] };
+      var form = document.getElementById('topup-form');
+      var customAmount = document.getElementById('custom-amount');
+      var topupButton = document.getElementById('topup-btn');
+      var amountChips = document.querySelectorAll('.amount-chip');
+
+      function apiBase() {
+        return String(window.OMO_API_BASE || '').replace(/\/+$/, '');
+      }
+
+      function formatUsd(value) {
+        var amount = Number(value);
+        return '$' + (isFinite(amount) ? amount : 0).toFixed(2);
+      }
+
+      function storageGet(key) {
+        try { return window.localStorage.getItem(key); }
+        catch (error) { return null; }
+      }
+
+      function storageSet(key, value) {
+        try { window.localStorage.setItem(key, value); }
+        catch (error) {}
+      }
+
+      function currentUser() {
+        if (window.ClerkAuth && typeof window.ClerkAuth.getUser === 'function') {
+          var clerkUser = window.ClerkAuth.getUser();
+          return clerkUser && clerkUser.id ? clerkUser : null;
+        }
+        try {
+          var saved = JSON.parse(storageGet('cognition_user') || 'null');
+          return saved && saved.id ? saved : null;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function isDemoUser(user) {
+        var key = String(window.CLERK_PUBLISHABLE_KEY || '').trim();
+        return window.location.protocol === 'file:' || !!(user && user.demo) || !/^pk_(?:test|live)_/.test(key) || key === 'pk_test_placeholder';
+      }
+
+      function getSessionToken() {
+        if (window.Clerk && window.Clerk.session && typeof window.Clerk.session.getToken === 'function') {
+          return Promise.resolve(window.Clerk.session.getToken()).then(function (token) {
+            if (!token) throw new Error('Your sign-in session has expired. Sign in again.');
+            return token;
+          });
+        }
+        return Promise.reject(new Error('A verified sign-in session is not available.'));
+      }
+
+      function fnv1a(value) {
+        var hash = 0x811c9dc5;
+        for (var i = 0; i < value.length; i += 1) {
+          hash ^= value.charCodeAt(i);
+          hash = (hash * 0x01000193) >>> 0;
+        }
+        return hash >>> 0;
+      }
+
+      function hashHex(value) {
+        var first = fnv1a(value).toString(16);
+        var second = fnv1a('\u0001' + value + '\u0002').toString(16);
+        while (first.length < 8) first = '0' + first;
+        while (second.length < 8) second = '0' + second;
+        return first + second;
+      }
+
+      function demoApiKey(userId) {
+        return 'omo_' + hashHex(userId + '|omo-demo') + hashHex('omo-demo|' + userId);
+      }
+
+      function runsFromStorage() {
+        try {
+          var runs = JSON.parse(storageGet(USAGE_KEY) || '[]');
+          return Array.isArray(runs) ? runs : [];
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function updateNavBalance(balanceUsd) {
+        var links = document.querySelectorAll('[data-omo-login].omo-nav-credit');
+        for (var i = 0; i < links.length; i += 1) {
+          var link = links[i];
+          var icon = document.createElement('span');
+          var amount = document.createElement('span');
+          icon.className = 'omo-nav-credit-icon';
+          icon.setAttribute('aria-hidden', 'true');
+          icon.textContent = '\u25d2';
+          amount.textContent = formatUsd(balanceUsd);
+          link.textContent = '';
+          link.appendChild(icon);
+          link.appendChild(amount);
+          link.href = 'billing.html';
+          link.setAttribute('aria-label', formatUsd(balanceUsd) + ' in credits — view billing');
+          link.title = formatUsd(balanceUsd) + ' in credits';
+        }
+      }
+
+      function runTimestamp(run) {
+        var timestamp = Date.parse(run && (run.created_at || run.ts) || '');
+        return isFinite(timestamp) ? timestamp : 0;
+      }
+
+      function runStatus(run) {
+        var raw = String(run && (run.status || run.state || run.modal_status) || 'completed').toLowerCase();
+        if (raw === 'succeeded' || raw === 'delivered' || raw === 'complete') return { label: 'Completed', className: '' };
+        if (raw === 'running' || raw === 'queued' || raw === 'accepted' || raw === 'reserved') return { label: raw, className: ' is-running' };
+        if (raw === 'failed' || raw === 'error' || raw === 'refunded' || raw === 'cancelled') return { label: raw, className: ' is-error' };
+        return { label: raw, className: '' };
+      }
+
+      function renderUsage() {
+        var list = document.getElementById('usage-list');
+        var empty = document.getElementById('usage-empty');
+        var runs = (Array.isArray(account.runs) ? account.runs : []).slice().sort(function (left, right) {
+          return runTimestamp(right) - runTimestamp(left);
+        });
+        list.textContent = '';
+        empty.hidden = runs.length > 0;
+        list.hidden = runs.length === 0;
+
+        for (var i = 0; i < runs.length; i += 1) {
+          var run = runs[i] || {};
+          var item = document.createElement('li');
+          var primary = document.createElement('div');
+          var meta = document.createElement('div');
+          var slug = document.createElement('span');
+          var cost = document.createElement('span');
+          var time = document.createElement('span');
+          var status = document.createElement('span');
+          var statusInfo = runStatus(run);
+          var dateLabel = '';
+          try {
+            var date = new Date(run.created_at || run.ts);
+            if (!isNaN(date.getTime())) dateLabel = date.toLocaleString();
+          } catch (error) {}
+
+          item.className = 'usage-row';
+          primary.className = 'usage-primary';
+          meta.className = 'usage-meta';
+          slug.className = 'usage-slug';
+          cost.className = 'usage-cost';
+          time.className = 'usage-time';
+          status.className = 'usage-status' + statusInfo.className;
+          slug.textContent = run.slug || 'Helper run';
+          cost.textContent = formatUsd(run.cost_usd != null ? run.cost_usd : run.costUsd);
+          time.textContent = dateLabel || 'Recently';
+          status.textContent = statusInfo.label;
+          primary.appendChild(slug);
+          primary.appendChild(cost);
+          meta.appendChild(time);
+          meta.appendChild(status);
+          item.appendChild(primary);
+          item.appendChild(meta);
+          list.appendChild(item);
+        }
+      }
+
+      function renderApiKey() {
+        var key = document.getElementById('api-key-value');
+        var reveal = document.getElementById('reveal-key');
+        var copy = document.getElementById('copy-key');
+        var available = !!account.apiKey;
+        key.textContent = revealed && available ? account.apiKey : '••••••••••••••••';
+        reveal.textContent = revealed ? 'Hide' : 'Reveal';
+        reveal.disabled = !available;
+        copy.disabled = !available;
+      }
+
+      function render() {
+        var signedIn = !!currentUser();
+        document.getElementById('credit-balance').textContent = formatUsd(account.balanceUsd);
+        document.getElementById('empty-credit-note').hidden = !signedIn || account.balanceUsd > 0;
+        document.getElementById('auth-notice').hidden = signedIn;
+        document.getElementById('api-base-label').textContent = apiBase() || 'Same origin';
+        for (var i = 0; i < amountChips.length; i += 1) amountChips[i].disabled = !signedIn;
+        customAmount.disabled = !signedIn;
+        topupButton.disabled = !signedIn;
+        renderUsage();
+        renderApiKey();
+        if (signedIn) updateNavBalance(account.balanceUsd);
+      }
+
+      function showNote(message, state) {
+        var note = document.getElementById('topup-note');
+        note.textContent = message || '';
+        note.className = 'form-note' + (state === 'ok' ? ' is-ok' : state === 'error' ? ' is-err' : '');
+      }
+
+      function loadDemoAccount(user) {
+        var savedBalance = Number(storageGet(BALANCE_KEY));
+        account.mode = 'mock';
+        account.balanceUsd = isFinite(savedBalance) ? savedBalance : 5;
+        account.apiKey = storageGet(API_KEY) || demoApiKey(user.id);
+        account.runs = runsFromStorage();
+        storageSet(BALANCE_KEY, String(account.balanceUsd));
+        storageSet(API_KEY, account.apiKey);
+        render();
+      }
+
+      function refresh() {
+        var user = currentUser();
+        var activeRequest = ++requestId;
+        if (!user) {
+          account.mode = 'unavailable';
+          account.balanceUsd = 0;
+          account.apiKey = '';
+          account.runs = [];
+          revealed = false;
+          render();
+          showNote('Sign in to manage credits and see recent usage.', 'error');
+          return Promise.resolve(account);
+        }
+
+        if (isDemoUser(user)) {
+          loadDemoAccount(user);
+          return Promise.resolve(account);
+        }
+
+        account.mode = 'loading';
+        return getSessionToken().then(function (token) {
+          return fetch(apiBase() + '/api/me', {
+            headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
+          });
+        }).then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (data) {
+            return { ok: response.ok, data: data };
+          });
+        }).then(function (result) {
+          if (activeRequest !== requestId) return account;
+          var data = result.data || {};
+          if (!result.ok || !data.ok) throw new Error(data.message || 'Your billing details could not be loaded.');
+          account.mode = 'server';
+          if (data.balance_cents != null && isFinite(Number(data.balance_cents))) account.balanceUsd = Number(data.balance_cents) / 100;
+          else account.balanceUsd = Number(data.balance_usd != null ? data.balance_usd : data.balance);
+          if (!isFinite(account.balanceUsd)) account.balanceUsd = 0;
+          account.apiKey = data.api_key || '';
+          account.runs = Array.isArray(data.runs) ? data.runs : [];
+          storageSet(BALANCE_KEY, String(account.balanceUsd));
+          if (account.apiKey) storageSet(API_KEY, account.apiKey);
+          storageSet(USAGE_KEY, JSON.stringify(account.runs));
+          render();
+          return account;
+        }).catch(function (error) {
+          if (activeRequest !== requestId) return account;
+          account.mode = 'unavailable';
+          showNote(error && error.message ? error.message : 'Your billing details could not be loaded.', 'error');
+          render();
+          return account;
+        });
+      }
+
+      function setSelectedAmount(amount) {
+        var numeric = Number(amount);
+        var matched = false;
+        for (var i = 0; i < amountChips.length; i += 1) {
+          var active = Number(amountChips[i].getAttribute('data-amount')) === numeric;
+          amountChips[i].classList.toggle('is-active', active);
+          amountChips[i].setAttribute('aria-pressed', active ? 'true' : 'false');
+          if (active) matched = true;
+        }
+        if (matched) {
+          chosenAmount = numeric;
+          customAmount.value = '';
+        } else if (isFinite(numeric) && numeric > 0) {
+          chosenAmount = null;
+          customAmount.value = String(numeric);
+        }
+      }
+
+      function setBusy(busy) {
+        topupButton.disabled = busy;
+        topupButton.setAttribute('aria-busy', busy ? 'true' : 'false');
+        topupButton.textContent = busy ? 'Opening Stripe…' : 'Top up with Stripe';
+      }
+
+      function finishDemoTopup(result, amount) {
+        account.balanceUsd = result && isFinite(Number(result.balance)) ? Number(result.balance) : account.balanceUsd + amount;
+        storageSet(BALANCE_KEY, String(account.balanceUsd));
+        render();
+        setBusy(false);
+        showNote('Demo top-up added ' + formatUsd(amount) + ' to your local balance.', 'ok');
+      }
+
+      function submitTopup(event) {
+        event.preventDefault();
+        var hasCustom = String(customAmount.value || '').trim() !== '';
+        var amount = hasCustom ? Number(customAmount.value) : chosenAmount;
+        var cents = Math.round(amount * 100);
+        if (!isFinite(amount) || Math.abs(amount * 100 - cents) > .000001 || cents < 500) {
+          showNote('Enter at least $5.00, with up to two decimal places.', 'error');
+          return;
+        }
+        amount = cents / 100;
+        setBusy(true);
+        showNote('', '');
+
+        if (account.mode === 'server') {
+          getSessionToken().then(function (token) {
+            return fetch(apiBase() + '/api/topup', {
+              method: 'POST',
+              headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ amount_usd: amount })
+            });
+          }).then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+              return { ok: response.ok, data: data };
+            });
+          }).then(function (result) {
+            if (!result.ok || !result.data.url) throw new Error(result.data.error || 'Checkout could not start right now.');
+            window.location.assign(result.data.url);
+          }).catch(function (error) {
+            setBusy(false);
+            showNote(error && error.message ? error.message : 'Checkout could not start right now.', 'error');
+          });
+          return;
+        }
+
+        if (!window.StripePay || typeof window.StripePay.topup !== 'function') {
+          setBusy(false);
+          showNote('Stripe checkout could not be loaded.', 'error');
+          return;
+        }
+        window.StripePay.topup(amount, {
+          onSuccess: function (result) { finishDemoTopup(result, amount); },
+          onError: function (message) {
+            setBusy(false);
+            showNote(message || 'Checkout could not start right now.', 'error');
+          }
+        });
+      }
+
+      for (var i = 0; i < amountChips.length; i += 1) {
+        amountChips[i].addEventListener('click', function () {
+          setSelectedAmount(Number(this.getAttribute('data-amount')) || 20);
+        });
+      }
+
+      customAmount.addEventListener('input', function () {
+        var hasValue = String(customAmount.value || '').trim() !== '';
+        chosenAmount = hasValue ? null : 20;
+        for (var i = 0; i < amountChips.length; i += 1) {
+          var active = !hasValue && Number(amountChips[i].getAttribute('data-amount')) === 20;
+          amountChips[i].classList.toggle('is-active', active);
+          amountChips[i].setAttribute('aria-pressed', active ? 'true' : 'false');
+        }
+      });
+
+      document.getElementById('reveal-key').addEventListener('click', function () {
+        revealed = !revealed;
+        renderApiKey();
+      });
+
+      document.getElementById('copy-key').addEventListener('click', function () {
+        if (!account.apiKey) return;
+        var button = this;
+        function done() {
+          button.textContent = 'Copied ✓';
+          window.setTimeout(function () { button.textContent = 'Copy'; }, 1600);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(account.apiKey).then(done, done);
+        else { try { window.prompt('Your Omo API key', account.apiKey); } catch (error) {} done(); }
+      });
+
+      form.addEventListener('submit', submitTopup);
+      window.addEventListener('storage', function (event) {
+        if (event.key === BALANCE_KEY || event.key === USAGE_KEY || event.key === API_KEY || event.key === 'cognition_user') refresh();
+      });
+      if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') window.ClerkAuth.onAuthChange(refresh);
+
+      try {
+        var params = new URLSearchParams(window.location.search || '');
+        var amountParam = params.get('amount');
+        if (amountParam) setSelectedAmount(amountParam);
+        var topupResult = params.get('topup');
+        if (topupResult === 'success') showNote('Payment complete — refreshing your balance.', 'ok');
+        else if (topupResult === 'cancelled') showNote('Top-up cancelled — your balance was not changed.', 'error');
+        else if (topupResult === 'needed') showNote('You’re out of credits. Choose an amount to keep going.', '');
+        refresh();
+        if (topupResult === 'success') window.setTimeout(refresh, 1500);
+      } catch (error) {
+        refresh();
+      }
+
+      window.__omoBilling = { state: account, refresh: refresh, selectAmount: setSelectedAmount };
+    })();
+  </script>
+</body>
+</html>
