@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F5F7F3">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Runware Split — Run Woven | Omo</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #f5f7f3;
+      --surface: #ffffff;
+      --pine: #17352c;
+      --pine-2: #244a3d;
+      --mint: #bdefd4;
+      --mint-soft: #ebf8f1;
+      --orange: #ff6b3d;
+      --moss: #66756e;
+      --rule: #d8e1db;
+      --code: #112a22;
+      --font: "DM Sans", Inter, system-ui, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { overflow-x: clip; scroll-behavior: smooth; }
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: clip;
+      background: var(--canvas);
+      color: var(--pine);
+      font: 400 15px/1.5 var(--font);
+    }
+    body, button, input, textarea { font-family: var(--font); }
+    button, summary { cursor: pointer; }
+    a { color: inherit; }
+    h1, h2, h3, p, pre { margin-top: 0; }
+    :where(a, button, input, textarea, summary):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+    .shell { width: min(1240px, calc(100% - 48px)); margin-inline: auto; }
+
+    .site-header { position: relative; z-index: 10; border-bottom: 1px solid var(--rule); background: rgba(245, 247, 243, .95); backdrop-filter: blur(12px); }
+    .nav-row { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .nav-brand { display: flex; align-items: center; gap: 10px; }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark img { display: block; width: auto; height: 34px; }
+    .menu { position: relative; }
+    .menu summary, .login {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 13px;
+      border: 1px solid var(--rule);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--pine);
+      font-size: 13px;
+      font-weight: 700;
+      list-style: none;
+      text-decoration: none;
+    }
+    .menu summary::-webkit-details-marker { display: none; }
+    .menu summary::after { content: "▾"; margin-left: 7px; font-size: 10px; }
+    .menu[open] summary::after { transform: rotate(180deg); }
+    .menu-links { position: absolute; top: calc(100% + 8px); left: 0; width: 190px; padding: 7px; border: 1px solid var(--rule); border-radius: 12px; background: #fff; box-shadow: 0 15px 40px rgba(23, 53, 44, .12); }
+    .menu-links a { display: block; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 700; text-decoration: none; }
+    .menu-links a:hover { background: var(--mint-soft); }
+    .login { padding-inline: 17px; border-color: var(--pine); }
+    .login:hover { background: var(--mint); }
+
+    main { padding: 34px 0 70px; }
+    .crumb { min-height: 38px; display: inline-flex; align-items: center; margin-bottom: 13px; color: var(--moss); font-size: 13px; font-weight: 700; text-decoration: none; }
+    .crumb:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 4px; }
+    .title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+    .title-block { max-width: 770px; }
+    .eyebrow { margin: 0 0 7px; color: var(--orange); font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin-bottom: 8px; font-size: clamp(31px, 4.2vw, 45px); line-height: 1.08; letter-spacing: -.04em; text-wrap: balance; }
+    .promise { margin-bottom: 9px; color: #365349; font-size: 18px; }
+    .byline { margin: 0; color: var(--moss); font-size: 13px; font-weight: 600; }
+    .price-chip { flex: 0 0 auto; padding: 10px 13px; border: 1px solid #b8d7c5; border-radius: 99px; background: var(--mint-soft); color: var(--pine); font-size: 12px; font-weight: 700; }
+
+    .workbench { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); border: 1px solid var(--rule); border-radius: 16px; background: var(--surface); box-shadow: 0 18px 52px rgba(23, 53, 44, .07); }
+    .request-form, .response-workbench { min-width: 0; }
+    .request-form { border-right: 1px solid var(--rule); }
+    .panel-toolbar { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--rule); }
+    .panel-label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .panel-label::before { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); content: ""; }
+    .view-switch { display: inline-flex; padding: 3px; border: 1px solid var(--rule); border-radius: 9px; background: var(--canvas); }
+    .view-switch span { padding: 5px 9px; border-radius: 6px; color: var(--moss); font-size: 11px; font-weight: 700; }
+    .view-switch .active { background: var(--mint); color: var(--pine); }
+    .form-body { padding: 22px 20px 20px; }
+    .form-intro { margin-bottom: 20px; color: var(--moss); font-size: 13px; }
+    .form-fields { display: grid; gap: 17px; }
+    .field-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    .field-hint { color: #829088; font-size: 11px; font-weight: 500; text-align: right; }
+    .control { width: 100%; min-width: 0; min-height: 43px; display: block; padding: 10px 12px; border: 1px solid #c9d5ce; border-radius: 8px; background: #fcfdfc; color: var(--pine); font-size: 13px; line-height: 1.45; }
+    textarea.control { min-height: 66px; resize: vertical; }
+    .control:focus { border-color: var(--pine); background: #fff; outline: 0; box-shadow: 0 0 0 3px rgba(189, 239, 212, .48); }
+    .control::placeholder { color: #89968f; opacity: 1; }
+    .run-button { width: 100%; min-height: 50px; margin-top: 22px; border: 1px solid var(--pine); border-radius: 9px 9px 3px 9px; background: var(--pine); color: #fff; font-size: 15px; font-weight: 700; }
+    .run-button:hover { background: var(--pine-2); }
+    .run-button:disabled { cursor: wait; opacity: .72; }
+    .small-note { margin: 9px 0 0; color: var(--moss); font-size: 11px; text-align: center; }
+
+    .response-workbench { background: #fbfcfa; }
+    .workbench-nav { display: flex; gap: 5px; }
+    .workbench-nav a { padding: 7px 9px; border-radius: 7px; color: var(--moss); font-size: 11px; font-weight: 700; text-decoration: none; }
+    .workbench-nav a:first-child { background: var(--mint-soft); color: var(--pine); }
+    .workbench-nav a:hover { background: var(--mint-soft); color: var(--pine); }
+    .code-section { padding: 20px; border-bottom: 1px solid var(--rule); }
+    .code-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .code-title { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--moss); font: 700 10px/1.2 var(--mono); letter-spacing: .12em; }
+    .method { padding: 4px 7px; border-radius: 5px; background: var(--mint); color: var(--pine); font: 700 9px/1 var(--font); }
+    .copy-code { min-height: 30px; padding: 0 9px; border: 1px solid var(--rule); border-radius: 7px; background: #fff; color: var(--pine); font-size: 11px; font-weight: 700; }
+    .copy-code:hover { border-color: #a8bbb0; }
+    pre { max-width: 100%; margin-bottom: 0; overflow: auto; color: var(--code); font: 500 12px/1.65 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; }
+    .json-key { color: #a43d1f; }
+    .json-string { color: #236e55; }
+
+    .response-section { padding: 20px; }
+    .progress-wrap { margin-bottom: 18px; padding: 14px; border: 1px solid var(--rule); border-radius: 10px; background: #fff; }
+    .progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+    .phase { margin: 0; font-size: 13px; font-weight: 700; }
+    .status { display: inline-flex; align-items: center; gap: 6px; color: #347159; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .status::before { width: 7px; height: 7px; border-radius: 50%; background: #48aa79; box-shadow: 0 0 0 4px rgba(72, 170, 121, .12); content: ""; }
+    .track { height: 8px; overflow: hidden; border-radius: 99px; background: #dfe8e2; }
+    .bar { width: 100%; height: 100%; border-radius: inherit; background: var(--orange); transition: width .3s ease; }
+    .phase-list { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 9px; color: var(--moss); font-size: 10px; }
+    .phase-list span::before { content: "✓"; margin-right: 4px; color: #3a9469; font-weight: 700; }
+    .response-json { margin-bottom: 16px; padding: 14px; border-radius: 9px; background: #122e25; color: #dff6e8; }
+    .response-json .muted { color: #8fb4a4; }
+    .response-json .value { color: #ffad8e; }
+    .friendly-output { padding: 18px; border: 1px solid #cce8d8; border-radius: 11px 11px 3px 11px; background: var(--mint-soft); }
+    .output-tag { margin: 0 0 7px; color: #39735c; font-size: 9px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+    .friendly-output h3 { margin-bottom: 8px; font-size: 18px; letter-spacing: -.02em; }
+    .friendly-output p { margin-bottom: 10px; color: #365349; font-size: 13px; }
+    .friendly-output p:last-of-type { margin-bottom: 0; }
+    .output-files { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 0; }
+    .file-pill { padding: 6px 8px; border: 1px solid #badac8; border-radius: 7px; background: #fff; color: var(--pine); font: 700 10px/1 var(--mono); }
+    .output-actions { display: grid; grid-template-columns: 1.2fr 1fr; gap: 9px; margin-top: 13px; }
+    .action { min-height: 43px; display: inline-flex; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid var(--pine); border-radius: 8px 8px 3px 8px; background: var(--pine); color: #fff; font-size: 12px; font-weight: 700; text-decoration: none; }
+    .action:hover { background: var(--pine-2); }
+    .action.secondary { border-color: var(--rule); background: #fff; color: var(--pine); }
+    .action.secondary:hover { border-color: #a8bbb0; background: var(--mint-soft); }
+    .below { display: flex; justify-content: space-between; gap: 18px; margin-top: 16px; color: var(--moss); font-size: 12px; }
+    .below a { font-weight: 700; text-underline-offset: 3px; }
+    .concept-note { margin: 20px 0 0; padding: 12px 15px; border: 1px dashed #bdc9c2; border-radius: 10px; text-align: center; }
+
+    @media (max-width: 850px) {
+      .title-row { align-items: flex-start; flex-direction: column; gap: 13px; }
+      .workbench { grid-template-columns: 1fr; }
+      .request-form { border-right: 0; border-bottom: 1px solid var(--rule); }
+    }
+    @media (max-width: 600px) {
+      .shell { width: calc(100% - 28px); }
+      .nav-row { min-height: 64px; gap: 9px; }
+      .wordmark img { max-width: 105px; height: 29px; }
+      .menu summary, .login { min-height: 38px; padding-inline: 10px; font-size: 12px; }
+      main { padding: 27px 0 55px; }
+      .title-row { margin-bottom: 22px; }
+      .promise { font-size: 16px; }
+      .panel-toolbar { padding-inline: 15px; }
+      .form-body, .code-section, .response-section { padding: 17px 15px; }
+      .field-label { display: block; }
+      .field-hint { display: block; margin-top: 2px; text-align: left; }
+      .workbench-nav a:nth-child(2) { display: none; }
+      .output-actions { grid-template-columns: 1fr; }
+      .below { flex-direction: column; gap: 6px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell nav-row">
+      <div class="nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img src="logo-sweet-pastel.svg" alt="Omo"></a>
+        <details class="menu">
+          <summary>Menu</summary>
+          <nav class="menu-links" aria-label="Main menu">
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell Workflow</a>
+          </nav>
+        </details>
+      </div>
+      <a class="login" href="signup.html">Log in</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="shell">
+      <a class="crumb" href="workflow.html?slug=woven-relationship-book-maker">← Back to the listing</a>
+      <header class="title-row">
+        <div class="title-block">
+          <p class="eyebrow">Run it for me · Woven Studio</p>
+          <h1>Woven Relationship Book Maker</h1>
+          <p class="promise">Turn your love story into a beautiful keepsake book.</p>
+          <p class="byline">by Woven Studio · 84 upvotes</p>
+        </div>
+        <span class="price-chip">Hosted run · ≈ $0.10</span>
+      </header>
+
+      <div class="workbench">
+        <section class="request-form" aria-labelledby="request-form-title">
+          <header class="panel-toolbar">
+            <h2 class="panel-label" id="request-form-title">Request</h2>
+            <div class="view-switch" aria-label="Request view"><span class="active">Form</span><span>JSON →</span></div>
+          </header>
+          <div class="form-body">
+            <p class="form-intro">Add the details Woven should use. Your request preview updates on the right.</p>
+            <form id="woven-form">
+              <div class="form-fields">
+                <div>
+                  <label class="field-label" for="how-you-met">How you met <span class="field-hint">Your first meeting</span></label>
+                  <textarea class="control" id="how-you-met" name="how_you_met" data-input>We reached for the same book in a rainy-day shop.</textarea>
+                </div>
+                <div>
+                  <label class="field-label" for="favorite-moments">Favorite moments <span class="field-hint">Milestones to include</span></label>
+                  <textarea class="control" id="favorite-moments" name="favorite_moments" data-input>Seven years, two cities, and adopting our corgi.</textarea>
+                </div>
+                <div>
+                  <label class="field-label" for="inside-jokes">Inside jokes <span class="field-hint">Phrases + tiny details</span></label>
+                  <textarea class="control" id="inside-jokes" name="inside_jokes" data-input>“Wrong turn, best view” and the sock-stealing corgi.</textarea>
+                </div>
+                <div>
+                  <label class="field-label" for="style">Style <span class="field-hint">Warm, playful, or poetic</span></label>
+                  <input class="control" id="style" name="style" data-input value="warm and playful">
+                </div>
+                <div>
+                  <label class="field-label" for="length">Length <span class="field-hint">Short or long</span></label>
+                  <input class="control" id="length" name="length" data-input value="short">
+                </div>
+              </div>
+              <button class="run-button" id="run" type="button">Run it — ≈ $0.10</button>
+              <p class="small-note">Failed runs cost nothing.</p>
+            </form>
+          </div>
+        </section>
+
+        <section class="response-workbench" aria-labelledby="response-title">
+          <header class="panel-toolbar">
+            <h2 class="panel-label" id="response-title">Request / Response</h2>
+            <nav class="workbench-nav" aria-label="Workbench sections">
+              <a href="#payload">Payload</a>
+              <a href="#response">Response</a>
+              <a href="#friendly-output">Output</a>
+            </nav>
+          </header>
+
+          <section class="code-section" id="payload" aria-labelledby="payload-title">
+            <div class="code-head">
+              <h3 class="code-title" id="payload-title"><span class="method">POST</span> /api/run</h3>
+              <button class="copy-code" id="copy-request" type="button">Copy JSON</button>
+            </div>
+            <pre id="request-json" aria-live="polite"></pre>
+          </section>
+
+          <section class="response-section" id="response" aria-labelledby="response-json-title">
+            <div class="progress-wrap">
+              <div class="progress-head">
+                <p class="phase" id="phase">Delivered</p>
+                <span class="status" id="status">200 · complete</span>
+              </div>
+              <div class="track" id="track" role="progressbar" aria-label="Workflow progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div class="bar" id="bar"></div></div>
+              <div class="phase-list" aria-label="Completed phases"><span>Read</span><span>Write</span><span>Weave</span><span>Polish</span><span>Deliver</span></div>
+            </div>
+
+            <div class="code-head">
+              <h3 class="code-title" id="response-json-title">RESPONSE · JSON</h3>
+              <span class="method" id="latency">2.8s</span>
+            </div>
+            <pre class="response-json" id="response-json"><span class="muted">{
+  "status": </span><span class="value">"delivered"</span><span class="muted">,
+  "run_id": </span><span class="value">"run_woven_0042"</span><span class="muted">,
+  "output": {
+    "book": </span><span class="value">"The Bookshop in the Rain.md"</span><span class="muted">,
+    "page_plan": </span><span class="value">"woven-page-plan.md"</span><span class="muted">
+  }
+}</span></pre>
+
+            <article class="friendly-output" id="friendly-output">
+              <p class="output-tag">Rendered output</p>
+              <h3>The Bookshop in the Rain</h3>
+              <p>It began with two hands reaching for the same book while rain traced the shop window. One awkward laugh became coffee, then seven years, two cities, and a home ruled by a corgi with a talent for stealing socks.</p>
+              <p>“Wrong turn, best view” became their shorthand for finding the beautiful part together.</p>
+              <div class="output-files"><span class="file-pill">book.md</span><span class="file-pill">page-plan.md</span></div>
+            </article>
+            <div class="output-actions">
+              <button class="action" id="download" type="button">↓ Download output</button>
+              <button class="action secondary" id="again" type="button">Run again</button>
+            </div>
+          </section>
+        </section>
+      </div>
+
+      <div class="below">
+        <span>Concept 2 · Runware Split — edit on the left, inspect the request and response on the right.</span>
+        <a href="workflow.html?slug=woven-relationship-book-maker">Back to the listing</a>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var fields = Array.prototype.slice.call(document.querySelectorAll('[data-input]'));
+      var requestPreview = document.getElementById('request-json');
+
+      function payloadText() {
+        var inputs = {};
+        fields.forEach(function (field) { inputs[field.name] = field.value; });
+        return JSON.stringify({ slug: 'woven-relationship-book-maker', inputs: inputs }, null, 2);
+      }
+
+      function updatePreview() { requestPreview.textContent = payloadText(); }
+      fields.forEach(function (field) { field.addEventListener('input', updatePreview); });
+      updatePreview();
+
+      document.getElementById('copy-request').addEventListener('click', function (event) {
+        var button = event.currentTarget;
+        if (!navigator.clipboard) return;
+        navigator.clipboard.writeText(payloadText()).then(function () {
+          button.textContent = 'Copied';
+          window.setTimeout(function () { button.textContent = 'Copy JSON'; }, 1100);
+        });
+      });
+
+      var runButton = document.getElementById('run');
+      var phase = document.getElementById('phase');
+      var status = document.getElementById('status');
+      var bar = document.getElementById('bar');
+      var track = document.getElementById('track');
+      var names = ['Reading details…', 'Writing chapters…', 'Weaving memories…', 'Polishing…', 'Delivered'];
+      var values = [14, 36, 68, 88, 100];
+
+      runButton.addEventListener('click', function () {
+        var index = 0;
+        runButton.disabled = true;
+        runButton.textContent = 'Running Woven…';
+        status.textContent = '202 · running';
+        document.getElementById('response').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        function show() {
+          phase.textContent = names[index];
+          bar.style.width = values[index] + '%';
+          track.setAttribute('aria-valuenow', String(values[index]));
+          if (index === names.length - 1) {
+            status.textContent = '200 · complete';
+            runButton.disabled = false;
+            runButton.textContent = 'Run it — ≈ $0.10';
+            document.getElementById('latency').textContent = '2.8s';
+            return;
+          }
+          index += 1;
+          window.setTimeout(show, 420);
+        }
+        show();
+      });
+
+      document.getElementById('again').addEventListener('click', function () {
+        document.getElementById('how-you-met').focus();
+        document.getElementById('woven-form').scrollIntoView({ behavior: 'smooth' });
+      });
+
+      document.getElementById('download').addEventListener('click', function () {
+        var markdown = '# The Bookshop in the Rain\n\nIt began with two hands reaching for the same book while rain traced the shop window.\n\n## Page plan\n- Cover + opening dedication\n- The bookshop, two cities, and home\n- Closing memory prompt and photo page\n';
+        var url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown' }));
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'woven-keepsake-output.md';
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+    }());
+  </script>
+</body>
+</html>

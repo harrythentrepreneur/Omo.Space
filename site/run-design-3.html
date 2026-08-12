@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F8F4EC">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Tabbed + Status — Run Woven | Omo</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #f8f4ec;
+      --surface: #ffffff;
+      --pine: #17352c;
+      --pine-2: #244a3d;
+      --mint: #bdefd4;
+      --mint-soft: #ebf8f1;
+      --orange: #ff6b3d;
+      --orange-soft: #fff0e9;
+      --moss: #66756e;
+      --rule: #d9e1dc;
+      --font: "DM Sans", Inter, system-ui, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { overflow-x: clip; }
+    body { min-width: 320px; min-height: 100vh; margin: 0; overflow-x: clip; background: var(--canvas); color: var(--pine); font: 400 15px/1.55 var(--font); }
+    body, button, input, textarea { font-family: var(--font); }
+    button, summary { cursor: pointer; }
+    a { color: inherit; }
+    h1, h2, h3, p, pre { margin-top: 0; }
+    [hidden] { display: none !important; }
+    :where(a, button, input, textarea, summary):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+    .shell { width: min(1160px, calc(100% - 48px)); margin-inline: auto; }
+
+    .site-header { position: relative; z-index: 10; border-bottom: 1px solid var(--rule); background: rgba(248, 244, 236, .95); backdrop-filter: blur(12px); }
+    .nav-row { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .nav-brand { display: flex; align-items: center; gap: 10px; }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark img { display: block; width: auto; height: 34px; }
+    .menu { position: relative; }
+    .menu summary, .login { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid var(--rule); border-radius: 9px; background: #fff; color: var(--pine); font-size: 13px; font-weight: 700; list-style: none; text-decoration: none; }
+    .menu summary::-webkit-details-marker { display: none; }
+    .menu summary::after { content: "▾"; margin-left: 7px; font-size: 10px; }
+    .menu[open] summary::after { transform: rotate(180deg); }
+    .menu-links { position: absolute; top: calc(100% + 8px); left: 0; width: 190px; padding: 7px; border: 1px solid var(--rule); border-radius: 12px; background: #fff; box-shadow: 0 15px 40px rgba(23, 53, 44, .12); }
+    .menu-links a { display: block; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 700; text-decoration: none; }
+    .menu-links a:hover { background: var(--mint-soft); }
+    .login { padding-inline: 17px; border-color: var(--pine); }
+    .login:hover { background: var(--mint); }
+
+    main { padding: 36px 0 72px; }
+    .topline { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 23px; }
+    .back { min-height: 38px; display: inline-flex; align-items: center; color: var(--moss); font-size: 13px; font-weight: 700; text-decoration: none; }
+    .back:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 4px; }
+    .concept-chip { align-self: center; padding: 7px 10px; border: 1px solid #eccabc; border-radius: 99px; background: var(--orange-soft); color: #a63c1d; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: end; margin-bottom: 27px; }
+    .eyebrow { margin: 0 0 8px; color: var(--orange); font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin-bottom: 9px; font-size: clamp(32px, 4.7vw, 46px); line-height: 1.06; letter-spacing: -.04em; text-wrap: balance; }
+    .promise { margin-bottom: 9px; color: #365349; font-size: 18px; }
+    .byline { margin: 0; color: var(--moss); font-size: 13px; font-weight: 600; }
+    .run-summary { min-width: 185px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 12px; background: rgba(255,255,255,.65); }
+    .run-summary span { display: block; color: var(--moss); font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .run-summary strong { display: block; margin-top: 3px; font-size: 18px; }
+
+    .console { overflow: hidden; border: 1px solid var(--rule); border-radius: 16px 16px 5px 16px; background: var(--surface); box-shadow: 0 18px 50px rgba(23, 53, 44, .08); }
+    .console-head { display: grid; grid-template-columns: 250px 1fr; min-height: 65px; border-bottom: 1px solid var(--rule); }
+    .run-label { display: flex; align-items: center; gap: 9px; padding: 0 20px; border-right: 1px solid var(--rule); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .run-label::before { width: 9px; height: 9px; border-radius: 50%; background: var(--orange); content: ""; }
+    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 8px; gap: 7px; }
+    .tab { min-width: 0; min-height: 47px; border: 0; border-radius: 9px; background: transparent; color: var(--moss); font-size: 13px; font-weight: 700; }
+    .tab:hover { background: var(--mint-soft); color: var(--pine); }
+    .tab[aria-selected="true"] { background: var(--pine); color: #fff; box-shadow: 0 4px 12px rgba(23, 53, 44, .16); }
+    .tab-number { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; margin-right: 6px; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; opacity: .75; }
+
+    .console-body { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 580px; }
+    .status-rail { padding: 25px 20px; border-right: 1px solid var(--rule); background: #f9fbf8; }
+    .rail-title { margin: 0 0 5px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .rail-copy { margin: 0 0 24px; color: var(--moss); font-size: 12px; }
+    .timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+    .timeline li { position: relative; min-height: 71px; padding: 1px 0 17px 42px; }
+    .timeline li:not(:last-child)::after { position: absolute; top: 27px; bottom: -2px; left: 13px; width: 1px; background: #cdd8d2; content: ""; }
+    .dot { position: absolute; top: 0; left: 0; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #bdc9c2; border-radius: 50%; background: #fff; color: #829088; font-size: 11px; font-weight: 700; }
+    .timeline strong { display: block; font-size: 13px; }
+    .timeline small { display: block; margin-top: 2px; color: var(--moss); font-size: 10px; line-height: 1.35; }
+    .timeline li.done .dot { border-color: #83c8a3; background: var(--mint); color: var(--pine); }
+    .timeline li.done .dot::before { content: "✓"; }
+    .timeline li.done .dot { font-size: 0; }
+    .timeline li.current .dot { border-color: var(--orange); background: var(--orange); color: #fff; box-shadow: 0 0 0 5px var(--orange-soft); }
+    .timeline li.current strong { color: #b43e1a; }
+    .rail-status { margin-top: 3px; padding: 11px 12px; border: 1px solid #cbe6d7; border-radius: 9px; background: var(--mint-soft); color: #39735c; font-size: 11px; font-weight: 700; }
+
+    .tab-panel { min-width: 0; padding: 28px 30px 32px; }
+    .panel-kicker { margin: 0 0 6px; color: var(--orange); font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+    .tab-panel h2 { margin-bottom: 7px; font-size: 23px; letter-spacing: -.025em; }
+    .panel-copy { max-width: 640px; margin-bottom: 24px; color: var(--moss); font-size: 13px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 17px; }
+    .field.wide { grid-column: 1 / -1; }
+    .field label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    .field-hint { display: block; margin-top: 2px; color: var(--moss); font-size: 11px; font-weight: 400; }
+    .control { width: 100%; min-width: 0; min-height: 45px; display: block; padding: 11px 12px; border: 1px solid #c8d4cd; border-radius: 9px; background: #fcfdfc; color: var(--pine); font-size: 13px; line-height: 1.45; }
+    textarea.control { min-height: 74px; resize: vertical; }
+    .control::placeholder { color: #89968f; opacity: 1; }
+    .control:focus { border-color: var(--pine); background: #fff; outline: 0; box-shadow: 0 0 0 3px rgba(189, 239, 212, .5); }
+    .primary, .secondary { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; border: 1px solid var(--pine); border-radius: 9px 9px 3px 9px; background: var(--pine); color: #fff; font-size: 13px; font-weight: 700; text-decoration: none; }
+    .primary:hover { background: var(--pine-2); }
+    .secondary { border-color: var(--rule); background: #fff; color: var(--pine); }
+    .secondary:hover { border-color: #a8bbb0; background: var(--mint-soft); }
+    .form-actions { display: flex; align-items: center; gap: 13px; margin-top: 22px; }
+    .form-actions .primary { min-width: 220px; }
+    .form-note { margin: 0; color: var(--moss); font-size: 11px; }
+
+    .run-center { max-width: 670px; margin: 18px auto 0; text-align: center; }
+    .progress-orbit { position: relative; width: 150px; height: 150px; display: grid; place-items: center; margin: 0 auto 22px; border-radius: 50%; background: conic-gradient(var(--orange) 0 68%, #e1e8e3 68% 100%); }
+    .progress-orbit::before { position: absolute; inset: 11px; border-radius: 50%; background: #fff; content: ""; }
+    .progress-value { position: relative; font-size: 32px; font-weight: 700; letter-spacing: -.04em; }
+    .progress-value small { display: block; color: var(--moss); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    .run-center h3 { margin-bottom: 7px; font-size: 21px; }
+    .run-center > p { color: var(--moss); font-size: 13px; }
+    .receipt { max-width: 520px; display: grid; grid-template-columns: repeat(3, 1fr); margin: 24px auto; overflow: hidden; border: 1px solid var(--rule); border-radius: 11px; background: #f9fbf8; text-align: left; }
+    .receipt div { min-width: 0; padding: 13px; }
+    .receipt div + div { border-left: 1px solid var(--rule); }
+    .receipt span { display: block; color: var(--moss); font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+    .receipt strong { display: block; margin-top: 3px; overflow-wrap: anywhere; font: 600 11px/1.45 var(--mono); }
+
+    .output-card { padding: 23px; border: 1px solid #c9e5d6; border-radius: 13px 13px 4px 13px; background: var(--mint-soft); }
+    .output-meta { display: flex; align-items: center; justify-content: space-between; gap: 13px; margin-bottom: 18px; }
+    .ready { display: inline-flex; align-items: center; gap: 7px; color: #39735c; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+    .ready::before { width: 8px; height: 8px; border-radius: 50%; background: #43a672; content: ""; }
+    .filetype { color: var(--moss); font: 600 10px/1 var(--mono); }
+    .output-card h3 { margin-bottom: 10px; font-size: 22px; letter-spacing: -.025em; }
+    .output-card p { max-width: 680px; margin-bottom: 12px; color: #365349; font-size: 14px; }
+    .chapter-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
+    .chapter-list li { padding: 10px; border: 1px solid #c4decf; border-radius: 8px; background: rgba(255,255,255,.7); font-size: 11px; font-weight: 700; }
+    .chapter-list span { display: block; margin-bottom: 3px; color: var(--orange); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+    .output-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
+    .output-actions .primary, .output-actions .secondary { flex: 1 1 150px; }
+    .back-bottom { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: center; margin-top: 6px; color: var(--moss); font-size: 12px; font-weight: 700; }
+    .copy-note { min-height: 19px; margin: 8px 0 0; color: var(--moss); font-size: 11px; text-align: center; }
+
+    @media (max-width: 780px) {
+      .hero { grid-template-columns: 1fr; gap: 14px; }
+      .run-summary { width: fit-content; }
+      .console-head { grid-template-columns: 1fr; }
+      .run-label { min-height: 48px; border-right: 0; border-bottom: 1px solid var(--rule); }
+      .console-body { grid-template-columns: 1fr; }
+      .status-rail { border-right: 0; border-bottom: 1px solid var(--rule); }
+      .timeline { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .timeline li { min-height: 66px; padding: 35px 5px 0; text-align: center; }
+      .timeline li:not(:last-child)::after { top: 13px; right: -5px; bottom: auto; left: calc(50% + 14px); width: calc(100% - 18px); height: 1px; }
+      .dot { left: 50%; transform: translateX(-50%); }
+      .timeline small { display: none; }
+      .timeline strong { font-size: 10px; line-height: 1.2; }
+      .rail-copy { margin-bottom: 18px; }
+      .rail-status { text-align: center; }
+    }
+    @media (max-width: 600px) {
+      .shell { width: calc(100% - 28px); }
+      .nav-row { min-height: 64px; gap: 9px; }
+      .wordmark img { max-width: 105px; height: 29px; }
+      .menu summary, .login { min-height: 38px; padding-inline: 10px; font-size: 12px; }
+      main { padding: 28px 0 55px; }
+      .topline { margin-bottom: 15px; }
+      .concept-chip { display: none; }
+      .promise { font-size: 16px; }
+      .tabs { gap: 4px; padding: 6px; }
+      .tab { min-height: 43px; font-size: 11px; }
+      .tab-number { display: none; }
+      .status-rail { padding: 20px 13px; }
+      .timeline strong { font-size: 9px; overflow-wrap: anywhere; }
+      .tab-panel { padding: 23px 17px 25px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.wide { grid-column: auto; }
+      .form-actions { align-items: stretch; flex-direction: column; }
+      .form-actions .primary { width: 100%; min-width: 0; }
+      .progress-orbit { width: 130px; height: 130px; }
+      .receipt { grid-template-columns: 1fr; }
+      .receipt div + div { border-top: 1px solid var(--rule); border-left: 0; }
+      .output-card { padding: 18px 15px; }
+      .chapter-list { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell nav-row">
+      <div class="nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img src="logo-sweet-pastel.svg" alt="Omo"></a>
+        <details class="menu">
+          <summary>Menu</summary>
+          <nav class="menu-links" aria-label="Main menu">
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell Workflow</a>
+          </nav>
+        </details>
+      </div>
+      <a class="login" href="signup.html">Log in</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="shell">
+      <div class="topline">
+        <a class="back" href="workflow.html?slug=woven-relationship-book-maker">← Back to the listing</a>
+        <span class="concept-chip">Concept 3 · Tabbed + status</span>
+      </div>
+
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Run it for me · Woven Studio</p>
+          <h1>Woven Relationship Book Maker</h1>
+          <p class="promise">Turn your love story into a beautiful keepsake book.</p>
+          <p class="byline">by Woven Studio · 84 upvotes</p>
+        </div>
+        <div class="run-summary"><span>One hosted run</span><strong>≈ $0.10</strong></div>
+      </header>
+
+      <section class="console" aria-label="Woven workflow console">
+        <header class="console-head">
+          <div class="run-label">Run console</div>
+          <div class="tabs" role="tablist" aria-label="Run sections">
+            <button class="tab" id="tab-input" type="button" role="tab" aria-controls="panel-input" aria-selected="true" data-tab="input"><span class="tab-number">1</span>Input</button>
+            <button class="tab" id="tab-run" type="button" role="tab" aria-controls="panel-run" aria-selected="false" data-tab="run"><span class="tab-number">2</span>Run</button>
+            <button class="tab" id="tab-output" type="button" role="tab" aria-controls="panel-output" aria-selected="false" data-tab="output"><span class="tab-number">3</span>Output</button>
+          </div>
+        </header>
+
+        <div class="console-body">
+          <aside class="status-rail" aria-labelledby="status-title">
+            <h2 class="rail-title" id="status-title">Run status</h2>
+            <p class="rail-copy">Every step stays visible while Woven works.</p>
+            <ol class="timeline" id="timeline">
+              <li class="current"><span class="dot">1</span><strong>Reading details</strong><small>Checking the story facts</small></li>
+              <li><span class="dot">2</span><strong>Writing</strong><small>Drafting the chapters</small></li>
+              <li><span class="dot">3</span><strong>Weaving</strong><small>Connecting memories</small></li>
+              <li><span class="dot">4</span><strong>Polishing</strong><small>Matching your style</small></li>
+              <li><span class="dot">5</span><strong>Delivered</strong><small>Preparing both files</small></li>
+            </ol>
+            <p class="rail-status" id="rail-status">Ready for your details</p>
+          </aside>
+
+          <section class="tab-panel" id="panel-input" role="tabpanel" aria-labelledby="tab-input">
+            <p class="panel-kicker">Input</p>
+            <h2>Tell Woven the parts that matter.</h2>
+            <p class="panel-copy">Short, specific details make the warmest book. Use the examples as a guide.</p>
+            <form id="woven-form">
+              <div class="form-grid">
+                <div class="field wide">
+                  <label for="met">How you met<span class="field-hint">Example: We reached for the same book in a rainy-day shop…</span></label>
+                  <textarea class="control" id="met" required placeholder="Tell the beginning of your story…"></textarea>
+                </div>
+                <div class="field wide">
+                  <label for="moments">Favorite moments<span class="field-hint">Example: Seven years, two cities, and adopting our corgi…</span></label>
+                  <textarea class="control" id="moments" required placeholder="Add milestones and memories…"></textarea>
+                </div>
+                <div class="field wide">
+                  <label for="jokes">Inside jokes<span class="field-hint">Example: “Wrong turn, best view” and the sock-stealing corgi…</span></label>
+                  <textarea class="control" id="jokes" required placeholder="Add favorite phrases and tiny details…"></textarea>
+                </div>
+                <div class="field">
+                  <label for="style">Style<span class="field-hint">Warm, playful, or poetic</span></label>
+                  <input class="control" id="style" required placeholder="Warm and playful">
+                </div>
+                <div class="field">
+                  <label for="length">Length<span class="field-hint">Short or long</span></label>
+                  <input class="control" id="length" required placeholder="Short — about 6 pages">
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="primary" id="start-run" type="button">Run it — ≈ $0.10</button>
+                <p class="form-note">You’ll review everything before downloading.</p>
+              </div>
+            </form>
+          </section>
+
+          <section class="tab-panel" id="panel-run" role="tabpanel" aria-labelledby="tab-run" hidden>
+            <p class="panel-kicker">Run</p>
+            <h2>Woven is building your keepsake.</h2>
+            <p class="panel-copy">You can leave this tab open. The status rail keeps each step clear.</p>
+            <div class="run-center">
+              <div class="progress-orbit" aria-label="68 percent complete"><div class="progress-value">68%<small>Complete</small></div></div>
+              <h3>Weaving memories…</h3>
+              <p>Connecting the bookshop, two cities, and your favorite inside joke into one story arc.</p>
+              <div class="receipt">
+                <div><span>Run ID</span><strong>run_woven_0042</strong></div>
+                <div><span>Started</span><strong>just now</strong></div>
+                <div><span>Est. cost</span><strong>$0.10</strong></div>
+              </div>
+              <button class="secondary" id="view-output" type="button">View completed output</button>
+            </div>
+          </section>
+
+          <section class="tab-panel" id="panel-output" role="tabpanel" aria-labelledby="tab-output" hidden>
+            <p class="panel-kicker">Output</p>
+            <h2>Your keepsake draft is ready.</h2>
+            <p class="panel-copy">Download the full Markdown book and PDF-ready page plan, or copy the story to your clipboard.</p>
+            <article class="output-card" id="output-card">
+              <div class="output-meta"><span class="ready">Delivered</span><span class="filetype">book.md + page-plan.md</span></div>
+              <h3>The Bookshop in the Rain</h3>
+              <p>It began with two hands reaching for the same book while rain traced the shop window. One awkward laugh became coffee, then seven years, two cities, and a home ruled by a corgi with a talent for stealing socks.</p>
+              <p>Somewhere along the way, “wrong turn, best view” became less of a joke and more of a promise: wherever they ended up, they would look for the beautiful part together.</p>
+              <ol class="chapter-list">
+                <li><span>Chapter 01</span>The Bookshop</li>
+                <li><span>Chapter 02</span>Two Cities</li>
+                <li><span>Chapter 03</span>The Best View</li>
+              </ol>
+            </article>
+            <div class="output-actions">
+              <button class="primary" id="download" type="button">↓ Download output</button>
+              <button class="secondary" id="copy" type="button">Copy story</button>
+              <button class="secondary" id="again" type="button">Run again</button>
+            </div>
+            <p class="copy-note" id="copy-note" role="status"></p>
+            <a class="back-bottom" href="workflow.html?slug=woven-relationship-book-maker">Back to the listing</a>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-tab]'));
+      var panels = {
+        input: document.getElementById('panel-input'),
+        run: document.getElementById('panel-run'),
+        output: document.getElementById('panel-output')
+      };
+      var timeline = Array.prototype.slice.call(document.querySelectorAll('#timeline li'));
+      var status = document.getElementById('rail-status');
+
+      function setTimeline(name) {
+        var current = name === 'input' ? 0 : (name === 'run' ? 3 : 4);
+        timeline.forEach(function (step, index) {
+          step.classList.toggle('done', name === 'output' ? index <= current : index < current);
+          step.classList.toggle('current', name !== 'output' && index === current);
+        });
+        status.textContent = name === 'input' ? 'Ready for your details' : (name === 'run' ? 'Polishing · 68% complete' : 'Delivered · 2 files ready');
+      }
+
+      function selectTab(name, focusTab) {
+        tabs.forEach(function (tab) {
+          var selected = tab.getAttribute('data-tab') === name;
+          tab.setAttribute('aria-selected', String(selected));
+          if (selected && focusTab) tab.focus();
+        });
+        Object.keys(panels).forEach(function (key) { panels[key].hidden = key !== name; });
+        setTimeline(name);
+      }
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () { selectTab(tab.getAttribute('data-tab'), false); });
+      });
+      document.getElementById('start-run').addEventListener('click', function () { selectTab('run', true); });
+      document.getElementById('view-output').addEventListener('click', function () { selectTab('output', true); });
+      document.getElementById('again').addEventListener('click', function () { selectTab('input', true); });
+
+      var story = '# The Bookshop in the Rain\n\nIt began with two hands reaching for the same book while rain traced the shop window. One awkward laugh became coffee, then seven years, two cities, and a home ruled by a corgi with a talent for stealing socks.\n\n“Wrong turn, best view” became their promise to find the beautiful part together.\n\n## Page plan\n- The Bookshop\n- Two Cities\n- The Best View\n';
+
+      document.getElementById('copy').addEventListener('click', function () {
+        if (!navigator.clipboard) return;
+        navigator.clipboard.writeText(story).then(function () {
+          document.getElementById('copy-note').textContent = 'Story copied to your clipboard.';
+        });
+      });
+      document.getElementById('download').addEventListener('click', function () {
+        var url = URL.createObjectURL(new Blob([story], { type: 'text/markdown' }));
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'woven-keepsake-output.md';
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+    }());
+  </script>
+</body>
+</html>
