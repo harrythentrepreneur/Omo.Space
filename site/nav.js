@@ -13,6 +13,7 @@
     style.textContent =
       '.omo-nav-login.omo-nav-credit{min-width:40px;gap:6px;padding-inline:11px;border-radius:999px;font-variant-numeric:tabular-nums}' +
       '.omo-nav-credit-icon{font-size:16px;line-height:1}' +
+      '.omo-nav-logout{margin-top:6px;padding-top:7px;border-top:1px solid var(--rule,#D9E2DC)}' +
       '@media(max-width:480px){.omo-nav-login.omo-nav-credit{padding-inline:9px}}';
     document.head.appendChild(style);
   }
@@ -143,8 +144,13 @@
       }
     }
 
-    if (signedIn) refreshCreditBalance(requestId);
-    else loadAuthModal();
+    if (signedIn) {
+      refreshCreditBalance(requestId);
+    } else {
+      loadAuthModal();
+      var popovers = document.querySelectorAll('.omo-nav-popover');
+      for (var j = 0; j < popovers.length; j += 1) syncLogoutItem(popovers[j]);
+    }
   }
 
   function authModalApi() {
@@ -194,6 +200,43 @@
     });
   }
 
+  function syncLogoutItem(popover) {
+    var item = popover.querySelector('.omo-nav-logout');
+    if (!isSignedIn()) {
+      if (item) item.remove();
+      return;
+    }
+
+    if (!item) {
+      item = document.createElement('div');
+      item.className = 'omo-nav-logout';
+
+      var link = document.createElement('a');
+      link.href = '#';
+      link.setAttribute('data-omo-logout', '');
+      link.textContent = 'Log out';
+      item.appendChild(link);
+    }
+
+    popover.appendChild(item);
+  }
+
+  function handleLogoutClick(event) {
+    var link = event.target.closest && event.target.closest('[data-omo-logout]');
+    if (!link) return;
+
+    event.preventDefault();
+    if (!window.ClerkAuth || typeof window.ClerkAuth.signOut !== 'function') return;
+
+    var result;
+    try { result = window.ClerkAuth.signOut(); }
+    catch (error) { window.console.error(error); return; }
+
+    Promise.resolve(result).then(syncLoginLinks).catch(function (error) {
+      window.console.error(error);
+    });
+  }
+
   function subscribeToAuthChanges() {
     if (!window.ClerkAuth || typeof window.ClerkAuth.onAuthChange !== 'function') return false;
     window.ClerkAuth.onAuthChange(syncLoginLinks);
@@ -235,6 +278,7 @@
       var shouldOpen = toggle.getAttribute('aria-expanded') !== 'true';
       toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
       popover.hidden = !shouldOpen;
+      if (shouldOpen) window.setTimeout(function () { syncLogoutItem(popover); }, 0);
     });
 
     popover.addEventListener('click', function (event) {
@@ -258,6 +302,7 @@
     syncLoginLinks();
     if (!subscribeToAuthChanges()) loadAuthAdapter();
     document.addEventListener('click', handleLoginClick);
+    document.addEventListener('click', handleLogoutClick);
 
     window.addEventListener('storage', function (event) {
       if (event.key === 'cognition_user') syncLoginLinks();
