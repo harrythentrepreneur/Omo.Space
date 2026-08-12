@@ -413,9 +413,41 @@
     .hero-actions .button { min-width: 120px; }
     .hero-note { margin: 0; font-size: 14px; line-height: 1.45; color: var(--moss); }
 
+    /* ── Full registry ───────────────────────────────────────────── */
+    .registry-spotlight { padding: 0 0 32px; }
+    .registry-card {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 28px;
+      padding: 28px 30px; border: 1px solid var(--pine); border-radius: 18px 18px 0 18px;
+      background: var(--pine); color: #F2F6F1;
+    }
+    .registry-kicker {
+      display: inline-flex; align-items: center; width: fit-content; margin-bottom: 10px;
+      padding: 5px 9px; border-radius: 999px; background: var(--mint); color: var(--pine);
+      font-size: 11px; font-weight: 700; letter-spacing: .1em; line-height: 1.2; text-transform: uppercase;
+    }
+    .registry-title {
+      margin-bottom: 8px; font-family: var(--display); font-size: clamp(27px, 4vw, 36px);
+      font-weight: 600; line-height: 1.1; letter-spacing: -.01em;
+    }
+    .registry-copy { max-width: 720px; margin: 0; color: #D9E7DF; font-size: 15px; line-height: 1.55; }
+    .registry-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+    .registry-live-link {
+      min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px;
+      color: #F2F6F1; font-size: 14px; font-weight: 700; text-decoration: underline;
+      text-decoration-color: var(--mint); text-underline-offset: 4px;
+    }
+
     /* ── Feed ───────────────────────────────────────────────────── */
     .feed-section { padding: 0 0 96px; }
-    .feed-head { display: flex; justify-content: center; margin-bottom: 24px; }
+    .feed-head { margin-bottom: 24px; }
+    .feed-label-row {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 20px; margin-bottom: 16px;
+    }
+    .feed-title { margin: 0; font-family: var(--display); font-size: 25px; font-weight: 600; line-height: 1.2; }
+    .feed-registry-link {
+      color: var(--pine); font-size: 14px; font-weight: 700; text-decoration-color: var(--orange);
+      text-decoration-thickness: 2px; text-underline-offset: 4px; white-space: nowrap;
+    }
     .feed-tools { display: flex; width: 100%; flex-direction: column; align-items: center; }
     .filter-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
     .filter-chip {
@@ -882,8 +914,14 @@
       .search-input { padding-inline: 15px 10px; }
       .search-submit { padding-inline: 16px; }
 
+      .registry-spotlight { padding-bottom: 30px; }
+      .registry-card { grid-template-columns: 1fr; gap: 20px; padding: 24px 20px; }
+      .registry-actions { justify-content: flex-start; }
+
       .feed-section { padding: 0 0 68px; }
       .feed-head { display: block; margin-bottom: 22px; }
+      .feed-label-row { gap: 14px; }
+      .feed-title { font-size: 23px; }
       .feed-tools { width: 100%; margin-top: 0; }
       .filter-row {
         width: calc(100% + 32px); margin-inline: -16px; padding: 0 16px 8px;
@@ -939,6 +977,9 @@
     @media (max-width: 420px) {
       .hero-actions, .waitlist-row { flex-direction: column; }
       .hero-actions .button, .waitlist-row .button { width: 100%; }
+      .registry-actions { align-items: stretch; flex-direction: column; }
+      .registry-actions .button { width: 100%; }
+      .registry-live-link { justify-content: center; }
       .cta-money { display: grid; }
       .cta-money p { border-radius: 14px; }
       .footer-row { gap: 18px; }
@@ -991,10 +1032,31 @@
       </div>
     </section>
 
+    <!-- ── Full registry ────────────────────────────────────── -->
+    <section class="registry-spotlight" aria-labelledby="registry-title">
+      <div class="shell">
+        <div class="registry-card sig-cut">
+          <div>
+            <span class="registry-kicker">Full tool registry</span>
+            <h2 class="registry-title" id="registry-title">All 120 tools, one honest library.</h2>
+            <p class="registry-copy">Every PhonicsMaker tool is being onboarded: 96 are in review or draft, and 24 are live now. Coming-soon tools can’t run or charge yet.</p>
+          </div>
+          <div class="registry-actions">
+            <a class="button button-accent" href="/registry">Browse all tools <span aria-hidden="true">→</span></a>
+            <a class="registry-live-link" href="#feed">Live only</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Feed ─────────────────────────────────────────────── -->
-    <section class="feed-section" id="feed" aria-label="AI helpers">
+    <section class="feed-section" id="feed" aria-labelledby="feed-title">
       <div class="shell">
         <div class="feed-head">
+          <div class="feed-label-row">
+            <h2 class="feed-title" id="feed-title">Live marketplace</h2>
+            <a class="feed-registry-link" href="/registry">Browse all 120 <span aria-hidden="true">→</span></a>
+          </div>
           <div class="feed-tools">
             <div class="filter-row" role="group" aria-label="Filter by outcome">
               <button class="filter-chip is-active" type="button" data-filter="all" aria-pressed="true">All</button>
