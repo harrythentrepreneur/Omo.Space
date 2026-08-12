@@ -1,0 +1,60 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash copywriting call with a 1,600-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Turn verified product facts into three Facebook ad variants with distinct angles, testing notes, and compliance-safe claims.",
+  "detected_provider_needs": [],
+  "name": "facebook-ads-copywriter",
+  "parsed_workflow_steps": [
+    {
+      "id": "read-the-brief",
+      "number": "1",
+      "title": "Read the brief"
+    },
+    {
+      "id": "choose-angles",
+      "number": "2",
+      "title": "Choose angles"
+    },
+    {
+      "id": "write-ads",
+      "number": "3",
+      "title": "Write ads"
+    },
+    {
+      "id": "check-claims",
+      "number": "4",
+      "title": "Check claims"
+    },
+    {
+      "id": "plan-the-test",
+      "number": "5",
+      "title": "Plan the test"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "write-ads",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "facebook-ads-copywriter",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "4b7031309819a929130648c55fd16a38a8dce779998f696364817ef0a35b075e"
+  },
+  "unresolved": []
+}

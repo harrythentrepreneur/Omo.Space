@@ -23,7 +23,9 @@ function stripModule(p) {
     .replace(/^import .*$/gm, '')
     .replace(/^export /gm, '');
 }
-const prelude = stripModule('balance.mjs') + '\n' + stripModule('cost-model.mjs') + '\n';
+const prelude = stripModule('balance.mjs') + '\n'
+  + stripModule('cost-model.mjs') + '\n'
+  + stripModule('hosted-skills.generated.mjs') + '\n';
 const workerSrc = fs.readFileSync(path.join(here, 'worker.js'), 'utf8').replace(/^import .*$/gm, '');
 const cjs = prelude + workerSrc.replace('export default', 'const __workerExport =');
 

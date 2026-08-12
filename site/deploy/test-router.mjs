@@ -76,7 +76,9 @@ function stripModule(p) {
     .replace(/^import .*$/gm, '')
     .replace(/^export /gm, '');
 }
-const prelude = stripModule('balance.mjs') + '\n' + stripModule('cost-model.mjs') + '\n';
+const prelude = stripModule('balance.mjs') + '\n'
+  + stripModule('cost-model.mjs') + '\n'
+  + stripModule('hosted-skills.generated.mjs') + '\n';
 const workerSrc = fs.readFileSync(path.join(here, 'worker.js'), 'utf8').replace(/^import .*$/gm, '');
 const cjs = prelude + workerSrc.replace('export default', 'const __workerExport =');
 
@@ -99,6 +101,9 @@ const modalStatuses = new Map();
 let modalDispatchStatus = 202;
 const wovenCalls = [];
 const wovenStatuses = new Map();
+const facebookCalls = [];
+const facebookStatuses = new Map();
+const facebookCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'tests', 'cases.json'), 'utf8'));
 
 const sandbox = {
   fetch: async (url, opts) => {
@@ -112,6 +117,20 @@ const sandbox = {
       }
       const callId = target.pathname.split('/').at(-1);
       const value = wovenStatuses.get(callId);
+      return value
+        ? { ok: value.status >= 200 && value.status < 300, status: value.status, json: async () => value.body }
+        : { ok: false, status: 404, json: async () => ({ detail: 'run_not_found' }) };
+    }
+    if (String(url).startsWith('https://facebook.modal.invalid')) {
+      const target = new URL(String(url));
+      facebookCalls.push({ url: String(url), method: opts && opts.method || 'GET', headers: opts && opts.headers, body: opts && opts.body });
+      if (target.pathname === '/v1/runs' && opts && opts.method === 'POST') {
+        const callId = 'fc-FACEBOOKROUTER01';
+        facebookStatuses.set(callId, { status: 202, body: { call_id: callId, status: 'running' } });
+        return { ok: true, status: 202, json: async () => ({ run_id: 'modal-facebook-submit', call_id: callId, status: 'accepted', result_url: `/v1/runs/${callId}` }) };
+      }
+      const callId = target.pathname.split('/').at(-1);
+      const value = facebookStatuses.get(callId);
       return value
         ? { ok: value.status >= 200 && value.status < 300, status: value.status, json: async () => value.body }
         : { ok: false, status: 404, json: async () => ({ detail: 'run_not_found' }) };
@@ -189,6 +208,7 @@ function check(name, cond) {
 }
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
+const creditsModalSource = fs.readFileSync(path.join(here, '..', 'credits-modal.js'), 'utf8');
 const indexSource = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
 const runPageSource = fs.readFileSync(path.join(here, '..', 'run.html'), 'utf8');
 const catalogSandbox = { window: {} };
@@ -198,6 +218,10 @@ const wovenListing = catalogSandbox.window.COGNITION_IG_MORE.find((listing) => l
 const wovenRunManifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'run-manifests', 'woven-relationship-book-maker.json'), 'utf8'));
 const wovenContainerInput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'woven-storybook-pipeline', 'schemas', 'input.json'), 'utf8'));
 const wovenContainerOutput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'woven-storybook-pipeline', 'schemas', 'output.json'), 'utf8'));
+const facebookListing = catalogSandbox.window.COGNITION_IG_MORE.find((listing) => listing.slug === 'facebook-ads-copywriter');
+const facebookRunManifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'run-manifests', 'facebook-ads-copywriter.json'), 'utf8'));
+const facebookContainerInput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'schemas', 'input.json'), 'utf8'));
+const facebookContainerOutput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'schemas', 'output.json'), 'utf8'));
 const canonical = (value) => Array.isArray(value)
   ? value.map(canonical)
   : value && typeof value === 'object'
@@ -206,10 +230,12 @@ const canonical = (value) => Array.isArray(value)
 check('dashboard: server account loads /api/me with a Clerk session bearer', dashboardSource.includes('window.Clerk.session.getToken()') && dashboardSource.includes("fetch(API_BASE + '/api/me', { headers: { Authorization: 'Bearer ' + token"));
 check('dashboard: cloud-run network errors never fall back to a mock after POST', (dashboardSource.match(/startMockVideoRun\(form, product\);/g) || []).length === 1 && dashboardSource.includes('The submission outcome is unknown') && dashboardSource.includes('Reconcile run'));
 check('dashboard: terminal 5xx run states are handled before indefinite retry', dashboardSource.includes("terminalStatus === 'failed' || terminalStatus === 'refunded'") && dashboardSource.includes("status === 'failed' || status === 'refunded'"));
-check('dashboard: server top-ups post to /api/topup with authenticated headers', dashboardSource.includes("fetch((API_BASE || '') + '/api/topup'") && dashboardSource.includes("authenticatedRunHeaders('').then(function (headers)"));
+check('credits modal: server top-ups post to /api/topup with a Clerk bearer', creditsModalSource.includes("fetch(apiBase() + '/api/topup'") && creditsModalSource.includes("Authorization: 'Bearer ' + token"));
 check('dashboard: hosted video form exposes the sample-only provider gate', dashboardSource.includes('Hosted staging currently accepts only sample-demello-10s'));
 check('run manifest: Woven browser schemas stay aligned with generated container input/output', JSON.stringify(canonical(wovenRunManifest.input_schema)) === JSON.stringify(canonical(wovenContainerInput)) && JSON.stringify(canonical(wovenRunManifest.output_schema)) === JSON.stringify(canonical(wovenContainerOutput)));
 check('catalog: Woven listing and hosted manifest publish the same $0.40 run price', wovenListing.runPrice === 0.4 && wovenRunManifest.price_usd === 0.4 && wovenListing.runManifest === 'run-manifests/woven-relationship-book-maker.json');
+check('run manifest: Facebook Ads browser schemas stay aligned with its generated container', JSON.stringify(canonical(facebookRunManifest.input_schema)) === JSON.stringify(canonical(facebookContainerInput)) && JSON.stringify(canonical(facebookRunManifest.output_schema)) === JSON.stringify(canonical(facebookContainerOutput)));
+check('catalog: Facebook Ads listing and hosted manifest publish the modeled $0.10 price', facebookListing.runPrice === 0.1 && facebookRunManifest.price_usd === 0.1 && facebookListing.runManifest === 'run-manifests/facebook-ads-copywriter.json');
 check('catalog cards: per-run prices render to two decimal places', indexSource.includes("Number(p.runPrice || p.priceRun || 0).toFixed(2)"));
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
 check('run page: empty API base dispatches through the deployed same-origin Worker rewrite', runPageSource.includes("function workerBase() { return API_BASE || window.location.origin; }"));
@@ -477,6 +503,31 @@ const wovenDoneResponse = await worker.fetch(mkReq('GET', `/api/run/${wovenStart
 const wovenDone = await wovenDoneResponse.json();
 const wovenAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_woven', {}), env)).json();
 check('woven: completed Modal output settles once and preserves the schema-valid result', wovenDoneResponse.status === 200 && wovenDone.status === 'completed' && wovenDone.output.title === 'Wrong Turns, Best Views' && wovenAfter.balance_usd === 4.6);
+
+// ── Facebook Ads Copywriter → generated hosted-Modal registry ─────────────
+
+const facebookEnv = {
+  ...realEnv,
+  FACEBOOK_ADS_MODAL_URL: 'https://facebook.modal.invalid',
+  HOSTED_MODAL_PROXY_TOKEN_ID: 'wk-hosted-test-id',
+  HOSTED_MODAL_PROXY_TOKEN_SECRET: 'ws-hosted-test-secret',
+};
+const facebookMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook', {}), env)).json();
+const facebookHeaders = { Authorization: `Bearer ${facebookMe.api_key}`, 'Idempotency-Key': 'facebook-router-0001' };
+const facebookInput = { slug: 'facebook-ads-copywriter', input: facebookCases.happy_path.input };
+const facebookStartResponse = await worker.fetch(mkReq('POST', '/api/run', facebookInput, facebookHeaders), facebookEnv);
+const facebookStart = await facebookStartResponse.json();
+check('hosted registry: Facebook Ads dispatches asynchronously at the server-owned $0.10 quote', facebookStartResponse.status === 202 && facebookStart.status === 'running' && facebookStart.quoted_cost_usd === 0.1 && facebookStart.billed_amount_usd === 0.1);
+check('hosted registry: exact typed input and shared Proxy Token headers reach Modal', JSON.parse(facebookCalls[0].body).tone === 'warm' && facebookCalls[0].headers['Modal-Key'] === 'wk-hosted-test-id' && facebookCalls[0].headers['Modal-Secret'] === 'ws-hosted-test-secret');
+const badFacebook = await worker.fetch(mkReq('POST', '/api/run', { slug: 'facebook-ads-copywriter', input: { ...facebookInput.input, objective: 'awareness' } }, { ...facebookHeaders, 'Idempotency-Key': 'facebook-router-bad1' }), facebookEnv);
+check('hosted registry: invalid Facebook Ads input fails before debit or Modal spend', badFacebook.status === 422 && facebookCalls.length === 1);
+const facebookRunning = await worker.fetch(mkReq('GET', `/api/run/${facebookStart.run_id}`, {}, { Authorization: `Bearer ${facebookMe.api_key}` }), facebookEnv);
+check('hosted registry: Facebook Ads status poll proxies Modal running state', facebookRunning.status === 202);
+facebookStatuses.set('fc-FACEBOOKROUTER01', { status: 200, body: facebookCases.happy_path.output });
+const facebookDoneResponse = await worker.fetch(mkReq('GET', `/api/run/${facebookStart.run_id}`, {}, { Authorization: `Bearer ${facebookMe.api_key}` }), facebookEnv);
+const facebookDone = await facebookDoneResponse.json();
+const facebookAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook', {}), env)).json();
+check('hosted registry: validated Facebook Ads output settles exactly once', facebookDoneResponse.status === 200 && facebookDone.status === 'completed' && facebookDone.output.ads.length === 3 && facebookAfter.balance_usd === 4.9);
 
 // ── Japanese Style Story Video → private Modal + async progress ───────────
 

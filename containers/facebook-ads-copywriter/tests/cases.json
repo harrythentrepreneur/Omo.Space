@@ -1,0 +1,126 @@
+{
+  "happy_path": {
+    "input": {
+      "audience": "Busy home cooks who want a reliable weeknight dinner without a long cleanup.",
+      "constraints": "Do not mention weight loss or make health claims.",
+      "objective": "sales",
+      "offer": "A 12-inch cast-iron skillet with a silicone handle cover and free shipping this week.",
+      "product_name": "Northstar Cast-Iron Skillet",
+      "proof_points": "Pre-seasoned surface, oven-safe construction, and a removable silicone handle cover.",
+      "tone": "warm"
+    },
+    "output": {
+      "ads": [
+        {
+          "angle": "One-pan weeknight ease",
+          "cta": "Shop Now",
+          "description": "Free shipping this week on the 12-inch skillet.",
+          "headline": "Dinner starts in one dependable pan",
+          "primary_text": "Make the weeknight routine feel simpler with the Northstar 12-inch cast-iron skillet. Its pre-seasoned surface moves from stovetop to oven, while the removable silicone handle cover helps you handle the transition. Free shipping is included this week."
+        },
+        {
+          "angle": "Stovetop-to-oven versatility",
+          "cta": "Shop Now",
+          "description": "A pre-seasoned, oven-safe skillet for everyday cooking.",
+          "headline": "Sear, bake, and serve from one skillet",
+          "primary_text": "Start on the stovetop, finish in the oven, and bring dinner to the table in the same pan. The Northstar skillet combines oven-safe cast iron with a pre-seasoned surface and a removable silicone handle cover. Order this week for free shipping."
+        },
+        {
+          "angle": "A dependable kitchen staple",
+          "cta": "Get Offer",
+          "description": "Bring home the Northstar skillet with free shipping.",
+          "headline": "Meet your new weeknight workhorse",
+          "primary_text": "For quick sears, oven finishes, and the meals you make on repeat, reach for a straightforward kitchen staple. The 12-inch Northstar skillet arrives pre-seasoned and includes a removable silicone handle cover. Free shipping is available this week."
+        }
+      ],
+      "campaign_summary": "Three fact-grounded Facebook ad directions for a sales campaign: weeknight simplicity, stovetop-to-oven versatility, and dependable everyday use.",
+      "compliance_notes": [
+        "The copy avoids health and weight-loss claims as requested.",
+        "Confirm the stated free-shipping window is still active before launch."
+      ],
+      "run_id": "run-fixture-facebook-ads",
+      "status": "completed",
+      "testing_notes": [
+        "Test the three angles with the same audience, placement mix, and creative format so the copy angle is the main variable.",
+        "Compare outbound click-through rate first, then use purchase conversion rate to choose the next iteration.",
+        "Keep the free-shipping language identical across variants while the offer remains active."
+      ],
+      "usage": {
+        "completion_tokens": 640,
+        "estimated_cost_usd": 0.00039,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 820,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "facebook-ads-copywriter@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-offer",
+      "input": {
+        "audience": "Busy home cooks who want easier dinners.",
+        "constraints": "",
+        "objective": "sales",
+        "product_name": "Northstar skillet",
+        "proof_points": "Pre-seasoned and oven-safe.",
+        "tone": "warm"
+      },
+      "reason": "offer is required"
+    },
+    {
+      "id": "unsupported-objective",
+      "input": {
+        "audience": "Busy home cooks who want easier dinners.",
+        "constraints": "",
+        "objective": "awareness",
+        "offer": "A 12-inch skillet with free shipping this week.",
+        "product_name": "Northstar skillet",
+        "proof_points": "Pre-seasoned and oven-safe.",
+        "tone": "warm"
+      },
+      "reason": "objective is a reviewed enum"
+    },
+    {
+      "id": "unsupported-tone",
+      "input": {
+        "audience": "Busy home cooks who want easier dinners.",
+        "constraints": "",
+        "objective": "sales",
+        "offer": "A 12-inch skillet with free shipping this week.",
+        "product_name": "Northstar skillet",
+        "proof_points": "Pre-seasoned and oven-safe.",
+        "tone": "aggressive"
+      },
+      "reason": "tone is a reviewed enum"
+    },
+    {
+      "id": "too-short-audience",
+      "input": {
+        "audience": "cooks",
+        "constraints": "",
+        "objective": "sales",
+        "offer": "A 12-inch skillet with free shipping this week.",
+        "product_name": "Northstar skillet",
+        "proof_points": "Pre-seasoned and oven-safe.",
+        "tone": "warm"
+      },
+      "reason": "audience needs useful detail"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "audience": "Busy home cooks who want easier dinners.",
+        "constraints": "",
+        "ignore_policy": true,
+        "objective": "sales",
+        "offer": "A 12-inch skillet with free shipping this week.",
+        "product_name": "Northstar skillet",
+        "proof_points": "Pre-seasoned and oven-safe.",
+        "tone": "warm"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

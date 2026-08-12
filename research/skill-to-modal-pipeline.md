@@ -1,9 +1,58 @@
 # SKILL.md → Modal pipeline
 
-**Status (2026-08-12):** the Woven hosted drafting preview is deployed and has
-completed authenticated provider-backed runs. The same contract is wired through
-Omo's schema-driven run UI and credit router. The audio symbolic-animation
-contract is deployed fail-closed and is not chargeable.
+**Status (2026-08-12):** the repeatable hosting product now lives at
+`tools/host-skill/`. One command compiles, tests, prices, and registers a reviewed
+SKILL.md in the schema-driven run UI and a generated hosted-Modal Worker registry.
+Woven remains deployed and runnable; the third proof, Facebook Ads Copywriter,
+is also deployed and completed a real authenticated provider-backed run. The
+generic Worker route is tested and deploy-ready, but its production deploy and
+ledger canary remain gated on existing Cloudflare authorization. The audio
+symbolic-animation contract remains deployed fail-closed and non-chargeable.
+
+Exact commands, review decisions, promotion gates, and the under-15-minute flow
+are in [`research/hosting-runbook.md`](hosting-runbook.md).
+
+## Repeatable hosting product
+
+`tools/host-skill/host.py <SKILL.md> --register` now owns the end-to-end build:
+
+1. parse the Markdown as untrusted data and bind it to a reviewed profile;
+2. deterministically generate the Modal candidate and offline contract tests;
+3. verify pricing against `site/deploy/cost-model.mjs`;
+4. emit `omo.hosted-profile/v1` plus the browser `omo.run-manifest/v1`;
+5. update the marked catalog block and the secret-free, server-owned
+   `site/deploy/hosted-skills.generated.mjs` registry; and
+6. report the source hash, manifest path, price, readiness, and registration.
+
+Woven and future generated profiles now use one generic Worker path for schema
+validation, idempotent reservation, Proxy Token dispatch, polling, output
+validation, settlement, and refunds. `--register --check` detects drift.
+
+Pipeline coverage: **15 passed** for parsing, ordered analysis, deterministic
+generation, capability gates, registry determinism, endpoint policy, and
+idempotent catalog registration.
+
+## Third-skill proof — Facebook Ads Copywriter
+
+- Source: `packages/facebook-ads-copywriter/SKILL.md`
+- Generated container: `containers/facebook-ads-copywriter/`
+- Marketplace slug: `facebook-ads-copywriter`
+- Price: `$0.10` from the repository cost model
+- Contract tests: `14 passed`
+- Modal app: `cognition-facebook-ads-copywriter`
+- Endpoint: `https://harrythentrepreneur--cognition-facebook-ads-copywriter-api.modal.run`
+- Real authenticated submit: HTTP `202`, call
+  `fc-01KZV23WPVG3T2G2CS79RCV18Q`
+- Real poll: HTTP `200`, three schema-valid ads
+- Provider/model: `opencode-go` / `deepseek-v4-flash`
+- Usage: 349 prompt tokens, 780 completion tokens, one LLM call, estimated
+  provider cost `$0.00037646`
+
+The catalog entry, exact schemas, example hydration, UI hints, and phases are
+generated in `site/run-manifests/facebook-ads-copywriter.json`. The Worker test
+proves a `$5.00 → $4.90` debit after valid Modal completion and rejection before
+spend for invalid input. Production settlement is not yet claimed: Wrangler
+could not deploy without an existing Cloudflare login or API token.
 
 This milestone does **not** claim that the complete source Woven workflow is
 hosted. Version `woven-storybook-pipeline@0.2.0` is the already-advertised text

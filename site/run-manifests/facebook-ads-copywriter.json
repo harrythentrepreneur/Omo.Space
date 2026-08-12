@@ -1,0 +1,312 @@
+{
+  "chargeable": true,
+  "container_slug": "facebook-ads-copywriter",
+  "examples": [
+    {
+      "caption": "Warm · sales objective",
+      "id": "northstar-skillet",
+      "input": {
+        "audience": "Busy home cooks who want a reliable weeknight dinner without a long cleanup.",
+        "constraints": "Do not mention weight loss or make health claims.",
+        "objective": "sales",
+        "offer": "A 12-inch cast-iron skillet with a silicone handle cover and free shipping this week.",
+        "product_name": "Northstar Cast-Iron Skillet",
+        "proof_points": "Pre-seasoned surface, oven-safe construction, and a removable silicone handle cover.",
+        "tone": "warm"
+      },
+      "output_preview": "Three Facebook ad variants grounded only in the supplied skillet facts.",
+      "title": "Weeknight skillet launch"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/facebook-ads-copywriter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Verified product and campaign facts for three Facebook ad-copy variants.",
+    "properties": {
+      "audience": {
+        "description": "The intended audience in non-sensitive, non-discriminatory terms.",
+        "examples": [
+          "Busy home cooks who want a reliable weeknight dinner without a long cleanup."
+        ],
+        "maxLength": 800,
+        "minLength": 8,
+        "title": "Audience",
+        "type": "string"
+      },
+      "constraints": {
+        "default": "",
+        "description": "Claims, words, topics, or policy risks to avoid.",
+        "examples": [
+          "Do not mention weight loss or make health claims."
+        ],
+        "maxLength": 800,
+        "title": "Constraints",
+        "type": "string"
+      },
+      "objective": {
+        "default": "sales",
+        "description": "The campaign result the copy should support.",
+        "enum": [
+          "sales",
+          "leads",
+          "traffic"
+        ],
+        "title": "Campaign objective",
+        "type": "string"
+      },
+      "offer": {
+        "description": "The exact product, price, promotion, or action being offered. Include only currently true facts.",
+        "examples": [
+          "A 12-inch cast-iron skillet with a silicone handle cover and free shipping this week."
+        ],
+        "maxLength": 1200,
+        "minLength": 8,
+        "title": "Offer",
+        "type": "string"
+      },
+      "product_name": {
+        "description": "The product or service name.",
+        "examples": [
+          "Northstar Cast-Iron Skillet"
+        ],
+        "maxLength": 120,
+        "minLength": 2,
+        "title": "Product name",
+        "type": "string"
+      },
+      "proof_points": {
+        "description": "Verified features, evidence, testimonials, or differentiators the ads may use.",
+        "examples": [
+          "Pre-seasoned surface, oven-safe construction, and a removable silicone handle cover."
+        ],
+        "maxLength": 1600,
+        "minLength": 3,
+        "title": "Proof points",
+        "type": "string"
+      },
+      "tone": {
+        "default": "direct",
+        "description": "The writing voice for all three variants.",
+        "enum": [
+          "direct",
+          "playful",
+          "premium",
+          "warm"
+        ],
+        "title": "Tone",
+        "type": "string"
+      }
+    },
+    "required": [
+      "product_name",
+      "offer",
+      "audience",
+      "objective",
+      "tone",
+      "proof_points",
+      "constraints"
+    ],
+    "title": "Facebook ads copy brief",
+    "type": "object"
+  },
+  "input_schema_source": "containers/facebook-ads-copywriter/schemas/input.json",
+  "output_schema": {
+    "$id": "https://omo.space/schemas/facebook-ads-copywriter/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "ads": {
+        "description": "Three complete Facebook ad-copy variants with distinct angles.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "angle": {
+              "maxLength": 120,
+              "minLength": 3,
+              "title": "Angle",
+              "type": "string"
+            },
+            "cta": {
+              "enum": [
+                "Shop Now",
+                "Learn More",
+                "Sign Up",
+                "Get Offer"
+              ],
+              "title": "CTA",
+              "type": "string"
+            },
+            "description": {
+              "maxLength": 160,
+              "minLength": 3,
+              "title": "Description",
+              "type": "string"
+            },
+            "headline": {
+              "maxLength": 100,
+              "minLength": 5,
+              "title": "Headline",
+              "type": "string"
+            },
+            "primary_text": {
+              "maxLength": 1200,
+              "minLength": 50,
+              "title": "Primary text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "angle",
+            "primary_text",
+            "headline",
+            "description",
+            "cta"
+          ],
+          "type": "object"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "title": "Ad variants",
+        "type": "array"
+      },
+      "campaign_summary": {
+        "maxLength": 700,
+        "minLength": 20,
+        "title": "Campaign summary",
+        "type": "string"
+      },
+      "compliance_notes": {
+        "items": {
+          "maxLength": 360,
+          "minLength": 8,
+          "type": "string"
+        },
+        "maxItems": 6,
+        "minItems": 1,
+        "title": "Compliance notes",
+        "type": "array"
+      },
+      "run_id": {
+        "minLength": 8,
+        "title": "Run ID",
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "testing_notes": {
+        "items": {
+          "maxLength": 360,
+          "minLength": 8,
+          "type": "string"
+        },
+        "maxItems": 8,
+        "minItems": 2,
+        "title": "Testing notes",
+        "type": "array"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "title": "Provider usage",
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "facebook-ads-copywriter@0.1.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "campaign_summary",
+      "ads",
+      "testing_notes",
+      "compliance_notes",
+      "usage"
+    ],
+    "title": "Completed Facebook ads copy package",
+    "type": "object"
+  },
+  "output_schema_source": "containers/facebook-ads-copywriter/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Writing three distinct ad angles"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "facebook-ads-copywriter",
+  "ui": {
+    "fields": {
+      "audience": {
+        "widget": "textarea"
+      },
+      "constraints": {
+        "widget": "textarea"
+      },
+      "objective": {
+        "widget": "select"
+      },
+      "offer": {
+        "widget": "textarea"
+      },
+      "product_name": {
+        "widget": "text"
+      },
+      "proof_points": {
+        "widget": "textarea"
+      },
+      "tone": {
+        "widget": "select"
+      }
+    },
+    "order": [
+      "product_name",
+      "offer",
+      "audience",
+      "objective",
+      "tone",
+      "proof_points",
+      "constraints"
+    ]
+  }
+}

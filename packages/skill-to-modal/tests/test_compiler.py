@@ -1,0 +1,96 @@
+"""Unit tests for deterministic, data-only SKILL.md compilation."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[3]
+COMPILER_PATH = ROOT / "packages" / "skill-to-modal" / "compiler.py"
+
+
+def load_compiler():
+    spec = importlib.util.spec_from_file_location("skill_to_modal_compiler_test", COMPILER_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+compiler = load_compiler()
+SKILL_PATH = ROOT / "packages" / "facebook-ads-copywriter" / "SKILL.md"
+PROFILE_PATH = ROOT / "packages" / "skill-to-modal" / "profiles" / "facebook-ads-copywriter.json"
+
+
+def test_parse_skill_requires_and_returns_frontmatter() -> None:
+    parsed = compiler.parse_skill(SKILL_PATH.read_text(encoding="utf-8"))
+    assert parsed["name"] == "facebook-ads-copywriter"
+    assert parsed["slug"] == "facebook-ads-copywriter"
+    assert parsed["description"].startswith("Turn verified product facts")
+
+
+def test_workflow_steps_are_extracted_in_source_order() -> None:
+    parsed = compiler.parse_skill(SKILL_PATH.read_text(encoding="utf-8"))
+    assert [step["id"] for step in parsed["extracted_steps"]] == [
+        "read-the-brief",
+        "choose-angles",
+        "write-ads",
+        "check-claims",
+        "plan-the-test",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text,message",
+    [
+        ("# no frontmatter\n", "must begin"),
+        ("---\nname: example\n---\n", "requires name and description"),
+        ("---\nname: example\ndescription: open\n", "not closed"),
+    ],
+)
+def test_invalid_skill_metadata_fails_closed(text: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        compiler.parse_skill(text)
+
+
+def test_provider_need_detection_is_stable_and_sorted() -> None:
+    needs = compiler.detect_needs("Use ffmpeg, Runware, and faster-whisper. Then ffprobe.")
+    assert needs == ["faster-whisper", "ffmpeg", "runware"]
+
+
+def test_generation_is_byte_deterministic() -> None:
+    skill = SKILL_PATH.read_text(encoding="utf-8")
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    first = compiler.build_files(skill, profile)
+    second = compiler.build_files(skill, profile)
+    assert first == second
+    assert first["source/SKILL.md"] == skill
+    assert json.loads(first["manifest.json"])["readiness"]["can_submit"] is True
+
+
+def test_profile_cannot_change_source_identity() -> None:
+    skill = SKILL_PATH.read_text(encoding="utf-8")
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "different-skill"
+    with pytest.raises(ValueError, match="does not match skill"):
+        compiler.build_files(skill, profile)
+
+
+def test_nonallowlisted_ready_runtime_is_rejected() -> None:
+    skill = SKILL_PATH.read_text(encoding="utf-8")
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["execution_kind"] = "arbitrary_shell"
+    with pytest.raises(ValueError, match="non-allowlisted"):
+        compiler.build_files(skill, profile)
+
+
+def test_check_mode_reports_drift_without_writing(tmp_path: Path) -> None:
+    files = {"one.txt": "reviewed\n", "nested/two.txt": "stable\n"}
+    assert compiler.write_or_check(files, tmp_path, check=True) == 1
+    assert list(tmp_path.iterdir()) == []
+    assert compiler.write_or_check(files, tmp_path, check=False) == 0
+    assert compiler.write_or_check(files, tmp_path, check=True) == 0

@@ -36,9 +36,9 @@
 //   DEMELLO_EXPECTED_RUN_SECONDS — derived-progress horizon, default 90.
 //   DEMELLO_RUN_TIMEOUT_SECONDS — terminal refund timeout, default 1300.
 //   DEMELLO_PROGRESS_WEBHOOK_SECRET — optional independent checkpoint bearer.
-//   WOVEN_MODAL_URL — protected Modal ASGI base URL for the Woven preview.
-//   WOVEN_MODAL_PROXY_TOKEN_ID / WOVEN_MODAL_PROXY_TOKEN_SECRET — Modal
-//     workspace Proxy Token pair (not the Modal CLI deployment token).
+//   HOSTED_MODAL_PROXY_TOKEN_ID / HOSTED_MODAL_PROXY_TOKEN_SECRET — shared
+//     Modal workspace Proxy Token pair for generated hosted-skill endpoints.
+//     The legacy WOVEN_* names remain a temporary backwards-compatible fallback.
 //
 // Bindings:
 //   BALANCE_DB (D1) — optional fallback after Neon. Without either database the
@@ -61,6 +61,7 @@ import { Pool } from '@neondatabase/serverless';
 import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts, MIN_TOPUP_USD } from './balance.mjs';
 import { runPrice, llmWorkflow } from './cost-model.mjs';
 import { handleMcpRequest } from './mcp-server.mjs';
+import { HOSTED_MODAL_SKILL_ROWS, HOSTED_SERVER_CATALOG_ROWS } from './hosted-skills.generated.mjs';
 
 // ── System prompts (hardened: exact JSON shape, flat string arrays, no fences) ──
 
@@ -149,40 +150,7 @@ const DEMELLO_QUOTED_RUN_CENTS = 10;
 const DEMELLO_PAID_TRAFFIC_READY = false;
 const DEMELLO_PHASES = ['reserved', 'running', 'transcribing', 'directing', 'generating', 'assembling', 'delivered', 'failed'];
 const DEMELLO_PHASE_RANK = new Map(DEMELLO_PHASES.map((phase, index) => [phase, index]));
-const WOVEN_SLUG = 'woven-relationship-book-maker';
-const WOVEN_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--cognition-woven-storybook-pipeline-api.modal.run';
-const WOVEN_RUN_CENTS = 40;
-const WOVEN_INPUT_SCHEMA = {
-  type: 'object', additionalProperties: false,
-  required: ['how_you_met', 'favorite_moments', 'inside_jokes', 'style', 'length'],
-  properties: {
-    how_you_met: { type: 'string', minLength: 12, maxLength: 1200 },
-    favorite_moments: { type: 'string', minLength: 12, maxLength: 2400 },
-    inside_jokes: { type: 'string', minLength: 3, maxLength: 1200 },
-    style: { type: 'string', enum: ['warm', 'playful', 'poetic'] },
-    length: { type: 'string', enum: ['short', 'long'] },
-  },
-};
-const WOVEN_OUTPUT_SCHEMA = {
-  type: 'object', additionalProperties: false,
-  required: ['run_id', 'status', 'workflow_version', 'title', 'book', 'page_plan', 'usage'],
-  properties: {
-    run_id: { type: 'string', minLength: 8 }, status: { const: 'completed' },
-    workflow_version: { const: 'woven-storybook-pipeline@0.2.0' },
-    title: { type: 'string', minLength: 3, maxLength: 120 },
-    book: { type: 'string', minLength: 240, maxLength: 12000 },
-    page_plan: { type: 'array', minItems: 4, maxItems: 14, items: { type: 'string', minLength: 8, maxLength: 360 } },
-    usage: {
-      type: 'object', additionalProperties: false,
-      required: ['provider', 'model', 'llm_calls', 'prompt_tokens', 'completion_tokens', 'estimated_cost_usd'],
-      properties: {
-        provider: { const: 'opencode-go' }, model: { type: 'string', minLength: 1 }, llm_calls: { const: 1 },
-        prompt_tokens: { type: 'integer', minimum: 0 }, completion_tokens: { type: 'integer', minimum: 0 },
-        estimated_cost_usd: { type: 'number', minimum: 0 },
-      },
-    },
-  },
-};
+const HOSTED_MODAL_SKILLS = new Map(HOSTED_MODAL_SKILL_ROWS);
 
 // Server-owned catalog. The Instagram tuples mirror site/ig-workflows.js and
 // site/ig-more.js, but intentionally include only runtime-safe fields. Client
@@ -193,7 +161,6 @@ const CATALOG_ROWS = [
   ['meta-ads-analyser', 'Meta Ads Analyser', 49, 0.10, 'deepseek-v4-flash', 5000, META_SYSTEM_PROMPT],
   ['product-photo-generator', 'Product Photo Generator', 29, 0.10, 'deepseek-v4-flash', 4000, PHOTO_SYSTEM_PROMPT],
   ['listing-copy-engine', 'Listing Copy Engine', 19, 0.10, 'deepseek-v4-flash', 600, LISTING_COPY_SYSTEM_PROMPT],
-  [WOVEN_SLUG, 'Woven Relationship Book Maker', 29, 0.40, 'deepseek-v4-flash', 2200, 'Executed by the schema-validated Woven Modal deployment, not by the Worker LLM fallback.'],
   [DEMELLO_SLUG, 'Japanese Style Story Video', 29, 0.10, 'deepseek-v4-flash', 500, 'Turn supplied audio into a vertical sumi-e drawing animation. This listing is executed by its pinned Modal release, not by this prompt.'],
   ['ugc-actor-maker', 'UGC Actor Maker', 49, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
   ['ugc-heygen-editor', 'UGC HeyGen Editor', 39, 0.15, 'deepseek-v4-flash', 700, UGC_SYSTEM_PROMPT],
@@ -222,6 +189,7 @@ const CATALOG_ROWS = [
   ['batch-content-repurposing-system-transcripts-', 'Batch Content Repurposing System', 39, 0.75, 'deepseek-v4-flash', 500, 'You turn supplied transcripts into a batch content-repurposing plan and platform captions. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
   ['kling-ai-higgsfield-viral-video-workflow', 'Kling AI + Higgsfield Viral Video Workflow', 29, 0.60, 'deepseek-v4-flash', 500, 'You create a cinematic short-video workflow from supplied campaign facts. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
   ['ai-readable-product-page-optimization', 'AI-Readable Product Page Optimization', 39, 0.90, 'deepseek-v4-flash', 500, 'You optimize supplied product-page facts for accurate AI discovery and recommendation. Return JSON with output as a flat array of strings and summary as one string. Never invent facts. Output JSON only.'],
+  ...HOSTED_SERVER_CATALOG_ROWS,
 ];
 
 const SERVER_CATALOG = new Map(CATALOG_ROWS.map((row) => {
@@ -421,10 +389,11 @@ async function handleGenericRun(request, env) {
   const slug = String(body.slug || '').trim();
   const fields = body.fields && typeof body.fields === 'object' && !Array.isArray(body.fields) ? body.fields : {};
   const isDemello = slug === DEMELLO_SLUG;
-  const isWoven = slug === WOVEN_SLUG;
-  // The video workflow can spend Modal/provider budget and is never anonymous,
+  const hosted = HOSTED_MODAL_SKILLS.get(slug) || null;
+  const isHosted = Boolean(hosted);
+  // Hosted workflows can spend Modal/provider budget and are never anonymous,
   // including in otherwise zero-config local mode.
-  const real = isRealMode(env) || isDemello || isWoven;
+  const real = isRealMode(env) || isDemello || isHosted;
   const listing = SERVER_CATALOG.get(slug);
   if (!slug) return json({ error: 'Send slug.' }, 400, cors());
   if (real && !listing) return json({ error: 'unknown_catalog_slug' }, 404, cors());
@@ -450,15 +419,15 @@ async function handleGenericRun(request, env) {
     demelloInput = normalized.input;
     demelloInputNotice = normalized.input_notice || '';
   }
-  let wovenInput = null;
-  if (isWoven) {
-    const configError = wovenConfigError(env);
+  let hostedInput = null;
+  if (isHosted) {
+    const configError = hostedModalConfigError(env, hosted);
     if (configError) return json({ error: configError }, 503, cors());
     const candidate = body.input && typeof body.input === 'object' && !Array.isArray(body.input)
       ? body.input : fields;
-    const errors = validateSchemaValue(candidate, WOVEN_INPUT_SCHEMA);
-    if (errors.length) return json({ error: 'invalid_woven_input', details: errors.slice(0, 8) }, 422, cors());
-    wovenInput = candidate;
+    const errors = validateSchemaValue(candidate, hosted.input_schema);
+    if (errors.length) return json({ error: 'invalid_hosted_input', details: errors.slice(0, 8) }, 422, cors());
+    hostedInput = candidate;
   }
 
   const systemPrompt = listing ? listing.systemPrompt : String(body.system_prompt || '').trim();
@@ -471,7 +440,7 @@ async function handleGenericRun(request, env) {
   // Flatten fields into the user prompt, rejecting oversized payloads. The
   // de Mello branch validates and hashes a typed server-owned input instead.
   let userPrompt = '';
-  if (!isDemello && !isWoven) {
+  if (!isDemello && !isHosted) {
     for (const [k, v] of Object.entries(fields)) {
       if (!/^[A-Za-z0-9 _.-]{1,80}$/.test(k)) return json({ error: 'Invalid field name.' }, 400, cors());
       const s = String(v == null ? '' : v).trim();
@@ -491,7 +460,9 @@ async function handleGenericRun(request, env) {
   let idempotencyKey = '';
   let requestHash = '';
   let runRequest = null;
-  const runCostCents = isDemello && !DEMELLO_PAID_TRAFFIC_READY ? 0 : (listing ? listing.runPriceCents : 0);
+  const runCostCents = isDemello && !DEMELLO_PAID_TRAFFIC_READY
+    ? 0
+    : (isHosted ? Number(hosted.run_price_cents) : (listing ? listing.runPriceCents : 0));
   if (real) {
     idempotencyKey = String(request.headers.get('idempotency-key') || body.idempotency_key || '').trim();
     if (!IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {
@@ -499,7 +470,7 @@ async function handleGenericRun(request, env) {
     }
     requestHash = await sha256Hex(stableStringify(isDemello
       ? { slug, input: demelloInput, input_notice: demelloInputNotice }
-      : { slug, input: isWoven ? wovenInput : fields }));
+      : { slug, input: isHosted ? hostedInput : fields }));
     await getUserRecord(env, userId);
     await reconcileStaleReservations(env, userId);
     runRequest = await claimRunRequest(
@@ -543,11 +514,11 @@ async function handleGenericRun(request, env) {
       return json(response, 402, cors());
     }
     balanceAfterDebit = reservation.balance_cents;
-    if (runRequest && (isDemello || isWoven)) {
+    if (runRequest && (isDemello || isHosted)) {
       await putRunProgress(env, {
         run_id: runId, user_id: userId, phase: 'reserved', progress_pct: 1,
         progress_source: 'derived', modal_status: 'reserved',
-        modal_status_url: isWoven ? wovenEndpoint(env) : demelloModalStatusUrl(env, runId),
+        modal_status_url: isHosted ? hostedModalEndpoint(env, hosted) : demelloModalStatusUrl(env, runId),
         input_notice: demelloInputNotice,
       });
     }
@@ -560,9 +531,9 @@ async function handleGenericRun(request, env) {
       demelloInputNotice, reservedCents, costUsd, balanceAfterDebit, authMethod,
     });
   }
-  if (isWoven) {
-    return dispatchWovenRun(env, {
-      runRequest, runId, userId, wovenInput, costUsd, balanceAfterDebit, authMethod,
+  if (isHosted) {
+    return dispatchHostedModalRun(env, hosted, {
+      runRequest, runId, userId, hostedInput, costUsd, balanceAfterDebit, authMethod,
     });
   }
 
@@ -613,7 +584,7 @@ async function handleGenericRun(request, env) {
   }
 }
 
-// ── Async Woven / schema-driven Modal run ─────────────────────────────────
+// ── Generated hosted skills / schema-driven Modal runs ────────────────────
 
 function validateSchemaValue(value, schema, path = '$') {
   const errors = [];
@@ -657,68 +628,72 @@ function validateSchemaValue(value, schema, path = '$') {
   return errors;
 }
 
-function wovenEndpoint(env) {
-  return String(env.WOVEN_MODAL_URL || WOVEN_DEFAULT_ENDPOINT).replace(/\/+$/, '');
+function hostedModalEndpoint(env, hosted) {
+  return String(env[hosted.endpoint_env] || hosted.default_endpoint).replace(/\/+$/, '');
 }
 
-function wovenConfigError(env) {
-  if (!String(env.WOVEN_MODAL_PROXY_TOKEN_ID || '').trim() || !String(env.WOVEN_MODAL_PROXY_TOKEN_SECRET || '').trim()) {
-    return 'woven_modal_auth_not_configured';
-  }
-  try {
-    const endpoint = new URL(wovenEndpoint(env));
-    if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) return 'woven_modal_url_invalid';
-  } catch { return 'woven_modal_url_invalid'; }
-  return '';
-}
-
-function wovenModalHeaders(env) {
+function hostedModalCredentials(env, hosted) {
   return {
-    'Modal-Key': String(env.WOVEN_MODAL_PROXY_TOKEN_ID).trim(),
-    'Modal-Secret': String(env.WOVEN_MODAL_PROXY_TOKEN_SECRET).trim(),
-    Accept: 'application/json',
+    id: String(env[hosted.proxy_token_id_env] || env.WOVEN_MODAL_PROXY_TOKEN_ID || '').trim(),
+    secret: String(env[hosted.proxy_token_secret_env] || env.WOVEN_MODAL_PROXY_TOKEN_SECRET || '').trim(),
   };
 }
 
-function wovenPublicRunning(row, extra = {}) {
+function hostedModalConfigError(env, hosted) {
+  const credentials = hostedModalCredentials(env, hosted);
+  if (!credentials.id || !credentials.secret) return 'hosted_modal_auth_not_configured';
+  try {
+    const endpoint = new URL(hostedModalEndpoint(env, hosted));
+    if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) return 'hosted_modal_url_invalid';
+  } catch { return 'hosted_modal_url_invalid'; }
+  return '';
+}
+
+function hostedModalHeaders(env, hosted) {
+  const credentials = hostedModalCredentials(env, hosted);
+  return { 'Modal-Key': credentials.id, 'Modal-Secret': credentials.secret, Accept: 'application/json' };
+}
+
+function hostedModalPublicRunning(row, hosted, extra = {}) {
   return {
-    ok: true, slug: WOVEN_SLUG, run_id: row.run_id, status: 'running', state: row.state,
+    ok: true, slug: hosted.slug, run_id: row.run_id, status: 'running', state: row.state,
     phase: 'running', progress_pct: 35, status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
-    quoted_cost_usd: WOVEN_RUN_CENTS / 100, billed_amount_usd: Number(row.cost_cents) / 100,
+    quoted_cost_usd: Number(hosted.run_price_cents) / 100,
+    billed_amount_usd: Number(row.cost_cents) / 100,
     ...extra,
   };
 }
 
-async function dispatchWovenRun(env, context) {
-  const { runRequest, runId, userId, wovenInput, costUsd, balanceAfterDebit, authMethod } = context;
+async function dispatchHostedModalRun(env, hosted, context) {
+  const { runRequest, runId, userId, hostedInput, costUsd, balanceAfterDebit, authMethod } = context;
   let response;
   try {
-    response = await fetch(`${wovenEndpoint(env)}/v1/runs`, {
+    response = await fetch(`${hostedModalEndpoint(env, hosted)}/v1/runs`, {
       method: 'POST',
-      headers: { ...wovenModalHeaders(env), 'Content-Type': 'application/json' },
-      body: JSON.stringify(wovenInput),
+      headers: { ...hostedModalHeaders(env, hosted), 'Content-Type': 'application/json' },
+      body: JSON.stringify(hostedInput),
     });
   } catch {
-    return failWovenRun(env, runRequest.row, 'woven_modal_dispatch_unavailable', 502);
+    return failHostedModalRun(env, hosted, runRequest.row, 'hosted_modal_dispatch_unavailable', 502);
   }
   let upstream = {};
   try { upstream = await response.json(); } catch { upstream = {}; }
   if (response.status !== 202 || !/^fc-[A-Za-z0-9_-]+$/.test(String(upstream.call_id || '')) || !/^\/v1\/runs\/fc-[A-Za-z0-9_-]+$/.test(String(upstream.result_url || ''))) {
-    return failWovenRun(env, runRequest.row, `woven_modal_dispatch_${response.status}`, 502);
+    return failHostedModalRun(env, hosted, runRequest.row, `hosted_modal_dispatch_${response.status}`, 502);
   }
   const remote = { call_id: upstream.call_id, result_url: upstream.result_url };
   await putRunProgress(env, {
     run_id: runId, user_id: userId, phase: 'running', progress_pct: 35,
     progress_source: 'modal', modal_status: 'accepted',
-    modal_status_url: wovenEndpoint(env) + upstream.result_url,
+    modal_status_url: hostedModalEndpoint(env, hosted) + upstream.result_url,
     result_json: JSON.stringify(remote),
   });
-  return json(wovenPublicRunning(runRequest.row, {
+  return json(hostedModalPublicRunning(runRequest.row, hosted, {
     auth: authMethod, cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
   }), 202, cors());
 }
 
-async function refreshWovenRun(env, row) {
+async function refreshHostedModalRun(env, hosted, row) {
   if (row.state === 'succeeded' || row.state === 'refunded') {
     let terminal = {};
     try { terminal = JSON.parse(row.response_json || '{}'); } catch { terminal = {}; }
@@ -728,41 +703,43 @@ async function refreshWovenRun(env, row) {
   let remote = {};
   try { remote = JSON.parse(progress && progress.result_json || '{}'); } catch { remote = {}; }
   if (!/^\/v1\/runs\/fc-[A-Za-z0-9_-]+$/.test(String(remote.result_url || ''))) {
-    return failWovenRun(env, row, 'woven_modal_poll_contract_missing', 502, true);
+    return failHostedModalRun(env, hosted, row, 'hosted_modal_poll_contract_missing', 502, true);
   }
   let response;
   try {
-    response = await fetch(wovenEndpoint(env) + remote.result_url, { headers: wovenModalHeaders(env) });
+    response = await fetch(hostedModalEndpoint(env, hosted) + remote.result_url, { headers: hostedModalHeaders(env, hosted) });
   } catch {
     await touchRunRequest(env, row.run_id);
-    return { status: 202, body: wovenPublicRunning(row, { poll_warning: 'woven_modal_status_unavailable' }) };
+    return { status: 202, body: hostedModalPublicRunning(row, hosted, { poll_warning: 'hosted_modal_status_unavailable' }) };
   }
   let upstream = {};
   try { upstream = await response.json(); } catch { upstream = {}; }
   if (response.status === 202) {
     await touchRunRequest(env, row.run_id);
-    return { status: 202, body: wovenPublicRunning(row) };
+    return { status: 202, body: hostedModalPublicRunning(row, hosted) };
   }
-  const outputErrors = response.status === 200 ? validateSchemaValue(upstream, WOVEN_OUTPUT_SCHEMA) : ['upstream failed'];
+  const outputErrors = response.status === 200 ? validateSchemaValue(upstream, hosted.output_schema) : ['upstream failed'];
   if (response.status !== 200 || outputErrors.length) {
-    return failWovenRun(env, row, response.status === 200 ? 'woven_modal_invalid_output' : `woven_modal_poll_${response.status}`, 502, true);
+    return failHostedModalRun(env, hosted, row, response.status === 200 ? 'hosted_modal_invalid_output' : `hosted_modal_poll_${response.status}`, 502, true);
   }
   const result = {
-    ok: true, slug: WOVEN_SLUG, run_id: row.run_id, status: 'completed', state: 'succeeded',
+    ok: true, slug: hosted.slug, run_id: row.run_id, status: 'completed', state: 'succeeded',
     phase: 'delivered', progress_pct: 100, status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
-    quoted_cost_usd: WOVEN_RUN_CENTS / 100, billed_amount_usd: Number(row.cost_cents) / 100,
+    quoted_cost_usd: Number(hosted.run_price_cents) / 100,
+    billed_amount_usd: Number(row.cost_cents) / 100,
     output: upstream,
   };
   await finishRunRequest(env, row.run_id, 'succeeded', result, 200);
   await putRunProgress(env, {
     run_id: row.run_id, user_id: row.user_id, phase: 'delivered', progress_pct: 100,
-    progress_source: 'modal', modal_status: 'completed', modal_status_url: wovenEndpoint(env) + remote.result_url,
+    progress_source: 'modal', modal_status: 'completed',
+    modal_status_url: hostedModalEndpoint(env, hosted) + remote.result_url,
     result_json: JSON.stringify(upstream),
   });
   return { status: 200, body: result };
 }
 
-async function failWovenRun(env, row, reason, httpStatus = 502, returnObject = false) {
+async function failHostedModalRun(env, hosted, row, reason, httpStatus = 502, returnObject = false) {
   const current = await getRunRequestById(env, row.run_id);
   if (current && current.state === 'succeeded') {
     let terminal = {};
@@ -772,9 +749,9 @@ async function failWovenRun(env, row, reason, httpStatus = 502, returnObject = f
   }
   if (current) row = current;
   const response = {
-    ok: false, error: 'run_failed', reason, slug: WOVEN_SLUG, run_id: row.run_id,
+    ok: false, error: 'run_failed', reason, slug: hosted.slug, run_id: row.run_id,
     status: 'failed', state: 'refunded', phase: 'failed', progress_pct: 0,
-    quoted_cost_usd: WOVEN_RUN_CENTS / 100, billed_amount_usd: 0,
+    quoted_cost_usd: Number(hosted.run_price_cents) / 100, billed_amount_usd: 0,
     status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
   };
   const ownsRefund = await finishRunRequest(env, row.run_id, 'refunded', response, httpStatus);
@@ -980,8 +957,9 @@ async function handleRunStatus(request, env, _url, params) {
     const result = await refreshDemelloRun(env, row);
     return json(result.body, result.status, cors());
   }
-  if (row.slug === WOVEN_SLUG) {
-    const result = await refreshWovenRun(env, row);
+  const hosted = HOSTED_MODAL_SKILLS.get(row.slug);
+  if (hosted) {
+    const result = await refreshHostedModalRun(env, hosted, row);
     return json(result.body, result.status, cors());
   }
   if (row.state === 'succeeded' || row.state === 'refunded') {
@@ -2050,8 +2028,9 @@ async function replayRunResponse(env, row, requestHash) {
     const progress = await getRunProgress(env, row.run_id);
     return json(demelloPublicRunning(row, progress, { idempotent_replay: true }), 202, cors());
   }
-  if (row.slug === WOVEN_SLUG) {
-    return json(wovenPublicRunning(row, { idempotent_replay: true }), 202, cors());
+  const hosted = HOSTED_MODAL_SKILLS.get(row.slug);
+  if (hosted) {
+    return json(hostedModalPublicRunning(row, hosted, { idempotent_replay: true }), 202, cors());
   }
   return json({
     ok: true, idempotent_replay: true, run_id: row.run_id, state: row.state,

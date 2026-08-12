@@ -1,0 +1,155 @@
+{
+  "artifacts": [],
+  "description": "Turn verified product facts into three Facebook ad variants with distinct angles, testing notes, and compliance-safe claims.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "product_name",
+      "widget": "text"
+    },
+    {
+      "field": "offer",
+      "widget": "textarea"
+    },
+    {
+      "field": "audience",
+      "widget": "textarea"
+    },
+    {
+      "field": "objective",
+      "widget": "select"
+    },
+    {
+      "field": "tone",
+      "widget": "select"
+    },
+    {
+      "field": "proof_points",
+      "widget": "textarea"
+    },
+    {
+      "field": "constraints",
+      "widget": "textarea"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/facebook-ads-copywriter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Verified product and campaign facts for three Facebook ad-copy variants.",
+    "properties": {
+      "audience": {
+        "description": "The intended audience in non-sensitive, non-discriminatory terms.",
+        "examples": [
+          "Busy home cooks who want a reliable weeknight dinner without a long cleanup."
+        ],
+        "maxLength": 800,
+        "minLength": 8,
+        "title": "Audience",
+        "type": "string"
+      },
+      "constraints": {
+        "default": "",
+        "description": "Claims, words, topics, or policy risks to avoid.",
+        "examples": [
+          "Do not mention weight loss or make health claims."
+        ],
+        "maxLength": 800,
+        "title": "Constraints",
+        "type": "string"
+      },
+      "objective": {
+        "default": "sales",
+        "description": "The campaign result the copy should support.",
+        "enum": [
+          "sales",
+          "leads",
+          "traffic"
+        ],
+        "title": "Campaign objective",
+        "type": "string"
+      },
+      "offer": {
+        "description": "The exact product, price, promotion, or action being offered. Include only currently true facts.",
+        "examples": [
+          "A 12-inch cast-iron skillet with a silicone handle cover and free shipping this week."
+        ],
+        "maxLength": 1200,
+        "minLength": 8,
+        "title": "Offer",
+        "type": "string"
+      },
+      "product_name": {
+        "description": "The product or service name.",
+        "examples": [
+          "Northstar Cast-Iron Skillet"
+        ],
+        "maxLength": 120,
+        "minLength": 2,
+        "title": "Product name",
+        "type": "string"
+      },
+      "proof_points": {
+        "description": "Verified features, evidence, testimonials, or differentiators the ads may use.",
+        "examples": [
+          "Pre-seasoned surface, oven-safe construction, and a removable silicone handle cover."
+        ],
+        "maxLength": 1600,
+        "minLength": 3,
+        "title": "Proof points",
+        "type": "string"
+      },
+      "tone": {
+        "default": "direct",
+        "description": "The writing voice for all three variants.",
+        "enum": [
+          "direct",
+          "playful",
+          "premium",
+          "warm"
+        ],
+        "title": "Tone",
+        "type": "string"
+      }
+    },
+    "required": [
+      "product_name",
+      "offer",
+      "audience",
+      "objective",
+      "tone",
+      "proof_points",
+      "constraints"
+    ],
+    "title": "Facebook ads copy brief",
+    "type": "object"
+  },
+  "name": "facebook-ads-copywriter",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "cost_model",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "facebook-ads-copywriter",
+  "version": "0.1.0"
+}

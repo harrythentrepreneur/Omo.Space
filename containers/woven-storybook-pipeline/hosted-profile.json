@@ -1,0 +1,464 @@
+{
+  "catalog": {
+    "category": "content",
+    "cover": "covers/woven-relationship-book-maker.svg",
+    "demoCap": "Hosted run: narrative draft + PDF-ready page plan",
+    "desc": "Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted run delivers a Markdown book draft and PDF-ready page plan for $0.40; the full private chat-archive-to-PDF pipeline remains a separate production milestone.",
+    "emoji": "💞",
+    "exampleIn": "We met after reaching for the same book at a rainy-day shop · seven years, two cities, and one badly behaved corgi · warm and playful · short",
+    "exampleOut": [
+      "A warm chaptered story that carries the rainy bookshop meeting through seven years together",
+      "A PDF-ready page plan with chapter breaks, memory prompts, and the corgi joke woven through"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "how_you_met: a line about how you met",
+      "favorite_moments: milestones and memories you want included",
+      "inside_jokes: favorite jokes, phrases, and tiny details",
+      "style: warm, playful, or poetic",
+      "length: short or long"
+    ],
+    "maker": "Woven",
+    "makerName": "Woven Studio",
+    "name": "Woven Relationship Book Maker",
+    "niche": "copy",
+    "outputs": [
+      "book — a chaptered relationship story in Markdown",
+      "page_plan — a PDF-ready page plan with chapter breaks and keepsake prompts"
+    ],
+    "priceMaintain": 8.0,
+    "priceOwn": 29.0,
+    "promise": "Turn your love story into a beautiful keepsake book.",
+    "runManifest": "run-manifests/woven-relationship-book-maker.json",
+    "runPrice": 0.4,
+    "slug": "woven-relationship-book-maker",
+    "tags": [
+      "books",
+      "copy",
+      "relationship",
+      "story",
+      "storytelling",
+      "personalized",
+      "love"
+    ],
+    "upvotes": 84,
+    "version": "v1.0.0 · 2026-08-11",
+    "workflow": {
+      "steps": [
+        {
+          "max_output": 2200,
+          "model": "deepseek-v4-flash",
+          "role": "draft",
+          "system": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, or quotations. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object.",
+          "type": "llm"
+        },
+        {
+          "label": "Writing and polishing your story",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": false,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "woven-storybook-pipeline",
+    "examples": [
+      {
+        "caption": "Warm · short keepsake",
+        "id": "rainy-bookshop",
+        "input": {
+          "favorite_moments": "Seven years, two cities, our first tiny apartment, and adopting a corgi who steals socks.",
+          "how_you_met": "We met after reaching for the same travel book in a rainy bookshop, then talked until closing.",
+          "inside_jokes": "We say ‘wrong turn, best view’ whenever a plan goes sideways, and call burnt breakfast the smoke-alarm serenade.",
+          "length": "short",
+          "style": "warm"
+        },
+        "output_preview": "A warm three-chapter keepsake with a PDF-ready page plan.",
+        "title": "The rainy bookshop"
+      }
+    ],
+    "input_schema": {
+      "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "The safe hosted preview accepts story facts directly. The full WhatsApp archive/PDF pipeline remains private and is not this runtime scope.",
+      "properties": {
+        "favorite_moments": {
+          "description": "Milestones and memories the story should include.",
+          "examples": [
+            "Seven years, two cities, our first apartment, and adopting a corgi who steals socks."
+          ],
+          "maxLength": 2400,
+          "minLength": 12,
+          "title": "Favorite moments",
+          "type": "string"
+        },
+        "how_you_met": {
+          "description": "A factual account of the beginning of the relationship.",
+          "examples": [
+            "We met after reaching for the same travel book in a rainy bookshop."
+          ],
+          "maxLength": 1200,
+          "minLength": 12,
+          "title": "How you met",
+          "type": "string"
+        },
+        "inside_jokes": {
+          "description": "Favorite phrases, jokes, or small details to weave in without inventing new facts.",
+          "examples": [
+            "‘Wrong turn, best view’ and our corgi’s habit of stealing socks."
+          ],
+          "maxLength": 1200,
+          "minLength": 3,
+          "title": "Inside jokes and tiny details",
+          "type": "string"
+        },
+        "length": {
+          "default": "short",
+          "description": "Short is roughly three chapters; long is roughly six.",
+          "enum": [
+            "short",
+            "long"
+          ],
+          "title": "Story length",
+          "type": "string"
+        },
+        "style": {
+          "default": "warm",
+          "description": "The writing style; facts remain unchanged.",
+          "enum": [
+            "warm",
+            "playful",
+            "poetic"
+          ],
+          "title": "Writing style",
+          "type": "string"
+        }
+      },
+      "required": [
+        "how_you_met",
+        "favorite_moments",
+        "inside_jokes",
+        "style",
+        "length"
+      ],
+      "title": "Woven keepsake drafting preview",
+      "type": "object"
+    },
+    "input_schema_source": "containers/woven-storybook-pipeline/schemas/input.json",
+    "output_schema": {
+      "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/output.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "book": {
+          "description": "The generated chaptered keepsake in Markdown.",
+          "maxLength": 12000,
+          "minLength": 240,
+          "title": "Keepsake story",
+          "type": "string"
+        },
+        "page_plan": {
+          "description": "A PDF-ready sequence of page or spread notes.",
+          "items": {
+            "maxLength": 360,
+            "minLength": 8,
+            "type": "string"
+          },
+          "maxItems": 14,
+          "minItems": 4,
+          "title": "Page plan",
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 8,
+          "title": "Run ID",
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 3,
+          "title": "Book title",
+          "type": "string"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "title": "Provider usage",
+          "type": "object"
+        },
+        "workflow_version": {
+          "const": "woven-storybook-pipeline@0.2.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "title",
+        "book",
+        "page_plan",
+        "usage"
+      ],
+      "title": "Completed Woven drafting preview",
+      "type": "object"
+    },
+    "output_schema_source": "containers/woven-storybook-pipeline/schemas/output.json",
+    "phases": [
+      {
+        "id": "running",
+        "label": "Writing and polishing your story"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.4,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "woven-relationship-book-maker",
+    "ui": {
+      "fields": {
+        "favorite_moments": {
+          "widget": "textarea"
+        },
+        "how_you_met": {
+          "widget": "textarea"
+        },
+        "inside_jokes": {
+          "widget": "textarea"
+        },
+        "length": {
+          "widget": "select"
+        },
+        "style": {
+          "widget": "select"
+        }
+      },
+      "order": [
+        "how_you_met",
+        "favorite_moments",
+        "inside_jokes",
+        "style",
+        "length"
+      ]
+    }
+  },
+  "runtime": {
+    "container_slug": "woven-storybook-pipeline",
+    "default_endpoint": "https://harrythentrepreneur--cognition-woven-storybook-pipeline-api.modal.run",
+    "endpoint_env": "WOVEN_MODAL_URL",
+    "input_schema": {
+      "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "The safe hosted preview accepts story facts directly. The full WhatsApp archive/PDF pipeline remains private and is not this runtime scope.",
+      "properties": {
+        "favorite_moments": {
+          "description": "Milestones and memories the story should include.",
+          "examples": [
+            "Seven years, two cities, our first apartment, and adopting a corgi who steals socks."
+          ],
+          "maxLength": 2400,
+          "minLength": 12,
+          "title": "Favorite moments",
+          "type": "string"
+        },
+        "how_you_met": {
+          "description": "A factual account of the beginning of the relationship.",
+          "examples": [
+            "We met after reaching for the same travel book in a rainy bookshop."
+          ],
+          "maxLength": 1200,
+          "minLength": 12,
+          "title": "How you met",
+          "type": "string"
+        },
+        "inside_jokes": {
+          "description": "Favorite phrases, jokes, or small details to weave in without inventing new facts.",
+          "examples": [
+            "‘Wrong turn, best view’ and our corgi’s habit of stealing socks."
+          ],
+          "maxLength": 1200,
+          "minLength": 3,
+          "title": "Inside jokes and tiny details",
+          "type": "string"
+        },
+        "length": {
+          "default": "short",
+          "description": "Short is roughly three chapters; long is roughly six.",
+          "enum": [
+            "short",
+            "long"
+          ],
+          "title": "Story length",
+          "type": "string"
+        },
+        "style": {
+          "default": "warm",
+          "description": "The writing style; facts remain unchanged.",
+          "enum": [
+            "warm",
+            "playful",
+            "poetic"
+          ],
+          "title": "Writing style",
+          "type": "string"
+        }
+      },
+      "required": [
+        "how_you_met",
+        "favorite_moments",
+        "inside_jokes",
+        "style",
+        "length"
+      ],
+      "title": "Woven keepsake drafting preview",
+      "type": "object"
+    },
+    "output_schema": {
+      "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/output.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "book": {
+          "description": "The generated chaptered keepsake in Markdown.",
+          "maxLength": 12000,
+          "minLength": 240,
+          "title": "Keepsake story",
+          "type": "string"
+        },
+        "page_plan": {
+          "description": "A PDF-ready sequence of page or spread notes.",
+          "items": {
+            "maxLength": 360,
+            "minLength": 8,
+            "type": "string"
+          },
+          "maxItems": 14,
+          "minItems": 4,
+          "title": "Page plan",
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 8,
+          "title": "Run ID",
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 3,
+          "title": "Book title",
+          "type": "string"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "title": "Provider usage",
+          "type": "object"
+        },
+        "workflow_version": {
+          "const": "woven-storybook-pipeline@0.2.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "title",
+        "book",
+        "page_plan",
+        "usage"
+      ],
+      "title": "Completed Woven drafting preview",
+      "type": "object"
+    },
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "run_price_cents": 40,
+    "slug": "woven-relationship-book-maker"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 29.0,
+    "max_tokens": 2200,
+    "model": "deepseek-v4-flash",
+    "name": "Woven Relationship Book Maker",
+    "run_price_usd": 0.4,
+    "slug": "woven-relationship-book-maker",
+    "system_prompt": "Executed by the schema-validated hosted Modal deployment, not by the Worker LLM fallback."
+  }
+}

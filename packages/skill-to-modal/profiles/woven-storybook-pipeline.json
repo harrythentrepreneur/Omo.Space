@@ -129,6 +129,75 @@
     "temperature": 0.45,
     "timeout_seconds": 120
   },
+  "marketplace": {
+    "catalog_managed": false,
+    "category": "content",
+    "cover": "covers/woven-relationship-book-maker.svg",
+    "demo_cap": "Hosted run: narrative draft + PDF-ready page plan",
+    "deployment": {
+      "default_endpoint": "https://harrythentrepreneur--cognition-woven-storybook-pipeline-api.modal.run",
+      "endpoint_env": "WOVEN_MODAL_URL"
+    },
+    "description": "Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted run delivers a Markdown book draft and PDF-ready page plan for $0.40; the full private chat-archive-to-PDF pipeline remains a separate production milestone.",
+    "emoji": "💞",
+    "example_in": "We met after reaching for the same book at a rainy-day shop · seven years, two cities, and one badly behaved corgi · warm and playful · short",
+    "example_out": [
+      "A warm chaptered story that carries the rainy bookshop meeting through seven years together",
+      "A PDF-ready page plan with chapter breaks, memory prompts, and the corgi joke woven through"
+    ],
+    "examples": [
+      {
+        "caption": "Warm · short keepsake",
+        "id": "rainy-bookshop",
+        "input": {
+          "favorite_moments": "Seven years, two cities, our first tiny apartment, and adopting a corgi who steals socks.",
+          "how_you_met": "We met after reaching for the same travel book in a rainy bookshop, then talked until closing.",
+          "inside_jokes": "We say ‘wrong turn, best view’ whenever a plan goes sideways, and call burnt breakfast the smoke-alarm serenade.",
+          "length": "short",
+          "style": "warm"
+        },
+        "output_preview": "A warm three-chapter keepsake with a PDF-ready page plan.",
+        "title": "The rainy bookshop"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "how_you_met: a line about how you met",
+      "favorite_moments: milestones and memories you want included",
+      "inside_jokes: favorite jokes, phrases, and tiny details",
+      "style: warm, playful, or poetic",
+      "length: short or long"
+    ],
+    "maker": "Woven",
+    "maker_name": "Woven Studio",
+    "niche": "copy",
+    "outputs": [
+      "book — a chaptered relationship story in Markdown",
+      "page_plan — a PDF-ready page plan with chapter breaks and keepsake prompts"
+    ],
+    "phases": [
+      {"id": "running", "label": "Writing and polishing your story"},
+      {"id": "delivered", "label": "Delivered"}
+    ],
+    "price_maintain": 8,
+    "price_own": 29,
+    "promise": "Turn your love story into a beautiful keepsake book.",
+    "slug": "woven-relationship-book-maker",
+    "tags": ["books", "copy", "relationship", "story", "storytelling", "personalized", "love"],
+    "title": "Woven Relationship Book Maker",
+    "ui": {
+      "fields": {
+        "favorite_moments": {"widget": "textarea"},
+        "how_you_met": {"widget": "textarea"},
+        "inside_jokes": {"widget": "textarea"},
+        "length": {"widget": "select"},
+        "style": {"widget": "select"}
+      },
+      "order": ["how_you_met", "favorite_moments", "inside_jokes", "style", "length"]
+    },
+    "upvotes": 84,
+    "version": "v1.0.0 · 2026-08-11"
+  },
   "name": "woven-storybook-pipeline",
   "negative_cases": [
     {
