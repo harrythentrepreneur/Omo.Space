@@ -187,14 +187,11 @@
       var emptyIcon = document.createElement('span');
       emptyIcon.className = 'omo-nav-workflows-empty-icon';
       emptyIcon.setAttribute('aria-hidden', 'true');
-      emptyIcon.textContent = '\ud83c\udf31';
+      emptyIcon.textContent = '\u2726';
       empty.appendChild(emptyIcon);
 
       var emptyCopy = document.createElement('span');
-      var emptyTitle = document.createElement('strong');
-      emptyTitle.textContent = 'Nothing planted yet';
-      emptyCopy.appendChild(emptyTitle);
-      emptyCopy.appendChild(document.createTextNode('Discover a workflow to start.'));
+      emptyCopy.textContent = 'Upvote or buy a workflow to see it here';
       empty.appendChild(emptyCopy);
       list.appendChild(empty);
       return;
@@ -209,7 +206,9 @@
       if (item.bought) link.classList.add('is-bought');
       if (item.upvoted && item.bought) link.classList.add('is-combo');
       link.href = 'workflow.html?slug=' + encodeURIComponent(item.slug);
-      link.setAttribute('aria-label', name + ', ' + statusLabel(item));
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.setAttribute('aria-label', name + ', ' + statusLabel(item) + ', opens in a new tab');
 
       var thumbnail = document.createElement('span');
       thumbnail.className = 'omo-nav-workflow-thumb';
@@ -228,14 +227,8 @@
       var status = document.createElement('span');
       status.className = 'omo-nav-workflow-status';
       status.textContent = statusLabel(item);
-      copy.appendChild(status);
       link.appendChild(copy);
-
-      var arrow = document.createElement('span');
-      arrow.className = 'omo-nav-workflow-run';
-      arrow.setAttribute('aria-hidden', 'true');
-      arrow.textContent = '\u2192';
-      link.appendChild(arrow);
+      link.appendChild(status);
       list.appendChild(link);
     });
   }
