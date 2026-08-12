@@ -263,7 +263,6 @@
       backdrop-filter: blur(4px); box-shadow: 0 2px 8px rgba(23,53,44,.12);
       transition: border-color .12s ease, color .12s ease, background .12s ease, transform .12s ease;
     }
-    .listing-card > .upvote-btn { position: absolute; top: 10px; right: 10px; z-index: 2; }
     .upvote-btn:hover { border-color: var(--orange); color: var(--orange); transform: translateY(-1px); }
     .upvote-btn .upvote-arrow { font-size: 10px; line-height: 1; }
     .upvote-btn.is-voted { background: var(--orange); border-color: var(--orange); color: #fff; }
@@ -461,7 +460,6 @@
       .listing-name { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: clamp(21px, 6vw, 24px); }
       .listing-promise { min-height: 1.4em; -webkit-line-clamp: 1; }
       .listing-footer { align-items: center; }
-      .listing-card > .upvote-btn { top: 12px; right: 12px; min-height: 44px; padding-inline: 12px; }
       .clear-filters { min-height: 44px; }
       .price-tiers, .use-doors, .demo-row { grid-template-columns: 1fr; }
       .dashboard-layout { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
@@ -665,7 +663,7 @@
             ? '<div class="listing-cover" aria-hidden="true"><img src="' + esc(p.cover) + '" alt="" loading="lazy"><span class="cover-emoji">' + p.emoji + '</span></div>'
             : '<div class="listing-cover" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:52px;line-height:1">' + p.emoji + '</span></div>');
         return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + esc(p.slug) + '" tabindex="0" role="link" aria-label="Open the workflow page for ' + esc(p.name) + ' in a new tab">' +
-          visual + upvoteBtnHTML(p) + '<div class="listing-body">' +
+          visual + '<div class="listing-body">' +
           '<h3 class="listing-name">' + esc(p.name) + '</h3>' +
           '<p class="listing-promise">' + esc(p.promise || p.desc || '') + '</p>' +
           '<p class="listing-maker">by <span class="maker-handle">' + esc(p.maker) + '</span></p>' +

@@ -501,13 +501,6 @@
     .upvote-btn.is-voted:hover { background: #e85a2e; color: #fff; }
     .upvote-count { min-width: 14px; text-align: center; font-variant-numeric: tabular-nums; }
 
-    /* Top-right floating upvote on cards (cute corner pill) */
-    .listing-card { position: relative; }
-    .listing-cover + .listing-body .upvote-btn,
-    .listing-body > .upvote-btn {
-      position: absolute; top: 10px; right: 10px; z-index: 2;
-    }
-    .listing-card .upvote-btn { position: absolute; top: 10px; right: 10px; z-index: 2; }
     .detail-upvote-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
     .detail-upvote-row .upvote-btn { position: static; font-size: 14.5px; padding: 10px 18px; box-shadow: none; }
 
@@ -910,8 +903,6 @@
       }
       .listing-promise { -webkit-line-clamp: 1; min-height: 1.4em; }
       .listing-footer { align-items: center; }
-      .listing-card .upvote-btn { top: 12px; right: 12px; min-height: 44px; padding-inline: 12px; }
-
       .moat-section, .maker-section, .pricing-section { padding: 68px 0; }
       .ops-section { padding: 64px 0; }
       .moat-head, .maker-head, .pricing-head { margin-bottom: 30px; }
@@ -1182,7 +1173,6 @@
               : '<div class="listing-cover" aria-hidden="true" style="display:flex;align-items:center;justify-content:center"><span style="font-size:52px;line-height:1">' + p.emoji + '</span></div>');
         return '<article class="listing-card' + (featured ? ' sig-cut' : '') + '" data-slug="' + p.slug + '" tabindex="0" role="link" aria-label="Open the workflow page for ' + ESC(p.name) + ' in a new tab">' +
           visual +
-          upvoteBtnHTML(p) +
           '<div class="listing-body">' +
           '<h3 class="listing-name">' + ESC(p.name) + '</h3>' +
           '<p class="listing-promise">' + ESC(p.promise || p.desc || '') + '</p>' +
