@@ -3,6 +3,9 @@
 (function () {
   'use strict';
 
+  var AUTH_READY_TIMEOUT_MS = 16000;
+  var AUTH_READY_POLL_MS = 50;
+
   function ensureStyles() {
     if (document.querySelector('link[href$="signup-modal.css"]')) return;
     var stylesheet = document.createElement('link');
@@ -190,25 +193,32 @@
 
   function friendlyError(error, context) {
     var clerkError = error && error.errors && error.errors[0];
-    var codeName = clerkError && clerkError.code ? clerkError.code : '';
+    var codeName = (clerkError && clerkError.code) || (error && error.code) || '';
     var raw = (clerkError && (clerkError.longMessage || clerkError.message)) || (error && error.message);
+    var detail = codeName + ' ' + (raw || '');
 
-    if (/identifier.*exists|already.*exists/i.test(codeName)) {
+    if (/auth_service_unavailable|clerk (?:sdk|ui bundle)|loading timed out|could not load|failed to fetch|network(?:error)?/i.test(detail)) {
+      return 'We couldn\'t reach the sign-in service. Check your connection and try again.';
+    }
+    if (/identifier.*exists|already.*exists/i.test(detail)) {
       return 'An account with this email already exists. Try logging in instead.';
     }
-    if (/password.*(pwned|weak|strong|length|size)/i.test(codeName)) {
+    if (/password.*(pwned|weak|strong|length|size)/i.test(detail)) {
       return 'Choose a stronger password with at least 8 characters, including a number or symbol.';
     }
-    if (/identifier.*(invalid|format)|email.*(invalid|format)/i.test(codeName)) {
+    if (/identifier.*(invalid|format)|email.*(invalid|format)/i.test(detail)) {
       return 'Enter a valid email address.';
     }
-    if (/credentials|password.*incorrect|identifier.*not_found|session.*invalid/i.test(codeName)) {
+    if (/credentials|password.*incorrect|identifier.*not_found|session.*invalid/i.test(detail)) {
       return 'That email or password is incorrect. Please try again.';
     }
-    if (/code.*incorrect|verification.*failed/i.test(codeName)) {
+    if (/too.many|rate.limit|attempts.*exceeded/i.test(detail)) {
+      return 'Too many attempts. Take a short break, then try again.';
+    }
+    if (/code.*incorrect|verification.*failed/i.test(detail)) {
       return 'That code is not correct. Check the email and try again.';
     }
-    if (/verification.*expired|code.*expired/i.test(codeName)) {
+    if (/verification.*expired|code.*expired/i.test(detail)) {
       return 'That code has expired. Send a new code and try again.';
     }
     if (raw && raw.length < 220) return raw;
@@ -243,8 +253,66 @@
     return Promise.resolve(window.Clerk.setActive({ session: sessionId })).then(redirectToDashboard);
   }
 
-  function unavailable() {
-    return Promise.reject(new Error('The sign-in service is still loading. Please try again.'));
+  function serviceUnavailable(message) {
+    var error = new Error(message || 'The sign-in service could not load.');
+    error.code = 'auth_service_unavailable';
+    return error;
+  }
+
+  function ensureRealClerk() {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timeout = window.setTimeout(function () {
+        fail(serviceUnavailable('Clerk SDK loading timed out.'));
+      }, AUTH_READY_TIMEOUT_MS);
+
+      function succeed(clerk) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        resolve(clerk);
+      }
+
+      function fail(error) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        if (error && error.code === 'auth_service_unavailable') reject(error);
+        else reject(serviceUnavailable(error && error.message));
+      }
+
+      function check() {
+        if (settled) return;
+        if (window.ClerkAuth && typeof window.ClerkAuth.ensureLoaded === 'function') {
+          Promise.resolve(window.ClerkAuth.ensureLoaded()).then(function (clerk) {
+            if (clerk && clerkSignIn()) succeed(clerk);
+            else fail(serviceUnavailable());
+          }, fail);
+          return;
+        }
+        if (window.Clerk && window.Clerk.loaded && clerkSignIn()) {
+          succeed(window.Clerk);
+          return;
+        }
+        window.setTimeout(check, AUTH_READY_POLL_MS);
+      }
+      check();
+    });
+  }
+
+  function incompleteSignIn(result) {
+    var status = result && result.status;
+    var message = 'Sign-in needs another step before it can finish.';
+    if (status === 'needs_second_factor') {
+      message = 'This account uses two-step verification. Complete the extra verification step to continue.';
+    } else if (status === 'needs_first_factor') {
+      message = 'This account needs a different verification method before sign-in can finish.';
+    } else if (status === 'needs_new_password') {
+      message = 'This account needs a new password before sign-in can finish.';
+    }
+    var error = new Error(message);
+    error.code = 'sign_in_' + (status || 'incomplete');
+    return error;
   }
 
   function submitDemo(kind) {
@@ -255,40 +323,45 @@
   }
 
   function submitRealSignUp() {
-    var signUp = clerkSignUp();
-    if (!signUp) return unavailable();
+    return ensureRealClerk().then(function () {
+      submitButton.textContent = 'Creating account…';
+      var signUp = clerkSignUp();
+      if (!signUp) throw serviceUnavailable();
 
-    return Promise.resolve(signUp.create({
-      firstName: firstName.value.trim(),
-      lastName: lastName.value.trim(),
-      emailAddress: email.value.trim(),
-      password: password.value
-    })).then(function (result) {
-      if (result && result.status === 'complete' && result.createdSessionId) return activateSession(result);
-      return Promise.resolve(signUp.prepareEmailAddressVerification({ strategy: 'email_code' })).then(function () {
-        verificationEmail.textContent = email.value.trim();
-        formView.hidden = true;
-        verificationView.hidden = false;
-        card.setAttribute('aria-labelledby', 'auth-verification-title');
-        card.removeAttribute('aria-describedby');
-        code.value = '';
-        setMessage(verificationError, '');
-        updateValidity();
-        code.focus();
+      return Promise.resolve(signUp.create({
+        firstName: firstName.value.trim(),
+        lastName: lastName.value.trim(),
+        emailAddress: email.value.trim(),
+        password: password.value
+      })).then(function (result) {
+        if (result && result.status === 'complete' && result.createdSessionId) return activateSession(result);
+        return Promise.resolve(signUp.prepareEmailAddressVerification({ strategy: 'email_code' })).then(function () {
+          verificationEmail.textContent = email.value.trim();
+          formView.hidden = true;
+          verificationView.hidden = false;
+          card.setAttribute('aria-labelledby', 'auth-verification-title');
+          card.removeAttribute('aria-describedby');
+          code.value = '';
+          setMessage(verificationError, '');
+          updateValidity();
+          code.focus();
+        });
       });
     });
   }
 
   function submitRealLogin() {
-    var signIn = clerkSignIn();
-    if (!signIn) return unavailable();
-    return Promise.resolve(signIn.create({
-      identifier: email.value.trim(),
-      password: password.value,
-      strategy: 'password'
-    })).then(function (result) {
-      if (!result || result.status !== 'complete') throw new Error('Sign-in needs another step. Please try again.');
-      return activateSession(result);
+    return ensureRealClerk().then(function () {
+      submitButton.textContent = 'Logging in…';
+      var signIn = clerkSignIn();
+      if (!signIn) throw serviceUnavailable();
+      return Promise.resolve(signIn.create({
+        identifier: email.value.trim(),
+        password: password.value
+      })).then(function (result) {
+        if (!result || result.status !== 'complete') throw incompleteSignIn(result);
+        return activateSession(result);
+      });
     });
   }
 
@@ -296,11 +369,12 @@
     event.preventDefault();
     if (busy || submitButton.disabled) return;
     setMessage(errorMessage, '');
-    setBusy(true, submitButton, mode === 'signup' ? 'Creating account…' : 'Logging in…');
+    var demo = isDemoMode();
+    setBusy(true, submitButton, demo ? (mode === 'signup' ? 'Creating account…' : 'Logging in…') : 'Loading…');
 
     var request;
     try {
-      request = isDemoMode() ? submitDemo(mode) : (mode === 'signup' ? submitRealSignUp() : submitRealLogin());
+      request = demo ? submitDemo(mode) : (mode === 'signup' ? submitRealSignUp() : submitRealLogin());
     } catch (error) {
       request = Promise.reject(error);
     }

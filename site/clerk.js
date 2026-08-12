@@ -2,7 +2,7 @@
  *
  * Exposes window.ClerkAuth =
  *   { isSignedIn, signIn, signOut, signUp, signUpAndRedirect,
- *     getUser, currentUser, onAuthChange }.
+ *     getUser, currentUser, ensureLoaded, onAuthChange }.
  */
 (function () {
   'use strict';
@@ -357,6 +357,10 @@
     },
     getUser: currentUser,
     currentUser: currentUser,
+    ensureLoaded: function () {
+      var ready = loadRealClerk();
+      return ready || Promise.resolve(null);
+    },
     getLoadError: function () { return loadError; },
     onAuthChange: function (callback) {
       if (typeof callback === 'function') listeners.push(callback);
