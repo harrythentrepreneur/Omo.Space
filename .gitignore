@@ -17,6 +17,8 @@ node_modules/
 
 # Env / secrets — NEVER commit real keys
 .env*
+# WhatsApp chat export contains live Stripe/API keys + passwords
+research/kaviru-chat/
 !.env.example
 *.local
 *.pem
