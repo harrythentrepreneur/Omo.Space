@@ -28,6 +28,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 - State: payment infrastructure is deployed fail-closed; Stripe/routing work and the production registry is populated, but production is still missing the additive payment/upload tables.
 - Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit, fast signup-grant visibility, live secrets/routes, request-safe Neon access, 10/10 unauthenticated live canary, checkout orphan-session expiry, 24-listing honesty audit, four text-free phonics marketplace thumbnails, and 12 locally compiled/tested/priced PhonicsMaker workflow bundles.
+- Modal isolation: the account topology is `harrythentrepreneur`, `phonicsmaker`, and the new `omo-space`; Modal CLI 1.5.0 is authenticated only through the owner-only `/Users/yifan/.modal-omo.toml`, and an isolated `omo-space/main` app listing returned empty. The legacy `~/.modal.toml` remained byte-identical; no PhonicsMaker resource was opened or changed, and nothing was registered or deployed.
 - Artifact runtime: a shared deterministic ReportLab renderer, owner-scoped immutable local artifact store, no-refresh Codex subscription image bridge, exact contract/integration notes, and real-PDF smoke test now exist under `tools/render/` for the worksheet, illustrated-story, and edit-studio workflows; targeted renderer/adapter/compiler/host tests are green, with no registration or deployment.
 - OSS skills library: all 95 publishable workflows in the 96-tool PhonicsMaker inventory now have public twins in `omo-space/skills`; 85 new skill/README pairs were published atomically in `ab02e824`, all 84 prompt-only tools remain honest draft specs and the story editor remains in review, and the pre-existing private illustrated-story skill was not changed. The library has 97 folders including the separate worksheet skill.
 - Strategy artifact: researched and ranked 25 education-SaaS targets in `marketing/edtech-kill-list.md`; first ship queue is Diffit, MagicSchool, Twee, Formative, then Kahoot feature outcomes.
@@ -58,13 +59,15 @@ From `/Users/yifan/marketplace`, securely provide `NEON_DATABASE_URL` and run
 Then verify `purchases`, `topup_sessions`, `stripe_events`, `stripe_topups`, and
 `submissions` exist. Do not paste the connection string into chat or history.
 
-### PROPOSAL phonics-modal-001 — enable the reviewed Modal deployment gate
+### PROPOSAL phonics-modal-001 — approve any future Modal registration/deploy separately
 
-Provide an environment with the Modal CLI installed and authenticated, then
-rerun `modal config show`. Only after that succeeds, run the nine reviewed
-single-LLM `host.py --register` gates and actual Modal deploy/canary steps. Do
-not deploy the worksheet, illustrated story, or edit-studio bundles while their
-profiles remain fail-closed.
+The Modal CLI is installed and the new `omo-space` workspace has isolated,
+verified authentication through `MODAL_CONFIG_PATH=/Users/yifan/.modal-omo.toml`
+and `MODAL_PROFILE=omo-space`; its `main` app list is empty. No registration or
+deployment was attempted. Only after Harry gives separate explicit approval,
+run the nine reviewed single-LLM `host.py --register` gates and actual Modal
+deploy/canary steps. Do not deploy the worksheet, illustrated story, or
+edit-studio bundles while their profiles remain fail-closed.
 
 ## Next tick
 
