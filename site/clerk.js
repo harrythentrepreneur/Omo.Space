@@ -19,6 +19,7 @@
   var pendingModal = '';
   var signUpRedirect = '';
   var listeners = [];
+  var USER_STATE_KEYS = [USER_KEY, 'omo_balance_v1', 'omo_usage_v1', 'omo_apikey_v1'];
 
   function getKey() {
     return (window.CLERK_PUBLISHABLE_KEY || '').trim() || PLACEHOLDER;
@@ -82,6 +83,18 @@
     });
   }
 
+  function clearUserState() {
+    USER_STATE_KEYS.forEach(function (key) {
+      try { localStorage.removeItem(key); } catch (e) {}
+    });
+  }
+
+  function finishSignOut() {
+    realClerkUser = null;
+    clearUserState();
+    fire();
+  }
+
   function demoSignIn() {
     var user = loadUser();
     if (!user) {
@@ -103,8 +116,7 @@
   }
 
   function demoSignOut() {
-    try { localStorage.removeItem(USER_KEY); } catch (e) {}
-    fire();
+    finishSignOut();
   }
 
   function openPendingModal() {
@@ -170,6 +182,7 @@
         } else {
           realClerkUser = realClerk.user || null;
         }
+        if (!realClerkUser) clearUserState();
         fire();
         finishSignUpRedirect();
       });
@@ -351,9 +364,12 @@
     signUpAndRedirect: signUpAndRedirect,
     signOut: function () {
       if (demoMode()) return demoSignOut();
-      if (realClerk) return realClerk.signOut();
+      if (realClerk) return Promise.resolve(realClerk.signOut()).then(finishSignOut);
       var ready = loadRealClerk();
-      return ready && ready.then(function (clerk) { if (clerk) return clerk.signOut(); });
+      return ready && ready.then(function (clerk) {
+        if (!clerk) return;
+        return Promise.resolve(clerk.signOut()).then(finishSignOut);
+      });
     },
     getUser: currentUser,
     currentUser: currentUser,

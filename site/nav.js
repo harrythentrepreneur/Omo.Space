@@ -228,12 +228,24 @@
     event.preventDefault();
     if (!window.ClerkAuth || typeof window.ClerkAuth.signOut !== 'function') return;
 
+    link.setAttribute('aria-busy', 'true');
+    link.setAttribute('aria-disabled', 'true');
+    link.textContent = 'Signing out…';
     var result;
     try { result = window.ClerkAuth.signOut(); }
-    catch (error) { window.console.error(error); return; }
+    catch (error) {
+      link.removeAttribute('aria-busy');
+      link.removeAttribute('aria-disabled');
+      link.textContent = 'Log out failed — try again';
+      return;
+    }
 
-    Promise.resolve(result).then(syncLoginLinks).catch(function (error) {
-      window.console.error(error);
+    Promise.resolve(result).then(function () {
+      syncLoginLinks();
+    }).catch(function () {
+      link.removeAttribute('aria-busy');
+      link.removeAttribute('aria-disabled');
+      link.textContent = 'Log out failed — try again';
     });
   }
 

@@ -4,6 +4,9 @@ import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('./clerk.js', import.meta.url), 'utf8');
 let clerkListener;
+let resolveSignOut;
+let signOutCalls = 0;
+const removedStorageKeys = [];
 const signedInUser = {
   id: 'user_123',
   firstName: 'Kaviru',
@@ -21,7 +24,10 @@ const fakeClerk = {
   addListener(callback) { clerkListener = callback; },
   openSignIn() {},
   openSignUp() {},
-  signOut() {},
+  signOut() {
+    signOutCalls += 1;
+    return new Promise((resolve) => { resolveSignOut = resolve; });
+  },
 };
 
 const keyPayload = Buffer.from('clerk.example.com$').toString('base64url');
@@ -58,7 +64,11 @@ const document = {
 const context = vm.createContext({
   console,
   document,
-  localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+  localStorage: {
+    getItem() { return null; },
+    setItem() {},
+    removeItem(key) { removedStorageKeys.push(key); },
+  },
   URL,
   URLSearchParams,
   Promise,
@@ -93,7 +103,30 @@ assert.equal(
 );
 assert.equal(context.window.ClerkAuth.getUser().id, 'user_123');
 
+const signOutPromise = context.window.ClerkAuth.signOut();
+assert.equal(signOutCalls, 1);
+assert.equal(
+  context.window.ClerkAuth.isSignedIn(),
+  true,
+  'auth state must remain signed in until Clerk confirms sign-out',
+);
+resolveSignOut();
+await signOutPromise;
+assert.equal(context.window.ClerkAuth.isSignedIn(), false);
+assert.deepEqual(
+  [...removedStorageKeys].sort(),
+  ['cognition_user', 'omo_apikey_v1', 'omo_balance_v1', 'omo_usage_v1'].sort(),
+  'successful sign-out should clear user-bound browser state',
+);
+
+removedStorageKeys.length = 0;
+clerkListener({ user: signedInUser, session: { id: 'sess_456' } });
 clerkListener({ user: null, session: null });
+assert.deepEqual(
+  [...removedStorageKeys].sort(),
+  ['cognition_user', 'omo_apikey_v1', 'omo_balance_v1', 'omo_usage_v1'].sort(),
+  'Clerk-driven sign-out should clear user-bound browser state',
+);
 assert.equal(
   context.window.ClerkAuth.isSignedIn(),
   false,

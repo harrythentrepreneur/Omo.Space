@@ -1314,6 +1314,7 @@
 
       /* Credits and API key logic retained from the previous dashboard. */
       var account = { mode: 'unavailable', userId: '', balanceUsd: 0, apiKey: '', runs: [] };
+      var accountRequestId = 0;
       var chosenAmount = 20;
       var revealed = false;
       var refreshAfterTopup = window.location.search && window.location.search.indexOf('topup=success') !== -1;
@@ -1378,7 +1379,9 @@
         if (note) { note.textContent = message || 'Your verified account session is unavailable. Sign in again.'; note.className = 'form-note is-err'; }
       }
       function loadAccount(user) {
-        account.userId = user.id; lsSet(SEEN_KEY, '1');
+        var requestId = ++accountRequestId;
+        var userId = user.id;
+        account.userId = userId; lsSet(SEEN_KEY, '1');
         var canFetch = typeof fetch === 'function' && window.location && window.location.protocol !== 'file:';
         if (!canFetch) { loadMock(user); return; }
         getClerkSessionToken().then(function (token) {
@@ -1386,6 +1389,7 @@
         })
           .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, data: data }; }); })
           .then(function (result) {
+            if (requestId !== accountRequestId || account.userId !== userId) return;
             var data = result.data || {};
             if (!result.ok || !data.ok) { markAccountUnavailable(data.message || 'Your verified account session could not be loaded. Sign in again.'); return; }
             account.mode = 'server';
@@ -1396,11 +1400,29 @@
             renderAccount();
             if (refreshAfterTopup) {
               refreshAfterTopup = false;
-              setTimeout(function () { loadAccount(user); }, 1500);
+              var refreshRequestId = requestId;
+              window.setTimeout(function () {
+                var current = window.ClerkAuth && window.ClerkAuth.getUser ? window.ClerkAuth.getUser() : null;
+                if (refreshRequestId !== accountRequestId || !current || current.id !== userId) return;
+                loadAccount(current);
+              }, 1500);
             }
-          }).catch(function (error) { markAccountUnavailable(error && error.message); });
+          }).catch(function (error) {
+            if (requestId !== accountRequestId || account.userId !== userId) return;
+            markAccountUnavailable(error && error.message);
+          });
+      }
+      function clearAccountState() {
+        accountRequestId += 1;
+        account.mode = 'unavailable';
+        account.userId = '';
+        account.balanceUsd = 0;
+        account.apiKey = '';
+        account.runs = [];
+        renderAccount();
       }
       function showGate() {
+        clearAccountState();
         if (el('signin-gate')) el('signin-gate').hidden = false;
         if (el('main')) el('main').hidden = true;
         if (el('top-signin-btn')) el('top-signin-btn').hidden = false;
@@ -1621,8 +1643,32 @@
         });
         if (el('topup-form')) el('topup-form').addEventListener('submit', submitTopup);
         if (el('sign-out-btn')) el('sign-out-btn').addEventListener('click', function () {
-          if (window.ClerkAuth && ClerkAuth.signOut) ClerkAuth.signOut();
-          try { window.location.href = 'index.html'; } catch (e) {}
+          var button = el('sign-out-btn');
+          if (!window.ClerkAuth || typeof window.ClerkAuth.signOut !== 'function') {
+            showNote('Sign-out failed. You are still signed in. Please try again.', true);
+            return;
+          }
+          button.disabled = true;
+          button.setAttribute('aria-busy', 'true');
+          button.textContent = 'Signing out…';
+          var signOutResult;
+          try { signOutResult = window.ClerkAuth.signOut(); }
+          catch (error) {
+            showNote('Sign-out failed. You are still signed in. Please try again.', true);
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            button.textContent = 'Log out';
+            return;
+          }
+          Promise.resolve(signOutResult).then(function () {
+            clearAccountState();
+            window.location.assign('index.html');
+          }).catch(function () {
+            showNote('Sign-out failed. You are still signed in. Please try again.', true);
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            button.textContent = 'Log out';
+          });
         });
         function signIn() { if (window.ClerkAuth && ClerkAuth.signIn) ClerkAuth.signIn(); }
         if (el('gate-signin-btn')) el('gate-signin-btn').addEventListener('click', signIn);
