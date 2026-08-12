@@ -144,8 +144,8 @@
       links[i].hidden = false;
       if (signedIn) {
         renderCreditLink(links[i], null);
-        links[i].setAttribute('aria-haspopup', 'dialog');
-        links[i].setAttribute('aria-controls', 'credits-modal');
+        links[i].removeAttribute('aria-haspopup');
+        links[i].removeAttribute('aria-controls');
       } else {
         links[i].classList.remove('omo-nav-credit');
         links[i].textContent = 'Log in';
@@ -226,19 +226,6 @@
     });
 
     return creditsModalPromise;
-  }
-
-  function handleCreditClick(event) {
-    var link = event.target.closest && event.target.closest('[data-omo-login].omo-nav-credit');
-    if (!link || !isSignedIn()) return;
-
-    event.preventDefault();
-    loadCreditsModal().then(function (api) {
-      api.open();
-    }).catch(function (error) {
-      window.console.error(error);
-      window.location.assign(link.href);
-    });
   }
 
   function handleLoginClick(event) {
@@ -368,7 +355,6 @@
     syncLoginLinks();
     if (!subscribeToAuthChanges()) loadAuthAdapter();
     loadCreditsModal().catch(function (error) { window.console.error(error); });
-    document.addEventListener('click', handleCreditClick);
     document.addEventListener('click', handleLoginClick);
     document.addEventListener('click', handleLogoutClick);
 
