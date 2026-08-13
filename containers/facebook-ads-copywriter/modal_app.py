@@ -31,8 +31,11 @@ LIVE_PROVIDER = 'opencode-go'
 LIVE_BASE_URL_ENV = 'LLM_BASE_URL'
 LIVE_MODEL_ENV = 'LLM_MODEL'
 LIVE_API_KEY_ENV = 'LLM_API_KEY'
+OPENAI_API_KEY_ENV = 'OPENAI_API_KEY'
 LIVE_DEFAULT_BASE_URL = 'https://opencode.ai/zen/go/v1'
 LIVE_DEFAULT_MODEL = 'deepseek-v4-flash'
+OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1'
+OPENAI_DEFAULT_MODEL = 'gpt-4.1-mini'
 LIVE_PROMPT_PATH = 'prompts/run.txt'
 LIVE_MAX_TOKENS = 1600
 LIVE_TEMPERATURE = 0.55
@@ -89,14 +92,20 @@ def _extract_json_object(value: str) -> dict[str, Any]:
 
 
 def _provider_completion(payload: dict[str, Any]) -> dict[str, Any]:
-    missing = [name for name in readiness()["required_env_names"] if not os.environ.get(name)]
-    if missing:
-        raise WorkflowNotReady("MISSING_REQUIRED_ENV:" + ",".join(sorted(missing)))
-
-    base_url = os.environ[LIVE_BASE_URL_ENV].rstrip("/")
+    api_key = os.environ.get(LIVE_API_KEY_ENV) or os.environ.get(OPENAI_API_KEY_ENV)
+    if not api_key:
+        raise WorkflowNotReady("MISSING_REQUIRED_ENV:LLM_API_KEY_OR_OPENAI_API_KEY")
+    using_openai = not os.environ.get(LIVE_API_KEY_ENV) and bool(os.environ.get(OPENAI_API_KEY_ENV))
+    base_url = os.environ.get(
+        LIVE_BASE_URL_ENV,
+        OPENAI_DEFAULT_BASE_URL if using_openai else LIVE_DEFAULT_BASE_URL,
+    ).rstrip("/")
     if not base_url.startswith("https://"):
         raise WorkflowNotReady("LLM_BASE_URL_MUST_BE_HTTPS")
-    model = os.environ[LIVE_MODEL_ENV]
+    model = os.environ.get(
+        LIVE_MODEL_ENV,
+        OPENAI_DEFAULT_MODEL if using_openai else LIVE_DEFAULT_MODEL,
+    )
     system_prompt = (_asset_root() / LIVE_PROMPT_PATH).read_text(encoding="utf-8").strip()
     user_prompt = "Run the reviewed workflow using only this JSON input:\n" + json.dumps(
         payload, ensure_ascii=False, sort_keys=True
@@ -116,7 +125,7 @@ def _provider_completion(payload: dict[str, Any]) -> dict[str, Any]:
         base_url + "/chat/completions",
         data=json.dumps(request_body).encode("utf-8"),
         headers={
-            "Authorization": "Bearer " + os.environ[LIVE_API_KEY_ENV],
+            "Authorization": "Bearer " + api_key,
             "Content-Type": "application/json",
             "User-Agent": "Omo-Skill-Runner/0.1",
         },
