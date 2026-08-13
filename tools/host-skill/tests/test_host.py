@@ -108,6 +108,21 @@ def test_lightweight_single_llm_defaults_to_worker_native() -> None:
     }
     assert hosted["runtime"]["kind"] == "worker-native"
     assert "default_endpoint" not in hosted["runtime"]
+    assert hosted["runtime"]["executor"] == {
+        "spec_version": "omo.worker-single-llm/v1",
+        "execution_kind": "single_llm",
+        "operation": "chat.completions.strict_json",
+        "provider": "opencode-go",
+        "model": "deepseek-v4-flash",
+        "system_prompt": profile["prompts"]["run.txt"],
+        "workflow_version": profile["version"],
+        "max_output_tokens": 1600,
+        "temperature": 0.55,
+        "timeout_seconds": 120,
+    }
+    assert "api_key_env" not in hosted["runtime"]["executor"]
+    assert "base_url_env" not in hosted["runtime"]["executor"]
+    assert "default_base_url" not in hosted["runtime"]["executor"]
 
 
 def test_creator_can_choose_modal_for_worker_compatible_workflow() -> None:
@@ -134,7 +149,30 @@ def test_unknown_capability_fails_closed_to_modal() -> None:
     profile["runtime_preference"] = "auto"
     hosted = host.build_hosted_profile(profile, manifest, pricing)
     assert hosted["runtime_placement"]["effective"] == "modal-hosted"
-    assert hosted["runtime_placement"]["reason"] == "capabilities_not_worker_allowlisted"
+    assert hosted["runtime_placement"]["reason"] == "worker_executor_contract_not_satisfied"
+
+
+@pytest.mark.parametrize(
+    "mutate, match",
+    [
+        (lambda profile: profile["steps"][0].update({"provider": "deepseek"}), "provider"),
+        (lambda profile: profile["steps"][0].update({"operation": "chat.completions"}), "operation"),
+        (lambda profile: profile["steps"].append(dict(profile["steps"][0], id="second-call")), "reviewed_steps"),
+        (lambda profile: profile.__setitem__("steps", []), "reviewed_steps"),
+        (lambda profile: profile.__setitem__("apt_packages", ["ffmpeg"]), "apt_packages"),
+        (lambda profile: profile.__setitem__("artifacts", [{"kind": "pdf"}]), "artifacts"),
+        (lambda profile: profile["live"].pop("max_tokens"), "max_output_tokens"),
+        (lambda profile: profile["live"].pop("temperature"), "temperature"),
+        (lambda profile: profile["live"].pop("timeout_seconds"), "timeout_seconds"),
+        (lambda profile: profile["input_schema"].__setitem__("oneOf", []), "schema_keywords"),
+    ],
+)
+def test_worker_override_fails_closed_when_executor_contract_is_incomplete(mutate, match: str) -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "worker-native"
+    mutate(profile)
+    with pytest.raises(ValueError, match=match):
+        host.build_hosted_profile(profile, manifest, pricing)
 
 
 def test_legacy_source_profile_defaults_to_modal() -> None:

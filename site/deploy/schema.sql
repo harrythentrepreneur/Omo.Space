@@ -1,10 +1,13 @@
--- Omo credits backend — Neon Postgres + D1-compatible schema.
+-- Omo credits backend — Neon Postgres primary schema.
 --
 -- Neon (recommended): psql "$NEON_DATABASE_URL" -f schema.sql
--- D1 fallback: npx wrangler d1 execute omo-balances --file=schema.sql
+-- D1 fallback: use the CREATE TABLE/CREATE INDEX definitions for fresh local
+-- databases. The additive ALTER TABLE ... ADD COLUMN IF NOT EXISTS migration
+-- statements below are Postgres/Neon syntax and are intentionally not claimed
+-- as a versioned D1 migration.
 --
--- Deliberately uses TEXT timestamps and INTEGER booleans so this idempotent
--- schema is accepted by both Postgres and SQLite/D1. The worker inserts ids.
+-- Most columns use TEXT timestamps and INTEGER booleans so the base table
+-- shapes remain close to SQLite/D1, but migration syntax is target-specific.
 
 CREATE TABLE IF NOT EXISTS users (
   user_id       TEXT PRIMARY KEY,             -- Clerk user id (user_…)
@@ -202,6 +205,10 @@ CREATE TABLE IF NOT EXISTS submissions (
   slug          TEXT NOT NULL,
   content       TEXT NOT NULL,                   -- untrusted Markdown, <= 200 KiB
   source_sha256 TEXT NOT NULL,
+  requested_runtime TEXT NOT NULL DEFAULT 'auto' CHECK (requested_runtime IN ('auto', 'worker-native', 'modal-hosted')),
+  selected_runtime  TEXT CHECK (selected_runtime IN ('worker-native', 'modal-hosted')),
+  runtime_policy    TEXT,
+  runtime_compatibility TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
   created_at    TEXT NOT NULL,
@@ -209,6 +216,11 @@ CREATE TABLE IF NOT EXISTS submissions (
   deployed_at   TEXT,
   UNIQUE (user_id, source_sha256)
 );
+
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS requested_runtime TEXT NOT NULL DEFAULT 'auto';
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS selected_runtime TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS runtime_policy TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS runtime_compatibility TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_submissions_status_created
   ON submissions (status, created_at);
