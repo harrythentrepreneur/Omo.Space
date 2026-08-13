@@ -30,9 +30,9 @@ CATALOG_END = "  // host-skill:generated:end"
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 RUNTIME_PREFERENCES = {"auto", "worker-native", "modal-hosted"}
-MODAL_REQUIRED_CAPABILITIES = {
-    "ffmpeg", "faster-whisper", "ghostscript", "headless-chromium",
-    "hermes-codex-imagegen", "runware", "gpu", "filesystem", "long-running",
+WORKER_SAFE_CAPABILITIES = {
+    "opencode-go-chat-completions",
+    "schema-validated-json-output",
 }
 
 
@@ -95,12 +95,18 @@ def validate_https_modal_endpoint(value: Any) -> str:
 
 
 def decide_runtime_placement(profile: dict[str, Any]) -> dict[str, Any]:
-    requested = str(profile.get("runtime_preference", "auto")).strip()
+    preference_declared = "runtime_preference" in profile
+    requested = str(profile.get("runtime_preference", "modal-hosted")).strip()
     if requested not in RUNTIME_PREFERENCES:
         raise ValueError("runtime_preference must be auto, worker-native, or modal-hosted")
     capabilities = set(profile.get("capabilities") or [])
-    modal_reasons = sorted(capabilities & MODAL_REQUIRED_CAPABILITIES)
-    worker_compatible = profile.get("execution_kind") == "single_llm" and not modal_reasons
+    unsupported_capabilities = sorted(capabilities - WORKER_SAFE_CAPABILITIES)
+    worker_compatible = (
+        profile.get("execution_kind") == "single_llm"
+        and not profile.get("apt_packages")
+        and not profile.get("artifacts")
+        and not unsupported_capabilities
+    )
     if worker_compatible:
         recommended = "worker-native"
         effective = recommended if requested == "auto" else requested
@@ -111,10 +117,14 @@ def decide_runtime_placement(profile: dict[str, Any]) -> dict[str, Any]:
     else:
         recommended = "modal-hosted"
         if requested == "worker-native":
-            detail = ", ".join(modal_reasons) or str(profile.get("execution_kind"))
+            detail = ", ".join(unsupported_capabilities) or str(profile.get("execution_kind"))
             raise ValueError(f"workflow requires Modal; Worker override is incompatible: {detail}")
         effective = "modal-hosted"
-        reason = "modal_required_capabilities" if modal_reasons else "execution_kind_not_worker_allowlisted"
+        reason = "capabilities_not_worker_allowlisted" if unsupported_capabilities else "execution_kind_not_worker_allowlisted"
+    if not preference_declared:
+        effective = "modal-hosted"
+        requested = "modal-hosted"
+        reason = "legacy_profile_defaults_to_modal"
     return {
         "recommended": recommended,
         "requested": requested,
@@ -277,6 +287,13 @@ def discover_hosted_profiles(current: dict[str, Any]) -> list[dict[str, Any]]:
 def render_registry(profiles: list[dict[str, Any]]) -> str:
     # Profiles generated before runtime placement existed were all Modal. Keep
     # that safe interpretation until each is regenerated explicitly.
+    runtime_kinds = {item["runtime"].get("kind", "modal-hosted") for item in profiles}
+    unknown_kinds = sorted(runtime_kinds - {"worker-native", "modal-hosted"})
+    if unknown_kinds:
+        raise ValueError("unsupported generated runtime kind: " + ", ".join(unknown_kinds))
+    slugs = [item["runtime"]["slug"] for item in profiles]
+    if len(slugs) != len(set(slugs)):
+        raise ValueError("duplicate generated runtime slug")
     modal_rows = [[item["runtime"]["slug"], item["runtime"]] for item in profiles if item["runtime"].get("kind", "modal-hosted") == "modal-hosted"]
     worker_rows = [[item["runtime"]["slug"], item["runtime"]] for item in profiles if item["runtime"].get("kind", "modal-hosted") == "worker-native"]
     catalog_rows = [

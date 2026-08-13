@@ -128,6 +128,23 @@ def test_heavy_capability_rejects_worker_override() -> None:
         host.build_hosted_profile(profile, manifest, pricing)
 
 
+def test_unknown_capability_fails_closed_to_modal() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["capabilities"].append("future-browser-capability")
+    profile["runtime_preference"] = "auto"
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    assert hosted["runtime_placement"]["effective"] == "modal-hosted"
+    assert hosted["runtime_placement"]["reason"] == "capabilities_not_worker_allowlisted"
+
+
+def test_legacy_source_profile_defaults_to_modal() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile.pop("runtime_preference", None)
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    assert hosted["runtime_placement"]["effective"] == "modal-hosted"
+    assert hosted["runtime_placement"]["reason"] == "legacy_profile_defaults_to_modal"
+
+
 def test_registry_separates_worker_and_modal_rows() -> None:
     profile, manifest, pricing = compiled_inputs()
     profile["runtime_preference"] = "worker-native"
@@ -149,3 +166,12 @@ def test_legacy_runtime_without_kind_remains_modal() -> None:
     rendered = host.render_registry([legacy])
     modal_block = rendered.split("HOSTED_MODAL_SKILL_ROWS", 1)[1]
     assert "facebook-ads-copywriter" in modal_block
+
+
+def test_unknown_generated_runtime_kind_is_rejected() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "modal-hosted"
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    hosted["runtime"]["kind"] = "edge-magic"
+    with pytest.raises(ValueError, match="unsupported generated runtime kind"):
+        host.render_registry([hosted])
