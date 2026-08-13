@@ -474,7 +474,8 @@
   <script src="key-config.js"></script>
   <script src="clerk.js"></script>
   <script src="credits.js"></script>
-  <script>
+  <script type="module">
+    import { storefrontRequest, canonicalError, canonicalErrorCode } from './run-storefront-helpers.mjs';
     (async function () {
       'use strict';
 
@@ -932,7 +933,7 @@
       }
       function requestPayload(validate) {
         var values = collectFormValues(validate);
-        return runManifest ? { slug: listing.slug, input: values } : { slug: listing.slug, fields: values };
+        return storefrontRequest(listing.slug, values, !!runManifest).payload;
       }
       function updateRequestPreview() {
         try { el('request-json').textContent = JSON.stringify(requestPayload(false), null, 2); }
@@ -1449,8 +1450,7 @@
         el('run-button').textContent = runButtonLabel();
       }
       function terminalError(data) {
-        var run = runRecord(data);
-        return run.message || run.reason || run.error || (data && (data.message || data.reason || data.error)) || 'The run did not complete.';
+        return canonicalError(data);
       }
       function pollRun(runId, initialData) {
         stopActiveRun();
@@ -1462,7 +1462,8 @@
         function check() {
           if (token.cancelled) return;
           authenticatedHeaders('').then(function (headers) {
-            return requestJson(workerBase() + '/api/run/' + encodeURIComponent(runId), { headers: headers });
+            var path = storefrontRequest(listing.slug, {}, !!runManifest).pollPath;
+            return requestJson(workerBase() + path + encodeURIComponent(runId), { headers: headers });
           }).then(function (result) {
             if (token.cancelled) return;
             updateResponseJson(result.data);
@@ -1504,11 +1505,13 @@
           catch (error) { handleRunError(error.message); return; }
         }
         authenticatedHeaders(newIdempotencyKey()).then(function (headers) {
-          return requestJson(workerBase() + '/api/run', { method: 'POST', headers: headers, body: JSON.stringify(payload) });
+          var path = storefrontRequest(listing.slug, {}, !!runManifest).path;
+          return requestJson(workerBase() + path, { method: 'POST', headers: headers, body: JSON.stringify(payload) });
         }).then(function (result) {
           updateResponseJson(result.data);
           refreshCreditsAfterRun();
-          if (result.status === 402 || result.data.error === 'insufficient_balance') {
+          var canonicalCode = canonicalErrorCode(result.data);
+          if (result.status === 402 || result.data.error === 'insufficient_balance' || canonicalCode === 'PAYMENT_REQUIRED') {
             handleRunError('You need more credits for this run. Top up from your dashboard, then try again.', result.data);
             return;
           }
@@ -1519,7 +1522,7 @@
           }
           if (!result.ok || result.data.ok === false) {
             var details = Array.isArray(result.data.details) ? ' ' + result.data.details.join(' ') : '';
-            handleRunError((result.data.message || result.data.detail || result.data.error || 'The workflow could not start.') + details, result.data);
+            handleRunError(terminalError(result.data) + details, result.data);
             return;
           }
           var runId = runIdFrom(result.data);

@@ -3,7 +3,8 @@ import { createNeonStore, reconcileRuns } from './v1/runs.js';
 export default async function handler(req,res){
  if(req.method!=='GET'&&req.method!=='POST')return res.status(405).json({error:'method_not_allowed'});
  if(!process.env.CRON_SECRET||req.headers.authorization!==`Bearer ${process.env.CRON_SECRET}`)return res.status(401).json({error:'unauthorized'});
- const required=['NEON_DATABASE_URL','MODAL_UGC_ENDPOINT','MODAL_PROXY_TOKEN_ID','MODAL_PROXY_TOKEN_SECRET'];
+ const required=['NEON_DATABASE_URL','MODAL_PROXY_TOKEN_ID','MODAL_PROXY_TOKEN_SECRET'];
+ if(!process.env.MODAL_UGC_ENDPOINT&&!process.env.MODAL_FACEBOOK_ADS_ENDPOINT)required.push('MODAL_UGC_ENDPOINT');
  if(required.some(name=>!process.env[name]))return res.status(503).json({error:'server_not_configured'});
  try{
   const store=await createNeonStore(process.env);

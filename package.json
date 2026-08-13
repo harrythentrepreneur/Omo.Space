@@ -1,0 +1,11 @@
+{
+  "name": "cognition-vercel",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test api/tests/*.test.mjs site/test-*.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0"
+  }
+}
