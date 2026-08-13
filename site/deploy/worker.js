@@ -12,6 +12,7 @@
 //   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
+//   POST /api/internal/submissions/schema → build-worker schema introspection
 //   POST /api/internal/submissions/migrate → temporary build-worker schema migration
 //
 // Env vars (set in Cloudflare dashboard / wrangler secret):
@@ -309,6 +310,8 @@ const ROUTES = {
 };
 
 function dynamicRoute(pathname) {
+  const internalSchema = /^\/api\/internal\/submissions\/schema$/.exec(pathname);
+  if (internalSchema) return { handler: handleInternalSubmissionSchema, methods: ['POST'], internal: true };
   const internalMigration = /^\/api\/internal\/submissions\/migrate$/.exec(pathname);
   if (internalMigration) return { handler: handleInternalSubmissionMigration, methods: ['POST'], internal: true };
   const internalClaim = /^\/api\/internal\/submissions\/claim$/.exec(pathname);
@@ -1928,13 +1931,96 @@ function safeBuildEvidence(value) {
 // These endpoints are intentionally bearer-only and same-zone/private. They
 // never set CORS headers and never return owner ids or source except on claim.
 
+const REQUIRED_SUBMISSIONS_COLUMNS = [
+  'id',
+  'user_id',
+  'name',
+  'slug',
+  'content',
+  'source_sha256',
+  'requested_runtime',
+  'selected_runtime',
+  'runtime_policy',
+  'runtime_compatibility',
+  'workflow_version',
+  'published_slug',
+  'build_evidence',
+  'build_claimed_at',
+  'build_attempts',
+  'deployment_metadata',
+  'status',
+  'failure_code',
+  'created_at',
+  'updated_at',
+  'deployed_at',
+];
+
+const CREATE_SUBMISSIONS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS submissions (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  slug          TEXT NOT NULL,
+  content       TEXT NOT NULL,
+  source_sha256 TEXT NOT NULL,
+  requested_runtime TEXT NOT NULL DEFAULT 'auto' CHECK (requested_runtime IN ('auto', 'worker-native', 'modal-hosted')),
+  selected_runtime  TEXT CHECK (selected_runtime IN ('worker-native', 'modal-hosted')),
+  runtime_policy    TEXT,
+  runtime_compatibility TEXT,
+  workflow_version  TEXT,
+  published_slug    TEXT,
+  build_evidence    TEXT,
+  build_claimed_at  TEXT,
+  build_attempts    INTEGER NOT NULL DEFAULT 0,
+  deployment_metadata TEXT,
+  status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
+  failure_code  TEXT,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  deployed_at   TEXT,
+  UNIQUE (user_id, source_sha256)
+)`;
+
 const SUBMISSIONS_SCHEMA_MIGRATIONS = [
+  ['create_table', CREATE_SUBMISSIONS_TABLE_SQL],
+  ['id', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS id TEXT'],
+  ['user_id', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS user_id TEXT'],
+  ['name', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS name TEXT'],
+  ['slug', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS slug TEXT'],
+  ['content', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS content TEXT'],
+  ['source_sha256', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS source_sha256 TEXT'],
+  ['requested_runtime', "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS requested_runtime TEXT NOT NULL DEFAULT 'auto' CHECK (requested_runtime IN ('auto', 'worker-native', 'modal-hosted'))"],
+  ['selected_runtime', "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS selected_runtime TEXT CHECK (selected_runtime IN ('worker-native', 'modal-hosted'))"],
+  ['runtime_policy', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS runtime_policy TEXT'],
+  ['runtime_compatibility', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS runtime_compatibility TEXT'],
   ['workflow_version', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS workflow_version TEXT'],
   ['published_slug', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS published_slug TEXT'],
   ['build_evidence', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_evidence TEXT'],
   ['build_claimed_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_claimed_at TEXT'],
   ['build_attempts', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_attempts INTEGER NOT NULL DEFAULT 0'],
+  ['deployment_metadata', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS deployment_metadata TEXT'],
+  ['status', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS status TEXT'],
+  ['failure_code', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS failure_code TEXT'],
+  ['created_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS created_at TEXT'],
+  ['updated_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS updated_at TEXT'],
+  ['deployed_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS deployed_at TEXT'],
+  ['idx_submissions_status_created', 'CREATE INDEX IF NOT EXISTS idx_submissions_status_created\n  ON submissions (status, created_at)'],
+  ['idx_submissions_user_created', 'CREATE INDEX IF NOT EXISTS idx_submissions_user_created\n  ON submissions (user_id, created_at DESC)'],
 ];
+
+const SUBMISSIONS_TABLE_EXISTS_SQL = `
+SELECT EXISTS (
+  SELECT 1
+  FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_name = 'submissions'
+) AS table_exists`;
+
+const SUBMISSIONS_COLUMNS_SQL = `
+SELECT column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'submissions'
+  AND column_name = ANY($1::text[])
+ORDER BY array_position($1::text[], column_name)`;
 
 function internalJson(obj, status) {
   return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
@@ -2116,6 +2202,13 @@ async function handleInternalSubmissionDeployed(request, env, _url, params) {
   const updated = await internalMarkDeployed(env, params.submissionId, metadata);
   return updated ? internalJson({ ok: true, id: params.submissionId, status: 'deployed' }, 200)
     : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalSubmissionSchema(request, env) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const schema = await inspectSubmissionsSchema(env);
+  return internalJson({ ok: true, ...schema }, 200);
 }
 
 async function handleInternalSubmissionMigration(request, env) {
@@ -2841,6 +2934,37 @@ async function applySubmissionsSchemaMigration(env) {
     return applied;
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch { /* no-op */ }
+    throw new Error('internal_error');
+  } finally {
+    await client.release();
+  }
+}
+
+async function inspectSubmissionsSchema(env) {
+  if (databaseKind(env) !== 'neon') throw new Error('internal_error');
+  const client = await getNeonPool(env).connect();
+  try {
+    const table = await client.query(prepared(
+      'omo-submissions-schema-table-v1',
+      SUBMISSIONS_TABLE_EXISTS_SQL,
+      []
+    ));
+    const columns = await client.query(prepared(
+      'omo-submissions-schema-columns-v1',
+      SUBMISSIONS_COLUMNS_SQL,
+      [REQUIRED_SUBMISSIONS_COLUMNS]
+    ));
+    const presentSet = new Set((columns.rows || [])
+      .map((row) => String(row.column_name || ''))
+      .filter((name) => REQUIRED_SUBMISSIONS_COLUMNS.includes(name)));
+    const present = REQUIRED_SUBMISSIONS_COLUMNS.filter((name) => presentSet.has(name));
+    const missing = REQUIRED_SUBMISSIONS_COLUMNS.filter((name) => !presentSet.has(name));
+    return {
+      table_exists: Boolean(table.rows && table.rows[0] && table.rows[0].table_exists),
+      present,
+      missing,
+    };
+  } catch {
     throw new Error('internal_error');
   } finally {
     await client.release();

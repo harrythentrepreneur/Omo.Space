@@ -107,6 +107,8 @@ const facebookCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'co
 let workerNativeMode = 'valid';
 const neonSqlCalls = [];
 let neonPoolShouldThrow = false;
+let neonInfoSchemaTableExists = false;
+let neonInfoSchemaColumns = [];
 
 class MockPool {
   constructor(options) {
@@ -121,8 +123,14 @@ class MockPool {
           ? { text: query, values: null, name: null, connectionString: poolOptions.connectionString }
           : { text: query.text, values: query.values || [], name: query.name, connectionString: poolOptions.connectionString };
         neonSqlCalls.push(entry);
-        if (neonPoolShouldThrow && entry.text.startsWith('ALTER TABLE')) {
+        if (neonPoolShouldThrow && (entry.text.startsWith('ALTER TABLE') || entry.text.includes('information_schema'))) {
           throw new Error(`leaked dsn ${poolOptions.connectionString}`);
+        }
+        if (entry.text.includes('information_schema.tables')) {
+          return { rows: [{ table_exists: neonInfoSchemaTableExists }], rowCount: 1 };
+        }
+        if (entry.text.includes('information_schema.columns')) {
+          return { rows: neonInfoSchemaColumns.map((column_name) => ({ column_name })), rowCount: neonInfoSchemaColumns.length };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -246,7 +254,7 @@ const sandbox = {
   neon: () => ({ query: async () => ({ rows: [], rowCount: 0 }) }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -264,7 +272,7 @@ function check(name, cond) {
 check('Neon: Worker never caches request-bound Pool I/O in module scope',
   !workerSrc.includes('let neonPool') &&
   workerSrc.includes("neon(url, { fullResults: true })") &&
-  (workerSrc.match(/await client\.release\(\)/g) || []).length === 6);
+  (workerSrc.match(/await client\.release\(\)/g) || []).length === 7);
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
@@ -583,6 +591,7 @@ check('internal auth: missing config is 503, bad token is 401, and internal rout
   internalUnknown.headers.get('Access-Control-Allow-Origin') === null);
 
 const migrationEnv = { ...buildEnv, NEON_DATABASE_URL: 'postgres://user:secret@db.invalid/omo' };
+const requiredSubmissionColumns = workerTest.REQUIRED_SUBMISSIONS_COLUMNS;
 const migrationNoConfig = await worker.fetch(mkReq('POST', '/api/internal/submissions/migrate', {}, internalHeaders), buildEnv);
 const migrationBadAuth = await worker.fetch(mkReq('POST', '/api/internal/submissions/migrate', {}, {
   Authorization: 'Bearer wrong-token',
@@ -603,6 +612,75 @@ check('internal migration auth/body: requires build token, Neon config, literal 
   migrationNonempty.status === 400 &&
   migrationEmptyBody.status === 400 &&
   migrationOversize.status === 413);
+
+neonSqlCalls.length = 0;
+neonInfoSchemaTableExists = false;
+neonInfoSchemaColumns = [];
+const schemaAbsent = await worker.fetch(mkReq('POST', '/api/internal/submissions/schema', {}, internalHeaders), migrationEnv);
+const schemaAbsentBody = await schemaAbsent.json();
+const schemaAbsentCalls = neonSqlCalls.map(({ text, values, name }) => ({ text, values, name }));
+check('internal schema: absent table returns only table_exists plus allowlisted missing names',
+  schemaAbsent.status === 200 &&
+  schemaAbsent.headers.get('Access-Control-Allow-Origin') === null &&
+  schemaAbsentBody.ok === true &&
+  schemaAbsentBody.table_exists === false &&
+  Array.isArray(schemaAbsentBody.present) &&
+  schemaAbsentBody.present.length === 0 &&
+  JSON.stringify(schemaAbsentBody.missing) === JSON.stringify(requiredSubmissionColumns) &&
+  Object.keys(schemaAbsentBody).sort().join(',') === 'missing,ok,present,table_exists' &&
+  schemaAbsentCalls.length === 4 &&
+  schemaAbsentCalls[0].text.includes('information_schema.tables') &&
+  schemaAbsentCalls[1].text.includes('information_schema.columns') &&
+  schemaAbsentCalls[1].values.length === 1 &&
+  JSON.stringify(schemaAbsentCalls[1].values[0]) === JSON.stringify(requiredSubmissionColumns) &&
+  !JSON.stringify(schemaAbsentBody).includes('TEXT') &&
+  !JSON.stringify(schemaAbsentBody).includes('postgres://'));
+
+neonSqlCalls.length = 0;
+neonInfoSchemaTableExists = true;
+neonInfoSchemaColumns = ['id', 'user_id', 'name', 'slug', 'content', 'source_sha256', 'status', 'created_at', 'updated_at', 'attacker_column'];
+const schemaPartial = await worker.fetch(mkReq('POST', '/api/internal/submissions/schema', {}, internalHeaders), migrationEnv);
+const schemaPartialBody = await schemaPartial.json();
+check('internal schema: partial old table reports only allowlisted present and missing names',
+  schemaPartial.status === 200 &&
+  schemaPartialBody.table_exists === true &&
+  JSON.stringify(schemaPartialBody.present) === JSON.stringify(['id', 'user_id', 'name', 'slug', 'content', 'source_sha256', 'status', 'created_at', 'updated_at']) &&
+  schemaPartialBody.missing.includes('requested_runtime') &&
+  schemaPartialBody.missing.includes('deployment_metadata') &&
+  !schemaPartialBody.present.includes('attacker_column'));
+
+neonSqlCalls.length = 0;
+neonInfoSchemaTableExists = true;
+neonInfoSchemaColumns = [...requiredSubmissionColumns];
+const schemaComplete = await worker.fetch(mkReq('POST', '/api/internal/submissions/schema', {}, internalHeaders), migrationEnv);
+const schemaCompleteBody = await schemaComplete.json();
+check('internal schema: complete table returns all required names as present and no missing names',
+  schemaComplete.status === 200 &&
+  JSON.stringify(schemaCompleteBody.present) === JSON.stringify(requiredSubmissionColumns) &&
+  schemaCompleteBody.missing.length === 0);
+
+neonSqlCalls.length = 0;
+neonInfoSchemaTableExists = true;
+neonInfoSchemaColumns = [];
+const schemaNonempty = await worker.fetch(mkReq('POST', '/api/internal/submissions/schema', { column: 'content' }, internalHeaders), migrationEnv);
+const schemaOversize = await worker.fetch(Object.assign(mkReq('POST', '/api/internal/submissions/schema', {}, internalHeaders), {
+  text: async () => JSON.stringify({}).padEnd(300, ' '),
+}), migrationEnv);
+check('internal schema auth/body: rejects nonempty and oversized bodies before SQL',
+  schemaNonempty.status === 400 &&
+  schemaOversize.status === 413 &&
+  neonSqlCalls.length === 0);
+
+neonSqlCalls.length = 0;
+neonPoolShouldThrow = true;
+const schemaFailure = await worker.fetch(mkReq('POST', '/api/internal/submissions/schema', {}, internalHeaders), migrationEnv);
+const schemaFailureText = await schemaFailure.text();
+neonPoolShouldThrow = false;
+check('internal schema: database errors are generic and never include DSN or exception text',
+  schemaFailure.status === 500 &&
+  schemaFailureText === '{"error":"internal_error"}' &&
+  !schemaFailureText.includes('postgres://') &&
+  !schemaFailureText.includes('secret'));
 
 neonSqlCalls.length = 0;
 neonPoolShouldThrow = false;
@@ -626,7 +704,13 @@ check('internal migration: fixed allowlisted SQL runs in one transaction with no
   migrationOneBody.ok === true &&
   JSON.stringify(migrationOneBody.applied) === JSON.stringify(expectedMigrationNames) &&
   JSON.stringify(migrationFirstCalls.map((call) => call.text)) === JSON.stringify(expectedMigrationSql) &&
-  migrationFirstCalls.slice(1, 6).every((call) => Array.isArray(call.values) && call.values.length === 0 && /^omo-submissions-migrate-[a-z_]+-v1$/.test(call.name || '') && call.text.includes('ADD COLUMN IF NOT EXISTS')) &&
+  migrationFirstCalls[1].text.startsWith('CREATE TABLE IF NOT EXISTS submissions') &&
+  migrationFirstCalls.slice(2, 2 + requiredSubmissionColumns.length).every((call) => Array.isArray(call.values) && call.values.length === 0 && /^omo-submissions-migrate-[a-z0-9_]+-v1$/.test(call.name || '') && call.text.includes('ADD COLUMN IF NOT EXISTS')) &&
+  migrationFirstCalls.some((call) => call.text === 'CREATE INDEX IF NOT EXISTS idx_submissions_status_created\n  ON submissions (status, created_at)') &&
+  migrationFirstCalls.some((call) => call.text === 'CREATE INDEX IF NOT EXISTS idx_submissions_user_created\n  ON submissions (user_id, created_at DESC)') &&
+  migrationOneBody.applied.includes('create_table') &&
+  migrationOneBody.applied.includes('idx_submissions_status_created') &&
+  requiredSubmissionColumns.every((name) => migrationOneBody.applied.includes(name)) &&
   !JSON.stringify(migrationFirstCalls).includes('ALTER TABLE anything'));
 check('internal migration: idempotent replay returns the same allowlisted names and SQL sequence',
   migrationTwo.status === 200 &&
