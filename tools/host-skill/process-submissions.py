@@ -15,11 +15,13 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import asdict
 from pathlib import Path
@@ -27,6 +29,8 @@ from typing import Any
 
 from submission_queue import (
     ROOT,
+    MAX_SUBMISSION_BYTES,
+    SUBMISSION_ID_RE,
     SubmissionValidationError,
     evaluate_review_gate,
     safe_failure_code,
@@ -37,6 +41,16 @@ from submission_queue import (
 
 HOST_PATH = ROOT / "tools" / "host-skill" / "host.py"
 WORKER_ROOT = ROOT / "site" / "deploy"
+HTTP_TIMEOUT_SECONDS = 20
+HTTP_MAX_RESPONSE_BYTES = 256 * 1024
+DEFAULT_BUILD_WORKER_ORIGINS = {"https://omo.space", "https://www.omo.space"}
+SAFE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SAFE_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+SAFE_VERSION_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*@[0-9A-Za-z][0-9A-Za-z._:-]{0,79}$")
+SAFE_POLICY_RE = re.compile(r"^[a-z][a-z0-9_:-]{2,127}$")
+SAFE_RUNTIMES = {"auto", "worker-native", "modal-hosted"}
+SAFE_SELECTED_RUNTIMES = {"worker-native", "modal-hosted"}
+SAFE_PRIOR_STATUSES = {"queued", "needs_review", "ready_for_deploy"}
 
 
 def _load_host_module() -> Any:
@@ -53,6 +67,187 @@ HOST_MODULE = _load_host_module()
 
 def output(value: dict[str, Any]) -> None:
     print(json.dumps(value, ensure_ascii=False, sort_keys=True))
+
+
+def allowed_worker_origins(environ: dict[str, str]) -> set[str]:
+    origins = set(DEFAULT_BUILD_WORKER_ORIGINS)
+    for origin in str(environ.get("BUILD_WORKER_ALLOWED_ORIGINS", "")).split(","):
+        origin = origin.strip().rstrip("/")
+        if origin:
+            origins.add(origin)
+    return origins
+
+
+def validate_build_worker_base_url(base_url: str, environ: dict[str, str] | None = None) -> str:
+    value = str(base_url or "").strip().rstrip("/")
+    parsed = urllib.parse.urlparse(value)
+    if parsed.scheme != "https":
+        raise ValueError("BUILD_WORKER_BASE_URL must use HTTPS")
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    if origin not in allowed_worker_origins(environ or os.environ):
+        raise ValueError("BUILD_WORKER_BASE_URL origin is not allowlisted")
+    if parsed.path not in ("", "/"):
+        raise ValueError("BUILD_WORKER_BASE_URL must be an origin, not a path")
+    return origin
+
+
+def validate_claim_response(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise RuntimeError("invalid internal claim response")
+    row = value.get("submission")
+    if not isinstance(row, dict):
+        raise RuntimeError("invalid internal claim response")
+    required = ("id", "name", "slug", "content", "source_sha256", "requested_runtime", "prior_status")
+    if any(key not in row for key in required):
+        raise RuntimeError("invalid internal claim response")
+    if not SUBMISSION_ID_RE.fullmatch(str(row["id"])):
+        raise RuntimeError("invalid internal claim response")
+    if not SAFE_SLUG_RE.fullmatch(str(row["slug"])) or len(str(row["slug"])) > 100:
+        raise RuntimeError("invalid internal claim response")
+    if not SAFE_SHA256_RE.fullmatch(str(row["source_sha256"])):
+        raise RuntimeError("invalid internal claim response")
+    if str(row["requested_runtime"]) not in SAFE_RUNTIMES or str(row["prior_status"]) not in SAFE_PRIOR_STATUSES:
+        raise RuntimeError("invalid internal claim response")
+    content = row["content"]
+    if not isinstance(content, str) or not content or len(content.encode("utf-8")) > MAX_SUBMISSION_BYTES:
+        raise RuntimeError("invalid internal claim response")
+    return {
+        "id": str(row["id"]),
+        "name": str(row["name"]),
+        "slug": str(row["slug"]),
+        "content": content,
+        "source_sha256": str(row["source_sha256"]),
+        "requested_runtime": str(row["requested_runtime"]),
+        "prior_status": str(row["prior_status"]),
+    }
+
+
+class HttpSubmissionRepository:
+    """Private Worker queue adapter selected by BUILD_WORKER_* environment."""
+
+    def __init__(self, base_url: str, token: str, environ: dict[str, str] | None = None):
+        if not token:
+            raise ValueError("BUILD_WORKER_TOKEN is required")
+        self.base_url = validate_build_worker_base_url(base_url, environ)
+        self._token = str(token)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(base_url={self.base_url!r}, token=<redacted>)"
+
+    def close(self) -> None:
+        return None
+
+    def _post(self, path: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+        data = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        request = urllib.request.Request(
+            self.base_url + path,
+            data=data,
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+                status = int(getattr(response, "status", 0) or 0)
+                if status == 204:
+                    return status, None
+                try:
+                    raw = response.read(HTTP_MAX_RESPONSE_BYTES + 1)
+                except TypeError:
+                    raw = response.read()
+        except urllib.error.HTTPError as error:
+            if error.code == 204:
+                return 204, None
+            raise RuntimeError(f"build worker request failed with HTTP {error.code}") from error
+        except urllib.error.URLError as error:
+            raise RuntimeError("build worker request failed") from error
+        if len(raw) > HTTP_MAX_RESPONSE_BYTES:
+            raise RuntimeError("build worker response too large")
+        try:
+            body = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RuntimeError("build worker returned invalid JSON") from error
+        if not isinstance(body, dict):
+            raise RuntimeError("build worker returned invalid JSON")
+        return status, body
+
+    def claim(
+        self, submission_id: str | None = None, include_review: bool = False, include_ready: bool = False
+    ) -> dict[str, Any] | None:
+        payload: dict[str, Any] = {}
+        if submission_id:
+            payload["id"] = validate_submission_id(submission_id)
+        if include_review:
+            payload["include_review"] = True
+        if include_ready:
+            payload["include_ready"] = True
+        status, body = self._post("/api/internal/submissions/claim", payload)
+        if status == 204:
+            return None
+        if status != 200 or not body or body.get("ok") is not True:
+            raise RuntimeError("invalid internal claim response")
+        return validate_claim_response(body)
+
+    def set_status(self, submission_id: str, status: str, failure_code: str | None = None) -> None:
+        payload: dict[str, Any] = {"status": status}
+        if failure_code:
+            payload["failure_code"] = safe_failure_code(failure_code)
+        response_status, body = self._post(f"/api/internal/submissions/{validate_submission_id(submission_id)}/status", payload)
+        if response_status != 200 or not body or body.get("ok") is not True:
+            raise RuntimeError("submission status transition was rejected")
+
+    def set_runtime_decision(self, submission_id: str, decision: dict[str, Any]) -> None:
+        effective = str(decision.get("effective") or "")
+        reason = str(decision.get("reason") or "")
+        if effective not in SAFE_SELECTED_RUNTIMES or not SAFE_POLICY_RE.fullmatch(reason):
+            raise ValueError("invalid runtime decision")
+        payload = {
+            "effective": effective,
+            "reason": reason,
+            "recommended": str(decision.get("recommended") or "") if decision.get("recommended") else None,
+            "requested": str(decision.get("requested") or "") if decision.get("requested") else None,
+            "compatible": bool(decision.get("compatible")),
+        }
+        response_status, body = self._post(f"/api/internal/submissions/{validate_submission_id(submission_id)}/runtime", payload)
+        if response_status != 200 or not body or body.get("ok") is not True:
+            raise RuntimeError("submission runtime transition was rejected")
+
+    def set_deployment_metadata(
+        self,
+        submission_id: str,
+        status: str,
+        published_slug: str,
+        workflow_version: str,
+        build_evidence: dict[str, Any],
+    ) -> None:
+        if status not in {"ready_for_deploy", "ready_for_publish"}:
+            raise ValueError("deployment metadata can only prepare publishable states")
+        if not SAFE_SLUG_RE.fullmatch(published_slug) or not SAFE_VERSION_RE.fullmatch(workflow_version):
+            raise ValueError("invalid deployment metadata")
+        response_status, body = self._post(
+            f"/api/internal/submissions/{validate_submission_id(submission_id)}/deployment",
+            {
+                "status": status,
+                "published_slug": published_slug,
+                "workflow_version": workflow_version,
+                "build_evidence": build_evidence,
+            },
+        )
+        if response_status != 200 or not body or body.get("ok") is not True:
+            raise RuntimeError("submission deployment transition was rejected")
+
+    def get(self, submission_id: str) -> dict[str, Any] | None:
+        raise RuntimeError("export review requires the direct Neon adapter")
+
+    def mark_deployed(self, submission_id: str) -> None:
+        response_status, body = self._post(
+            f"/api/internal/submissions/{validate_submission_id(submission_id)}/deployed",
+            {"deployed_by": "build_worker"},
+        )
+        if response_status != 200 or not body or body.get("ok") is not True:
+            raise RuntimeError("submission deployed transition was rejected")
 
 
 class SubmissionRepository:
@@ -97,10 +292,15 @@ class SubmissionRepository:
             SET status = 'processing', failure_code = NULL, updated_at = CURRENT_TIMESTAMP
             FROM candidate
             WHERE submission.id = candidate.id
-            RETURNING submission.*, candidate.prior_status
+            RETURNING submission.id, submission.name, submission.slug, submission.content,
+                      submission.source_sha256, submission.requested_runtime, candidate.prior_status
         """
         with self.connection:
-            with self.connection.cursor(cursor_factory=self._extras.RealDictCursor) as cursor:
+            cursor_kwargs = {}
+            real_dict_cursor = getattr(self._extras, "RealDictCursor", None)
+            if real_dict_cursor is not None:
+                cursor_kwargs["cursor_factory"] = real_dict_cursor
+            with self.connection.cursor(**cursor_kwargs) as cursor:
                 cursor.execute(query, params)
                 row = cursor.fetchone()
         return dict(row) if row else None
@@ -463,6 +663,17 @@ def export_for_review(repository: SubmissionRepository, submission_id: str, revi
     }
 
 
+def repository_from_env(environ: dict[str, str]) -> Any:
+    worker_base_url = str(environ.get("BUILD_WORKER_BASE_URL", "")).strip()
+    worker_token = str(environ.get("BUILD_WORKER_TOKEN", "")).strip()
+    if worker_base_url or worker_token:
+        if not worker_base_url or not worker_token:
+            raise ValueError("BUILD_WORKER_BASE_URL and BUILD_WORKER_TOKEN must be set together")
+        return HttpSubmissionRepository(worker_base_url, worker_token, environ)
+    database_url = str(environ.get("NEON_DATABASE_URL", "")).strip()
+    return SubmissionRepository(database_url)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--id", help="Claim a specific queued/needs_review submission")
@@ -481,8 +692,7 @@ def main() -> int:
     if args.deploy and not args.id:
         raise ValueError("--deploy requires a reviewed submission --id")
 
-    database_url = os.environ.get("NEON_DATABASE_URL", "").strip()
-    repository = SubmissionRepository(database_url)
+    repository = repository_from_env(os.environ)
     try:
         if args.export_review:
             if not args.review_dir:

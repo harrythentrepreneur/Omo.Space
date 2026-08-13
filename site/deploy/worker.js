@@ -229,7 +229,11 @@ function assertHostedRegistryDisjoint() {
 
 const MAX_TOPUP_USD_DEFAULT = 1000;
 const MAX_SUBMISSION_BYTES = 200 * 1024;
+const MAX_INTERNAL_BODY_BYTES = 16 * 1024;
 const USER_ID_RE = /^user_[A-Za-z0-9_-]{1,80}$/;
+const SUBMISSION_ID_RE = /^sub_[A-Za-z0-9_-]{8,100}$/;
+const SAFE_FAILURE_RE = /^[a-z][a-z0-9_]{2,63}$/;
+const SAFE_WORKFLOW_VERSION_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*@[0-9A-Za-z][0-9A-Za-z._:-]{0,79}$/;
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
 const STRIPE_CHECKOUT_API_VERSION = '2025-09-30.clover';
 const OMO_CHECKOUT_LOGO_URL = 'https://omo.space/logo-sweet-pastel.svg';
@@ -303,6 +307,16 @@ const ROUTES = {
 };
 
 function dynamicRoute(pathname) {
+  const internalClaim = /^\/api\/internal\/submissions\/claim$/.exec(pathname);
+  if (internalClaim) return { handler: handleInternalSubmissionClaim, methods: ['POST'], internal: true };
+  const internalStatus = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/status$/.exec(pathname);
+  if (internalStatus) return { handler: handleInternalSubmissionStatus, methods: ['POST'], params: { submissionId: internalStatus[1] }, internal: true };
+  const internalRuntime = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/runtime$/.exec(pathname);
+  if (internalRuntime) return { handler: handleInternalSubmissionRuntime, methods: ['POST'], params: { submissionId: internalRuntime[1] }, internal: true };
+  const internalDeployment = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/deployment$/.exec(pathname);
+  if (internalDeployment) return { handler: handleInternalSubmissionDeployment, methods: ['POST'], params: { submissionId: internalDeployment[1] }, internal: true };
+  const internalDeployed = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/deployed$/.exec(pathname);
+  if (internalDeployed) return { handler: handleInternalSubmissionDeployed, methods: ['POST'], params: { submissionId: internalDeployed[1] }, internal: true };
   const submissionDetail = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})$/.exec(pathname);
   if (submissionDetail) return { handler: handleSubmissionDetail, methods: ['GET'], params: { submissionId: submissionDetail[1] } };
   const submissionRuntime = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/runtime$/.exec(pathname);
@@ -315,11 +329,30 @@ function dynamicRoute(pathname) {
 }
 
 async function handleWorkerFetch(request, env) {
+    const url = new URL(request.url);
+    const route = ROUTES[url.pathname] || dynamicRoute(url.pathname);
+    const isInternalPath = url.pathname.startsWith('/api/internal/');
+    if (route && route.internal) {
+      if (request.method === 'OPTIONS') return internalJson({ error: 'method_not_allowed' }, 405);
+      const auth = authorizeBuildWorker(request, env);
+      if (!auth.ok) return internalJson({ error: auth.error }, auth.status);
+      const methods = route.methods || ['POST'];
+      if (!methods.includes(request.method)) return internalJson({ error: 'method_not_allowed' }, 405);
+      try {
+        return await route.handler(request, env, url, route.params || {});
+      } catch {
+        return internalJson({ error: 'internal_error' }, 500);
+      }
+    }
+    if (isInternalPath) {
+      const auth = authorizeBuildWorker(request, env);
+      if (!auth.ok) return internalJson({ error: auth.error }, auth.status);
+      return internalJson({ error: 'not_found' }, 404);
+    }
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: cors(request, env) });
     }
 
-    const url = new URL(request.url);
     if (url.pathname === '/mcp') {
       // Keep MCP a client of the exact REST contract without a same-zone
       // network loop. An explicit OMO_API service binding still wins when the
@@ -330,7 +363,6 @@ async function handleWorkerFetch(request, env) {
       };
       return handleMcpRequest(request, mcpEnv);
     }
-    const route = ROUTES[url.pathname] || dynamicRoute(url.pathname);
     if (!route) {
       return json({ error: `Unknown route: ${url.pathname}`, routes: Object.keys(ROUTES) }, 404, cors(request, env));
     }
@@ -1888,6 +1920,174 @@ function safeBuildEvidence(value) {
   return evidence;
 }
 
+// ── Private build-worker bridge ─────────────────────────────────────────
+// These endpoints are intentionally bearer-only and same-zone/private. They
+// never set CORS headers and never return owner ids or source except on claim.
+
+function internalJson(obj, status) {
+  return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+function constantTimeEquals(expected, supplied) {
+  const a = String(expected || '');
+  const b = String(supplied || '');
+  const max = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < max; i += 1) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
+function authorizeBuildWorker(request, env) {
+  const token = String(env && env.BUILD_WORKER_TOKEN || '').trim();
+  if (!token) return { ok: false, status: 503, error: 'build_worker_not_configured' };
+  const authorization = String(request.headers.get('authorization') || '');
+  const match = /^Bearer\s+(.+)$/i.exec(authorization);
+  const supplied = match ? match[1] : '';
+  return constantTimeEquals(token, supplied)
+    ? { ok: true }
+    : { ok: false, status: 401, error: 'unauthorized' };
+}
+
+async function readInternalJson(request) {
+  let raw = '';
+  try { raw = await request.text(); } catch { raw = ''; }
+  if (new TextEncoder().encode(raw).length > MAX_INTERNAL_BODY_BYTES) {
+    return { error: 'body_too_large', status: 413 };
+  }
+  if (!raw.trim()) return { body: {} };
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { error: 'invalid_json', status: 400 };
+    }
+    return { body: parsed };
+  } catch {
+    return { error: 'invalid_json', status: 400 };
+  }
+}
+
+function safeSubmissionId(value) {
+  const text = String(value || '').trim();
+  return SUBMISSION_ID_RE.test(text) ? text : '';
+}
+
+function safeFailureCode(value) {
+  const code = String(value || 'internal_error').trim().toLowerCase();
+  return SAFE_FAILURE_RE.test(code) ? code : 'internal_error';
+}
+
+function internalClaimRow(row) {
+  if (!row) return null;
+  const sourceSha256 = safeSha256(row.source_sha256 || row.sourceSha256);
+  const requestedRuntime = normalizeRequestedRuntime(row.requested_runtime || row.requestedRuntime || 'auto') || 'auto';
+  const priorStatus = safeSubmissionStatus(row.prior_status || row.priorStatus);
+  const content = String(row.content || '');
+  if (!safeSubmissionId(row.id) || !safeSlug(row.slug) || !sourceSha256 || !content ||
+      new TextEncoder().encode(content).length > MAX_SUBMISSION_BYTES ||
+      !['queued', 'needs_review', 'ready_for_deploy'].includes(priorStatus)) {
+    return null;
+  }
+  return {
+    id: String(row.id),
+    name: String(row.name || '').slice(0, 120),
+    slug: String(row.slug),
+    content,
+    source_sha256: sourceSha256,
+    requested_runtime: requestedRuntime,
+    prior_status: priorStatus,
+  };
+}
+
+function validateRuntimeDecision(body) {
+  const effective = safeRuntime(body.effective || body.selected_runtime);
+  const reason = safeRuntimePolicy(body.reason || body.runtime_policy);
+  const recommended = safeRuntime(body.recommended);
+  const requested = normalizeRequestedRuntime(body.requested || '') || null;
+  if (!effective || !reason) return null;
+  return {
+    effective,
+    reason,
+    recommended,
+    requested,
+    compatible: typeof body.compatible === 'boolean' ? body.compatible : null,
+  };
+}
+
+function validateDeploymentBody(body) {
+  const status = String(body.status || '').trim();
+  const publishedSlug = safeSlug(body.published_slug);
+  const workflowVersion = String(body.workflow_version || '').trim();
+  const evidence = safeBuildEvidence(body.build_evidence);
+  if (!['ready_for_deploy', 'ready_for_publish'].includes(status) ||
+      !publishedSlug || !SAFE_WORKFLOW_VERSION_RE.test(workflowVersion) ||
+      !evidence.checks.length) {
+    return null;
+  }
+  return { status, publishedSlug, workflowVersion, evidence };
+}
+
+async function handleInternalSubmissionClaim(request, env) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const requestedId = parsed.body.id == null ? '' : safeSubmissionId(parsed.body.id);
+  if (parsed.body.id != null && !requestedId) return internalJson({ error: 'invalid_submission_id' }, 400);
+  const row = await internalClaimSubmission(env, {
+    id: requestedId || null,
+    includeReview: Boolean(parsed.body.include_review),
+    includeReady: Boolean(parsed.body.include_ready),
+  });
+  if (!row) return new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
+  const submission = internalClaimRow(row);
+  if (!submission) return internalJson({ error: 'invalid_claim_row' }, 500);
+  return internalJson({ ok: true, submission }, 200);
+}
+
+async function handleInternalSubmissionStatus(request, env, _url, params) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const status = String(parsed.body.status || '').trim();
+  if (!['needs_review', 'ready_for_deploy', 'ready_for_publish', 'failed'].includes(status)) {
+    return internalJson({ error: 'invalid_status' }, 400);
+  }
+  const updated = await internalSetSubmissionStatus(env, params.submissionId, status, parsed.body.failure_code);
+  return updated ? internalJson({ ok: true, id: params.submissionId, status }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalSubmissionRuntime(request, env, _url, params) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const decision = validateRuntimeDecision(parsed.body);
+  if (!decision) return internalJson({ error: 'invalid_runtime_decision' }, 400);
+  const updated = await internalSetRuntimeDecision(env, params.submissionId, decision);
+  return updated ? internalJson({ ok: true, id: params.submissionId }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalSubmissionDeployment(request, env, _url, params) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const deployment = validateDeploymentBody(parsed.body);
+  if (!deployment) return internalJson({ error: 'invalid_deployment' }, 400);
+  const updated = await internalSetDeployment(env, params.submissionId, deployment);
+  return updated ? internalJson({ ok: true, id: params.submissionId, status: deployment.status }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalSubmissionDeployed(request, env, _url, params) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const metadata = {
+    deployed_by: safeRuntimePolicy(parsed.body.deployed_by || 'build_worker'),
+    deployment_url: safeText(parsed.body.deployment_url, 240),
+  };
+  const updated = await internalMarkDeployed(env, params.submissionId, metadata);
+  return updated ? internalJson({ ok: true, id: params.submissionId, status: 'deployed' }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
 // ── Route: dashboard /api/me ──────────────────────────────────────────────
 // Real: GET/POST /api/me with a Clerk bearer token. Mock: the legacy
 // ?user_id=… / {user_id} form remains available for the local demo. →
@@ -2373,6 +2573,221 @@ async function insertSubmission(env, submission) {
   const record = { ...submission, requested_runtime: requestedRuntime, status: 'queued', created_at: now, updated_at: now };
   mockSubmissions.set(key, record);
   return { id: record.id, status: record.status, requested_runtime: record.requested_runtime, duplicate: false, preference_conflict: false };
+}
+
+async function internalClaimSubmission(env, options) {
+  if (databaseKind(env) === 'neon') {
+    const claimStates = ['queued'];
+    if (options.includeReview) claimStates.push('needs_review');
+    if (options.includeReady) claimStates.push('ready_for_deploy');
+    const statePlaceholders = claimStates.map((_, index) => `$${index + 1}`).join(', ');
+    const params = [...claimStates];
+    const whereId = options.id ? `AND id = $${params.length + 1}` : '';
+    if (options.id) params.push(options.id);
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-submission-claim-v1',
+      `WITH candidate AS (
+         SELECT id, status AS prior_status FROM submissions
+         WHERE status IN (${statePlaceholders}) ${whereId}
+         ORDER BY created_at ASC
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1
+       )
+       UPDATE submissions AS submission
+       SET status = 'processing', failure_code = NULL, updated_at = CURRENT_TIMESTAMP
+       FROM candidate
+       WHERE submission.id = candidate.id
+       RETURNING submission.id, submission.name, submission.slug, submission.content, submission.source_sha256, submission.requested_runtime, candidate.prior_status`,
+      params
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    const claimStates = ['queued'];
+    if (options.includeReview) claimStates.push('needs_review');
+    if (options.includeReady) claimStates.push('ready_for_deploy');
+    const placeholders = claimStates.map(() => '?').join(', ');
+    const params = [...claimStates];
+    const whereId = options.id ? 'AND id = ?' : '';
+    if (options.id) params.push(options.id);
+    const row = await env.BALANCE_DB
+      .prepare(`SELECT id,name,slug,content,source_sha256,requested_runtime,status AS prior_status FROM submissions WHERE status IN (${placeholders}) ${whereId} ORDER BY created_at ASC LIMIT 1`)
+      .bind(...params).first();
+    if (!row) return null;
+    const updated = await env.BALANCE_DB
+      .prepare("UPDATE submissions SET status = 'processing', failure_code = NULL, updated_at = ? WHERE id = ? AND status = ?")
+      .bind(new Date().toISOString(), row.id, row.prior_status).run();
+    return updated.meta && updated.meta.changes ? row : null;
+  }
+  const claimStates = new Set(['queued']);
+  if (options.includeReview) claimStates.add('needs_review');
+  if (options.includeReady) claimStates.add('ready_for_deploy');
+  const rows = Array.from(mockSubmissions.values())
+    .filter((record) => claimStates.has(record.status) && (!options.id || record.id === options.id))
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id || '').localeCompare(String(b.id || '')));
+  const record = rows[0];
+  if (!record) return null;
+  const priorStatus = record.status;
+  record.status = 'processing';
+  record.failure_code = null;
+  record.updated_at = new Date().toISOString();
+  return {
+    id: record.id,
+    name: record.name,
+    slug: record.slug,
+    content: record.content,
+    source_sha256: record.source_sha256 || record.sourceSha256,
+    requested_runtime: record.requested_runtime || record.requestedRuntime,
+    prior_status: priorStatus,
+  };
+}
+
+function allowedInternalPriorStates(status) {
+  if (status === 'needs_review') return ['processing'];
+  if (status === 'ready_for_deploy') return ['processing'];
+  if (status === 'ready_for_publish') return ['ready_for_deploy', 'processing'];
+  if (status === 'failed') return ['processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish'];
+  return [];
+}
+
+async function internalSetSubmissionStatus(env, submissionId, status, failureCode) {
+  const states = allowedInternalPriorStates(status);
+  if (!states.length) return false;
+  const failure = status === 'failed' || status === 'needs_review' ? safeFailureCode(failureCode) : null;
+  if (databaseKind(env) === 'neon') {
+    const params = [status, failure, submissionId, ...states];
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-submission-status-v1',
+      `UPDATE submissions
+       SET status = $1, failure_code = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3 AND status IN (${states.map((_, index) => `$${index + 4}`).join(', ')})
+       RETURNING id`,
+      params
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare(`UPDATE submissions SET status = ?, failure_code = ?, updated_at = ? WHERE id = ? AND status IN (${states.map(() => '?').join(', ')})`)
+      .bind(status, failure, new Date().toISOString(), submissionId, ...states).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.id === submissionId && states.includes(record.status)) {
+      record.status = status;
+      record.failure_code = failure;
+      record.updated_at = new Date().toISOString();
+      return true;
+    }
+  }
+  return false;
+}
+
+async function internalSetRuntimeDecision(env, submissionId, decision) {
+  const compatibility = JSON.stringify({
+    recommended: decision.recommended,
+    requested: decision.requested,
+    compatible: decision.compatible,
+  }, null, 0);
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-submission-runtime-v1',
+      `UPDATE submissions
+       SET selected_runtime = $1, runtime_policy = $2, runtime_compatibility = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4 AND status = 'processing'
+       RETURNING id`,
+      [decision.effective, decision.reason, compatibility, submissionId]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare("UPDATE submissions SET selected_runtime = ?, runtime_policy = ?, runtime_compatibility = ?, updated_at = ? WHERE id = ? AND status = 'processing'")
+      .bind(decision.effective, decision.reason, compatibility, new Date().toISOString(), submissionId).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.id === submissionId && record.status === 'processing') {
+      record.selected_runtime = decision.effective;
+      record.runtime_policy = decision.reason;
+      record.runtime_compatibility = compatibility;
+      record.updated_at = new Date().toISOString();
+      return true;
+    }
+  }
+  return false;
+}
+
+async function internalSetDeployment(env, submissionId, deployment) {
+  const evidence = JSON.stringify(deployment.evidence, null, 0);
+  const fromStates = deployment.status === 'ready_for_publish' ? ['processing', 'ready_for_deploy'] : ['processing'];
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-submission-deployment-v1',
+      `UPDATE submissions
+       SET status = $1, failure_code = NULL, published_slug = $2, workflow_version = $3, build_evidence = $4, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5 AND status IN (${fromStates.map((_, index) => `$${index + 6}`).join(', ')})
+       RETURNING id`,
+      [deployment.status, deployment.publishedSlug, deployment.workflowVersion, evidence, submissionId, ...fromStates]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare(`UPDATE submissions SET status = ?, failure_code = NULL, published_slug = ?, workflow_version = ?, build_evidence = ?, updated_at = ? WHERE id = ? AND status IN (${fromStates.map(() => '?').join(', ')})`)
+      .bind(deployment.status, deployment.publishedSlug, deployment.workflowVersion, evidence, new Date().toISOString(), submissionId, ...fromStates).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.id === submissionId && fromStates.includes(record.status)) {
+      record.status = deployment.status;
+      record.failure_code = null;
+      record.published_slug = deployment.publishedSlug;
+      record.workflow_version = deployment.workflowVersion;
+      record.build_evidence = evidence;
+      record.updated_at = new Date().toISOString();
+      return true;
+    }
+  }
+  return false;
+}
+
+async function internalMarkDeployed(env, submissionId, metadata) {
+  const deployedAt = new Date().toISOString();
+  const deploymentMeta = JSON.stringify(metadata, null, 0);
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-submission-deployed-v1',
+      `UPDATE submissions
+       SET status = 'deployed', failure_code = NULL, deployment_metadata = $1, updated_at = CURRENT_TIMESTAMP, deployed_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+         AND status = 'ready_for_publish'
+         AND published_slug IS NOT NULL
+         AND workflow_version IS NOT NULL
+         AND build_evidence IS NOT NULL
+       RETURNING id`,
+      [deploymentMeta, submissionId]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare("UPDATE submissions SET status = 'deployed', failure_code = NULL, deployment_metadata = ?, updated_at = ?, deployed_at = ? WHERE id = ? AND status = 'ready_for_publish' AND published_slug IS NOT NULL AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL")
+      .bind(deploymentMeta, deployedAt, deployedAt, submissionId).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.id === submissionId && record.status === 'ready_for_publish' &&
+        record.published_slug && record.workflow_version && record.build_evidence) {
+      record.status = 'deployed';
+      record.failure_code = null;
+      record.deployment_metadata = deploymentMeta;
+      record.updated_at = deployedAt;
+      record.deployed_at = deployedAt;
+      return true;
+    }
+  }
+  return false;
 }
 
 function normalizeRequestedRuntime(value) {
