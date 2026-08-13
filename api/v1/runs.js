@@ -108,7 +108,7 @@ function extractRunId(req){
 
 async function authenticateDefault(req,env,fetchImpl){
  const authorization=String(req.headers?.authorization||'').trim();const explicit=String(req.headers?.['x-api-key']||'').trim();const bearer=/^Bearer\s+(.+)$/i.exec(authorization);const credential=explicit||(bearer?.[1]||'');
- if(credential.startsWith('omo_')){if(!env.NEON_DATABASE_URL)return null;const store=await createNeonStore(env);const userId=await store.apiKeyOwner(hash(credential));return userId?{userId,method:'api_key'}:null}
+ if(credential.startsWith('omo_')){if(!env.DATABASE_URL&&!env.NEON_DATABASE_URL)return null;const store=await createNeonStore(env);const userId=await store.apiKeyOwner(hash(credential));return userId?{userId,method:'api_key'}:null}
  if(!bearer||!env.CLERK_PUBLISHABLE_KEY)return null;
  try{return {userId:await verifyClerkJwt(bearer[1],env,fetchImpl),method:'clerk'}}catch{return null}
 }
@@ -192,7 +192,7 @@ export function createMemoryServices({balanceCents=500}={}){
 }
 
 export async function createNeonStore(env){
- const {Pool}=await import('@neondatabase/serverless');const pool=new Pool({connectionString:env.NEON_DATABASE_URL});
+ const {Pool}=await import('@neondatabase/serverless');const pool=new Pool({connectionString:env.DATABASE_URL||env.NEON_DATABASE_URL});
  return {
   async apiKeyOwner(keyHash){const r=await pool.query('SELECT user_id FROM api_keys WHERE key_hash=$1',[keyHash]);return r.rows[0]?.user_id||''},
   async claim(userId,key,requestHash,row){const c=await pool.connect();try{await c.query('BEGIN');const ins=await c.query(`INSERT INTO run_requests (run_id,user_id,idempotency_key,request_hash,slug,workflow_version,cost_cents,execution_status,billing_status,input_json,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'claimed','unbilled',$8,$9,$10) ON CONFLICT (user_id,idempotency_key) DO NOTHING RETURNING *`,[row.run_id,userId,key,requestHash,row.slug,row.workflow_version,row.cost_cents,JSON.stringify(row.input),row.created_at,row.updated_at]);const found=ins.rowCount?ins:await c.query('SELECT * FROM run_requests WHERE user_id=$1 AND idempotency_key=$2',[userId,key]);await c.query('COMMIT');return {created:!!ins.rowCount,row:normalizeRow(found.rows[0])}}catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}},
@@ -217,7 +217,7 @@ async function identityFor(req,env,fetchImpl,deps){
 }
 export async function handleRun(req,res,env=process.env,fetchImpl=fetch,deps={}){
  const requestedWorkflow=req.method==='POST'&&validObject(req.body)?WORKFLOWS[req.body.workflow?.slug]:null;
- if(!env.NEON_DATABASE_URL&&(req.method!=='GET'||!deps.store))return send(res,503,publicError('SERVER_NOT_CONFIGURED','Run service is not configured',true));
+ if(!env.DATABASE_URL&&!env.NEON_DATABASE_URL&&(req.method!=='GET'||!deps.store))return send(res,503,publicError('SERVER_NOT_CONFIGURED','Run service is not configured',true));
  const identity=await identityFor(req,env,fetchImpl,deps);if(!identity)return send(res,401,publicError('UNAUTHORIZED','Verified Clerk JWT or API key required'));
  let store;try{store=deps.store||await createNeonStore(env)}catch{return send(res,503,publicError('SERVER_NOT_CONFIGURED','Database is unavailable',true))}
  if(req.method==='GET'){
