@@ -3,7 +3,8 @@
 -- Neon (recommended): psql "$NEON_DATABASE_URL" -f schema.sql
 -- D1 fallback: use the CREATE TABLE/CREATE INDEX definitions for fresh local
 -- databases; the submissions table below includes workflow_version,
--- published_slug, and build_evidence for fresh D1 parity. The additive
+-- published_slug, build_evidence, build_claimed_at, and build_attempts for
+-- fresh D1 parity. The additive
 -- ALTER TABLE ... ADD COLUMN IF NOT EXISTS migration statements are
 -- Postgres/Neon syntax. For an existing D1 database, apply equivalent
 -- manual ALTER TABLE ADD COLUMN statements in a separate reviewed D1 migration.
@@ -214,6 +215,8 @@ CREATE TABLE IF NOT EXISTS submissions (
   workflow_version  TEXT,
   published_slug    TEXT,
   build_evidence    TEXT,
+  build_claimed_at  TEXT,
+  build_attempts    INTEGER NOT NULL DEFAULT 0,
   deployment_metadata TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
@@ -230,6 +233,8 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS runtime_compatibility TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS workflow_version TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS published_slug TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_evidence TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_claimed_at TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_attempts INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS deployment_metadata TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_submissions_status_created

@@ -105,6 +105,37 @@ const facebookCalls = [];
 const facebookStatuses = new Map();
 const facebookCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'tests', 'cases.json'), 'utf8'));
 let workerNativeMode = 'valid';
+const neonSqlCalls = [];
+let neonPoolShouldThrow = false;
+
+class MockPool {
+  constructor(options) {
+    this.options = options;
+  }
+
+  async connect() {
+    const poolOptions = this.options;
+    return {
+      async query(query) {
+        const entry = typeof query === 'string'
+          ? { text: query, values: null, name: null, connectionString: poolOptions.connectionString }
+          : { text: query.text, values: query.values || [], name: query.name, connectionString: poolOptions.connectionString };
+        neonSqlCalls.push(entry);
+        if (neonPoolShouldThrow && entry.text.startsWith('ALTER TABLE')) {
+          throw new Error(`leaked dsn ${poolOptions.connectionString}`);
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      release() {
+        neonSqlCalls.push({ text: 'RELEASE', values: null, name: null, connectionString: poolOptions.connectionString });
+      },
+    };
+  }
+
+  async end() {
+    neonSqlCalls.push({ text: 'POOL_END', values: null, name: null, connectionString: this.options.connectionString });
+  }
+}
 
 function llmResponse(status, envelope) {
   const text = JSON.stringify(envelope);
@@ -211,9 +242,11 @@ const sandbox = {
   btoa,
   crypto: webcrypto,
   console,
+  Pool: MockPool,
+  neon: () => ({ query: async () => ({ rows: [], rowCount: 0 }) }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -231,7 +264,7 @@ function check(name, cond) {
 check('Neon: Worker never caches request-bound Pool I/O in module scope',
   !workerSrc.includes('let neonPool') &&
   workerSrc.includes("neon(url, { fullResults: true })") &&
-  (workerSrc.match(/await client\.release\(\)/g) || []).length === 5);
+  (workerSrc.match(/await client\.release\(\)/g) || []).length === 6);
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
@@ -523,6 +556,7 @@ check('submissions API: missing auth, non-owner, and missing details fail closed
 
 // Private build-worker bridge: bearer-only, no CORS, bounded strict payloads.
 const buildEnv = { ...realEnv, BUILD_WORKER_TOKEN: 'bridge-token-for-tests' };
+const internalHeaders = { Authorization: 'Bearer bridge-token-for-tests', Origin: 'https://omo.space' };
 check('internal auth: constant-time helper is length-stable and exact',
   workerTest.constantTimeEquals('bridge-token-for-tests', 'bridge-token-for-tests') === true &&
   workerTest.constantTimeEquals('bridge-token-for-tests', 'bridge-token-for-testx') === false &&
@@ -548,6 +582,69 @@ check('internal auth: missing config is 503, bad token is 401, and internal rout
   internalUnknown.status === 404 &&
   internalUnknown.headers.get('Access-Control-Allow-Origin') === null);
 
+const migrationEnv = { ...buildEnv, NEON_DATABASE_URL: 'postgres://user:secret@db.invalid/omo' };
+const migrationNoConfig = await worker.fetch(mkReq('POST', '/api/internal/submissions/migrate', {}, internalHeaders), buildEnv);
+const migrationBadAuth = await worker.fetch(mkReq('POST', '/api/internal/submissions/migrate', {}, {
+  Authorization: 'Bearer wrong-token',
+  Origin: 'https://omo.space',
+}), migrationEnv);
+const migrationNonempty = await worker.fetch(mkReq('POST', '/api/internal/submissions/migrate', { sql: 'ALTER TABLE anything' }, internalHeaders), migrationEnv);
+const migrationEmptyBody = await worker.fetch(Object.assign(mkReq('POST', '/api/internal/submissions/migrate', {}, internalHeaders), {
+  text: async () => '',
+}), migrationEnv);
+const migrationOversize = await worker.fetch(Object.assign(mkReq('POST', '/api/internal/submissions/migrate', {}, internalHeaders), {
+  text: async () => JSON.stringify({}).padEnd(300, ' '),
+}), migrationEnv);
+check('internal migration auth/body: requires build token, Neon config, literal {}, and exposes no CORS',
+  migrationNoConfig.status === 500 &&
+  (await migrationNoConfig.clone().json()).error === 'internal_error' &&
+  migrationBadAuth.status === 401 &&
+  migrationBadAuth.headers.get('Access-Control-Allow-Origin') === null &&
+  migrationNonempty.status === 400 &&
+  migrationEmptyBody.status === 400 &&
+  migrationOversize.status === 413);
+
+neonSqlCalls.length = 0;
+neonPoolShouldThrow = false;
+const migrationOne = await worker.fetch(mkReq('POST', '/api/internal/submissions/migrate', {}, internalHeaders), migrationEnv);
+const migrationOneBody = await migrationOne.json();
+const migrationFirstCalls = neonSqlCalls.map(({ text, values, name }) => ({ text, values, name }));
+neonSqlCalls.length = 0;
+const migrationTwo = await worker.fetch(mkReq('POST', '/api/internal/submissions/migrate', {}, internalHeaders), migrationEnv);
+const migrationTwoBody = await migrationTwo.json();
+const expectedMigrationNames = workerTest.SUBMISSIONS_SCHEMA_MIGRATIONS.map(([name]) => name);
+const expectedMigrationSql = [
+  'BEGIN',
+  ...workerTest.SUBMISSIONS_SCHEMA_MIGRATIONS.map(([, sql]) => sql),
+  'COMMIT',
+  'RELEASE',
+  'POOL_END',
+];
+check('internal migration: fixed allowlisted SQL runs in one transaction with no request parameters',
+  migrationOne.status === 200 &&
+  migrationOne.headers.get('Access-Control-Allow-Origin') === null &&
+  migrationOneBody.ok === true &&
+  JSON.stringify(migrationOneBody.applied) === JSON.stringify(expectedMigrationNames) &&
+  JSON.stringify(migrationFirstCalls.map((call) => call.text)) === JSON.stringify(expectedMigrationSql) &&
+  migrationFirstCalls.slice(1, 6).every((call) => Array.isArray(call.values) && call.values.length === 0 && /^omo-submissions-migrate-[a-z_]+-v1$/.test(call.name || '') && call.text.includes('ADD COLUMN IF NOT EXISTS')) &&
+  !JSON.stringify(migrationFirstCalls).includes('ALTER TABLE anything'));
+check('internal migration: idempotent replay returns the same allowlisted names and SQL sequence',
+  migrationTwo.status === 200 &&
+  JSON.stringify(migrationTwoBody.applied) === JSON.stringify(expectedMigrationNames) &&
+  JSON.stringify(neonSqlCalls.map((call) => call.text)) === JSON.stringify(expectedMigrationSql));
+
+neonSqlCalls.length = 0;
+neonPoolShouldThrow = true;
+const migrationFailure = await worker.fetch(mkReq('POST', '/api/internal/submissions/migrate', {}, internalHeaders), migrationEnv);
+const migrationFailureText = await migrationFailure.text();
+neonPoolShouldThrow = false;
+check('internal migration: database errors are generic and never include DSN or exception text',
+  migrationFailure.status === 500 &&
+  migrationFailureText === '{"error":"internal_error"}' &&
+  !migrationFailureText.includes('postgres://') &&
+  !migrationFailureText.includes('secret') &&
+  neonSqlCalls.some((call) => call.text === 'ROLLBACK'));
+
 for (const record of workerTest.mockSubmissions.values()) {
   if (record.id === submitAuto.id) {
     record.status = 'queued';
@@ -556,7 +653,6 @@ for (const record of workerTest.mockSubmissions.values()) {
     record.build_evidence = null;
   }
 }
-const internalHeaders = { Authorization: 'Bearer bridge-token-for-tests', Origin: 'https://omo.space' };
 const internalClaim = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: submitAuto.id }, internalHeaders), buildEnv);
 const internalClaimBody = await internalClaim.json();
 const internalReplay = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: submitAuto.id }, internalHeaders), buildEnv);

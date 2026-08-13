@@ -12,6 +12,7 @@
 //   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
+//   POST /api/internal/submissions/migrate → temporary build-worker schema migration
 //
 // Env vars (set in Cloudflare dashboard / wrangler secret):
 //   LLM_API_KEY  — key for the OpenAI-compatible endpoint below (SECRET)
@@ -230,6 +231,7 @@ function assertHostedRegistryDisjoint() {
 const MAX_TOPUP_USD_DEFAULT = 1000;
 const MAX_SUBMISSION_BYTES = 200 * 1024;
 const MAX_INTERNAL_BODY_BYTES = 16 * 1024;
+const MAX_INTERNAL_MIGRATION_BODY_BYTES = 256;
 const USER_ID_RE = /^user_[A-Za-z0-9_-]{1,80}$/;
 const SUBMISSION_ID_RE = /^sub_[A-Za-z0-9_-]{8,100}$/;
 const SAFE_FAILURE_RE = /^[a-z][a-z0-9_]{2,63}$/;
@@ -307,6 +309,8 @@ const ROUTES = {
 };
 
 function dynamicRoute(pathname) {
+  const internalMigration = /^\/api\/internal\/submissions\/migrate$/.exec(pathname);
+  if (internalMigration) return { handler: handleInternalSubmissionMigration, methods: ['POST'], internal: true };
   const internalClaim = /^\/api\/internal\/submissions\/claim$/.exec(pathname);
   if (internalClaim) return { handler: handleInternalSubmissionClaim, methods: ['POST'], internal: true };
   const internalStatus = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/status$/.exec(pathname);
@@ -1924,6 +1928,14 @@ function safeBuildEvidence(value) {
 // These endpoints are intentionally bearer-only and same-zone/private. They
 // never set CORS headers and never return owner ids or source except on claim.
 
+const SUBMISSIONS_SCHEMA_MIGRATIONS = [
+  ['workflow_version', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS workflow_version TEXT'],
+  ['published_slug', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS published_slug TEXT'],
+  ['build_evidence', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_evidence TEXT'],
+  ['build_claimed_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_claimed_at TEXT'],
+  ['build_attempts', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_attempts INTEGER NOT NULL DEFAULT 0'],
+];
+
 function internalJson(obj, status) {
   return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 }
@@ -1960,6 +1972,24 @@ async function readInternalJson(request) {
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { error: 'invalid_json', status: 400 };
+    }
+    return { body: parsed };
+  } catch {
+    return { error: 'invalid_json', status: 400 };
+  }
+}
+
+async function readStrictEmptyInternalJson(request, maxBytes) {
+  let raw = '';
+  try { raw = await request.text(); } catch { raw = ''; }
+  if (new TextEncoder().encode(raw).length > maxBytes) {
+    return { error: 'body_too_large', status: 413 };
+  }
+  if (!raw.trim()) return { error: 'invalid_json', status: 400 };
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || Object.keys(parsed).length !== 0) {
       return { error: 'invalid_json', status: 400 };
     }
     return { body: parsed };
@@ -2086,6 +2116,13 @@ async function handleInternalSubmissionDeployed(request, env, _url, params) {
   const updated = await internalMarkDeployed(env, params.submissionId, metadata);
   return updated ? internalJson({ ok: true, id: params.submissionId, status: 'deployed' }, 200)
     : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalSubmissionMigration(request, env) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const applied = await applySubmissionsSchemaMigration(env);
+  return internalJson({ ok: true, applied }, 200);
 }
 
 // ── Route: dashboard /api/me ──────────────────────────────────────────────
@@ -2788,6 +2825,26 @@ async function internalMarkDeployed(env, submissionId, metadata) {
     }
   }
   return false;
+}
+
+async function applySubmissionsSchemaMigration(env) {
+  if (databaseKind(env) !== 'neon') throw new Error('internal_error');
+  const client = await getNeonPool(env).connect();
+  try {
+    await client.query('BEGIN');
+    const applied = [];
+    for (const [name, statement] of SUBMISSIONS_SCHEMA_MIGRATIONS) {
+      await client.query(prepared(`omo-submissions-migrate-${name}-v1`, statement, []));
+      applied.push(name);
+    }
+    await client.query('COMMIT');
+    return applied;
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* no-op */ }
+    throw new Error('internal_error');
+  } finally {
+    await client.release();
+  }
 }
 
 function normalizeRequestedRuntime(value) {
