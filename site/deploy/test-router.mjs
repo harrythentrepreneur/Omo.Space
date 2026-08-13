@@ -273,6 +273,19 @@ check('catalog cards: per-run prices render to two decimal places', indexSource.
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
 check('run page: empty API base dispatches through the deployed same-origin Worker rewrite', runPageSource.includes("function workerBase() { return API_BASE || window.location.origin; }"));
 check('creator upload: seller CTA reaches a real file-reading authenticated queue with honest local-only rollout receipts', sellSource.includes('href="host.html#upload"') && hostSource.includes('id="upload-form"') && uploadSource.includes('await selectedFile.text()') && uploadSource.includes("fetch(apiBase() + '/api/submit'") && uploadSource.includes("Authorization: 'Bearer ' + token") && uploadSource.includes('if (isFilePreview())') && uploadSource.includes("error.code === 'queue_unavailable'") && uploadSource.includes('not the Markdown') && !uploadSource.includes('startProgress'));
+check('creator upload: browser persists only server submission ids and restores from owner APIs',
+  uploadSource.includes("fetchJsonWithAuth('/api/submissions?limit=20')") &&
+  uploadSource.includes("fetchJsonWithAuth('/api/submissions/' + encodeURIComponent") &&
+  uploadSource.includes('writeSubmissionIds') &&
+  uploadSource.includes('readSubmissionIds') &&
+  !uploadSource.includes('localStorage.setItem(STORAGE_KEY, JSON.stringify(submissions)'));
+check('creator upload: lifecycle UI is honest and opens workflow only after deployment',
+  uploadSource.includes('runtimeDecisionText') &&
+  uploadSource.includes('Open workflow') &&
+  uploadSource.includes("submission.status === 'deployed' && submission.published_slug") &&
+  uploadSource.includes('Queued for review') &&
+  uploadSource.includes('Build gates running') &&
+  !uploadSource.includes('automated research'));
 
 let browserCheckoutCall = null;
 const stripeClientSandbox = {
@@ -310,7 +323,7 @@ check('router: GET returns 405', get.status === 405);
 // Unknown route → 404
 const nf = await worker.fetch(mkReq('POST', '/api/nope', {}), env);
 const nfBody = await nf.json();
-check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 10);
+check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 11);
 
 // Public waitlist signup: normalized insert, validation, and duplicate replay.
 const waitlistAddedResponse = await worker.fetch(mkReq('POST', '/api/waitlist', {
@@ -421,6 +434,92 @@ const submitOversize = await worker.fetch(mkReq('POST', '/api/submit', {
   name: 'Boundary workflow', content: boundaryContent + 'x',
 }, creatorHeaders), realEnv);
 check('submit: 200 KiB is accepted and the next byte is rejected', submitBoundary.status === 202 && submitOversize.status === 400);
+
+for (const record of workerTest.mockSubmissions.values()) {
+  if (record.id === submitAdded.id) {
+    Object.assign(record, {
+      status: 'deployed',
+      selected_runtime: 'worker-native',
+      runtime_policy: 'reviewed_profile_selected_worker',
+      runtime_compatibility: JSON.stringify({
+        recommended: 'worker-native',
+        requested: 'modal-hosted',
+        compatible: true,
+        provider_config: { api_key_env: 'LLM_API_KEY', base_url: 'https://secret.invalid' },
+        internal_error: 'stack trace should not leave the server',
+      }),
+      workflow_version: 'sample-workflow@1.0.0',
+      published_slug: 'sample-workflow',
+      build_evidence: JSON.stringify({
+        checks: ['compile', 'router'],
+        source_sha256: record.sourceSha256,
+        secret: 'sk_test_secret',
+        provider_config: { token: 'hidden' },
+        log: 'internal failure text hidden',
+      }),
+      created_at: '2026-08-13T00:10:00.000Z',
+      updated_at: '2026-08-13T00:10:00.000Z',
+      deployed_at: '2026-08-13T00:10:00.000Z',
+    });
+  }
+  if (record.id === submitAuto.id) {
+    Object.assign(record, {
+      created_at: '2026-08-13T00:20:00.000Z',
+      updated_at: '2026-08-13T00:20:00.000Z',
+      status: 'ready_for_deploy',
+      selected_runtime: 'modal-hosted',
+      runtime_policy: 'reviewed_profile_selected_modal',
+      runtime_compatibility: '{"recommended":"modal-hosted","requested":"auto","compatible":true}',
+      workflow_version: 'auto-workflow@1.0.0',
+      build_evidence: '{"checks":["compile"],"duration_ms":1234}',
+    });
+  } else if (record.userId === 'user_creator') {
+    Object.assign(record, {
+      created_at: '2026-08-13T00:00:00.000Z',
+      updated_at: '2026-08-13T00:00:00.000Z',
+    });
+  }
+}
+
+const submissionsListResponse = await worker.fetch(mkReq('GET', '/api/submissions?limit=1', {}, creatorHeaders), realEnv);
+const submissionsList = await submissionsListResponse.json();
+check('submissions list: authenticated owner receives newest-first bounded safe summaries',
+  submissionsListResponse.status === 200 &&
+  submissionsList.ok === true &&
+  submissionsList.limit === 1 &&
+  submissionsList.submissions.length === 1 &&
+  submissionsList.submissions[0].id === submitAuto.id &&
+  submissionsList.submissions[0].workflow_version === 'auto-workflow@1.0.0' &&
+  submissionsList.submissions[0].selected_runtime === 'modal-hosted' &&
+  submissionsList.submissions[0].compatibility.compatible === true &&
+  submissionsList.submissions[0].build_evidence.checks.includes('compile') &&
+  !('content' in submissionsList.submissions[0]));
+
+const submissionDetailResponse = await worker.fetch(mkReq('GET', `/api/submissions/${submitAdded.id}`, {}, creatorHeaders), realEnv);
+const submissionDetail = await submissionDetailResponse.json();
+const detailText = JSON.stringify(submissionDetail);
+check('submissions detail: owner response includes lifecycle fields and redacts unsafe internals',
+  submissionDetailResponse.status === 200 &&
+  submissionDetail.ok === true &&
+  submissionDetail.submission.id === submitAdded.id &&
+  submissionDetail.submission.published_slug === 'sample-workflow' &&
+  /^[0-9a-f]{64}$/.test(submissionDetail.submission.source_sha256) &&
+  submissionDetail.submission.workflow_version === 'sample-workflow@1.0.0' &&
+  submissionDetail.submission.status === 'deployed' &&
+  submissionDetail.submission.deployed_at === '2026-08-13T00:10:00.000Z' &&
+  submissionDetail.submission.compatibility.requested === 'modal-hosted' &&
+  submissionDetail.submission.compatibility.recommended === 'worker-native' &&
+  submissionDetail.submission.build_evidence.checks.includes('compile') &&
+  !detailText.includes('SKILL.md') &&
+  !detailText.includes('provider_config') &&
+  !detailText.includes('secret') &&
+  !detailText.includes('stack trace') &&
+  !detailText.includes('internal failure'));
+
+const nonOwnerDetail = await worker.fetch(mkReq('GET', `/api/submissions/${submitAdded.id}`, {}, otherCreatorHeaders), realEnv);
+const missingDetail = await worker.fetch(mkReq('GET', '/api/submissions/sub_00000000000000000000000000000000', {}, creatorHeaders), realEnv);
+const missingListAuth = await worker.fetch(mkReq('GET', '/api/submissions', {}, {}), realEnv);
+check('submissions API: missing auth, non-owner, and missing details fail closed', missingListAuth.status === 401 && nonOwnerDetail.status === 404 && missingDetail.status === 404);
 
 // Generic /api/run route
 const run = await (await worker.fetch(mkReq('POST', '/api/run', {
