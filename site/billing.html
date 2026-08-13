@@ -524,20 +524,34 @@
           return Promise.resolve(account);
         }
 
-        account.mode = 'loading';
-        account.userId = user.id;
-        account.balanceUsd = null;
-        account.balanceCents = null;
-        account.apiKey = '';
-        account.runs = [];
-        render();
+        var cached = window.OmoCredits && typeof window.OmoCredits.getCachedBalance === 'function'
+          ? window.OmoCredits.getCachedBalance() : null;
+        if (cached && cached.userId === user.id) {
+          account.mode = 'cached';
+          account.userId = cached.userId;
+          account.balanceCents = cached.balanceCents;
+          account.balanceUsd = cached.balanceUsd;
+          account.apiKey = '';
+          account.runs = cached.runs || [];
+          account.verifiedAt = cached.verifiedAt;
+          render();
+          showNote('Last verified ' + new Date(cached.verifiedAt).toLocaleTimeString() + ' · Refreshing…', '');
+        } else {
+          account.mode = 'loading';
+          account.userId = user.id;
+          account.balanceUsd = null;
+          account.balanceCents = null;
+          account.apiKey = '';
+          account.runs = [];
+          render();
+        }
         if (!window.OmoCredits || typeof window.OmoCredits.getBalance !== 'function') {
           account.mode = 'unavailable';
           render();
           showNote('The balance service could not be loaded.', 'error');
           return Promise.resolve(account);
         }
-        return window.OmoCredits.getBalance({ force: true }).then(function (data) {
+        return window.OmoCredits.getBalance({ force: true, preserve: true }).then(function (data) {
           var activeUser = currentUser();
           if (activeRequest !== requestId || !activeUser || activeUser.id !== user.id) return account;
           account.mode = data.mode;

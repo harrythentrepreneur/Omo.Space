@@ -10,6 +10,7 @@
   var PREVIEW_BALANCE_KEY = 'omo_balance_v1';
   var PREVIEW_USAGE_KEY = 'omo_usage_v1';
   var PREVIEW_API_KEY = 'omo_apikey_v1';
+  var VERIFIED_SNAPSHOT_PREFIX = 'omo_verified_account_v1:';
   var CACHE_MS = 10000;
   var cache = null;
   var inFlight = null;
@@ -102,6 +103,36 @@
     };
   }
 
+  function snapshotKey(userId) {
+    return VERIFIED_SNAPSHOT_PREFIX + userId;
+  }
+
+  function readVerifiedSnapshot(user) {
+    if (!user || !user.id || isFilePreview()) return null;
+    try {
+      var value = JSON.parse(window.localStorage.getItem(snapshotKey(user.id)) || 'null');
+      var cents = Number(value && value.balanceCents);
+      if (!value || value.userId !== user.id || !isFinite(cents) || cents < 0 || Math.round(cents) !== cents) return null;
+      return {
+        mode: 'cached', userId: user.id, balanceCents: cents, balanceUsd: cents / 100,
+        currency: 'usd', apiKey: '', runs: Array.isArray(value.runs) ? value.runs : [],
+        fetchedAt: Number(value.verifiedAt) || 0, verifiedAt: Number(value.verifiedAt) || 0
+      };
+    } catch (error) { return null; }
+  }
+
+  function writeVerifiedSnapshot(account) {
+    if (!account || account.mode !== 'server' || !account.userId) return;
+    try {
+      window.localStorage.setItem(snapshotKey(account.userId), JSON.stringify({
+        userId: account.userId,
+        balanceCents: account.balanceCents,
+        runs: account.runs,
+        verifiedAt: account.fetchedAt
+      }));
+    } catch (error) {}
+  }
+
   function formatUsd(cents) {
     return '$' + (Number(cents) / 100).toFixed(2);
   }
@@ -158,6 +189,7 @@
         throw accountError('stale', 'The account changed while the balance was loading.');
       }
       cache = account;
+      writeVerifiedSnapshot(account);
       return publish(account);
     });
   }
@@ -181,7 +213,7 @@
     if (!options.force && inFlight && inFlight.userId === user.id) return inFlight.promise;
 
     var requestGeneration = options.force ? ++generation : generation;
-    if (options.force) {
+    if (options.force && !options.preserve) {
       cache = null;
       publish({ mode: 'loading', userId: user.id, balanceCents: null, balanceUsd: null, runs: [] });
     }
@@ -212,6 +244,7 @@
 
   window.OmoCredits = {
     getBalance: getBalance,
+    getCachedBalance: function () { return readVerifiedSnapshot(currentUser()); },
     refresh: refresh,
     invalidate: invalidate,
     isFilePreview: isFilePreview
