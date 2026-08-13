@@ -4456,3 +4456,2763 @@ window.OMO_CATALOG = [
   // host-skill:generated:start
   // host-skill:generated:end
 ];
++window.OMO_CATALOG.push(
+  ...[
+    {
+      "slug": "avatar-ugc-video-studio",
+      "name": "Avatar UGC Video Studio",
+      "emoji": "🎬",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Turn a product pitch into a talking-head UGC video with a HeyGen avatar — script, render, and voiceover in one run.",
+      "maker": "@avatarmaster",
+      "makerName": "Río Alvarado",
+      "cover": "covers/thumb-avatar-ugc-video-studio-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste a product pitch and pick an avatar style. We write the script, render the avatar video, and add a voiceover — you get a finished UGC-style ad without hiring talent or touching an editor.",
+      "inputs": [
+        "pitch: your product pitch or bullet points",
+        "avatar_style: friendly · professional · energetic",
+        "length: 30 or 60 seconds"
+      ],
+      "outputs": [
+        "video — rendered avatar video with voiceover",
+        "script — the exact lines spoken on camera",
+        "captions — on-screen text per line"
+      ]
+    },
+    {
+      "slug": "ugc-script-batch",
+      "name": "UGC Script Batch",
+      "emoji": "📦",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Five ready-to-film UGC scripts from one product, in five different angles.",
+      "maker": "@scriptstack",
+      "makerName": "Zara Odum",
+      "cover": "covers/thumb-ugc-script-batch-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Get five distinct UGC scripts for the same product — problem/solution, demo, testimonial-style, comparison, and raw honest — so you can A/B test angles without a brainstorm.",
+      "inputs": [
+        "product: what you sell and its key features",
+        "audience: who buys it"
+      ],
+      "outputs": [
+        "scripts — 5 angle scripts with hooks and CTAs",
+        "angle_notes — why each angle works"
+      ]
+    },
+    {
+      "slug": "hook-generator",
+      "name": "Hook Generator",
+      "emoji": "🪝",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Ten scroll-stopping first-2-seconds hooks for your product ad.",
+      "maker": "@hookline",
+      "makerName": "Miles Tanaka",
+      "cover": "covers/thumb-hook-generator-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "The first two seconds decide whether your ad plays. Feed in your product and get ten hooks across pattern-interrupt, curiosity-gap, pain-agitation, and social-proof styles.",
+      "inputs": [
+        "product: what you sell",
+        "pain_point: the problem it solves"
+      ],
+      "outputs": [
+        "hooks — 10 hook lines, labeled by style",
+        "best_bet — the one most likely to stop the scroll"
+      ]
+    },
+    {
+      "slug": "ad-voice-switcher",
+      "name": "Ad Voice Switcher",
+      "emoji": "🎙️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Rewrite one ad script into four brand voices — raw, hype, luxury, funny.",
+      "maker": "@voicelab",
+      "makerName": "Ivy Chen",
+      "cover": "covers/thumb-ad-voice-switcher-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Keep the facts, change the feel. Paste an existing script and get four rewritten versions tuned to different brand voices so you can test which resonates with your audience.",
+      "inputs": [
+        "script: your existing ad script",
+        "facts_only: what claims are true"
+      ],
+      "outputs": [
+        "versions — raw · hype · luxury · funny rewrites",
+        "tone_map — what changed and why"
+      ]
+    },
+    {
+      "slug": "shorts-script-writer",
+      "name": "Shorts Script Writer",
+      "emoji": "📱",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A complete YouTube Shorts script with hook, beat points, and caption blocks.",
+      "maker": "@shortstack",
+      "makerName": "Kai Bergström",
+      "cover": "covers/thumb-shorts-script-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Shorts have a different rhythm than long-form. Get a tight under-60-second script with a visual beat per line and the caption text viewers read along with.",
+      "inputs": [
+        "topic: what the short is about",
+        "goal: views · followers · sales",
+        "style: talking-head · b-roll · screen-record"
+      ],
+      "outputs": [
+        "script — beat-by-beat lines with timings",
+        "captions — caption text per beat",
+        "cta — end-screen call to action"
+      ]
+    },
+    {
+      "slug": "transcript-captioner",
+      "name": "Transcript Captioner",
+      "emoji": "💬",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Turn a raw video transcript into punchy on-screen captions that boost watch time.",
+      "maker": "@captionco",
+      "makerName": "Nora Haddad",
+      "cover": "covers/thumb-transcript-captioner-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste any transcript and get short, keyword-highlighted caption lines — the kind that keep viewers watching with sound off.",
+      "inputs": [
+        "transcript: the raw spoken text",
+        "tone: casual · hype · informative"
+      ],
+      "outputs": [
+        "captions — short caption lines, one per beat",
+        "highlights — the words to bold/emphasize"
+      ]
+    },
+    {
+      "slug": "broll-shot-planner",
+      "name": "B-Roll Shot Planner",
+      "emoji": "🎥",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A full b-roll shot list for your script — angles, props, and camera notes per line.",
+      "maker": "@shotlistpro",
+      "makerName": "Owen Fitzpatrick",
+      "cover": "covers/thumb-broll-shot-planner-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your script and get a matching shot list: which lines need close-ups, lifestyle footage, product demos, or text overlays — so any creator can film it in one take.",
+      "inputs": [
+        "script: your script lines",
+        "product: what\\u2019s on camera",
+        "style: studio · lifestyle · outdoor"
+      ],
+      "outputs": [
+        "shots — one shot per script line with camera notes",
+        "props_list — what to have on set"
+      ]
+    },
+    {
+      "slug": "explainer-script-writer",
+      "name": "Explainer Script Writer",
+      "emoji": "📹",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A 60-second explainer video script that gets the problem, the fix, and the CTA into one tight arc.",
+      "maker": "@explainpro",
+      "makerName": "Sage Whitfield",
+      "cover": "covers/thumb-explainer-script-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Explainer videos die in the middle. This script forces the classic arc — open the wound, introduce the fix, prove it, close — in under 150 words of voiceover.",
+      "inputs": [
+        "product: what it does",
+        "problem: what it fixes",
+        "audience: who it\\u2019s for"
+      ],
+      "outputs": [
+        "script — voiceover lines with visual notes",
+        "arc_check — where each beat lands"
+      ]
+    },
+    {
+      "slug": "product-demo-voiceover",
+      "name": "Product Demo Voiceover",
+      "emoji": "🗣️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A narrated product demo — script written, then voiced with ElevenLabs so you can drop it straight into a screen recording.",
+      "maker": "@voiceninja",
+      "makerName": "Luna Park",
+      "cover": "covers/thumb-product-demo-voiceover-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your product\\u2019s features and the on-screen steps. We write a tight demo narration and generate a natural voiceover track — no microphone needed.",
+      "inputs": [
+        "features: what the product does",
+        "steps: the on-screen flow to narrate",
+        "voice: warm · upbeat · professional"
+      ],
+      "outputs": [
+        "narration — timed script lines",
+        "audio — ElevenLabs voiceover track",
+        "sync_notes — which line goes with which step"
+      ]
+    },
+    {
+      "slug": "ugc-cast-studio",
+      "name": "UGC Cast Studio",
+      "emoji": "🎭",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "One portrait, four consistent ad-ready variations — outfits, backgrounds, and expressions that keep the same face.",
+      "maker": "@castlab",
+      "makerName": "Finn Gallagher",
+      "cover": "covers/thumb-ugc-cast-studio-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Upload one clear portrait and get four generated variations of the same person in different settings — the recurring face that makes UGC ads feel like a real customer.",
+      "inputs": [
+        "portrait_url: one clear face-forward photo",
+        "scenes: e.g. kitchen, office, gym, unboxing",
+        "expression: smiling · neutral · surprised"
+      ],
+      "outputs": [
+        "variations — 4 generated images, same face",
+        "usage_notes — which scene fits which ad"
+      ]
+    },
+    {
+      "slug": "product-hero-studio",
+      "name": "Product Hero Studio",
+      "emoji": "🖼️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Four hero product shots — clean background, lifestyle, scale, and detail — generated from your product description.",
+      "maker": "@heroshots",
+      "makerName": "Avery Collins",
+      "cover": "covers/thumb-product-hero-studio-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Sellers without a studio get four professional product images: a white-background hero, a lifestyle scene, a scale shot with context, and a macro detail — ready for listings and ads.",
+      "inputs": [
+        "product: description, color, materials",
+        "style: minimal · warm · bold"
+      ],
+      "outputs": [
+        "images — 4 generated hero shots",
+        "shot_notes — which image goes where"
+      ]
+    },
+    {
+      "slug": "ad-thumbnail-lab",
+      "name": "Ad Thumbnail Lab",
+      "emoji": "🖌️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Two generated thumbnail concepts plus the copy overlay that makes people click.",
+      "maker": "@thumblab",
+      "makerName": "Rowan Blythe",
+      "cover": "covers/thumb-ad-thumbnail-lab-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Feed in your video topic and get two AI-generated thumbnail images with a short overlay text recommendation — click-worthy without a designer.",
+      "inputs": [
+        "topic: what the video is about",
+        "style: bold · clean · funny"
+      ],
+      "outputs": [
+        "thumbnails — 2 generated images",
+        "overlay_text — the words to put on top"
+      ]
+    },
+    {
+      "slug": "video-ad-auditor",
+      "name": "Video Ad Auditor",
+      "emoji": "🔍",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A scored audit of your ad script against the patterns that actually convert.",
+      "maker": "@adjudge",
+      "makerName": "Bella Fontaine",
+      "cover": "covers/thumb-video-ad-auditor-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your ad script and get a hook/offer/proof/CTA score, plus the specific rewrites that fix the weakest line. Built on the structure of winning short-form ads.",
+      "inputs": [
+        "script: your full ad script",
+        "offer: what you\\u2019re selling and for how much"
+      ],
+      "outputs": [
+        "score — out of 100 with per-section breakdown",
+        "fixes — line-by-line suggested rewrites"
+      ]
+    },
+    {
+      "slug": "tiktok-hashtag-finder",
+      "name": "TikTok Hashtag Finder",
+      "emoji": "#️⃣",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A curated hashtag stack for your niche — with the mix of sizes that actually gets reach.",
+      "maker": "@tagstack",
+      "makerName": "Enzo Ricci",
+      "cover": "covers/thumb-tiktok-hashtag-finder-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your niche and video topic. Get 20 hashtags in three size tiers — small, mid, big — so your video isn\\u2019t buried or flagged as spam.",
+      "inputs": [
+        "niche: your content category",
+        "topic: this specific video\\u2019s topic"
+      ],
+      "outputs": [
+        "hashtags — 20 tags in size tiers",
+        "strategy — which tier does what"
+      ]
+    },
+    {
+      "slug": "pinterest-pin-designer",
+      "name": "Pinterest Pin Designer",
+      "emoji": "📌",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Pin titles, descriptions, and image briefs that pull long-tail search traffic to your product.",
+      "maker": "@pinpro",
+      "makerName": "Isla Moreno",
+      "cover": "covers/thumb-pinterest-pin-designer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Pinterest is a search engine. Get keyword-led pin copy in the right format (up to 500 chars, front-loaded) plus an image brief for a vertical 2:3 pin.",
+      "inputs": [
+        "product: what you sell",
+        "keyword: your main search term"
+      ],
+      "outputs": [
+        "pin_copy — title + 500-char description",
+        "image_brief — vertical pin visual",
+        "keywords — 5 supporting terms"
+      ]
+    },
+    {
+      "slug": "reels-script-writer",
+      "name": "Reels Script Writer",
+      "emoji": "📸",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Instagram Reels scripts tuned to save, share, and comment triggers.",
+      "maker": "@reelsmith",
+      "makerName": "Theo Laurent",
+      "cover": "covers/thumb-reels-script-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Reels convert on engagement. Get a script with an explicit engagement hook (save/share/comment) built into the lines, plus the caption that asks for it.",
+      "inputs": [
+        "topic: reel subject",
+        "goal: save · share · comments · sales"
+      ],
+      "outputs": [
+        "script — lines with visual beats",
+        "caption — post caption with hook question"
+      ]
+    },
+    {
+      "slug": "carousel-post-builder",
+      "name": "Carousel Post Builder",
+      "emoji": "🎠",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A 6-slide Instagram carousel — headline per slide, body copy, and design direction.",
+      "maker": "@carouselforge",
+      "makerName": "Mae Calloway",
+      "cover": "covers/thumb-carousel-post-builder-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Carousels get 3x the saves of single images. Get a complete 6-slide structure: hook slide, three value slides, proof, and CTA — with copy and visual direction per slide.",
+      "inputs": [
+        "topic: the idea to teach or sell",
+        "audience: who it\\u2019s for"
+      ],
+      "outputs": [
+        "slides — headline + body per slide (6)",
+        "design_direction — visual style per slide"
+      ]
+    },
+    {
+      "slug": "trend-adaptor",
+      "name": "Trend Adaptor",
+      "emoji": "🔥",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Adapt your product pitch to the latest trending audio or format without sounding forced.",
+      "maker": "@trendfitter",
+      "makerName": "Jude Mbeki",
+      "cover": "covers/thumb-trend-adaptor-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste a trending format (POV, green screen, stitch, text-on-screen) and your pitch. Get a natural adaptation that rides the trend instead of cringing into it.",
+      "inputs": [
+        "trend: the format or audio vibe",
+        "pitch: your product pitch",
+        "guardrails: what to never do"
+      ],
+      "outputs": [
+        "adapted_script — trend-native script",
+        "why_it_works — the hook reasoning"
+      ]
+    },
+    {
+      "slug": "ad-variant-multiplier",
+      "name": "Ad Variant Multiplier",
+      "emoji": "✖️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "One ad concept, ten copy variants — different hooks, offers, and CTAs for clean A/B testing.",
+      "maker": "@variantlab",
+      "makerName": "Wren Okafor",
+      "cover": "covers/thumb-ad-variant-multiplier-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Creative testing needs volume. Paste one concept and get ten variants that change the hook, the offer angle, and the CTA — identical facts, different persuasion.",
+      "inputs": [
+        "concept: your ad idea",
+        "facts: what\\u2019s true about the product",
+        "price: the offer price"
+      ],
+      "outputs": [
+        "variants — 10 full ad copies",
+        "testing_note — how to split them"
+      ]
+    },
+    {
+      "slug": "uvp-miner",
+      "name": "UVP Miner",
+      "emoji": "💎",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Mine your reviews to find the unique value proposition customers actually repeat.",
+      "maker": "@uvphunter",
+      "makerName": "Otto Lindqvist",
+      "cover": "covers/thumb-uvp-miner-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Your customers already told you why they buy. Paste reviews and get the recurring themes, the exact phrases they use, and a one-line UVP you can put on the homepage.",
+      "inputs": [
+        "reviews: pasted customer reviews",
+        "product: what you sell"
+      ],
+      "outputs": [
+        "themes — recurring reasons people buy",
+        "customer_phrases — verbatim-style lines",
+        "uvp — a one-line unique value proposition"
+      ]
+    },
+    {
+      "slug": "creative-brief-writer",
+      "name": "Creative Brief Writer",
+      "emoji": "📋",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A one-page creative brief for your designer or agency — insight, angle, and deliverables.",
+      "maker": "@briefsmith",
+      "makerName": "Elia Marchetti",
+      "cover": "covers/thumb-creative-brief-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Vague briefs produce vague work. Feed in the product, audience, and goal — get a structured brief with the core insight, the creative angle, tone, and the exact deliverables.",
+      "inputs": [
+        "product: what you sell",
+        "audience: who it\\u2019s for",
+        "goal: awareness · clicks · sales"
+      ],
+      "outputs": [
+        "brief — full one-page creative brief",
+        "deliverables — list of assets to produce"
+      ]
+    },
+    {
+      "slug": "podcast-shorts-clipper",
+      "name": "Podcast Shorts Clipper",
+      "emoji": "✂️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Find the 5 most clip-worthy moments in your podcast transcript — with titles and hooks.",
+      "maker": "@clipfinder",
+      "makerName": "Rex Armstrong",
+      "cover": "covers/thumb-podcast-shorts-clipper-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste a podcast transcript and get the five moments with standalone value — a hot take, a story, a concrete tip — each with a suggested title and hook line for Shorts/Reels.",
+      "inputs": [
+        "transcript: the episode text",
+        "show_topic: what the episode covers"
+      ],
+      "outputs": [
+        "clips — 5 moments with timestamps + titles",
+        "hook_lines — opener for each clip"
+      ]
+    },
+    {
+      "slug": "live-shopping-script",
+      "name": "Live Shopping Script",
+      "emoji": "🛍️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A timed livestream shopping script with demos, engagement prompts, and offer cadence.",
+      "maker": "@livestudio",
+      "makerName": "Juno Reyes",
+      "cover": "covers/thumb-live-shopping-script-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Livestreams die without a structure. Get a minute-by-minute script: warm-up, three demo blocks, engagement prompts every 5 minutes, and the offer cadence that drives purchases.",
+      "inputs": [
+        "products: what you\\u2019re selling",
+        "length: 30 or 60 minutes",
+        "offer: the live-only deal"
+      ],
+      "outputs": [
+        "script — timed blocks with talking points",
+        "engagement_prompts — one per 5-min block"
+      ]
+    },
+    {
+      "slug": "audio-ad-script",
+      "name": "Audio Ad Script",
+      "emoji": "📻",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A podcast/radio ad script — plus a voiced audio track ready to drop into your buy.",
+      "maker": "@audiocopy",
+      "makerName": "Cole Bennett",
+      "cover": "covers/thumb-audio-ad-script-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Audio ads need spoken rhythm, not written grammar. Get a 30-60s host-read script and a generated voiceover track you can send straight to your podcast buy.",
+      "inputs": [
+        "offer: what you\\u2019re promoting",
+        "audience: the show\\u2019s listeners",
+        "tone: host-style · brand · direct"
+      ],
+      "outputs": [
+        "script — timed host-read lines",
+        "audio — ElevenLabs voiceover track"
+      ]
+    },
+    {
+      "slug": "youtube-seo-pack",
+      "name": "YouTube SEO Pack",
+      "emoji": "▶️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Title, description, tags, and chapters for your video — built around what people actually search.",
+      "maker": "@seoforvideo",
+      "makerName": "Vera Kimura",
+      "cover": "covers/thumb-youtube-seo-pack-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your video topic or transcript. Get a click-tuned title, a keyword-first description with timestamps, and a tag stack — everything you paste into the upload form.",
+      "inputs": [
+        "topic: video subject",
+        "keywords: your target search terms"
+      ],
+      "outputs": [
+        "title — click-optimized, under 70 chars",
+        "description — keyword-first with chapters",
+        "tags — 10-tag stack"
+      ]
+    },
+    {
+      "slug": "repurpose-planner",
+      "name": "Repurpose Planner",
+      "emoji": "♻️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "One long video becomes a month of shorts, posts, and threads — mapped out.",
+      "maker": "@repurposer",
+      "makerName": "Hugo Van Der Berg",
+      "cover": "covers/thumb-repurpose-planner-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Stop filming more, start re-cutting. Paste your long-form transcript and get a repurposing plan: which moments become Shorts, which become a carousel, which become a thread.",
+      "inputs": [
+        "transcript: your long video text",
+        "platforms: where you want to publish"
+      ],
+      "outputs": [
+        "plan — moment → platform → format map",
+        "priority_order — what to cut first"
+      ]
+    },
+    {
+      "slug": "ad-fatigue-refresher",
+      "name": "Ad Fatigue Refresher",
+      "emoji": "⚡",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "New angles for creatives that stopped performing — same product, fresh persuasion.",
+      "maker": "@freshangle",
+      "makerName": "Mica Santos",
+      "cover": "covers/thumb-ad-fatigue-refresher-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "When frequency kills your ads, the fix is a new angle, not a new budget. Paste your current ad and product facts, get five fresh creative angles that reframe the same offer.",
+      "inputs": [
+        "current_ad: what you\\u2019re running",
+        "product_facts: what\\u2019s true",
+        "past_angles: what you already tried"
+      ],
+      "outputs": [
+        "angles — 5 new creative directions",
+        "hook_each — opening line per angle"
+      ]
+    },
+    {
+      "slug": "video-hook-surgery",
+      "name": "Video Hook Surgery",
+      "emoji": "🩹",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Diagnose why your video\\u2019s first 3 seconds fail — and get 3 replacement hooks.",
+      "maker": "@hooksurgeon",
+      "makerName": "Arlo Nguyen",
+      "cover": "covers/thumb-video-hook-surgery-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Low retention usually means the first seconds are weak. Paste your hook and its context; get a diagnosis plus three rewritten hooks that fix the specific failure mode.",
+      "inputs": [
+        "current_hook: your first 3 seconds",
+        "video_topic: what the video is about",
+        "audience: who it\\u2019s for"
+      ],
+      "outputs": [
+        "diagnosis — why it fails",
+        "rewrites — 3 replacement hooks"
+      ]
+    },
+    {
+      "slug": "testimonial-script-maker",
+      "name": "Testimonial Script Maker",
+      "emoji": "💌",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Turn a written review into a spoken testimonial script your customer can film in one take.",
+      "maker": "@testimaker",
+      "makerName": "Sienna Cole",
+      "cover": "covers/thumb-testimonial-script-maker-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Written reviews sound stiff read aloud. Convert one into a natural first-person script — short sentences, one core claim, a specific detail that makes it believable.",
+      "inputs": [
+        "review: the customer\\u2019s written words",
+        "name: first name to use",
+        "length: 15 or 30 seconds"
+      ],
+      "outputs": [
+        "script — natural spoken lines",
+        "delivery_tips — how to film it"
+      ]
+    },
+    {
+      "slug": "before-after-pairer",
+      "name": "Before/After Pairer",
+      "emoji": "🪄",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Before/after image briefs that dramatize your product\\u2019s transformation — honestly.",
+      "maker": "@transformco",
+      "makerName": "Dario Petrov",
+      "cover": "covers/thumb-before-after-pairer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Before/after content is the highest-converting format in ecom. Get paired image briefs (same framing, same light) plus the honest caption language that avoids ad-review flags.",
+      "inputs": [
+        "product: what transforms what",
+        "before_state: the starting condition",
+        "after_state: the claimed result"
+      ],
+      "outputs": [
+        "briefs — before & after shot descriptions",
+        "caption — compliant side-by-side caption"
+      ]
+    },
+    {
+      "slug": "ugc-script-localizer",
+      "name": "UGC Script Localizer",
+      "emoji": "🌍",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Localize your UGC script for a new market — language, references, and price framing included.",
+      "maker": "@localvoice",
+      "makerName": "Amara Diallo",
+      "cover": "covers/thumb-ugc-script-localizer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Translation is not localization. Get your script rewritten for a target market: natural phrasing, local references, correct pricing framing, and no lost wordplay.",
+      "inputs": [
+        "script: your original UGC script",
+        "target_market: country/region",
+        "language: output language"
+      ],
+      "outputs": [
+        "localized_script — market-native lines",
+        "localization_notes — what changed and why"
+      ]
+    },
+    {
+      "slug": "avatar-tutorial-video",
+      "name": "Avatar Tutorial Video",
+      "emoji": "🎓",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "A HeyGen avatar explains your product — scripted, rendered, and voiced for onboarding or ads.",
+      "maker": "@tutormatic",
+      "makerName": "Kenji Watanabe",
+      "cover": "covers/thumb-avatar-tutorial-video-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Tutorial videos at scale, no studio. Give us the steps and audience; we write a teaching script, render a friendly avatar, and voice it — a 60-second explainer, done.",
+      "inputs": [
+        "steps: what the viewer learns",
+        "audience: who\\u2019s watching",
+        "avatar: friendly · expert · casual"
+      ],
+      "outputs": [
+        "video — rendered avatar tutorial",
+        "script — the teaching lines",
+        "chapter_marks — where each step starts"
+      ]
+    },
+    {
+      "slug": "bg-swap-studio",
+      "name": "Background Swap Studio",
+      "emoji": "🌅",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Three background variations of your product shot — studio, lifestyle, and seasonal.",
+      "maker": "@bgmagic",
+      "makerName": "Lila Novak",
+      "cover": "covers/thumb-bg-swap-studio-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "One good product photo, three ad-ready backgrounds. Describe the product shot and get generated variations that keep the product identical while changing the scene.",
+      "inputs": [
+        "product_photo: describe the current shot",
+        "scenes: e.g. studio, kitchen, holiday"
+      ],
+      "outputs": [
+        "variations — 3 generated background swaps",
+        "fit_notes — which scene for which channel"
+      ]
+    },
+    {
+      "slug": "ad-preview-browser",
+      "name": "Ad Preview Browser",
+      "emoji": "🖥️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "See how your landing page or ad actually renders across devices — with a written verdict.",
+      "maker": "@previewbot",
+      "makerName": "Gus Thornton",
+      "cover": "covers/thumb-ad-preview-browser-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "We open your page in a real browser session and describe what a visitor sees — layout, load issues, broken elements — then flag the top three things killing conversion.",
+      "inputs": [
+        "url: the page to check",
+        "goal: what the page should make visitors do"
+      ],
+      "outputs": [
+        "page_report — what renders and what breaks",
+        "top_fixes — 3 conversion-blocking issues"
+      ]
+    },
+    {
+      "slug": "video-style-transfer",
+      "name": "Video Style Transfer",
+      "emoji": "🎨",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Re-style your product video — film look, animation, or bold graphic — with two generated style passes.",
+      "maker": "@styleforge",
+      "makerName": "Nadia Haddad",
+      "cover": "covers/thumb-video-style-transfer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste a video description and pick a style — cinematic, stop-motion vibe, bold graphic. We generate styled passes via Replicate so you can compare looks before committing.",
+      "inputs": [
+        "video: describe the footage",
+        "style: cinematic · graphic · film-grain"
+      ],
+      "outputs": [
+        "styled_passes — 2 generated style versions",
+        "style_notes — which fits your brand"
+      ]
+    },
+    {
+      "slug": "product-3d-studio",
+      "name": "Product 3D Studio",
+      "emoji": "🧊",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Four 3D-style product views — orbit, exploded, cutaway, and scene — from a single description.",
+      "maker": "@threedee",
+      "makerName": "Ravi Mehta",
+      "cover": "covers/thumb-product-3d-studio-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "3D-looking product renders lift perceived value on listings. Get four generated views (orbit, exploded parts, cutaway, in-scene) from your product description — no CAD skills.",
+      "inputs": [
+        "product: description and materials",
+        "scene: floating · desk · outdoor"
+      ],
+      "outputs": [
+        "views — 4 generated 3D-style images",
+        "usage_map — which view for which page"
+      ]
+    },
+    {
+      "slug": "social-image-pack",
+      "name": "Social Image Pack",
+      "emoji": "🗂️",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Six on-brand images for a week of social posts — generated from one product brief.",
+      "maker": "@packager",
+      "makerName": "Tessa Lindgren",
+      "cover": "covers/thumb-social-image-pack-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "A week of posts without a designer: six generated images in a consistent visual language — quote card, product shot, lifestyle, detail, comparison, CTA — plus the caption for each.",
+      "inputs": [
+        "product: what you sell",
+        "brand_colors: palette words",
+        "week_theme: the message of the week"
+      ],
+      "outputs": [
+        "images — 6 generated posts",
+        "captions — one per image"
+      ]
+    },
+    {
+      "slug": "multilingual-voiceover",
+      "name": "Multilingual Voiceover",
+      "emoji": "🈯",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Your ad script voiced in three languages — ready to localize your video buys.",
+      "maker": "@polyvoice",
+      "makerName": "Yuki Sato",
+      "cover": "covers/thumb-multilingual-voiceover-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your English script and pick three markets. We localize the lines and generate a natural voiceover track for each — no translators or voice actors in the loop.",
+      "inputs": [
+        "script: your ad lines",
+        "languages: 3 target languages"
+      ],
+      "outputs": [
+        "localized_lines — script per language",
+        "audio — 3 voiceover tracks"
+      ]
+    },
+    {
+      "slug": "youtube-comment-replier",
+      "name": "YouTube Comment Replier",
+      "emoji": "💬",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Friendly, on-voice replies to your YouTube comments — in bulk, without sounding like a bot.",
+      "maker": "@replysmith",
+      "makerName": "Caleb Osei",
+      "cover": "covers/thumb-youtube-comment-replier-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste up to 10 comments and get replies in your channel\\u2019s voice — short, specific, and varied enough that no two replies look templated.",
+      "inputs": [
+        "comments: paste the comments",
+        "voice: how you talk to viewers"
+      ],
+      "outputs": [
+        "replies — one per comment, in order"
+      ]
+    },
+    {
+      "slug": "video-title-ab-tester",
+      "name": "Video Title A/B Tester",
+      "emoji": "🆎",
+      "category": "content",
+      "marketCategory": "creative",
+      "subcategory": "content",
+      "promise": "Six A/B title pairs for your video, each with a predicted winner and why.",
+      "maker": "@titletest",
+      "makerName": "Opal Reed",
+      "cover": "covers/thumb-video-title-ab-tester-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Titles are the cheapest CTR lever you have. Give us the video topic and audience; get six tested-style title pairs — curiosity vs clarity, question vs statement — with a predicted winner.",
+      "inputs": [
+        "topic: video subject",
+        "audience: who searches for it"
+      ],
+      "outputs": [
+        "pairs — 6 A/B title pairs",
+        "predictions — winner and reasoning per pair"
+      ]
+    },
+    {
+      "slug": "cold-email-sequencer",
+      "name": "Cold Email Sequencer",
+      "emoji": "📧",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A 4-email cold outreach sequence for one prospect type — built to get replies, not deleted.",
+      "maker": "@sequencelab",
+      "makerName": "Nico Ferraro",
+      "cover": "covers/thumb-cold-email-sequencer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste who you\\u2019re selling to and what you sell. Get four emails: a pattern-interrupt opener, a value follow-up, a social-proof nudge, and a clean break-up — each under 120 words.",
+      "inputs": [
+        "offer: what you sell",
+        "prospect: who you\\u2019re emailing",
+        "pain: their likely problem"
+      ],
+      "outputs": [
+        "emails — 4-sequence, ready to send",
+        "subject_lines — one per email",
+        "send_notes — timing guidance"
+      ]
+    },
+    {
+      "slug": "reply-drafter",
+      "name": "Reply Drafter",
+      "emoji": "📨",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "Quick, human-sounding drafts for tricky inbox replies — objections, pricing, and scheduling.",
+      "maker": "@inboxpro",
+      "makerName": "Freya Lindholm",
+      "cover": "covers/thumb-reply-drafter-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the email you received and your goal — close, reschedule, decline. Get two draft replies with different tones so the message lands the way you intend.",
+      "inputs": [
+        "incoming: the email to answer",
+        "goal: close · schedule · push back",
+        "tone: warm · direct · formal"
+      ],
+      "outputs": [
+        "drafts — 2 reply options",
+        "note — which tone fits when"
+      ]
+    },
+    {
+      "slug": "cart-saver-email",
+      "name": "Cart Saver Email",
+      "emoji": "🛒",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "An abandoned-cart email that brings buyers back without a desperate discount.",
+      "maker": "@cartfix",
+      "makerName": "Max Ellison",
+      "cover": "covers/thumb-cart-saver-email-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Abandoned carts are the cheapest revenue on the table. Give us the product and cart value; get a three-email recovery flow — nudge, proof, and last chance — with optional discount logic.",
+      "inputs": [
+        "product: what was left in the cart",
+        "cart_value: the dollar amount",
+        "discount: optional offer"
+      ],
+      "outputs": [
+        "emails — 3 recovery emails",
+        "subject_lines — per email"
+      ]
+    },
+    {
+      "slug": "welcome-flow-writer",
+      "name": "Welcome Flow Writer",
+      "emoji": "👋",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A 4-email welcome sequence that turns a new subscriber into a first-time buyer.",
+      "maker": "@welcomewave",
+      "makerName": "Rosie Feldman",
+      "cover": "covers/thumb-welcome-flow-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "The first emails decide your list\\u2019s lifetime value. Get a four-email welcome arc: the story, the promise, the proof, the offer — written for your brand voice.",
+      "inputs": [
+        "brand: what you sell and your story",
+        "offer: the welcome incentive"
+      ],
+      "outputs": [
+        "emails — 4-part welcome sequence",
+        "flow_map — why each email exists"
+      ]
+    },
+    {
+      "slug": "winback-campaign",
+      "name": "Winback Campaign",
+      "emoji": "🔁",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A 3-email winback flow for customers who stopped buying — friendly, not needy.",
+      "maker": "@winbackco",
+      "makerName": "Elliot Grant",
+      "cover": "covers/thumb-winback-campaign-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Lapsed customers already know you — that\\u2019s the easiest sale you\\u2019ll ever make again. Get three emails: a what\\u2019s-new note, a we-miss-you nudge, and a come-back offer.",
+      "inputs": [
+        "product: what they bought before",
+        "days_since: how long they\\u2019ve been gone",
+        "whats_new: what changed since"
+      ],
+      "outputs": [
+        "emails — 3 winback emails",
+        "offer_suggestion — what to incentivize with"
+      ]
+    },
+    {
+      "slug": "newsletter-drafter",
+      "name": "Newsletter Drafter",
+      "emoji": "📰",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A full newsletter issue — subject, hook, story, and links — from your raw notes.",
+      "maker": "@dispatchwriter",
+      "makerName": "Hana Kobayashi",
+      "cover": "covers/thumb-newsletter-drafter-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your scattered ideas and links. Get a complete issue: a subject line that gets opens, a personal hook, the body in your voice, and a single clear call to action.",
+      "inputs": [
+        "notes: your raw ideas and links",
+        "audience: who reads it",
+        "voice: how you write"
+      ],
+      "outputs": [
+        "newsletter — full issue draft",
+        "subject_options — 3 open-worthy subjects"
+      ]
+    },
+    {
+      "slug": "press-pitch-writer",
+      "name": "Press Pitch Writer",
+      "emoji": "🗞️",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A journalist-ready pitch with a news hook, not a product announcement.",
+      "maker": "@presspilot",
+      "makerName": "Griffin Walsh",
+      "cover": "covers/thumb-press-pitch-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Journalists skip product spam. Give us your news and the outlet; get a short pitch built around a real news angle, plus subject line and follow-up lines.",
+      "inputs": [
+        "news: what\\u2019s actually new",
+        "outlet: the publication or beat",
+        "founder: who\\u2019s available to talk"
+      ],
+      "outputs": [
+        "pitch — under 150 words, news-first",
+        "subject_line — one that gets opened",
+        "follow_ups — 2 polite nudges"
+      ]
+    },
+    {
+      "slug": "influencer-dm-outreach",
+      "name": "Influencer DM Outreach",
+      "emoji": "🤝",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "Personal-feeling DM pitches for creator partnerships — short enough to actually get read.",
+      "maker": "@dmcraft",
+      "makerName": "Mia Kowalski",
+      "cover": "covers/thumb-influencer-dm-outreach-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Creators ignore copy-paste DMs. Give us their niche and your offer; get a short, specific pitch that references why they specifically fit — plus the rate ask.",
+      "inputs": [
+        "creator: their niche and vibe",
+        "offer: what you\\u2019re proposing",
+        "budget: what you can pay"
+      ],
+      "outputs": [
+        "dm — under 80 words, specific",
+        "rate_ask — how to bring up money"
+      ]
+    },
+    {
+      "slug": "partnership-proposal",
+      "name": "Partnership Proposal",
+      "emoji": "🤲",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A short partnership email that proposes a concrete win-win, not vague synergies.",
+      "maker": "@partnernote",
+      "makerName": "Leo Marchetti",
+      "cover": "covers/thumb-partnership-proposal-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Partnership emails fail when they ask for \"a chat.\" Get one that names the exact audience overlap, the concrete offer, and the first step — under 150 words.",
+      "inputs": [
+        "your_brand: what you offer",
+        "their_brand: who you\\u2019re pitching",
+        "idea: the collaboration concept"
+      ],
+      "outputs": [
+        "proposal — one concrete partnership email",
+        "first_step — the smallest yes to ask for"
+      ]
+    },
+    {
+      "slug": "referral-program-copy",
+      "name": "Referral Program Copy",
+      "emoji": "🎁",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "The full referral loop — invite email, landing page copy, and reward framing.",
+      "maker": "@referallab",
+      "makerName": "Ruby Chen",
+      "cover": "covers/thumb-referral-program-copy-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Referrals convert at 10x cold traffic. Get the complete loop written: the invite email, the referral landing copy, and reward framing that makes both sides say yes.",
+      "inputs": [
+        "product: what you sell",
+        "reward: what each side gets"
+      ],
+      "outputs": [
+        "invite_email — the ask",
+        "landing_copy — the referral page",
+        "reward_lines — framing for both sides"
+      ]
+    },
+    {
+      "slug": "launch-email-arc",
+      "name": "Launch Email Arc",
+      "emoji": "🚀",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A 5-email product launch arc — tease, reveal, proof, urgency, and close.",
+      "maker": "@launchwriter",
+      "makerName": "Sam Okafor",
+      "cover": "covers/thumb-launch-email-arc-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "A launch is a story told over days. Get five emails with the right escalation — from teaser to final hours — written for your product and launch offer.",
+      "inputs": [
+        "product: what you\\u2019re launching",
+        "launch_offer: the deal",
+        "launch_date: when it goes live"
+      ],
+      "outputs": [
+        "emails — 5-email arc in order",
+        "send_schedule — day-by-day plan"
+      ]
+    },
+    {
+      "slug": "feedback-request-email",
+      "name": "Feedback Request Email",
+      "emoji": "⭐",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A review-request email that gets 3x more responses than \"please leave a review\".",
+      "maker": "@askfirst",
+      "makerName": "Clara Voss",
+      "cover": "covers/thumb-feedback-request-email-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Timing and framing decide review rates. Get an email that asks one specific question first (easy to answer), then routes happy buyers to reviews and unhappy ones to you.",
+      "inputs": [
+        "product: what they bought",
+        "review_site: where reviews live"
+      ],
+      "outputs": [
+        "email — the full request",
+        "split_logic — happy vs unhappy routing"
+      ]
+    },
+    {
+      "slug": "support-reply-copilot",
+      "name": "Support Reply Copilot",
+      "emoji": "🛟",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "Draft replies to support tickets that solve the problem and keep the customer warm.",
+      "maker": "@ticketfix",
+      "makerName": "Dave Lindqvist",
+      "cover": "covers/thumb-support-reply-copilot-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the customer\\u2019s ticket and your answer to the problem. Get a reply that explains the fix clearly, sets expectations, and sounds like a human — not a policy bot.",
+      "inputs": [
+        "ticket: what the customer wrote",
+        "fix: what solves it",
+        "policy: any rules to include"
+      ],
+      "outputs": [
+        "reply — ready-to-send draft",
+        "tone_check — how it reads"
+      ]
+    },
+    {
+      "slug": "lead-qualifier",
+      "name": "Lead Qualifier",
+      "emoji": "🎯",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "Score and qualify inbound leads from their notes — hot, warm, or nurture.",
+      "maker": "@leadscore",
+      "makerName": "Esther Blum",
+      "cover": "covers/thumb-lead-qualifier-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste a batch of lead notes (form answers, call notes, emails) and your ideal-customer criteria. Get each lead scored, bucketed, and given the exact next action.",
+      "inputs": [
+        "leads: pasted notes per lead",
+        "criteria: your ideal customer profile",
+        "next_steps: what actions exist"
+      ],
+      "outputs": [
+        "verdicts — score + bucket per lead",
+        "next_action — one per lead"
+      ]
+    },
+    {
+      "slug": "sales-followup-cadence",
+      "name": "Sales Follow-up Cadence",
+      "emoji": "📅",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A 5-touch follow-up plan for a stalled deal — right message, right day, right channel.",
+      "maker": "@cadencepro",
+      "makerName": "Felix Andersen",
+      "cover": "covers/thumb-sales-followup-cadence-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Most deals die in the follow-up. Give us where the deal stalled; get a five-touch plan mixing email and social touches that add value instead of nagging.",
+      "inputs": [
+        "deal: where the conversation stalled",
+        "offer: what they were interested in"
+      ],
+      "outputs": [
+        "touches — 5 follow-ups with channel + day",
+        "value_angle — what each touch adds"
+      ]
+    },
+    {
+      "slug": "prospect-brief",
+      "name": "Prospect Brief",
+      "emoji": "🧭",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A one-page research brief on any prospect — what they do, what they\\u2019re struggling with, how to pitch.",
+      "maker": "@researchbot",
+      "makerName": "Gemma Walsh",
+      "cover": "covers/thumb-prospect-brief-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste everything you know about a prospect (website text, LinkedIn snippet, notes) and get a structured brief: business model, likely pains, and the angle most likely to earn a reply.",
+      "inputs": [
+        "prospect_info: paste what you know",
+        "your_offer: what you\\u2019d pitch"
+      ],
+      "outputs": [
+        "brief — structured prospect summary",
+        "angle — the best opening hook"
+      ]
+    },
+    {
+      "slug": "case-study-writer",
+      "name": "Case Study Writer",
+      "emoji": "📚",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "Turn interview notes into a 3-part case study — situation, change, result.",
+      "maker": "@casestack",
+      "makerName": "Harry Osei",
+      "cover": "covers/thumb-case-study-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your customer interview notes (messy is fine). Get a structured case study with a headline, the before-state, the change, and the results — using only what the notes support.",
+      "inputs": [
+        "notes: your raw interview notes",
+        "metrics: any numbers mentioned"
+      ],
+      "outputs": [
+        "case_study — full draft with headline",
+        "quotes — pull-quote candidates"
+      ]
+    },
+    {
+      "slug": "linkedin-post-engine",
+      "name": "LinkedIn Post Engine",
+      "emoji": "💼",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A scroll-stopping LinkedIn post from your raw idea — plus a comment that keeps the thread alive.",
+      "maker": "@linkedlab",
+      "makerName": "Ines Duarte",
+      "cover": "covers/thumb-linkedin-post-engine-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste a rough idea or story. Get a hook-first LinkedIn post with short lines (the format that reads well in feed) and a first comment that invites replies.",
+      "inputs": [
+        "idea: your raw thought or story",
+        "audience: your network\\u2019s profile"
+      ],
+      "outputs": [
+        "post — hook-first, line-broken",
+        "first_comment — the conversation starter"
+      ]
+    },
+    {
+      "slug": "x-thread-writer",
+      "name": "X Thread Writer",
+      "emoji": "🧵",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A 8-tweet thread from your idea — hook tweet, value tweets, and a soft CTA.",
+      "maker": "@threadsmith",
+      "makerName": "Jack Morrison",
+      "cover": "covers/thumb-x-thread-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Threads grow accounts when each tweet earns the next. Get eight tweets: a curiosity hook, six value tweets with one idea each, and a closing CTA.",
+      "inputs": [
+        "idea: the core insight",
+        "audience: who you\\u2019re writing for"
+      ],
+      "outputs": [
+        "tweets — 8-tweet thread",
+        "hook_variants — 2 alternates for tweet 1"
+      ]
+    },
+    {
+      "slug": "seo-linkbuilding-email",
+      "name": "SEO Linkbuilding Email",
+      "emoji": "🔗",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A link-building outreach email that offers something worth linking to.",
+      "maker": "@linkcraft",
+      "makerName": "Kira Volkov",
+      "cover": "covers/thumb-seo-linkbuilding-email-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Link outreach fails when it asks for a link and gives nothing. Get an email built around an asset you actually have — data, tool, or expert quote — pitched to one type of site.",
+      "inputs": [
+        "asset: what you can offer (data, tool, quote)",
+        "target_site: who you\\u2019re pitching",
+        "page: their page it fits"
+      ],
+      "outputs": [
+        "email — asset-first outreach",
+        "subject_line — one that gets opened"
+      ]
+    },
+    {
+      "slug": "webinar-promo-copy",
+      "name": "Webinar Promo Copy",
+      "emoji": "🎪",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "Invite email, landing copy, and reminder sequence for your next webinar.",
+      "maker": "@eventcopy",
+      "makerName": "Lucas Meyer",
+      "cover": "covers/thumb-webinar-promo-copy-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Webinar attendance dies at the invite. Get the full promo package: a benefit-first invite email, landing page copy, and the 24h/1h reminder sequence that fills seats.",
+      "inputs": [
+        "topic: what you\\u2019ll teach",
+        "audience: who should attend",
+        "date: when it runs"
+      ],
+      "outputs": [
+        "invite — the registration email",
+        "landing_copy — page headline + body",
+        "reminders — 2 reminder emails"
+      ]
+    },
+    {
+      "slug": "demo-call-script",
+      "name": "Demo Call Script",
+      "emoji": "📞",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "A 30-minute demo call script — discovery questions, demo flow, and the close.",
+      "maker": "@callscript",
+      "makerName": "Marta Silva",
+      "cover": "covers/thumb-demo-call-script-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Demos flop without structure. Get a timed call script: 10 minutes of discovery questions, a demo flow mapped to their answers, and three ways to close for next steps.",
+      "inputs": [
+        "product: what you demo",
+        "prospect_type: who\\u2019s on the call"
+      ],
+      "outputs": [
+        "script — timed call structure",
+        "questions — discovery questions",
+        "closes — 3 next-step options"
+      ]
+    },
+    {
+      "slug": "pricing-page-copywriter",
+      "name": "Pricing Page Copywriter",
+      "emoji": "💲",
+      "category": "leads",
+      "marketCategory": "creative",
+      "subcategory": "leads",
+      "promise": "Pricing page copy that frames each tier around value — not features.",
+      "maker": "@pricecopy",
+      "makerName": "Noah Eriksen",
+      "cover": "covers/thumb-pricing-page-copywriter-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your tiers and features. Get per-tier headlines, value-first descriptions, and the FAQ lines that kill the top objections — copy that makes the middle tier the obvious choice.",
+      "inputs": [
+        "tiers: name, price, features per tier",
+        "audience: who buys",
+        "anchor: which tier should win"
+      ],
+      "outputs": [
+        "tier_copy — headline + description per tier",
+        "faq_lines — objection-handling FAQs"
+      ]
+    },
+    {
+      "slug": "carrier-comparer",
+      "name": "Carrier Comparer",
+      "emoji": "🚚",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Compare shipping options for one order — cost, speed, and the smart pick.",
+      "maker": "@shipwise",
+      "makerName": "Olive Harper",
+      "cover": "covers/thumb-carrier-comparer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your shipment details and the carrier quotes you have. Get a clean comparison with cost-per-day math and a recommendation that balances price and delivery promise.",
+      "inputs": [
+        "shipment: weight, size, destination",
+        "quotes: carrier rates you have"
+      ],
+      "outputs": [
+        "comparison — cost vs speed table text",
+        "recommendation — the smart pick and why"
+      ]
+    },
+    {
+      "slug": "refund-policy-drafter",
+      "name": "Refund Policy Drafter",
+      "emoji": "↩️",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A refund policy that protects you and reads fair to customers.",
+      "maker": "@policypro",
+      "makerName": "Pablo Iglesias",
+      "cover": "covers/thumb-refund-policy-drafter-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your product type and the refund terms you want. Get a plain-language policy with clear windows, conditions, and return steps — plus the two edge cases sellers always forget.",
+      "inputs": [
+        "product_type: physical · digital · subscription",
+        "terms: your intended window and conditions"
+      ],
+      "outputs": [
+        "policy — plain-language refund policy",
+        "edge_cases — the clauses you\\u2019re missing"
+      ]
+    },
+    {
+      "slug": "supplier-negotiation-email",
+      "name": "Supplier Negotiation Email",
+      "emoji": "🤝",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A supplier email that asks for better terms without burning the relationship.",
+      "maker": "@negotiateai",
+      "makerName": "Quinn Farrell",
+      "cover": "covers/thumb-supplier-negotiation-email-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Price increases are negotiable if asked right. Give us your volume and the ask; get a respectful email that leads with the relationship, then makes a specific, reasonable ask.",
+      "inputs": [
+        "supplier: your history with them",
+        "ask: lower price · better terms · MOQ",
+        "volume: what you order"
+      ],
+      "outputs": [
+        "email — relationship-first ask",
+        "fallback — the second ask if the first fails"
+      ]
+    },
+    {
+      "slug": "reorder-planner",
+      "name": "Reorder Planner",
+      "emoji": "📦",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Reorder quantities for your SKUs — no stockouts, no overstock — from your sales numbers.",
+      "maker": "@stockbot",
+      "makerName": "Rena Weiss",
+      "cover": "covers/thumb-reorder-planner-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your SKU-level sales history, lead times, and current stock. Get reorder quantities with safety-stock logic and a note on which SKUs are trending up or down.",
+      "inputs": [
+        "sales: units sold per SKU per month",
+        "lead_time: days to restock",
+        "stock: current units on hand"
+      ],
+      "outputs": [
+        "reorder — qty per SKU",
+        "flags — SKUs to watch"
+      ]
+    },
+    {
+      "slug": "kpi-sql-writer",
+      "name": "KPI SQL Writer",
+      "emoji": "🗄️",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Plain English to SQL — get the query for the KPI you actually want.",
+      "maker": "@sqlgenie",
+      "makerName": "Seth Kamara",
+      "cover": "covers/thumb-kpi-sql-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Describe the metric and your tables; get a correct, commented SQL query with the joins, filters, and time bucketing spelled out — plus what the result will and won\\u2019t tell you.",
+      "inputs": [
+        "question: the KPI you want",
+        "schema: your tables and columns"
+      ],
+      "outputs": [
+        "sql — the query with comments",
+        "caveats — what the number misses"
+      ]
+    },
+    {
+      "slug": "expense-categorizer",
+      "name": "Expense Categorizer",
+      "emoji": "🧾",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A messy expense list becomes clean categories — with the tax-relevant ones flagged.",
+      "maker": "@cashflowai",
+      "makerName": "Tara Ngo",
+      "cover": "covers/thumb-expense-categorizer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste raw expense lines (\"uber to airport\", \"adobe cc\") and get each one categorized, with likely-deductible items flagged and the ones needing a receipt called out.",
+      "inputs": [
+        "expenses: your raw lines",
+        "business_type: what you do"
+      ],
+      "outputs": [
+        "categorized — every line with a category",
+        "flags — deductible or needs-receipt items"
+      ]
+    },
+    {
+      "slug": "invoice-chaser",
+      "name": "Invoice Chaser",
+      "emoji": "💸",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Polite payment-reminder emails that get invoices paid without souring clients.",
+      "maker": "@cashchaser",
+      "makerName": "Uri Feldman",
+      "cover": "covers/thumb-invoice-chaser-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the invoice details and days overdue. Get a tiered reminder — gentle nudge, friendly follow-up, firm-but-warm final — that escalates without accusing.",
+      "inputs": [
+        "invoice: amount, client, due date",
+        "days_overdue: how late it is"
+      ],
+      "outputs": [
+        "reminders — 3 escalating emails",
+        "escalation_plan — when to send each"
+      ]
+    },
+    {
+      "slug": "contract-summarizer",
+      "name": "Contract Summarizer",
+      "emoji": "📑",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Any contract in plain English — obligations, dates, and the clauses to negotiate.",
+      "maker": "@plainterms",
+      "makerName": "Veda Raman",
+      "cover": "covers/thumb-contract-summarizer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste a contract (or its key sections) and get a plain-English summary: what you\\u2019re agreeing to, the dates that matter, and the clauses a lawyer would flag.",
+      "inputs": [
+        "contract: paste the text",
+        "your_role: which side you are"
+      ],
+      "outputs": [
+        "summary — plain-English obligations",
+        "flags — clauses to negotiate or watch"
+      ]
+    },
+    {
+      "slug": "saas-spend-auditor",
+      "name": "SaaS Spend Auditor",
+      "emoji": "🪓",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Find the subscriptions bleeding your budget — with a cut-or-keep verdict per tool.",
+      "maker": "@spendwatch",
+      "makerName": "Wade Ellis",
+      "cover": "covers/thumb-saas-spend-auditor-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your subscriptions (tool, price, last-used notes) and get each one judged: keep, downgrade, or cut — with the annual savings and a 30-day plan to action it.",
+      "inputs": [
+        "subscriptions: tool, price, usage notes",
+        "team_size: how many seats you pay for"
+      ],
+      "outputs": [
+        "verdicts — keep/downgrade/cut per tool",
+        "savings — total annual number"
+      ]
+    },
+    {
+      "slug": "tax-deduction-finder",
+      "name": "Tax Deduction Finder",
+      "emoji": "🧮",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Deductions you\\u2019re likely missing — mapped to your actual expenses.",
+      "maker": "@deductionpro",
+      "makerName": "Xena Patel",
+      "cover": "covers/thumb-tax-deduction-finder-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your business expenses and setup. Get the deductions that plausibly apply, what evidence to keep, and the ones that need a professional\\u2019s sign-off before claiming.",
+      "inputs": [
+        "expenses: your business spend",
+        "setup: solo · LLC · employees · home office"
+      ],
+      "outputs": [
+        "deductions — applicable ones with evidence notes",
+        "cautions — items to run by an accountant"
+      ]
+    },
+    {
+      "slug": "aov-booster",
+      "name": "AOV Booster",
+      "emoji": "🆙",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Upsell, cross-sell, and bundle ideas that raise average order value.",
+      "maker": "@aovlab",
+      "makerName": "Yara Haddad",
+      "cover": "covers/thumb-aov-booster-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Give us your catalog and current AOV. Get ten concrete bundle, upsell, and threshold ideas (free shipping at X, pair with Y) — with the logic that makes them work.",
+      "inputs": [
+        "catalog: your products and prices",
+        "aov: current average order value"
+      ],
+      "outputs": [
+        "ideas — 10 AOV plays",
+        "thresholds — the numbers to set"
+      ]
+    },
+    {
+      "slug": "promo-calendar-planner",
+      "name": "Promo Calendar Planner",
+      "emoji": "🗓️",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A 90-day promotion calendar — discounts, bundles, and events, sequenced to protect margins.",
+      "maker": "@promoplan",
+      "makerName": "Zeke Navarro",
+      "cover": "covers/thumb-promo-calendar-planner-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Constant discounting kills margins. Get a 90-day calendar that spaces promos, pairs them with events, and alternates offer types so nothing becomes expected.",
+      "inputs": [
+        "products: what you sell",
+        "events: known dates (holidays, launches)",
+        "margin: your typical margin %"
+      ],
+      "outputs": [
+        "calendar — week-by-week promos",
+        "margin_notes — discount ceilings"
+      ]
+    },
+    {
+      "slug": "margin-checker",
+      "name": "Margin Checker",
+      "emoji": "⚖️",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Price vs cost math per product — margins, break-even, and what to raise.",
+      "maker": "@marginlab",
+      "makerName": "Abe Rosen",
+      "cover": "covers/thumb-margin-checker-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste per-product cost and price data. Get gross margin per SKU, the ones below your target, and the price or cost change that fixes each.",
+      "inputs": [
+        "products: price and cost per unit",
+        "target_margin: your goal %"
+      ],
+      "outputs": [
+        "margins — per-SKU math",
+        "fixes — what to change and by how much"
+      ]
+    },
+    {
+      "slug": "wholesale-quote-builder",
+      "name": "Wholesale Quote Builder",
+      "emoji": "🏭",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A wholesale quote for bulk buyers — tiers, terms, and the margin floor.",
+      "maker": "@bulkquote",
+      "makerName": "Bianca Rossi",
+      "cover": "covers/thumb-wholesale-quote-builder-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your retail prices and cost, plus the buyer\\u2019s request. Get a tiered wholesale quote (3 tiers), payment terms, and the minimum order that keeps you profitable.",
+      "inputs": [
+        "retail: your prices",
+        "cost: your unit cost",
+        "request: what the buyer wants"
+      ],
+      "outputs": [
+        "quote — tiered wholesale pricing",
+        "terms — payment and MOQ recommendations"
+      ]
+    },
+    {
+      "slug": "roi-formula-builder",
+      "name": "ROI Formula Builder",
+      "emoji": "📐",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Spreadsheet formulas for your business math — ROI, LTV, CAC, break-even — explained.",
+      "maker": "@sheetformula",
+      "makerName": "Carter Blake",
+      "cover": "covers/thumb-roi-formula-builder-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Describe the number you want to calculate and your column layout; get the exact spreadsheet formula with cell references, plus a plain-English explanation of what it computes.",
+      "inputs": [
+        "goal: the metric to compute",
+        "columns: your sheet\\u2019s layout"
+      ],
+      "outputs": [
+        "formula — ready to paste",
+        "explanation — what it computes and assumes"
+      ]
+    },
+    {
+      "slug": "cashflow-forecaster",
+      "name": "Cashflow Forecaster",
+      "emoji": "🔮",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A 90-day cash forecast from your numbers — with the month that will hurt.",
+      "maker": "@cashlab",
+      "makerName": "Dina Kovac",
+      "cover": "covers/thumb-cashflow-forecaster-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your monthly revenue, fixed costs, and known upcoming payments. Get a 90-day cash projection, the lowest-cash month, and the one move that softens it.",
+      "inputs": [
+        "revenue: monthly averages and trends",
+        "costs: fixed and variable",
+        "payments: known upcoming big bills"
+      ],
+      "outputs": [
+        "forecast — month-by-month cash position",
+        "risk_month — when cash dips and why",
+        "move — the single fix"
+      ]
+    },
+    {
+      "slug": "job-description-writer",
+      "name": "Job Description Writer",
+      "emoji": "🧑‍💼",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A role description that attracts the right person — responsibilities, requirements, and the honest part.",
+      "maker": "@hirecopy",
+      "makerName": "Erik Johansson",
+      "cover": "covers/thumb-job-description-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the role, level, and what success looks like. Get a complete JD: compelling summary, real responsibilities, must-have vs nice-to-have, and the honest \"what it\\u2019s really like\" section.",
+      "inputs": [
+        "role: title and level",
+        "responsibilities: what they\\u2019ll do",
+        "success: what good looks like"
+      ],
+      "outputs": [
+        "jd — full description",
+        "requirements — must-have vs nice-to-have"
+      ]
+    },
+    {
+      "slug": "proposal-writer",
+      "name": "Proposal Writer",
+      "emoji": "📝",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A freelance or agency proposal that scopes the work, the price, and the process.",
+      "maker": "@proposalforge",
+      "makerName": "Faye O\\u2019Connor",
+      "cover": "covers/thumb-proposal-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the client\\u2019s request and your rate. Get a structured proposal: their problem in their words, your approach, deliverables, timeline, and pricing framed around outcomes.",
+      "inputs": [
+        "request: what the client asked for",
+        "your_rate: how you price",
+        "timeline: how long it takes"
+      ],
+      "outputs": [
+        "proposal — full structured draft",
+        "pricing_block — outcome-framed pricing"
+      ]
+    },
+    {
+      "slug": "negotiation-email-writer",
+      "name": "Negotiation Email Writer",
+      "emoji": "🥂",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Negotiation emails that hold your number and keep the door open.",
+      "maker": "@negotiatepro",
+      "makerName": "Gino Barbieri",
+      "cover": "covers/thumb-negotiation-email-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the offer you received and your target. Get an email that anchors, justifies, and leaves room — plus the counter-move if they push back again.",
+      "inputs": [
+        "offer: what they proposed",
+        "your_target: what you need",
+        "leverage: what you bring"
+      ],
+      "outputs": [
+        "email — the anchored counter",
+        "fallback_move — if they push back"
+      ]
+    },
+    {
+      "slug": "returns-reason-analyser",
+      "name": "Returns Reason Analyser",
+      "emoji": "📉",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Find the real reason behind your returns — and the fix that stops the bleeding.",
+      "maker": "@returnfix",
+      "makerName": "Hilda Berg",
+      "cover": "covers/thumb-returns-reason-analyser-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your return reasons and product details. Get the dominant return driver, whether it\\u2019s a listing, sizing, or quality problem, and the concrete fix for each cluster.",
+      "inputs": [
+        "returns: return reasons per order",
+        "product: what\\u2019s being returned"
+      ],
+      "outputs": [
+        "clusters — grouped return drivers",
+        "fixes — one fix per cluster"
+      ]
+    },
+    {
+      "slug": "review-reply-bot",
+      "name": "Review Reply Bot",
+      "emoji": "💬",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "On-brand replies to customer reviews — good ones get thanks, bad ones get a fix path.",
+      "maker": "@reviewreply",
+      "makerName": "Ian Fletcher",
+      "cover": "covers/thumb-review-reply-bot-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste up to 8 reviews. Get a reply per review in your brand voice: positive reviews get warmth and a detail from their review; negative ones get ownership and a concrete fix.",
+      "inputs": [
+        "reviews: paste the reviews",
+        "brand_voice: how you talk"
+      ],
+      "outputs": [
+        "replies — one per review, same order"
+      ]
+    },
+    {
+      "slug": "review-theme-miner",
+      "name": "Review Theme Miner",
+      "emoji": "⛏️",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "The themes hiding in your reviews — praises to amplify and complaints to fix, with quotes.",
+      "maker": "@thememiner",
+      "makerName": "Jessa Malone",
+      "cover": "covers/thumb-review-theme-miner-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste a batch of reviews and get grouped themes: what customers love (put it in your ads), what they complain about (fix it), each with the real quotes as evidence.",
+      "inputs": [
+        "reviews: paste the batch",
+        "product: what it is"
+      ],
+      "outputs": [
+        "themes — praised and complained themes with quotes",
+        "actions — what to amplify and fix"
+      ]
+    },
+    {
+      "slug": "competitor-price-analyser",
+      "name": "Competitor Price Analyser",
+      "emoji": "🕵️",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Your prices vs the market — where you\\u2019re leaving money or losing the click.",
+      "maker": "@pricespy",
+      "makerName": "Kyle Nguyen",
+      "cover": "covers/thumb-competitor-price-analyser-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your SKU prices and the competitor prices you\\u2019ve collected. Get a positioning read: where you\\u2019re premium, where you\\u2019re undercutting yourself, and what to adjust.",
+      "inputs": [
+        "your_prices: SKU: price",
+        "competitor_prices: SKU: their price",
+        "position: intended brand tier"
+      ],
+      "outputs": [
+        "analysis — per-SKU positioning",
+        "moves — price changes to consider"
+      ]
+    },
+    {
+      "slug": "pnl-cost-cutter",
+      "name": "P&L Cost Cutter",
+      "emoji": "✂️",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "A P&L read that finds the costs to cut without touching what grows revenue.",
+      "maker": "@costcutter",
+      "makerName": "Leila Farouk",
+      "cover": "covers/thumb-pnl-cost-cutter-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your P&L lines. Get cost lines ranked by cut-ability (impact vs pain), the fixed vs variable split, and a 30-day action list with the savings per line.",
+      "inputs": [
+        "pnl: your cost lines and amounts",
+        "revenue: total and trends"
+      ],
+      "outputs": [
+        "rankings — costs by cut-ability with savings",
+        "action_list — the 30-day plan"
+      ]
+    },
+    {
+      "slug": "e2b-data-cruncher",
+      "name": "E2B Data Cruncher",
+      "emoji": "📊",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Paste a messy dataset, get real computed analysis — run in a sandbox, not a guess.",
+      "maker": "@datacrunch",
+      "makerName": "Marco Bellini",
+      "cover": "covers/thumb-e2b-data-cruncher-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste CSV data and the question you want answered. We write the analysis code and run it in a sandbox — you get actual computed numbers, not an LLM\\u2019s estimate.",
+      "inputs": [
+        "data: paste your CSV",
+        "question: what to compute",
+        "columns: what each column means"
+      ],
+      "outputs": [
+        "results — computed numbers with method",
+        "code — the analysis script you keep"
+      ]
+    },
+    {
+      "slug": "browser-price-check",
+      "name": "Browser Price Check",
+      "emoji": "🌐",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Live competitor price check — we browse the actual pages and bring back the numbers.",
+      "maker": "@liveprice",
+      "makerName": "Nina Petrova",
+      "cover": "covers/thumb-browser-price-check-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Give us the competitor URLs and your SKUs. We open each page in a real browser session, extract the live prices, and return a clean comparison table with a positioning read.",
+      "inputs": [
+        "urls: competitor product pages",
+        "your_skus: what to compare against"
+      ],
+      "outputs": [
+        "prices — live prices per URL",
+        "comparison — your price vs market"
+      ]
+    },
+    {
+      "slug": "modal-batch-upscaler",
+      "name": "Modal Batch Upscaler",
+      "emoji": "🔬",
+      "category": "save",
+      "marketCategory": "creative",
+      "subcategory": "save",
+      "promise": "Upscale and enhance your product images in batch — GPU-powered, detail-preserving.",
+      "maker": "@upscalelab",
+      "makerName": "Oscar Lindt",
+      "cover": "covers/thumb-modal-batch-upscaler-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Give us your image descriptions and target resolution. We run enhancement passes on a GPU sandbox and return the upscaled versions with a quality note per image.",
+      "inputs": [
+        "images: describe each image and its issue",
+        "target: resolution to reach"
+      ],
+      "outputs": [
+        "enhanced — upscaled image descriptions + notes",
+        "quality_notes — what improved per image"
+      ]
+    },
+    {
+      "slug": "sop-builder",
+      "name": "SOP Builder",
+      "emoji": "🧱",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "Messy notes become a step-by-step SOP anyone on the team can follow.",
+      "maker": "@sopforge",
+      "makerName": "Petra Novak",
+      "cover": "covers/thumb-sop-builder-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your rough process notes. Get a clean SOP: numbered steps with owners, the tools used per step, decision points, and the \"when it goes wrong\" section.",
+      "inputs": [
+        "notes: your process notes, messy is fine",
+        "owner: who runs it"
+      ],
+      "outputs": [
+        "sop — numbered steps with tools and owners",
+        "failure_modes — what breaks and the fix"
+      ]
+    },
+    {
+      "slug": "meeting-notes-to-actions",
+      "name": "Meeting Notes to Actions",
+      "emoji": "🗒️",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "Any meeting transcript becomes owners, deadlines, and next steps.",
+      "maker": "@actionminer",
+      "makerName": "Ralph Delgado",
+      "cover": "covers/thumb-meeting-notes-to-actions-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your transcript or notes. Get the decisions, the action items with owners and deadlines, and the open questions — a summary you can paste straight into your task tracker.",
+      "inputs": [
+        "notes: the transcript or notes",
+        "team: who was there"
+      ],
+      "outputs": [
+        "actions — owner + deadline per item",
+        "decisions — what was settled"
+      ]
+    },
+    {
+      "slug": "decision-memo-writer",
+      "name": "Decision Memo Writer",
+      "emoji": "📄",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "A one-page decision memo — options, trade-offs, and a clear recommendation.",
+      "maker": "@memolab",
+      "makerName": "Stella Grant",
+      "cover": "covers/thumb-decision-memo-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the decision, the options, and what you know. Get a structured memo: the question, 2-3 options with trade-offs, what you\\u2019d need to know to be sure, and a recommendation.",
+      "inputs": [
+        "decision: what\\u2019s being decided",
+        "options: the choices on the table",
+        "context: what you know so far"
+      ],
+      "outputs": [
+        "memo — one-page structured decision memo",
+        "recommendation — with confidence and conditions"
+      ]
+    },
+    {
+      "slug": "weekly-report-builder",
+      "name": "Weekly Report Builder",
+      "emoji": "📊",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "Your raw weekly numbers become a report your team actually reads.",
+      "maker": "@reportgen",
+      "makerName": "Tyler Brooks",
+      "cover": "covers/thumb-weekly-report-builder-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste this week\\u2019s numbers and last week\\u2019s. Get a tight report: what moved, what\\u2019s on track, what needs a decision — written so a busy founder gets it in 60 seconds.",
+      "inputs": [
+        "numbers: this week vs last week",
+        "goals: what you\\u2019re tracking toward"
+      ],
+      "outputs": [
+        "report — the weekly write-up",
+        "decision_needed — what\\u2019s blocked"
+      ]
+    },
+    {
+      "slug": "test-case-generator",
+      "name": "Test Case Generator",
+      "emoji": "🧪",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "QA test cases from a feature description — happy path, edge cases, and the nasty ones.",
+      "maker": "@qagenie",
+      "makerName": "Uma Krishnan",
+      "cover": "covers/thumb-test-case-generator-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the feature you\\u2019re shipping. Get a test case suite: happy path, boundary values, empty states, permission cases, and the failure paths developers forget.",
+      "inputs": [
+        "feature: what you built",
+        "inputs: what users can enter",
+        "roles: who can use it"
+      ],
+      "outputs": [
+        "cases — grouped test cases with steps",
+        "edge_cases — the ones QA usually misses"
+      ]
+    },
+    {
+      "slug": "release-notes-writer",
+      "name": "Release Notes Writer",
+      "emoji": "📣",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "Changelog entries from your commit or feature list — clear, honest, skimmable.",
+      "maker": "@changelog",
+      "makerName": "Vince Lorenzo",
+      "cover": "covers/thumb-release-notes-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your feature list or commit titles. Get grouped release notes (new, improved, fixed) with user-facing language — no internal jargon, no hype.",
+      "inputs": [
+        "changes: your features/fixes list",
+        "audience: users or developers"
+      ],
+      "outputs": [
+        "notes — grouped release notes",
+        "headline — the top line for the email"
+      ]
+    },
+    {
+      "slug": "help-center-article",
+      "name": "Help Center Article",
+      "emoji": "📖",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "A help article that answers the question once, so support stops answering it daily.",
+      "maker": "@helpdesk",
+      "makerName": "Winnie Zhou",
+      "cover": "covers/thumb-help-center-article-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste the question customers keep asking and the answer you give. Get a scannable help article: short intro, numbered steps, a screenshot placeholder, and the \"still stuck\" path.",
+      "inputs": [
+        "question: the recurring support question",
+        "answer: how you currently solve it"
+      ],
+      "outputs": [
+        "article — full help doc",
+        "tldr — the 1-line version for ticket replies"
+      ]
+    },
+    {
+      "slug": "faq-generator",
+      "name": "FAQ Generator",
+      "emoji": "❓",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "The FAQ your customers actually have — from your product, support chats, and reviews.",
+      "maker": "@faqbot",
+      "makerName": "Xander Reed",
+      "cover": "covers/thumb-faq-generator-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste your product details, common questions, and review snippets. Get 10-12 real FAQs with short, confident answers — plus which ones to put on the product page vs the help center.",
+      "inputs": [
+        "product: what you sell",
+        "questions: ones you\\u2019ve seen",
+        "facts: policies and specs"
+      ],
+      "outputs": [
+        "faqs — 10-12 Q&As",
+        "placement — product page vs help center"
+      ]
+    },
+    {
+      "slug": "schema-markup-generator",
+      "name": "Schema Markup Generator",
+      "emoji": "🏷️",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "JSON-LD schema for your pages — products, reviews, FAQs — with the tags to test them.",
+      "maker": "@schemalab",
+      "makerName": "Yvonne Ashford",
+      "cover": "covers/thumb-schema-markup-generator-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Describe your page (product, review, FAQ, article) and paste the details. Get valid JSON-LD structured data you can paste into your page head, plus a validation checklist.",
+      "inputs": [
+        "page_type: product · review · faq · article",
+        "details: name, price, rating, questions"
+      ],
+      "outputs": [
+        "jsonld — valid schema markup",
+        "checklist — how to test it in Search Console"
+      ]
+    },
+    {
+      "slug": "alt-text-writer",
+      "name": "Alt Text Writer",
+      "emoji": "♿",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "ops",
+      "promise": "Descriptive alt text for your images — accessible, SEO-friendly, and human.",
+      "maker": "@alttxt",
+      "makerName": "Zion Brooks",
+      "cover": "covers/thumb-alt-text-writer-v5.png",
+      "priceLabel": "Coming soon",
+      "status": "coming-soon",
+      "statusLabel": "Coming soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Paste image descriptions (or what the image shows) and get alt text that describes what\\u2019s actually there — with the key product words in, and keyword-stuffing out.",
+      "inputs": [
+        "images: describe each image",
+        "context: page or purpose"
+      ],
+      "outputs": [
+        "alt_text — one line per image",
+        "notes — what you deliberately included/excluded"
+      ]
+    }
+  ]
+);
