@@ -1,7 +1,8 @@
 # host-skill
 
-`host.py` is Omo's repeatable SKILL.md hosting command. It delegates bundle
-generation to the reviewed `packages/skill-to-modal/compiler.py`, runs the
+`host.py` is Omo's repeatable SKILL.md hosting command. Hermes runs this at
+creator-intake/release time: it delegates bundle generation to the reviewed
+`packages/skill-to-modal/compiler.py`, runs the
 compiler and container test suites, verifies pricing against
 `site/deploy/cost-model.mjs`, and optionally registers the result in the
 storefront and generated Worker registry.
@@ -16,6 +17,14 @@ profile at `packages/skill-to-modal/profiles/<slug>.json` is mandatory. Only
 reviewed `single_llm` profiles can become runnable automatically; every other
 execution kind stays fail-closed until its artifacts and capabilities are
 materialized and reviewed.
+
+The reviewed profile can set `runtime_preference` to `auto`, `worker-native`,
+or `modal-hosted`. Hermes records the recommended, requested, and effective
+placement. Bounded `single_llm` workflows are Worker-compatible; media, GPU,
+filesystem, browser, and long-running capabilities require Modal. A creator
+may choose Modal for a Worker-compatible workflow, but cannot force an unsafe
+workflow into a Worker. Customers continue to call the same control plane and
+do not choose or need to know the runtime.
 
 See `research/hosting-runbook.md` for the complete deploy and canary procedure.
 

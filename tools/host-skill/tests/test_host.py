@@ -54,6 +54,20 @@ def test_catalog_patch_is_idempotent() -> None:
     assert first.count(host.CATALOG_END) == 1
 
 
+def test_catalog_patch_preserves_content_after_generated_marker() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "modal-hosted"
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    source = (
+        "window.OMO_CATALOG = [\n"
+        f"{host.CATALOG_START}\n{host.CATALOG_END}\n"
+        "];\nwindow.OMO_CATALOG.push({ slug: 'later' });\n"
+    )
+    patched = host.patch_catalog(source, [hosted])
+    assert "window.OMO_CATALOG.push({ slug: 'later' });" in patched
+    assert patched.count("facebook-ads-copywriter") == 2
+
+
 def test_existing_hand_managed_slug_is_not_duplicated() -> None:
     profile, manifest, pricing = compiled_inputs()
     hosted = host.build_hosted_profile(profile, manifest, pricing)
@@ -64,6 +78,7 @@ def test_existing_hand_managed_slug_is_not_duplicated() -> None:
 
 def test_registry_generation_is_deterministic_and_secret_free() -> None:
     profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "modal-hosted"
     hosted = host.build_hosted_profile(profile, manifest, pricing)
     first = host.render_registry([hosted])
     assert first == host.render_registry([hosted])
@@ -73,6 +88,64 @@ def test_registry_generation_is_deterministic_and_secret_free() -> None:
 
 def test_non_modal_endpoint_is_rejected() -> None:
     profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "modal-hosted"
     profile["marketplace"]["deployment"]["default_endpoint"] = "https://example.com"
     with pytest.raises(ValueError, match=r"\*\.modal\.run"):
         host.build_hosted_profile(profile, manifest, pricing)
+
+
+def test_lightweight_single_llm_defaults_to_worker_native() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "auto"
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    decision = hosted["runtime_placement"]
+    assert decision == {
+        "recommended": "worker-native",
+        "requested": "auto",
+        "effective": "worker-native",
+        "compatible": True,
+        "reason": "bounded_single_llm_is_worker_compatible",
+    }
+    assert hosted["runtime"]["kind"] == "worker-native"
+    assert "default_endpoint" not in hosted["runtime"]
+
+
+def test_creator_can_choose_modal_for_worker_compatible_workflow() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "modal-hosted"
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    assert hosted["runtime_placement"]["recommended"] == "worker-native"
+    assert hosted["runtime_placement"]["effective"] == "modal-hosted"
+    assert hosted["runtime_placement"]["compatible"] is True
+    assert hosted["runtime"]["default_endpoint"].endswith(".modal.run")
+
+
+def test_heavy_capability_rejects_worker_override() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["capabilities"].append("ffmpeg")
+    profile["runtime_preference"] = "worker-native"
+    with pytest.raises(ValueError, match="requires Modal"):
+        host.build_hosted_profile(profile, manifest, pricing)
+
+
+def test_registry_separates_worker_and_modal_rows() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "worker-native"
+    worker = host.build_hosted_profile(profile, manifest, pricing)
+    profile["runtime_preference"] = "modal-hosted"
+    modal = host.build_hosted_profile(profile, manifest, pricing)
+    modal["runtime"]["slug"] = "facebook-ads-copywriter-modal"
+    modal["server_catalog"]["slug"] = "facebook-ads-copywriter-modal"
+    rendered = host.render_registry([worker, modal])
+    assert "HOSTED_WORKER_SKILL_ROWS" in rendered
+    assert "HOSTED_MODAL_SKILL_ROWS" in rendered
+
+
+def test_legacy_runtime_without_kind_remains_modal() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["runtime_preference"] = "modal-hosted"
+    legacy = host.build_hosted_profile(profile, manifest, pricing)
+    legacy["runtime"].pop("kind")
+    rendered = host.render_registry([legacy])
+    modal_block = rendered.split("HOSTED_MODAL_SKILL_ROWS", 1)[1]
+    assert "facebook-ads-copywriter" in modal_block

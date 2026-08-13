@@ -29,6 +29,11 @@ CATALOG_START = "  // host-skill:generated:start"
 CATALOG_END = "  // host-skill:generated:end"
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+RUNTIME_PREFERENCES = {"auto", "worker-native", "modal-hosted"}
+MODAL_REQUIRED_CAPABILITIES = {
+    "ffmpeg", "faster-whisper", "ghostscript", "headless-chromium",
+    "hermes-codex-imagegen", "runware", "gpu", "filesystem", "long-running",
+}
 
 
 def load_compiler() -> Any:
@@ -89,6 +94,36 @@ def validate_https_modal_endpoint(value: Any) -> str:
     return endpoint
 
 
+def decide_runtime_placement(profile: dict[str, Any]) -> dict[str, Any]:
+    requested = str(profile.get("runtime_preference", "auto")).strip()
+    if requested not in RUNTIME_PREFERENCES:
+        raise ValueError("runtime_preference must be auto, worker-native, or modal-hosted")
+    capabilities = set(profile.get("capabilities") or [])
+    modal_reasons = sorted(capabilities & MODAL_REQUIRED_CAPABILITIES)
+    worker_compatible = profile.get("execution_kind") == "single_llm" and not modal_reasons
+    if worker_compatible:
+        recommended = "worker-native"
+        effective = recommended if requested == "auto" else requested
+        reason = (
+            "creator_selected_modal" if effective == "modal-hosted"
+            else "bounded_single_llm_is_worker_compatible"
+        )
+    else:
+        recommended = "modal-hosted"
+        if requested == "worker-native":
+            detail = ", ".join(modal_reasons) or str(profile.get("execution_kind"))
+            raise ValueError(f"workflow requires Modal; Worker override is incompatible: {detail}")
+        effective = "modal-hosted"
+        reason = "modal_required_capabilities" if modal_reasons else "execution_kind_not_worker_allowlisted"
+    return {
+        "recommended": recommended,
+        "requested": requested,
+        "effective": effective,
+        "compatible": True,
+        "reason": reason,
+    }
+
+
 def build_hosted_profile(
     profile: dict[str, Any], container_manifest: dict[str, Any], pricing: dict[str, Any]
 ) -> dict[str, Any]:
@@ -107,11 +142,15 @@ def build_hosted_profile(
     if run_price_cents < 1 or abs(price_usd - run_price_cents / 100) > 0.000001:
         raise ValueError("display price must resolve to whole USD cents")
 
+    placement = decide_runtime_placement(profile)
     deployment = market.get("deployment") or {}
-    endpoint = validate_https_modal_endpoint(deployment.get("default_endpoint"))
-    endpoint_env = require_text(deployment.get("endpoint_env"), "deployment.endpoint_env")
-    if not ENV_NAME_RE.fullmatch(endpoint_env):
-        raise ValueError("marketplace deployment endpoint_env must be an uppercase env name")
+    endpoint = None
+    endpoint_env = None
+    if placement["effective"] == "modal-hosted":
+        endpoint = validate_https_modal_endpoint(deployment.get("default_endpoint"))
+        endpoint_env = require_text(deployment.get("endpoint_env"), "deployment.endpoint_env")
+        if not ENV_NAME_RE.fullmatch(endpoint_env):
+            raise ValueError("marketplace deployment endpoint_env must be an uppercase env name")
 
     input_schema = profile["input_schema"]
     output_schema = profile["output_schema"]
@@ -193,14 +232,18 @@ def build_hosted_profile(
     runtime = {
         "slug": slug,
         "container_slug": profile["slug"],
-        "default_endpoint": endpoint,
-        "endpoint_env": endpoint_env,
+        "kind": placement["effective"],
         "input_schema": input_schema,
         "output_schema": output_schema,
         "run_price_cents": run_price_cents,
-        "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
-        "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
     }
+    if placement["effective"] == "modal-hosted":
+        runtime.update({
+            "default_endpoint": endpoint,
+            "endpoint_env": endpoint_env,
+            "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+            "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+        })
     server_catalog = {
         "slug": slug,
         "name": catalog["name"],
@@ -208,7 +251,7 @@ def build_hosted_profile(
         "run_price_usd": price_usd,
         "model": profile["live"]["default_model"],
         "max_tokens": int(profile["live"]["max_tokens"]),
-        "system_prompt": "Executed by the schema-validated hosted Modal deployment, not by the Worker LLM fallback.",
+        "system_prompt": profile["prompts"][prompt_name],
     }
     return {
         "schema_version": "omo.hosted-profile/v1",
@@ -216,6 +259,7 @@ def build_hosted_profile(
         "catalog_managed": bool(market.get("catalog_managed", True)),
         "catalog": catalog,
         "run_manifest": run_manifest,
+        "runtime_placement": placement,
         "runtime": runtime,
         "server_catalog": server_catalog,
     }
@@ -231,7 +275,10 @@ def discover_hosted_profiles(current: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def render_registry(profiles: list[dict[str, Any]]) -> str:
-    runtime_rows = [[item["runtime"]["slug"], item["runtime"]] for item in profiles]
+    # Profiles generated before runtime placement existed were all Modal. Keep
+    # that safe interpretation until each is regenerated explicitly.
+    modal_rows = [[item["runtime"]["slug"], item["runtime"]] for item in profiles if item["runtime"].get("kind", "modal-hosted") == "modal-hosted"]
+    worker_rows = [[item["runtime"]["slug"], item["runtime"]] for item in profiles if item["runtime"].get("kind", "modal-hosted") == "worker-native"]
     catalog_rows = [
         [
             item["server_catalog"]["slug"],
@@ -247,7 +294,8 @@ def render_registry(profiles: list[dict[str, Any]]) -> str:
     return (
         "// Generated by tools/host-skill/host.py; do not hand edit.\n"
         "// Contains public contracts and environment-variable names only.\n"
-        f"export const HOSTED_MODAL_SKILL_ROWS = {js_json(runtime_rows)};\n\n"
+        f"export const HOSTED_WORKER_SKILL_ROWS = {js_json(worker_rows)};\n\n"
+        f"export const HOSTED_MODAL_SKILL_ROWS = {js_json(modal_rows)};\n\n"
         f"export const HOSTED_SERVER_CATALOG_ROWS = {js_json(catalog_rows)};\n"
     )
 
@@ -255,16 +303,14 @@ def render_registry(profiles: list[dict[str, Any]]) -> str:
 def patch_catalog(source: str, profiles: list[dict[str, Any]]) -> str:
     if (CATALOG_START in source) != (CATALOG_END in source):
         raise ValueError("site/catalog.js has an incomplete host-skill marker pair")
-    if CATALOG_START in source:
-        marker_pattern = (
-            r"\n?" + re.escape(CATALOG_START) + r".*?" + re.escape(CATALOG_END) + r"\n?"
-        )
-        base = re.sub(marker_pattern, "\n", source, count=1, flags=re.S)
-    else:
-        base = source
-    if not re.search(r"\]\s*;\s*$", base):
-        raise ValueError("site/catalog.js does not end in a catalog array")
-    external_slugs = set(re.findall(r"['\"]?slug['\"]?\s*:\s*['\"]([a-z0-9-]+)['\"]", base))
+    external_source = re.sub(
+        re.escape(CATALOG_START) + r".*?" + re.escape(CATALOG_END),
+        "",
+        source,
+        count=1,
+        flags=re.S,
+    )
+    external_slugs = set(re.findall(r"['\"]?slug['\"]?\s*:\s*['\"]([a-z0-9-]+)['\"]", external_source))
     managed = [
         item for item in profiles
         if item.get("catalog_managed", True) and item["catalog"]["slug"] not in external_slugs
@@ -274,7 +320,19 @@ def patch_catalog(source: str, profiles: list[dict[str, Any]]) -> str:
         lines.append("  ," + js_json(item["catalog"], 2).lstrip())
     lines.append(CATALOG_END)
     block = "\n".join(lines)
-    patched = re.sub(r"\]\s*;\s*$", lambda _match: block + "\n];", base)
+    if CATALOG_START in source:
+        patched = re.sub(
+            re.escape(CATALOG_START) + r".*?" + re.escape(CATALOG_END),
+            lambda _match: block,
+            source,
+            count=1,
+            flags=re.S,
+        )
+    else:
+        array_end = re.search(r"\]\s*;", source)
+        if not array_end:
+            raise ValueError("site/catalog.js does not contain a catalog array terminator")
+        patched = source[:array_end.start()] + block + "\n" + source[array_end.start():]
     return patched.rstrip() + "\n"
 
 
