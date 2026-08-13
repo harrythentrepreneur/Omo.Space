@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
+from urllib.error import HTTPError
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -145,3 +147,169 @@ def test_deployed_gate_requires_publish_slug_version_and_evidence() -> None:
         assert "ready_for_publish" in str(error)
     else:
         raise AssertionError("mark_deployed should fail without deployment metadata")
+
+
+def test_repository_factory_prefers_private_worker_bridge(monkeypatch) -> None:
+    process = load_process_submissions()
+    monkeypatch.setenv("BUILD_WORKER_BASE_URL", "https://omo.space")
+    monkeypatch.setenv("BUILD_WORKER_TOKEN", "token-value")
+    monkeypatch.delenv("NEON_DATABASE_URL", raising=False)
+
+    repo = process.repository_from_env(os.environ)
+
+    assert isinstance(repo, process.HttpSubmissionRepository)
+    assert "token-value" not in repr(repo)
+
+
+def test_repository_factory_keeps_neon_fallback(monkeypatch) -> None:
+    process = load_process_submissions()
+    monkeypatch.delenv("BUILD_WORKER_BASE_URL", raising=False)
+    monkeypatch.delenv("BUILD_WORKER_TOKEN", raising=False)
+    monkeypatch.setenv("NEON_DATABASE_URL", "postgres://example")
+
+    captured: dict[str, str] = {}
+    class FakeNeon(process.SubmissionRepository):
+        def __init__(self, database_url: str):
+            captured["database_url"] = database_url
+
+    monkeypatch.setattr(process, "SubmissionRepository", FakeNeon)
+    repo = process.repository_from_env(os.environ)
+
+    assert isinstance(repo, FakeNeon)
+    assert captured == {"database_url": "postgres://example"}
+
+
+def test_http_repository_rejects_unapproved_non_https_origin() -> None:
+    process = load_process_submissions()
+    try:
+        process.HttpSubmissionRepository("http://omo.space", "token")
+    except ValueError as error:
+        assert "HTTPS" in str(error)
+    else:
+        raise AssertionError("HTTP base URL should be rejected")
+
+    try:
+        process.HttpSubmissionRepository("https://evil.example", "token")
+    except ValueError as error:
+        assert "not allowlisted" in str(error)
+    else:
+        raise AssertionError("unapproved origin should be rejected")
+
+
+def test_http_repository_claim_posts_bearer_and_validates_schema(monkeypatch) -> None:
+    process = load_process_submissions()
+    calls: list[dict] = []
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def read(self):
+            return json.dumps({
+                "ok": True,
+                "submission": {
+                    "id": "sub_12345678",
+                    "name": "sample-workflow",
+                    "slug": "sample-workflow",
+                    "content": "---\nname: sample-workflow\ndescription: x\n---\n",
+                    "source_sha256": "a" * 64,
+                    "requested_runtime": "auto",
+                    "prior_status": "queued",
+                },
+            }).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        calls.append({
+            "url": request.full_url,
+            "method": request.get_method(),
+            "headers": dict(request.header_items()),
+            "body": request.data.decode("utf-8"),
+            "timeout": timeout,
+        })
+        return Response()
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", fake_urlopen)
+    repo = process.HttpSubmissionRepository("https://omo.space", "secret-token")
+
+    row = repo.claim("sub_12345678")
+
+    assert row["id"] == "sub_12345678"
+    assert calls[0]["url"] == "https://omo.space/api/internal/submissions/claim"
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["headers"]["Authorization"] == "Bearer secret-token"
+    assert json.loads(calls[0]["body"]) == {"id": "sub_12345678"}
+    assert calls[0]["timeout"] == process.HTTP_TIMEOUT_SECONDS
+
+
+def test_http_repository_response_schema_rejects_markdown_and_bad_ids(monkeypatch) -> None:
+    process = load_process_submissions()
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def read(self):
+            return json.dumps({
+                "ok": True,
+                "submission": {
+                    "id": "bad",
+                    "name": "sample-workflow",
+                    "slug": "sample-workflow",
+                    "content": "secret markdown",
+                    "source_sha256": "a" * 64,
+                    "requested_runtime": "auto",
+                    "prior_status": "queued",
+                },
+            }).encode("utf-8")
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", lambda request, timeout: Response())
+    repo = process.HttpSubmissionRepository("https://omo.space", "secret-token")
+
+    try:
+        repo.claim()
+    except RuntimeError as error:
+        assert "invalid internal claim response" in str(error)
+        assert "secret markdown" not in str(error)
+    else:
+        raise AssertionError("bad claim schema should fail closed")
+
+
+def test_http_repository_maps_204_claim_to_idle(monkeypatch) -> None:
+    process = load_process_submissions()
+
+    def fake_urlopen(request, timeout):
+        raise HTTPError(request.full_url, 204, "No Content", {}, None)
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", fake_urlopen)
+    repo = process.HttpSubmissionRepository("https://omo.space", "secret-token")
+
+    assert repo.claim() is None
+
+
+def test_claim_sql_is_atomic_and_returns_only_processor_fields() -> None:
+    process = load_process_submissions()
+
+    class Cursor:
+        def execute(self, query, params):
+            assert "FOR UPDATE SKIP LOCKED" in query
+            assert "UPDATE submissions AS submission" in query
+            assert "RETURNING submission.id, submission.name, submission.slug, submission.content, submission.source_sha256, submission.requested_runtime, candidate.prior_status" in " ".join(query.split())
+            assert "user_id" not in query.split("RETURNING", 1)[1]
+            assert params == ["queued"]
+        def fetchone(self):
+            return None
+
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def cursor(self, cursor_factory=None): return CursorContext()
+
+    class CursorContext:
+        def __enter__(self): return Cursor()
+        def __exit__(self, exc_type, exc, tb): return False
+
+    repo = object.__new__(process.SubmissionRepository)
+    repo.connection = Connection()
+    repo._extras = object()
+
+    assert repo.claim() is None

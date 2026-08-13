@@ -213,7 +213,7 @@ const sandbox = {
   console,
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -520,6 +520,102 @@ const nonOwnerDetail = await worker.fetch(mkReq('GET', `/api/submissions/${submi
 const missingDetail = await worker.fetch(mkReq('GET', '/api/submissions/sub_00000000000000000000000000000000', {}, creatorHeaders), realEnv);
 const missingListAuth = await worker.fetch(mkReq('GET', '/api/submissions', {}, {}), realEnv);
 check('submissions API: missing auth, non-owner, and missing details fail closed', missingListAuth.status === 401 && nonOwnerDetail.status === 404 && missingDetail.status === 404);
+
+// Private build-worker bridge: bearer-only, no CORS, bounded strict payloads.
+const buildEnv = { ...realEnv, BUILD_WORKER_TOKEN: 'bridge-token-for-tests' };
+check('internal auth: constant-time helper is length-stable and exact',
+  workerTest.constantTimeEquals('bridge-token-for-tests', 'bridge-token-for-tests') === true &&
+  workerTest.constantTimeEquals('bridge-token-for-tests', 'bridge-token-for-testx') === false &&
+  workerTest.constantTimeEquals('bridge-token-for-tests', 'x') === false);
+const internalNoConfig = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', {}, {}), realEnv);
+const internalBadAuth = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', {}, {
+  Authorization: 'Bearer wrong-token',
+  Origin: 'https://omo.space',
+}), buildEnv);
+const internalOptions = await worker.fetch(mkReq('OPTIONS', '/api/internal/submissions/claim', {}, {
+  Authorization: 'Bearer bridge-token-for-tests',
+  Origin: 'https://omo.space',
+}), buildEnv);
+const internalUnknown = await worker.fetch(mkReq('GET', '/api/internal/not-a-route', {}, {
+  Authorization: 'Bearer bridge-token-for-tests',
+  Origin: 'https://omo.space',
+}), buildEnv);
+check('internal auth: missing config is 503, bad token is 401, and internal routes expose no CORS',
+  internalNoConfig.status === 503 &&
+  internalBadAuth.status === 401 &&
+  internalBadAuth.headers.get('Access-Control-Allow-Origin') === null &&
+  internalOptions.headers.get('Access-Control-Allow-Origin') === null &&
+  internalUnknown.status === 404 &&
+  internalUnknown.headers.get('Access-Control-Allow-Origin') === null);
+
+for (const record of workerTest.mockSubmissions.values()) {
+  if (record.id === submitAuto.id) {
+    record.status = 'queued';
+    record.published_slug = null;
+    record.workflow_version = null;
+    record.build_evidence = null;
+  }
+}
+const internalHeaders = { Authorization: 'Bearer bridge-token-for-tests', Origin: 'https://omo.space' };
+const internalClaim = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: submitAuto.id }, internalHeaders), buildEnv);
+const internalClaimBody = await internalClaim.json();
+const internalReplay = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: submitAuto.id }, internalHeaders), buildEnv);
+check('internal claim: atomically returns one safe processing row and cannot replay a processing id',
+  internalClaim.status === 200 &&
+  internalClaimBody.ok === true &&
+  internalClaimBody.submission.id === submitAuto.id &&
+  internalClaimBody.submission.prior_status === 'queued' &&
+  internalClaimBody.submission.content === autoSubmissionContent &&
+  !('user_id' in internalClaimBody.submission) &&
+  internalReplay.status === 204);
+const internalBadClaimId = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: 'sub_bad' }, internalHeaders), buildEnv);
+check('internal claim: unsafe specific ids are rejected before SQL', internalBadClaimId.status === 400);
+
+const internalRuntime = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/runtime`, {
+  effective: 'worker-native',
+  reason: 'reviewed_profile_selected_worker',
+  recommended: 'worker-native',
+  requested: 'auto',
+  compatible: true,
+  token: 'must-not-store',
+}, internalHeaders), buildEnv);
+const internalBadRuntime = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/runtime`, {
+  effective: 'edge-magic',
+  reason: 'bad',
+}, internalHeaders), buildEnv);
+check('internal runtime: strict allowlisted decision fields update processing rows only', internalRuntime.status === 200 && internalBadRuntime.status === 400);
+
+const internalDeployment = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/deployment`, {
+  status: 'ready_for_publish',
+  published_slug: 'auto-workflow',
+  workflow_version: 'auto-workflow@1.0.0',
+  build_evidence: {
+    checks: ['compile', 'contract'],
+    source_sha256: internalClaimBody.submission.source_sha256,
+    generated_at: '2026-08-13T00:00:00Z',
+    secret: 'must-not-store',
+  },
+}, internalHeaders), buildEnv);
+const internalDeployed = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/deployed`, {
+  deployed_by: 'build-worker',
+  deployment_url: 'https://omo.space/workflow.html?slug=auto-workflow',
+}, internalHeaders), buildEnv);
+const deployedRecord = Array.from(workerTest.mockSubmissions.values()).find((record) => record.id === internalClaimBody.submission.id);
+check('internal deployment: metadata is allowlisted and deployed is gated from ready_for_publish',
+  internalDeployment.status === 200 &&
+  internalDeployed.status === 200 &&
+  deployedRecord.status === 'deployed' &&
+  deployedRecord.published_slug === 'auto-workflow' &&
+  !String(deployedRecord.build_evidence).includes('must-not-store'));
+
+const internalBadStatus = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/status`, {
+  status: 'queued',
+}, internalHeaders), buildEnv);
+const internalOversize = await worker.fetch(Object.assign(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/status`, {}, internalHeaders), {
+  text: async () => 'x'.repeat(20 * 1024),
+  json: async () => { throw new Error('should not parse oversize'); },
+}), buildEnv);
+check('internal status: invalid transitions and oversized bodies fail closed', internalBadStatus.status === 400 && internalOversize.status === 413);
 
 // Generic /api/run route
 const run = await (await worker.fetch(mkReq('POST', '/api/run', {

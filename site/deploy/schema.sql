@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   workflow_version  TEXT,
   published_slug    TEXT,
   build_evidence    TEXT,
+  deployment_metadata TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
   created_at    TEXT NOT NULL,
@@ -229,6 +230,7 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS runtime_compatibility TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS workflow_version TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS published_slug TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_evidence TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS deployment_metadata TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_submissions_status_created
   ON submissions (status, created_at);
