@@ -62,6 +62,6 @@
     "target_duration_seconds",
     "style"
   ],
-  "title": "Audio symbolic animation run input",
+  "title": "Audio symbolic animation production input",
   "type": "object"
 }

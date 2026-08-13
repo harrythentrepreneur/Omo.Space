@@ -296,12 +296,15 @@ const ROUTES = {
   '/api/checkout': { handler: handleCheckout }, // Guest Stripe Checkout: {slug, email?}; client price is ignored
   '/api/waitlist': { handler: handleWaitlist }, // Public waitlist signup: {email, source?}
   '/api/submit': { handler: handleSubmission }, // Creator queue: {name, content, visibility:'public'}
+  '/api/submissions': { handler: handleSubmissions, methods: ['GET'] }, // Owner creator lifecycle list
   '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
   '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
   '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $5 grant
 };
 
 function dynamicRoute(pathname) {
+  const submissionDetail = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})$/.exec(pathname);
+  if (submissionDetail) return { handler: handleSubmissionDetail, methods: ['GET'], params: { submissionId: submissionDetail[1] } };
   const submissionRuntime = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/runtime$/.exec(pathname);
   if (submissionRuntime) return { handler: handleSubmissionRuntime, methods: ['PATCH'], params: { submissionId: submissionRuntime[1] } };
   const progress = /^\/api\/run\/(run_[A-Za-z0-9_-]{4,91})\/progress$/.exec(pathname);
@@ -1772,6 +1775,119 @@ async function handleSubmissionRuntime(request, env, _url, params) {
   }, 200, cors());
 }
 
+async function handleSubmissions(request, env, url) {
+  const auth = await authenticateAccount(request, env, false);
+  if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors());
+  const limit = boundedInt(url.searchParams && url.searchParams.get('limit'), 1, 50, 20);
+  const rows = await listSubmissions(env, auth.userId, limit);
+  return json({
+    ok: true,
+    limit,
+    submissions: rows.map(publicSubmission),
+  }, 200, cors());
+}
+
+async function handleSubmissionDetail(request, env, _url, params) {
+  const auth = await authenticateAccount(request, env, false);
+  if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors());
+  const row = await getSubmissionForOwner(env, auth.userId, params.submissionId);
+  if (!row) return json({ ok: false, error: 'submission_not_found' }, 404, cors());
+  return json({ ok: true, submission: publicSubmission(row) }, 200, cors());
+}
+
+function publicSubmission(row) {
+  const selectedRuntime = safeRuntime(row.selected_runtime);
+  const status = safeSubmissionStatus(row.status);
+  return {
+    id: String(row.id || ''),
+    name: String(row.name || ''),
+    slug: String(row.slug || ''),
+    status,
+    requested_runtime: normalizeRequestedRuntime(row.requested_runtime || 'auto') || 'auto',
+    selected_runtime: selectedRuntime,
+    runtime_policy: safeRuntimePolicy(row.runtime_policy),
+    compatibility: safeCompatibility(row.runtime_compatibility),
+    source_sha256: safeSha256(row.source_sha256 || row.sourceSha256),
+    workflow_version: safeText(row.workflow_version, 160),
+    published_slug: safeSlug(row.published_slug),
+    created_at: safeTimestamp(row.created_at),
+    updated_at: safeTimestamp(row.updated_at),
+    deployed_at: safeTimestamp(row.deployed_at),
+    build_evidence: safeBuildEvidence(row.build_evidence),
+  };
+}
+
+function safeText(value, maxLength) {
+  const text = String(value || '').trim();
+  return text ? text.slice(0, maxLength) : null;
+}
+
+function safeTimestamp(value) {
+  const text = String(value || '').trim();
+  return text && text.length <= 64 ? text : null;
+}
+
+function safeSha256(value) {
+  const text = String(value || '').trim().toLowerCase();
+  return /^[0-9a-f]{64}$/.test(text) ? text : null;
+}
+
+function safeSlug(value) {
+  const text = String(value || '').trim();
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(text) && text.length <= 100 ? text : null;
+}
+
+function safeRuntime(value) {
+  const text = String(value || '').trim();
+  return text === 'worker-native' || text === 'modal-hosted' ? text : null;
+}
+
+function safeSubmissionStatus(value) {
+  const text = String(value || '').trim();
+  return ['queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed'].includes(text)
+    ? text
+    : 'queued';
+}
+
+function safeRuntimePolicy(value) {
+  const text = String(value || '').trim();
+  return /^[a-z][a-z0-9_:-]{2,127}$/.test(text) ? text : null;
+}
+
+function parseJsonObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function safeCompatibility(value) {
+  const parsed = parseJsonObject(value);
+  return {
+    recommended: safeRuntime(parsed.recommended),
+    requested: normalizeRequestedRuntime(parsed.requested || '') || null,
+    compatible: typeof parsed.compatible === 'boolean' ? parsed.compatible : null,
+  };
+}
+
+function safeBuildEvidence(value) {
+  const parsed = parseJsonObject(value);
+  const checks = Array.isArray(parsed.checks)
+    ? parsed.checks.map((item) => String(item || '').trim()).filter((item) => /^[a-z][a-z0-9_:-]{1,63}$/.test(item)).slice(0, 20)
+    : [];
+  const evidence = { checks };
+  if (Number.isSafeInteger(Number(parsed.duration_ms)) && Number(parsed.duration_ms) >= 0) {
+    evidence.duration_ms = Number(parsed.duration_ms);
+  }
+  if (safeSha256(parsed.source_sha256)) evidence.source_sha256 = safeSha256(parsed.source_sha256);
+  if (safeText(parsed.generated_at, 64)) evidence.generated_at = safeText(parsed.generated_at, 64);
+  return evidence;
+}
+
 // ── Route: dashboard /api/me ──────────────────────────────────────────────
 // Real: GET/POST /api/me with a Clerk bearer token. Mock: the legacy
 // ?user_id=… / {user_id} form remains available for the local demo. →
@@ -2331,6 +2447,49 @@ async function updateSubmissionRuntime(env, userId, submissionId, requestedRunti
     }
   }
   return { status: 'not_found' };
+}
+
+async function listSubmissions(env, userId, limit) {
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,workflow_version,published_slug,created_at,updated_at,deployed_at,build_evidence';
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-submissions-list-v1',
+      `SELECT ${columns} FROM submissions WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`,
+      [userId, limit]
+    ));
+    return result.rows;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare(`SELECT ${columns} FROM submissions WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`)
+      .bind(userId, limit).all();
+    return (result && result.results) || [];
+  }
+  return Array.from(mockSubmissions.values())
+    .filter((record) => record.userId === userId || record.user_id === userId)
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id || '').localeCompare(String(a.id || '')))
+    .slice(0, limit);
+}
+
+async function getSubmissionForOwner(env, userId, submissionId) {
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,workflow_version,published_slug,created_at,updated_at,deployed_at,build_evidence';
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-submission-detail-v1',
+      `SELECT ${columns} FROM submissions WHERE id = $1 AND user_id = $2`,
+      [submissionId, userId]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return env.BALANCE_DB
+      .prepare(`SELECT ${columns} FROM submissions WHERE id = ? AND user_id = ?`)
+      .bind(submissionId, userId).first();
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.id === submissionId && (record.userId === userId || record.user_id === userId)) return record;
+  }
+  return null;
 }
 
 function balanceSecret(env) {

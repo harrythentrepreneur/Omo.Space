@@ -145,10 +145,46 @@ class SubmissionRepository:
                 if cursor.rowcount != 1:
                     raise RuntimeError("submission disappeared while its runtime decision was being updated")
 
+    def set_deployment_metadata(
+        self,
+        submission_id: str,
+        status: str,
+        published_slug: str,
+        workflow_version: str,
+        build_evidence: dict[str, Any],
+    ) -> None:
+        if status not in {"ready_for_deploy", "ready_for_publish"}:
+            raise ValueError("deployment metadata can only prepare publishable states")
+        if not published_slug or not workflow_version or not build_evidence:
+            raise ValueError("published_slug, workflow_version, and build_evidence are required")
+        with self.connection:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE submissions
+                    SET status = %s,
+                        failure_code = NULL,
+                        published_slug = %s,
+                        workflow_version = %s,
+                        build_evidence = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (
+                        status,
+                        published_slug,
+                        workflow_version,
+                        json.dumps(build_evidence, sort_keys=True),
+                        submission_id,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("submission disappeared while deployment metadata was being updated")
+
     def get(self, submission_id: str) -> dict[str, Any] | None:
         with self.connection.cursor(cursor_factory=self._extras.RealDictCursor) as cursor:
             cursor.execute(
-                "SELECT id,user_id,name,slug,content,source_sha256,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,status,created_at,updated_at FROM submissions WHERE id = %s",
+                "SELECT id,user_id,name,slug,content,source_sha256,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,workflow_version,published_slug,build_evidence,status,created_at,updated_at,deployed_at FROM submissions WHERE id = %s",
                 (submission_id,),
             )
             row = cursor.fetchone()
@@ -158,11 +194,22 @@ class SubmissionRepository:
         with self.connection:
             with self.connection.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE submissions SET status = 'deployed', failure_code = NULL, updated_at = CURRENT_TIMESTAMP, deployed_at = CURRENT_TIMESTAMP WHERE id = %s AND status = 'ready_for_publish'",
+                    """
+                    UPDATE submissions
+                    SET status = 'deployed',
+                        failure_code = NULL,
+                        updated_at = CURRENT_TIMESTAMP,
+                        deployed_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                      AND status = 'ready_for_publish'
+                      AND published_slug IS NOT NULL
+                      AND workflow_version IS NOT NULL
+                      AND build_evidence IS NOT NULL
+                    """,
                     (submission_id,),
                 )
                 if cursor.rowcount != 1:
-                    raise RuntimeError("submission must be ready_for_publish before it can be marked deployed")
+                    raise RuntimeError("submission must be ready_for_publish with published_slug, workflow_version, and build_evidence before it can be marked deployed")
 
 
 def run_checked(command: list[str], cwd: Path = ROOT) -> None:
@@ -249,18 +296,34 @@ def reviewed_profile_artifact(slug: str, requested_runtime: str | None, temp_dir
     return profile_path, decision
 
 
-def generated_runtime_decision(slug: str, profile_path: Path) -> dict[str, Any]:
+def generated_runtime_metadata(slug: str, profile_path: Path, expected_source_sha256: str) -> dict[str, Any]:
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
     out = ROOT / "containers" / slug
+    analysis = json.loads((out / "skill-analysis.json").read_text(encoding="utf-8"))
+    generated_source_sha256 = str(analysis.get("source", {}).get("sha256") or "")
+    if generated_source_sha256 != expected_source_sha256:
+        raise RuntimeError("generated_source_hash_mismatch")
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    pricing = json.loads((out / "pricing-report.json").read_text(encoding="utf-8"))
     hosted = HOST_MODULE.build_hosted_profile(
         profile,
-        json.loads((out / "manifest.json").read_text(encoding="utf-8")),
-        json.loads((out / "pricing-report.json").read_text(encoding="utf-8")),
+        manifest,
+        pricing,
     )
     decision = dict(hosted["runtime_placement"])
     if hosted["runtime"]["kind"] != decision["effective"]:
         raise RuntimeError("generated registry runtime diverged from reviewed runtime decision")
-    return decision
+    workflow_version = f"{manifest['slug']}@{manifest['version']}"
+    return {
+        "decision": decision,
+        "published_slug": hosted["runtime"]["slug"],
+        "workflow_version": workflow_version,
+        "build_evidence": {
+            "checks": ["compile", "contract", "pricing"],
+            "source_sha256": generated_source_sha256,
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        },
+    }
 
 
 def assert_reviewed_runtime(profile_path: Path, selected_runtime: str) -> None:
@@ -315,12 +378,26 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
                 Path(temp_dir),
             )
             run_checked(host_command(skill_path, validated.slug, profile_path=profile_path))
-            decision = generated_runtime_decision(validated.slug, profile_path)
+            metadata = generated_runtime_metadata(validated.slug, profile_path, validated.source_sha256)
+            decision = metadata["decision"]
             repository.set_runtime_decision(submission_id, decision)
-            repository.set_status(submission_id, "ready_for_deploy")
             if deploy:
                 deploy_reviewed_submission(skill_path, validated.slug, profile_path, decision["effective"])
-                repository.set_status(submission_id, "ready_for_publish")
+                repository.set_deployment_metadata(
+                    submission_id,
+                    "ready_for_publish",
+                    metadata["published_slug"],
+                    metadata["workflow_version"],
+                    metadata["build_evidence"],
+                )
+            else:
+                repository.set_deployment_metadata(
+                    submission_id,
+                    "ready_for_deploy",
+                    metadata["published_slug"],
+                    metadata["workflow_version"],
+                    metadata["build_evidence"],
+                )
     except subprocess.CalledProcessError:
         repository.set_status(submission_id, "failed", "build_or_deploy_failed")
         return {
@@ -328,6 +405,15 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
             "slug": validated.slug,
             "status": "failed",
             "failure_code": "build_or_deploy_failed",
+        }
+    except RuntimeError as error:
+        failure_code = "generated_source_hash_mismatch" if str(error) == "generated_source_hash_mismatch" else "canary_or_internal_failed"
+        repository.set_status(submission_id, "failed", failure_code)
+        return {
+            "id": submission_id,
+            "slug": validated.slug,
+            "status": "failed",
+            "failure_code": failure_code,
         }
     except Exception:
         repository.set_status(submission_id, "failed", "canary_or_internal_failed")

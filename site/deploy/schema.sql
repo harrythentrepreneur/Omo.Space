@@ -2,9 +2,11 @@
 --
 -- Neon (recommended): psql "$NEON_DATABASE_URL" -f schema.sql
 -- D1 fallback: use the CREATE TABLE/CREATE INDEX definitions for fresh local
--- databases. The additive ALTER TABLE ... ADD COLUMN IF NOT EXISTS migration
--- statements below are Postgres/Neon syntax and are intentionally not claimed
--- as a versioned D1 migration.
+-- databases; the submissions table below includes workflow_version,
+-- published_slug, and build_evidence for fresh D1 parity. The additive
+-- ALTER TABLE ... ADD COLUMN IF NOT EXISTS migration statements are
+-- Postgres/Neon syntax. For an existing D1 database, apply equivalent
+-- manual ALTER TABLE ADD COLUMN statements in a separate reviewed D1 migration.
 --
 -- Most columns use TEXT timestamps and INTEGER booleans so the base table
 -- shapes remain close to SQLite/D1, but migration syntax is target-specific.
@@ -209,6 +211,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   selected_runtime  TEXT CHECK (selected_runtime IN ('worker-native', 'modal-hosted')),
   runtime_policy    TEXT,
   runtime_compatibility TEXT,
+  workflow_version  TEXT,
+  published_slug    TEXT,
+  build_evidence    TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
   created_at    TEXT NOT NULL,
@@ -221,6 +226,9 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS requested_runtime TEXT NOT NULL
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS selected_runtime TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS runtime_policy TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS runtime_compatibility TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS workflow_version TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS published_slug TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_evidence TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_submissions_status_created
   ON submissions (status, created_at);

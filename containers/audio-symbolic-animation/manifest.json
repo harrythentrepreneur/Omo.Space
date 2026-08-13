@@ -12,102 +12,35 @@
     },
     {
       "content_type": "application/json",
-      "kind": "frame_brief",
+      "kind": "mechanical_brief",
+      "required": true
+    },
+    {
+      "content_type": "image/png",
+      "kind": "frame",
       "required": true
     }
   ],
-  "description": "Use when making a symbolic animation video from any audio.",
+  "description": "Use when making a symbolic animation video from audio. Production uploads remain blocked; a deterministic fixture preview is available for acceptance testing.",
   "endpoint": {
     "auth": "modal_proxy_token",
     "method": "POST",
     "path": "/v1/runs",
     "poll_path_template": "/v1/runs/{call_id}"
   },
-  "form": [
-    {
-      "field": "audio_artifact",
-      "widget": "private_artifact_upload"
+  "fixture_preview": {
+    "can_submit": true,
+    "input_schema": {
+      "$ref": "schemas/fixture-input.json"
     },
-    {
-      "field": "target_duration_seconds",
-      "widget": "select"
-    },
-    {
-      "field": "style",
-      "value": "sumi-e",
-      "widget": "hidden"
-    },
-    {
-      "field": "passage_hint",
-      "widget": "textarea"
-    }
-  ],
+    "path": "/v1/fixture-runs",
+    "poll_path_template": "/v1/fixture-runs/{run_id}",
+    "delete_path_template": "/v1/fixture-runs/{run_id}",
+    "runtime": "deterministic_fixture",
+    "provider_cost_usd": 0
+  },
   "input_schema": {
-    "$id": "https://cognition.marketplace/schemas/audio-symbolic-animation/input.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "audio_artifact": {
-        "additionalProperties": false,
-        "properties": {
-          "bytes": {
-            "maximum": 52428800,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "content_type": {
-            "enum": [
-              "audio/mpeg",
-              "audio/mp4",
-              "audio/wav",
-              "audio/x-wav"
-            ],
-            "type": "string"
-          },
-          "object_key": {
-            "maxLength": 512,
-            "minLength": 3,
-            "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9][A-Za-z0-9._/-]+$",
-            "type": "string"
-          },
-          "sha256": {
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "object_key",
-          "sha256",
-          "bytes",
-          "content_type"
-        ],
-        "type": "object"
-      },
-      "passage_hint": {
-        "maxLength": 500,
-        "minLength": 1,
-        "type": "string"
-      },
-      "style": {
-        "const": "sumi-e"
-      },
-      "target_duration_seconds": {
-        "enum": [
-          30,
-          60,
-          120,
-          240
-        ],
-        "type": "integer"
-      }
-    },
-    "required": [
-      "audio_artifact",
-      "target_duration_seconds",
-      "style"
-    ],
-    "title": "Audio symbolic animation run input",
-    "type": "object"
+    "$ref": "schemas/input.json"
   },
   "name": "audio-symbolic-animation",
   "output_schema_path": "schemas/output.json",
@@ -151,7 +84,13 @@
     ],
     "status": "not_ready"
   },
+  "runtime": {
+    "availability": "production_blocked_fixture_preview_available",
+    "classification": "media-sequential",
+    "modal_required": true,
+    "production_image_provider": "fail_closed"
+  },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "audio-symbolic-animation",
-  "version": "0.1.0"
+  "version": "0.2.0-fixture"
 }

@@ -1,40 +1,45 @@
 {
   "allowlist": [
-    "single_llm"
+    "media-sequential"
   ],
   "approved": [],
+  "availability": "production_blocked_fixture_preview_available",
   "blockers": [
     {
-      "code": "EXECUTOR_NOT_MATERIALIZED",
-      "detail": "The referenced Hermes scripts and faster-whisper model are not vendored, pinned, or packaged in this repository."
+      "code": "PRODUCTION_IMAGE_PROVIDER_UNAVAILABLE",
+      "detail": "No production image provider is approved for this runtime."
     },
     {
-      "code": "IMAGEGEN_CAPABILITY_UNAPPROVED",
-      "detail": "The skill requires sequential Hermes/Codex subscription image generation; no reviewed server-side Modal adapter or auditable credential lifecycle exists."
-    },
-    {
-      "code": "PRIVATE_ARTIFACT_PLANE_MISSING",
-      "detail": "Exact private input upload, output persistence, signed delivery, retention, and deletion are unresolved."
-    },
-    {
-      "code": "COST_INCOMPLETE",
-      "detail": "Modal transcription/assembly compute, subscription allowance, retries, storage, egress, and accepted-output yield are not measured."
-    },
-    {
-      "code": "QA_CAPABILITY_MISSING",
-      "detail": "The required vision continuity gate and long-run paid canary have not been implemented or approved."
+      "code": "PRIVATE_OBJECT_STORAGE_NOT_IMPLEMENTED",
+      "detail": "Private uploads are represented by explicit fixture_id only in this acceptance slice."
     }
   ],
   "decision": "blocked",
-  "execution_kind": "complex_external",
+  "execution_kind": "media-sequential",
+  "production_image_provider": {
+    "available": false,
+    "failure_code": "PROVIDER_UNAVAILABLE"
+  },
   "requested": [
     "private-artifact-read",
-    "private-artifact-write",
     "faster-whisper-large-v3-turbo",
     "sequential-codex-image-generation",
     "ffmpeg-h264-aac",
-    "vision-quality-gate"
+    "private-artifact-write"
   ],
+  "fixture_preview": {
+    "can_submit": true,
+    "approved": [
+      "fixture-wav-read",
+      "deterministic-transcript-json",
+      "deterministic-mechanical-brief-json",
+      "deterministic-sequential-png-frames",
+      "ffmpeg-h264-aac"
+    ],
+    "availability": "fixture_only",
+    "failure_code_for_production_inputs": "PROVIDER_UNAVAILABLE"
+  },
+  "runtime_class": "media-sequential",
   "schema_version": "cognition.capabilities/v1",
   "slug": "audio-symbolic-animation"
 }

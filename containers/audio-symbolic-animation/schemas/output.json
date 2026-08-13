@@ -1,123 +1,58 @@
 {
   "$id": "https://cognition.marketplace/schemas/audio-symbolic-animation/output.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "artifacts": {
-      "allOf": [
-        {
-          "contains": {
-            "properties": {
-              "kind": {
-                "const": "video"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "maxContains": 1,
-          "minContains": 1
-        },
-        {
-          "contains": {
-            "properties": {
-              "kind": {
-                "const": "transcript"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "maxContains": 1,
-          "minContains": 1
-        },
-        {
-          "contains": {
-            "properties": {
-              "kind": {
-                "const": "frame_brief"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "maxContains": 1,
-          "minContains": 1
-        }
-      ],
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "bytes": {
-            "minimum": 1,
-            "type": "integer"
-          },
-          "content_type": {
-            "enum": [
-              "video/mp4",
-              "application/json"
-            ],
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "video",
-              "transcript",
-              "frame_brief"
-            ],
-            "type": "string"
-          },
-          "object_key": {
-            "minLength": 3,
-            "type": "string"
-          },
-          "sha256": {
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "object_key",
-          "sha256",
-          "bytes",
-          "content_type"
-        ],
-        "type": "object"
-      },
-      "maxItems": 3,
-      "minItems": 3,
-      "type": "array"
-    },
-    "delivery": {
+  "$defs": {
+    "artifact": {
       "additionalProperties": false,
       "properties": {
-        "description": {
-          "minLength": 1,
+        "bytes": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "content_type": {
+          "enum": [
+            "video/mp4",
+            "application/json",
+            "image/png"
+          ],
           "type": "string"
         },
-        "hashtags": {
-          "items": {
-            "pattern": "^#",
-            "type": "string"
-          },
-          "maxItems": 8,
-          "minItems": 1,
-          "type": "array"
+        "delete_after": {
+          "pattern": "Z$",
+          "type": "string"
         },
-        "title": {
-          "maxLength": 80,
+        "kind": {
+          "enum": [
+            "video",
+            "transcript",
+            "frame_brief",
+            "mechanical_brief",
+            "frame"
+          ],
+          "type": "string"
+        },
+        "object_key": {
+          "minLength": 3,
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "const": 3600
+        },
+        "url": {
           "minLength": 1,
           "type": "string"
         }
       },
       "required": [
-        "title",
-        "description",
-        "hashtags"
+        "kind",
+        "object_key",
+        "sha256",
+        "bytes",
+        "content_type"
       ],
       "type": "object"
     },
@@ -128,8 +63,8 @@
           "const": "aac"
         },
         "duration_seconds": {
+          "minimum": 2.8,
           "maximum": 240.2,
-          "minimum": 29.8,
           "type": "number"
         },
         "fps": {
@@ -154,13 +89,6 @@
         "audio_codec"
       ],
       "type": "object"
-    },
-    "run_id": {
-      "minLength": 8,
-      "type": "string"
-    },
-    "status": {
-      "const": "completed"
     },
     "usage": {
       "additionalProperties": false,
@@ -187,20 +115,268 @@
         "provider_cost_usd"
       ],
       "type": "object"
-    },
-    "workflow_version": {
-      "const": "audio-symbolic-animation@0.1.0"
     }
   },
-  "required": [
-    "run_id",
-    "status",
-    "workflow_version",
-    "artifacts",
-    "media",
-    "delivery",
-    "usage"
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "type": "array"
+        },
+        "delivery": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "hashtags": {
+              "items": {
+                "pattern": "^#",
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            },
+            "title": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "description",
+            "hashtags"
+          ],
+          "type": "object"
+        },
+        "media": {
+          "$ref": "#/$defs/media"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "$ref": "#/$defs/usage"
+        },
+        "workflow_version": {
+          "const": "audio-symbolic-animation@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "artifacts",
+        "media",
+        "delivery",
+        "usage"
+      ],
+      "title": "Blocked production mock output",
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "minItems": 6,
+          "type": "array"
+        },
+        "artifacts_by_kind": {
+          "additionalProperties": false,
+          "properties": {
+            "mechanical_brief": {
+              "$ref": "#/$defs/artifact"
+            },
+            "transcript": {
+              "$ref": "#/$defs/artifact"
+            },
+            "video": {
+              "$ref": "#/$defs/artifact"
+            }
+          },
+          "required": [
+            "video",
+            "transcript",
+            "mechanical_brief"
+          ],
+          "type": "object"
+        },
+        "mechanical_brief": {
+          "additionalProperties": true,
+          "properties": {
+            "frames": {
+              "minItems": 1,
+              "type": "array"
+            },
+            "generation_fps": {
+              "const": 1
+            },
+            "machine": {
+              "const": "thread-release"
+            },
+            "object_key": {
+              "const": "mechanical-brief.json"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "style": {
+              "const": "sumi-e"
+            }
+          },
+          "required": [
+            "object_key",
+            "sha256",
+            "generation_fps",
+            "style",
+            "machine",
+            "frames"
+          ],
+          "type": "object"
+        },
+        "media": {
+          "$ref": "#/$defs/media"
+        },
+        "progress": {
+          "items": {
+            "additionalProperties": true,
+            "properties": {
+              "pct": {
+                "maximum": 100,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "stage": {
+                "enum": [
+                  "accepted",
+                  "transcribed",
+                  "briefed",
+                  "frames",
+                  "assembled",
+                  "validated",
+                  "complete"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "stage",
+              "pct"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "run_id": {
+          "pattern": "^run_[A-Za-z0-9_-]{8,64}$",
+          "type": "string"
+        },
+        "runtime": {
+          "additionalProperties": false,
+          "properties": {
+            "availability": {
+              "const": "fixture_only"
+            },
+            "classification": {
+              "const": "media-sequential"
+            },
+            "provider": {
+              "const": "deterministic_fixture"
+            }
+          },
+          "required": [
+            "classification",
+            "availability",
+            "provider"
+          ],
+          "type": "object"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "transcript": {
+          "additionalProperties": true,
+          "properties": {
+            "duration_seconds": {
+              "maximum": 3.2,
+              "minimum": 2.8,
+              "type": "number"
+            },
+            "language": {
+              "const": "en"
+            },
+            "model": {
+              "const": "fixture-deterministic-wav"
+            },
+            "object_key": {
+              "const": "transcript.json"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "text": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "words": {
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "object_key",
+            "sha256",
+            "text",
+            "language",
+            "duration_seconds",
+            "model",
+            "words"
+          ],
+          "type": "object"
+        },
+        "usage": {
+          "$ref": "#/$defs/usage"
+        },
+        "workflow_version": {
+          "const": "audio-symbolic-animation@0.2.0-fixture"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "runtime",
+        "progress",
+        "transcript",
+        "mechanical_brief",
+        "artifacts",
+        "artifacts_by_kind",
+        "media",
+        "usage"
+      ],
+      "title": "Completed fixture preview output",
+      "type": "object"
+    }
   ],
-  "title": "Completed symbolic animation run",
+  "title": "Audio symbolic animation output",
   "type": "object"
 }

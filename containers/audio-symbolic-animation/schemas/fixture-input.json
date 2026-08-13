@@ -1,0 +1,32 @@
+{
+  "$id": "https://cognition.marketplace/schemas/audio-symbolic-animation/fixture-input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "duration_seconds": {
+      "const": 3,
+      "description": "The reviewed fixture duration for this executable proof.",
+      "title": "Duration",
+      "type": "integer"
+    },
+    "fixture_id": {
+      "const": "tone-thread-3s",
+      "description": "Reviewed local WAV fixture. Private uploads stay blocked until the artifact plane is implemented.",
+      "title": "Audio fixture",
+      "type": "string"
+    },
+    "style": {
+      "const": "sumi-e",
+      "description": "The only reviewed visual lane in this fixture preview.",
+      "title": "Style",
+      "type": "string"
+    }
+  },
+  "required": [
+    "fixture_id",
+    "duration_seconds",
+    "style"
+  ],
+  "title": "Audio symbolic animation fixture input",
+  "type": "object"
+}

@@ -26,18 +26,20 @@
     return !!(window.location && window.location.protocol === 'file:');
   }
 
-  function readSubmissions() {
+  function readSubmissionIds() {
     try {
       var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      return Array.isArray(saved) ? saved : [];
+      return Array.isArray(saved) ? saved.filter(function (id) {
+        return typeof id === 'string' && /^sub_[A-Za-z0-9_-]{8,100}$/.test(id);
+      }) : [];
     } catch (error) {
       return [];
     }
   }
 
-  function writeSubmissions(submissions) {
+  function writeSubmissionIds(ids) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(submissions));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
       return true;
     } catch (error) {
       return false;
@@ -71,13 +73,19 @@
     return labels[status] || 'Submitted';
   }
 
-  function renderSubmissions() {
+  function runtimeDecisionText(submission) {
+    if (!submission || !submission.selected_runtime) return 'Runtime pending review';
+    var label = submission.selected_runtime === 'worker-native' ? 'Worker native' : 'Modal hosted';
+    return submission.runtime_policy ? label + ' · ' + submission.runtime_policy.replace(/[_:-]+/g, ' ') : label;
+  }
+
+  function renderSubmissions(submissions) {
     if (!hostedList || !hostedEmpty) return;
-    var submissions = readSubmissions();
+    submissions = Array.isArray(submissions) ? submissions : [];
     hostedList.replaceChildren();
     hostedEmpty.hidden = submissions.length > 0;
 
-    submissions.slice().reverse().forEach(function (submission) {
+    submissions.forEach(function (submission) {
       if (!submission || typeof submission.name !== 'string') return;
       var item = document.createElement('li');
       item.className = 'hosted-item';
@@ -93,10 +101,21 @@
       visibility.className = 'visibility-badge';
       visibility.textContent = submission.localOnly ? 'Local receipt' : 'Marketplace';
       var date = document.createElement('time');
-      date.dateTime = submission.submittedAt || '';
-      date.textContent = formatDate(submission.submittedAt);
+      date.dateTime = submission.created_at || '';
+      date.textContent = formatDate(submission.created_at);
       meta.append(status, visibility, date);
+      var runtime = document.createElement('p');
+      runtime.className = 'hosted-runtime';
+      runtime.textContent = runtimeDecisionText(submission);
       item.append(title, meta);
+      item.appendChild(runtime);
+      if (submission.status === 'deployed' && submission.published_slug) {
+        var open = document.createElement('a');
+        open.className = 'button button-accent hosted-open';
+        open.href = 'workflow.html?slug=' + encodeURIComponent(submission.published_slug);
+        open.textContent = 'Open workflow';
+        item.appendChild(open);
+      }
       hostedList.appendChild(item);
     });
   }
@@ -121,9 +140,10 @@
     return !!(file && /\.md$/i.test(file.name || ''));
   }
 
-  function showQueued(submission, mode) {
+  function updateProgress(submission, mode) {
     var preview = mode === 'preview';
     var waiting = mode === 'waiting';
+    var status = submission && submission.status || 'queued';
     var steps = progress.querySelectorAll('[data-progress-step]');
     var labels = waiting ? [
       'File checked locally',
@@ -131,50 +151,127 @@
       'Agent review after queueing',
       'Tests + canaries after approval',
       'Publish after every gate passes'
+    ] : status === 'deployed' ? [
+      'Upload received',
+      'Queued for review',
+      'Build gates passed',
+      'Publish gate passed',
+      'Workflow deployed'
+    ] : status === 'ready_for_publish' ? [
+      'Upload received',
+      'Queued for review',
+      'Build gates passed',
+      'Ready for publish approval',
+      'Workflow not live yet'
+    ] : status === 'ready_for_deploy' ? [
+      'Upload received',
+      'Queued for review',
+      'Build gates running',
+      'Ready for deployment gate',
+      'Workflow not live yet'
     ] : [
       'Upload received',
-      'Queued for agent review',
-      'Compile, test + price after review',
-      'Modal + Omo canaries',
+      'Queued for review',
+      'Build gates running',
+      'Publish gate after approval',
       'Publish after every gate passes'
     ];
+    var currentIndex = status === 'deployed' ? 4 : status === 'ready_for_publish' ? 3 : status === 'ready_for_deploy' ? 2 : 1;
     steps.forEach(function (step, index) {
-      step.classList.toggle('is-done', index === 0);
-      step.classList.toggle('is-current', index === 1);
+      step.classList.toggle('is-done', index < currentIndex || status === 'deployed');
+      step.classList.toggle('is-current', index === currentIndex && status !== 'deployed');
       var label = step.querySelector('span:last-child');
       var dot = step.querySelector('.progress-dot');
       if (label) label.textContent = labels[index];
-      if (dot) dot.textContent = index === 0 ? '✓' : String(index + 1);
+      if (dot) dot.textContent = index < currentIndex || status === 'deployed' ? '✓' : String(index + 1);
     });
     var title = progress.querySelector('.progress-title');
     var note = progress.querySelector('.progress-demo');
     if (title) title.textContent = preview
       ? 'Demo submission queued locally.'
-      : waiting ? 'Saved here to retry.' : 'Your workflow is queued.';
+      : waiting ? 'Saved here to retry.' : statusLabel(status) + '.';
     if (note) note.textContent = preview
       ? 'Local preview only — no file left this browser. Production submissions are stored securely for agent review.'
       : waiting
         ? 'The secure queue is still activating. This browser saved only the workflow name — not the Markdown. Keep the file and retry later.'
-        : 'Queued is not live. An Omo agent must review the runtime profile; tests and canaries must pass before publishing.';
+        : runtimeDecisionText(submission) + '. Live access appears only after deployment.';
     progress.hidden = false;
     progress.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
-    var submissions = readSubmissions();
-    var receipt = {
-      id: submission.id,
-      name: submission.name,
-      slug: submission.slug,
-      submittedAt: new Date().toISOString(),
-      status: preview ? 'demo_queued' : waiting ? 'local_waiting' : submission.status,
-      localOnly: preview || waiting
-    };
-    var priorReceipt = receipt.localOnly ? submissions.findIndex(function (item) {
-      return item && item.localOnly && item.name === receipt.name && item.status === receipt.status;
-    }) : -1;
-    if (priorReceipt >= 0) submissions[priorReceipt] = receipt;
-    else submissions.push(receipt);
-    writeSubmissions(submissions.slice(-20));
-    renderSubmissions();
+  function rememberSubmissionId(id) {
+    if (!/^sub_[A-Za-z0-9_-]{8,100}$/.test(String(id || ''))) return;
+    var ids = readSubmissionIds().filter(function (saved) { return saved !== id; });
+    ids.push(id);
+    writeSubmissionIds(ids.slice(-20));
+  }
+
+  function fetchJsonWithAuth(path) {
+    return sessionToken().then(function (token) {
+      return fetch(apiBase() + path, {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
+      });
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (body) {
+        if (!response.ok) throw new Error(body.message || body.error || 'Could not load submission status.');
+        return body;
+      });
+    });
+  }
+
+  function fetchSubmissions() {
+    return fetchJsonWithAuth('/api/submissions?limit=20').then(function (body) {
+      return Array.isArray(body.submissions) ? body.submissions : [];
+    });
+  }
+
+  function fetchSubmissionDetail(id) {
+    return fetchJsonWithAuth('/api/submissions/' + encodeURIComponent(id)).then(function (body) {
+      return body.submission || null;
+    });
+  }
+
+  function refreshSubmissions(focusId) {
+    return fetchSubmissions().then(function (submissions) {
+      renderSubmissions(submissions);
+      var focused = submissions.find(function (submission) { return submission.id === focusId; });
+      if (focused) updateProgress(focused, 'queued');
+      return submissions;
+    }).catch(function () {
+      renderSubmissions([]);
+      return [];
+    });
+  }
+
+  function pollSubmission(id) {
+    if (!id) return;
+    var attempts = 0;
+    var timer = window.setInterval(function () {
+      attempts += 1;
+      fetchSubmissionDetail(id).then(function (submission) {
+        if (!submission) return;
+        updateProgress(submission, 'queued');
+        refreshSubmissions(id);
+        if (['deployed', 'failed', 'ready_for_publish'].includes(submission.status) || attempts >= 30) {
+          window.clearInterval(timer);
+        }
+      }).catch(function () {
+        if (attempts >= 3) window.clearInterval(timer);
+      });
+    }, 5000);
+  }
+
+  function restoreSubmissionsAfterReload(attempt) {
+    if (isFilePreview()) {
+      renderSubmissions([]);
+      return;
+    }
+    refreshSubmissions();
+    if (attempt >= 2) return;
+    window.setTimeout(function () {
+      restoreSubmissionsAfterReload(attempt + 1);
+    }, attempt === 0 ? 500 : 1500);
   }
 
   function sessionToken() {
@@ -280,15 +377,21 @@
       var result;
       if (isFilePreview()) {
         result = { id: 'preview-' + Date.now(), name: payload.name, slug: '', status: 'queued' };
-        showQueued(result, 'preview');
+        updateProgress(result, 'preview');
       } else {
         result = await submitToWorker(payload);
-        showQueued({ id: result.id, name: payload.name, slug: result.slug, status: result.status }, 'queued');
+        rememberSubmissionId(result.id);
+        var detail = await fetchSubmissionDetail(result.id).catch(function () {
+          return { id: result.id, name: payload.name, slug: result.slug, status: result.status };
+        });
+        updateProgress(detail, 'queued');
+        await refreshSubmissions(result.id);
+        pollSubmission(result.id);
       }
       submitButton.textContent = result.duplicate ? 'Already queued ✓' : 'Queued for review ✓';
     } catch (error) {
       if (error && error.code === 'queue_unavailable') {
-        showQueued({ id: 'waiting-' + Date.now(), name: nameInput.value.trim(), slug: '', status: 'local_waiting' }, 'waiting');
+        updateProgress({ id: 'waiting-' + Date.now(), name: nameInput.value.trim(), slug: '', status: 'local_waiting' }, 'waiting');
         submitButton.textContent = 'Saved here — retry later';
       } else {
         fileError.textContent = error && error.message || 'Omo could not queue this workflow. Try again.';
@@ -300,5 +403,5 @@
   });
 
   submitButton.textContent = 'Submit for hosting →';
-  renderSubmissions();
+  restoreSubmissionsAfterReload(0);
 })();
