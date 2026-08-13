@@ -592,7 +592,7 @@
       function workerBase() { return API_BASE || window.location.origin; }
 
       var products = {};
-      var catalog = window.OMO_CATALOG || [];
+      var catalog = window.OMO_VISIBLE_CATALOG || [];
       for (var productIndex = 0; productIndex < catalog.length; productIndex++) {
         var product = catalog[productIndex];
         if (product && product.slug && !products[product.slug]) products[product.slug] = product;

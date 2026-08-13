@@ -7216,3 +7216,13 @@ window.OMO_CATALOG = [
     }
   ]
 );
+
+// Storefront visibility is intentionally separate from the full catalog so
+// every listing can be restored without changing or deleting catalog data.
+window.OMO_VISIBLE_SLUGS = [
+  'japanese-style-story-video',
+  'woven-relationship-book-maker'
+];
+window.OMO_VISIBLE_CATALOG = window.OMO_CATALOG.filter(function (listing) {
+  return listing && window.OMO_VISIBLE_SLUGS.indexOf(listing.slug) !== -1;
+});

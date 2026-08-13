@@ -1073,7 +1073,7 @@
 
       /* ── Catalog products ────────────────────────────────────── */
       var PRODUCTS = {};
-      var catalog = window.OMO_CATALOG || [];
+      var catalog = window.OMO_VISIBLE_CATALOG || [];
       catalog.forEach(function (s) {
         if (!s || !s.slug) return;
         if (!PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;

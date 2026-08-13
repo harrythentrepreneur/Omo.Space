@@ -96,7 +96,7 @@
 
   function productMap() {
     var products = {};
-    addProducts(products, window.OMO_CATALOG);
+    addProducts(products, window.OMO_VISIBLE_CATALOG);
     return products;
   }
 
@@ -172,6 +172,7 @@
   }
 
   function renderSection(popover, items, products) {
+    items = items.filter(function (item) { return !!products[item.slug]; });
     var section = ensureSection(popover);
     var list = section.querySelector('.omo-nav-workflows-list');
     list.textContent = '';

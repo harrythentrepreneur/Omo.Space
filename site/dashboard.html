@@ -571,7 +571,7 @@
       var VOTE_KEY = 'cognition_votes_v1';
 
       var PRODUCTS = {};
-      var catalog = window.OMO_CATALOG || [];
+      var catalog = window.OMO_VISIBLE_CATALOG || [];
       var i;
       for (i = 0; i < catalog.length; i++) {
         if (!catalog[i] || !catalog[i].slug) continue;

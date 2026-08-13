@@ -24,7 +24,7 @@
   // Read the same single catalog as the storefront.
   function productMap() {
     var PRODUCTS = {};
-    (window.OMO_CATALOG || []).forEach(function (s) {
+    (window.OMO_VISIBLE_CATALOG || []).forEach(function (s) {
       if (s && s.slug && !PRODUCTS[s.slug]) PRODUCTS[s.slug] = s;
     });
     return PRODUCTS;

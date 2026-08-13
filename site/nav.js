@@ -728,7 +728,7 @@
   }
 
   function catalogWorkflow(slug) {
-    var catalog = window.OMO_CATALOG || [];
+    var catalog = window.OMO_VISIBLE_CATALOG || [];
     for (var itemIndex = 0; itemIndex < catalog.length; itemIndex += 1) {
       if (catalog[itemIndex] && catalog[itemIndex].slug === slug) {
         return catalog[itemIndex];
