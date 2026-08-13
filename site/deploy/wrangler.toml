@@ -63,6 +63,8 @@ MIN_TOPUP_USD = "5"
 MAX_TOPUP_USD = "1000"
 CLERK_CLOCK_SKEW_SECONDS = "5"
 RUN_RESERVATION_TTL_SECONDS = "300"
+# Hosted Facebook Ads runtime in the phonicsmaker / OMOSpace Modal environment.
+FACEBOOK_ADS_MODAL_URL = "https://phonicsmaker-omospace--cognition-facebook-ads-copywriter-api.modal.run"
 
 # Stripe test and production use the identical worker code. Set the matching
 # STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET with `wrangler secret put`; send
