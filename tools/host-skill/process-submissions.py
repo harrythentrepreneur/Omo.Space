@@ -12,6 +12,7 @@ commit and the final Omo billing canary remain explicit agent actions; use
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import subprocess
@@ -36,6 +37,20 @@ from submission_queue import (
 
 HOST_PATH = ROOT / "tools" / "host-skill" / "host.py"
 WORKER_ROOT = ROOT / "site" / "deploy"
+
+
+def _load_host_module() -> Any:
+    spec = importlib.util.spec_from_file_location("omo_host_skill", HOST_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("could not load host-skill runtime classifier")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+HOST_MODULE = _load_host_module()
+
+
 def output(value: dict[str, Any]) -> None:
     print(json.dumps(value, ensure_ascii=False, sort_keys=True))
 
@@ -101,10 +116,39 @@ class SubmissionRepository:
                 if cursor.rowcount != 1:
                     raise RuntimeError("submission disappeared while its status was being updated")
 
+    def set_runtime_decision(self, submission_id: str, decision: dict[str, Any]) -> None:
+        with self.connection:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE submissions
+                    SET selected_runtime = %s,
+                        runtime_policy = %s,
+                        runtime_compatibility = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (
+                        decision.get("effective"),
+                        decision.get("reason"),
+                        json.dumps(
+                            {
+                                "recommended": decision.get("recommended"),
+                                "requested": decision.get("requested"),
+                                "compatible": bool(decision.get("compatible")),
+                            },
+                            sort_keys=True,
+                        ),
+                        submission_id,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("submission disappeared while its runtime decision was being updated")
+
     def get(self, submission_id: str) -> dict[str, Any] | None:
         with self.connection.cursor(cursor_factory=self._extras.RealDictCursor) as cursor:
             cursor.execute(
-                "SELECT id,user_id,name,slug,content,source_sha256,status,created_at,updated_at FROM submissions WHERE id = %s",
+                "SELECT id,user_id,name,slug,content,source_sha256,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,status,created_at,updated_at FROM submissions WHERE id = %s",
                 (submission_id,),
             )
             row = cursor.fetchone()
@@ -125,13 +169,19 @@ def run_checked(command: list[str], cwd: Path = ROOT) -> None:
     subprocess.run(command, cwd=cwd, check=True)
 
 
-def host_command(skill_path: Path, slug: str, register: bool = False, check: bool = False) -> list[str]:
+def host_command(
+    skill_path: Path,
+    slug: str,
+    profile_path: Path | None = None,
+    register: bool = False,
+    check: bool = False,
+) -> list[str]:
     command = [
         sys.executable,
         str(HOST_PATH),
         str(skill_path),
         "--profile",
-        str(ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"),
+        str(profile_path or ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"),
         "--out",
         str(ROOT / "containers" / slug),
     ]
@@ -142,10 +192,8 @@ def host_command(skill_path: Path, slug: str, register: bool = False, check: boo
     return command
 
 
-def direct_modal_canary(slug: str, timeout_seconds: int = 240) -> None:
-    profile = json.loads(
-        (ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json").read_text(encoding="utf-8")
-    )
+def direct_modal_canary(slug: str, profile_path: Path, timeout_seconds: int = 240) -> None:
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
     endpoint = str(profile["marketplace"]["deployment"]["default_endpoint"]).rstrip("/")
     token_id = os.environ.get("HOSTED_MODAL_PROXY_TOKEN_ID") or os.environ.get("WOVEN_MODAL_PROXY_TOKEN_ID")
     token_secret = os.environ.get("HOSTED_MODAL_PROXY_TOKEN_SECRET") or os.environ.get("WOVEN_MODAL_PROXY_TOKEN_SECRET")
@@ -190,11 +238,46 @@ def direct_modal_canary(slug: str, timeout_seconds: int = 240) -> None:
     raise RuntimeError("Modal canary timed out")
 
 
-def deploy_reviewed_submission(skill_path: Path, slug: str) -> None:
-    run_checked([sys.executable, "-m", "modal", "deploy", str(ROOT / "containers" / slug / "modal_app.py")])
-    direct_modal_canary(slug)
-    run_checked(host_command(skill_path, slug, register=True))
-    run_checked(host_command(skill_path, slug, register=True, check=True))
+def reviewed_profile_artifact(slug: str, requested_runtime: str | None, temp_dir: Path) -> tuple[Path, dict[str, Any]]:
+    canonical_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile = json.loads(canonical_path.read_text(encoding="utf-8"))
+    if requested_runtime:
+        profile["runtime_preference"] = requested_runtime
+    decision = HOST_MODULE.decide_runtime_placement(profile)
+    profile_path = temp_dir / f"{slug}.reviewed-profile.json"
+    profile_path.write_text(json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    return profile_path, decision
+
+
+def generated_runtime_decision(slug: str, profile_path: Path) -> dict[str, Any]:
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    out = ROOT / "containers" / slug
+    hosted = HOST_MODULE.build_hosted_profile(
+        profile,
+        json.loads((out / "manifest.json").read_text(encoding="utf-8")),
+        json.loads((out / "pricing-report.json").read_text(encoding="utf-8")),
+    )
+    decision = dict(hosted["runtime_placement"])
+    if hosted["runtime"]["kind"] != decision["effective"]:
+        raise RuntimeError("generated registry runtime diverged from reviewed runtime decision")
+    return decision
+
+
+def assert_reviewed_runtime(profile_path: Path, selected_runtime: str) -> None:
+    decision = HOST_MODULE.decide_runtime_placement(json.loads(profile_path.read_text(encoding="utf-8")))
+    if decision["effective"] != selected_runtime:
+        raise RuntimeError("reviewed runtime decision diverged from selected_runtime")
+
+
+def deploy_reviewed_submission(skill_path: Path, slug: str, profile_path: Path, selected_runtime: str) -> None:
+    assert_reviewed_runtime(profile_path, selected_runtime)
+    if selected_runtime == "modal-hosted":
+        run_checked([sys.executable, "-m", "modal", "deploy", str(ROOT / "containers" / slug / "modal_app.py")])
+        direct_modal_canary(slug, profile_path)
+    elif selected_runtime != "worker-native":
+        raise RuntimeError("selected runtime must be worker-native or modal-hosted")
+    run_checked(host_command(skill_path, slug, profile_path=profile_path, register=True))
+    run_checked(host_command(skill_path, slug, profile_path=profile_path, register=True, check=True))
     for script in ("test-workers.mjs", "test-router.mjs", "test-balance.mjs", "test-cost.mjs"):
         run_checked(["node", script], WORKER_ROOT)
     run_checked(["npx", "wrangler", "deploy"], WORKER_ROOT)
@@ -226,10 +309,17 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
         with tempfile.TemporaryDirectory(prefix="omo-submission-") as temp_dir:
             skill_path = Path(temp_dir) / "SKILL.md"
             skill_path.write_text(validated.content, encoding="utf-8")
-            run_checked(host_command(skill_path, validated.slug))
+            profile_path, _decision = reviewed_profile_artifact(
+                validated.slug,
+                row.get("requested_runtime"),
+                Path(temp_dir),
+            )
+            run_checked(host_command(skill_path, validated.slug, profile_path=profile_path))
+            decision = generated_runtime_decision(validated.slug, profile_path)
+            repository.set_runtime_decision(submission_id, decision)
             repository.set_status(submission_id, "ready_for_deploy")
             if deploy:
-                deploy_reviewed_submission(skill_path, validated.slug)
+                deploy_reviewed_submission(skill_path, validated.slug, profile_path, decision["effective"])
                 repository.set_status(submission_id, "ready_for_publish")
     except subprocess.CalledProcessError:
         repository.set_status(submission_id, "failed", "build_or_deploy_failed")

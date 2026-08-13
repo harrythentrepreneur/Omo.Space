@@ -30,9 +30,41 @@ CATALOG_END = "  // host-skill:generated:end"
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 RUNTIME_PREFERENCES = {"auto", "worker-native", "modal-hosted"}
+WORKER_EXECUTOR_SPEC_VERSION = "omo.worker-single-llm/v1"
+WORKER_EXECUTION_KIND = "single_llm"
+WORKER_OPERATION = "chat.completions.strict_json"
+WORKER_PROVIDERS = {"opencode-go"}
+WORKER_MAX_OUTPUT_TOKENS_MIN = 1
+WORKER_MAX_OUTPUT_TOKENS_MAX = 8000
+WORKER_TEMPERATURE_MIN = 0
+WORKER_TEMPERATURE_MAX = 1
+WORKER_TIMEOUT_SECONDS_MIN = 1
+WORKER_TIMEOUT_SECONDS_MAX = 120
 WORKER_SAFE_CAPABILITIES = {
     "opencode-go-chat-completions",
     "schema-validated-json-output",
+}
+WORKER_SCHEMA_KEYWORDS = {
+    "$id",
+    "$schema",
+    "additionalProperties",
+    "const",
+    "default",
+    "description",
+    "enum",
+    "examples",
+    "items",
+    "maxItems",
+    "maxLength",
+    "maximum",
+    "minItems",
+    "minLength",
+    "minimum",
+    "pattern",
+    "properties",
+    "required",
+    "title",
+    "type",
 }
 
 
@@ -94,19 +126,130 @@ def validate_https_modal_endpoint(value: Any) -> str:
     return endpoint
 
 
+def require_bounded_int(value: Any, field: str, minimum: int, maximum: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum or value > maximum:
+        raise ValueError(f"{field} must be an integer from {minimum} to {maximum}")
+    return value
+
+
+def require_bounded_number(value: Any, field: str, minimum: float, maximum: float) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise ValueError(f"{field} must be a number from {minimum} to {maximum}")
+    number = float(value)
+    if number < minimum or number > maximum:
+        raise ValueError(f"{field} must be a number from {minimum} to {maximum}")
+    return number
+
+
+def unsupported_schema_keywords(schema: Any, path: str = "$") -> list[str]:
+    if not isinstance(schema, dict):
+        return []
+    unsupported = [f"{path}.{key}" for key in schema if key not in WORKER_SCHEMA_KEYWORDS]
+    properties = schema.get("properties")
+    if isinstance(properties, dict):
+        for key, child in properties.items():
+            unsupported.extend(unsupported_schema_keywords(child, f"{path}.properties.{key}"))
+    items = schema.get("items")
+    if isinstance(items, dict):
+        unsupported.extend(unsupported_schema_keywords(items, f"{path}.items"))
+    return unsupported
+
+
+def worker_executor_errors(profile: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if profile.get("execution_kind") != WORKER_EXECUTION_KIND:
+        errors.append("execution_kind")
+    capabilities = set(profile.get("capabilities") or [])
+    unsupported_capabilities = sorted(capabilities - WORKER_SAFE_CAPABILITIES)
+    if unsupported_capabilities:
+        errors.append("capabilities:" + ",".join(unsupported_capabilities))
+    if profile.get("apt_packages"):
+        errors.append("apt_packages")
+    if profile.get("artifacts"):
+        errors.append("artifacts")
+
+    steps = profile.get("steps")
+    if not isinstance(steps, list):
+        errors.append("steps")
+        steps = []
+    ready_llm_steps = [
+        step for step in steps
+        if isinstance(step, dict) and step.get("type") == "llm" and step.get("readiness") == "ready"
+    ]
+    if len(ready_llm_steps) != 1 or len(steps) != 1:
+        errors.append("reviewed_steps")
+    step = ready_llm_steps[0] if len(ready_llm_steps) == 1 else {}
+    if step.get("provider") not in WORKER_PROVIDERS:
+        errors.append("provider")
+    if step.get("operation") != WORKER_OPERATION:
+        errors.append("operation")
+
+    live = profile.get("live")
+    if not isinstance(live, dict):
+        errors.append("live")
+        live = {}
+    if live.get("provider") not in WORKER_PROVIDERS or (step and live.get("provider") != step.get("provider")):
+        errors.append("live.provider")
+    if not str(live.get("default_model") or "").strip():
+        errors.append("live.default_model")
+    prompt_name = live.get("prompt")
+    prompts = profile.get("prompts")
+    system_prompt = prompts.get(prompt_name) if isinstance(prompts, dict) else ""
+    if not isinstance(prompt_name, str) or not isinstance(system_prompt, str) or not system_prompt.strip():
+        errors.append("system_prompt")
+    if not str(profile.get("version") or "").strip():
+        errors.append("workflow_version")
+    try:
+        require_bounded_int(live.get("max_tokens"), "live.max_tokens", WORKER_MAX_OUTPUT_TOKENS_MIN, WORKER_MAX_OUTPUT_TOKENS_MAX)
+    except ValueError:
+        errors.append("max_output_tokens")
+    try:
+        require_bounded_number(live.get("temperature"), "live.temperature", WORKER_TEMPERATURE_MIN, WORKER_TEMPERATURE_MAX)
+    except ValueError:
+        errors.append("temperature")
+    try:
+        require_bounded_int(live.get("timeout_seconds"), "live.timeout_seconds", WORKER_TIMEOUT_SECONDS_MIN, WORKER_TIMEOUT_SECONDS_MAX)
+    except ValueError:
+        errors.append("timeout_seconds")
+    schema_errors = unsupported_schema_keywords(profile.get("input_schema")) + unsupported_schema_keywords(profile.get("output_schema"))
+    if schema_errors:
+        errors.append("schema_keywords:" + ",".join(schema_errors[:8]))
+    return errors
+
+
+def build_worker_executor(profile: dict[str, Any]) -> dict[str, Any]:
+    errors = worker_executor_errors(profile)
+    if errors:
+        raise ValueError("workflow is not Worker-native compatible: " + "; ".join(errors))
+    live = profile["live"]
+    prompt_name = live["prompt"]
+    return {
+        "spec_version": WORKER_EXECUTOR_SPEC_VERSION,
+        "execution_kind": WORKER_EXECUTION_KIND,
+        "operation": WORKER_OPERATION,
+        "provider": live["provider"],
+        "model": require_text(live.get("default_model"), "live.default_model"),
+        "system_prompt": require_text(profile["prompts"][prompt_name], f"prompts.{prompt_name}"),
+        "workflow_version": require_text(profile.get("version"), "version"),
+        "max_output_tokens": require_bounded_int(
+            live.get("max_tokens"), "live.max_tokens", WORKER_MAX_OUTPUT_TOKENS_MIN, WORKER_MAX_OUTPUT_TOKENS_MAX
+        ),
+        "temperature": require_bounded_number(
+            live.get("temperature"), "live.temperature", WORKER_TEMPERATURE_MIN, WORKER_TEMPERATURE_MAX
+        ),
+        "timeout_seconds": require_bounded_int(
+            live.get("timeout_seconds"), "live.timeout_seconds", WORKER_TIMEOUT_SECONDS_MIN, WORKER_TIMEOUT_SECONDS_MAX
+        ),
+    }
+
+
 def decide_runtime_placement(profile: dict[str, Any]) -> dict[str, Any]:
     preference_declared = "runtime_preference" in profile
     requested = str(profile.get("runtime_preference", "modal-hosted")).strip()
     if requested not in RUNTIME_PREFERENCES:
         raise ValueError("runtime_preference must be auto, worker-native, or modal-hosted")
-    capabilities = set(profile.get("capabilities") or [])
-    unsupported_capabilities = sorted(capabilities - WORKER_SAFE_CAPABILITIES)
-    worker_compatible = (
-        profile.get("execution_kind") == "single_llm"
-        and not profile.get("apt_packages")
-        and not profile.get("artifacts")
-        and not unsupported_capabilities
-    )
+    worker_errors = worker_executor_errors(profile)
+    worker_compatible = not worker_errors
     if worker_compatible:
         recommended = "worker-native"
         effective = recommended if requested == "auto" else requested
@@ -117,10 +260,10 @@ def decide_runtime_placement(profile: dict[str, Any]) -> dict[str, Any]:
     else:
         recommended = "modal-hosted"
         if requested == "worker-native":
-            detail = ", ".join(unsupported_capabilities) or str(profile.get("execution_kind"))
+            detail = "; ".join(worker_errors)
             raise ValueError(f"workflow requires Modal; Worker override is incompatible: {detail}")
         effective = "modal-hosted"
-        reason = "capabilities_not_worker_allowlisted" if unsupported_capabilities else "execution_kind_not_worker_allowlisted"
+        reason = "worker_executor_contract_not_satisfied"
     if not preference_declared:
         effective = "modal-hosted"
         requested = "modal-hosted"
@@ -254,6 +397,8 @@ def build_hosted_profile(
             "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
             "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
         })
+    else:
+        runtime["executor"] = build_worker_executor(profile)
     server_catalog = {
         "slug": slug,
         "name": catalog["name"],

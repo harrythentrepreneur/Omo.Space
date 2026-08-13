@@ -104,6 +104,17 @@ const wovenStatuses = new Map();
 const facebookCalls = [];
 const facebookStatuses = new Map();
 const facebookCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'tests', 'cases.json'), 'utf8'));
+let workerNativeMode = 'valid';
+
+function llmResponse(status, envelope) {
+  const text = JSON.stringify(envelope);
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => text,
+    json: async () => envelope,
+  };
+}
 
 const sandbox = {
   fetch: async (url, opts) => {
@@ -165,15 +176,24 @@ const sandbox = {
     }
     const body = JSON.parse(opts.body);
     llmCalls.push(body);
+    const system = body.messages.find((m) => m.role === 'system').content;
+    if (system.includes('senior Facebook ads copywriter')) {
+      if (workerNativeMode === 'provider_error') {
+        return { ok: false, status: 503, text: async () => 'provider down', json: async () => ({ error: { message: 'provider down' } }) };
+      }
+      if (workerNativeMode === 'invalid_json') {
+        return llmResponse(200, { choices: [{ message: { content: 'not json today' } }] });
+      }
+      if (workerNativeMode === 'invalid_schema') {
+        return llmResponse(200, { choices: [{ message: { content: '{"status":"completed"}' } }] });
+      }
+      return llmResponse(200, { choices: [{ message: { content: JSON.stringify(facebookCases.happy_path.output) } }] });
+    }
     const user = body.messages.find((m) => m.role === 'user').content;
     let route = '/api/ugc-script-studio';
     if (user.includes('Ads export')) route = '/api/meta-ads-analyser';
     if (user.includes('Plan the shot list')) route = '/api/product-photo-generator';
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({ choices: [{ message: { content: canned[route] } }] }),
-    };
+    return llmResponse(200, { choices: [{ message: { content: canned[route] } }] });
   },
   URL,
   URLSearchParams,
@@ -193,8 +213,9 @@ const sandbox = {
   console,
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
+const workerTest = sandbox.__workerTest;
 
 const env = { LLM_API_KEY: 'test-key', LLM_BASE_URL: 'https://llm.invalid/v1', LLM_MODEL: 'test-model' };
 // Encodes example.clerk.accounts.dev$; API-key tests do not need a JWKS fetch.
@@ -320,15 +341,68 @@ check('submit: real mode requires a Clerk session', submitMissingAuth.status ===
 const creatorToken = await clerkToken('user_creator');
 const creatorHeaders = { Authorization: `Bearer ${creatorToken}`, Origin: 'https://omo.space' };
 const submitAddedResponse = await worker.fetch(mkReq('POST', '/api/submit', {
-  name: 'Sample workflow', content: submissionContent, visibility: 'public',
+  name: 'Sample workflow', content: submissionContent, visibility: 'public', runtime_preference: 'worker-native',
 }, creatorHeaders), realEnv);
 const submitAdded = await submitAddedResponse.json();
-check('submit: valid Markdown queues with server-derived slug', submitAddedResponse.status === 202 && submitAdded.ok === true && /^sub_[0-9a-f]{32}$/.test(submitAdded.id) && submitAdded.slug === 'sample-workflow' && submitAdded.status === 'queued' && submitAdded.duplicate === false);
+check('submit: valid Markdown queues with server-derived slug and stored runtime preference', submitAddedResponse.status === 202 && submitAdded.ok === true && /^sub_[0-9a-f]{32}$/.test(submitAdded.id) && submitAdded.slug === 'sample-workflow' && submitAdded.status === 'queued' && submitAdded.duplicate === false && submitAdded.runtime_preference === 'worker-native' && submitAdded.compatibility === 'pending_review' && submitAdded.changed === true && !('selected_runtime' in submitAdded) && !('requested_runtime' in submitAdded));
 
 const submitDuplicate = await (await worker.fetch(mkReq('POST', '/api/submit', {
-  name: 'Sample workflow', content: submissionContent,
+  name: 'Sample workflow', content: submissionContent, runtime_preference: 'worker-native',
 }, creatorHeaders), realEnv)).json();
-check('submit: same owner and content replay returns the same queue record', submitDuplicate.id === submitAdded.id && submitDuplicate.status === 'queued' && submitDuplicate.duplicate === true);
+check('submit: same owner and content replay returns the same queue record and preserves original runtime preference', submitDuplicate.id === submitAdded.id && submitDuplicate.status === 'queued' && submitDuplicate.duplicate === true && submitDuplicate.runtime_preference === 'worker-native' && submitDuplicate.changed === false);
+
+const submitDuplicateConflict = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Sample workflow', content: submissionContent, runtime_preference: 'modal-hosted',
+}, creatorHeaders), realEnv);
+check('submit: same owner and content with different runtime preference conflicts', submitDuplicateConflict.status === 409);
+
+const autoSubmissionContent = '---\nname: auto-workflow\ndescription: Another safe sample creator workflow.\n---\n\n## Workflow\n\n1. **Read:** Read the brief.\n';
+const submitAutoResponse = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Auto workflow', content: autoSubmissionContent, requested_runtime: 'auto', selected_runtime: 'worker-native', compatibility: { worker: true },
+}, creatorHeaders), realEnv);
+const submitAuto = await submitAutoResponse.json();
+check('submit: accepts tested requested_runtime alias and ignores client-selected placement fields', submitAutoResponse.status === 202 && submitAuto.runtime_preference === 'auto' && submitAuto.compatibility === 'pending_review' && !('selected_runtime' in submitAuto) && !('requested_runtime' in submitAuto));
+
+const submitBadRuntime = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Sample workflow', content: submissionContent, runtime_preference: 'edge-magic',
+}, creatorHeaders), realEnv);
+check('submit: invalid runtime preference is rejected', submitBadRuntime.status === 400);
+
+const submitConflictingRuntimeAliases = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Sample workflow', content: submissionContent, runtime_preference: 'worker-native', requested_runtime: 'modal-hosted',
+}, creatorHeaders), realEnv);
+check('submit: conflicting runtime preference aliases are rejected', submitConflictingRuntimeAliases.status === 400);
+
+const changedRuntimeResponse = await worker.fetch(mkReq('PATCH', `/api/submissions/${submitAdded.id}/runtime`, {
+  runtime_preference: 'modal-hosted', selected_runtime: 'worker-native', compatibility: { unsafe: false },
+}, creatorHeaders), realEnv);
+const changedRuntime = await changedRuntimeResponse.json();
+check('submit runtime: owner can change queued runtime preference only', changedRuntimeResponse.status === 200 && changedRuntime.ok === true && changedRuntime.id === submitAdded.id && changedRuntime.runtime_preference === 'modal-hosted' && changedRuntime.compatibility === 'pending_review' && changedRuntime.changed === true && !('selected_runtime' in changedRuntime) && !('requested_runtime' in changedRuntime));
+
+const changedRuntimeReplay = await (await worker.fetch(mkReq('PATCH', `/api/submissions/${submitAdded.id}/runtime`, {
+  runtime_preference: 'modal-hosted',
+}, creatorHeaders), realEnv)).json();
+check('submit runtime: repeated owner change is idempotent', changedRuntimeReplay.id === submitAdded.id && changedRuntimeReplay.runtime_preference === 'modal-hosted' && changedRuntimeReplay.changed === false);
+
+const otherCreatorHeaders = { Authorization: `Bearer ${await clerkToken('user_other_creator')}`, Origin: 'https://omo.space' };
+const nonOwnerRuntime = await worker.fetch(mkReq('PATCH', `/api/submissions/${submitAdded.id}/runtime`, {
+  requested_runtime: 'auto',
+}, otherCreatorHeaders), realEnv);
+const missingRuntime = await worker.fetch(mkReq('PATCH', '/api/submissions/sub_00000000000000000000000000000000/runtime', {
+  requested_runtime: 'auto',
+}, creatorHeaders), realEnv);
+const invalidRuntimePatch = await worker.fetch(mkReq('PATCH', `/api/submissions/${submitAdded.id}/runtime`, {
+  requested_runtime: 'edge-magic',
+}, creatorHeaders), realEnv);
+check('submit runtime: non-owner, missing, and invalid changes fail closed', nonOwnerRuntime.status === 404 && missingRuntime.status === 404 && invalidRuntimePatch.status === 400);
+
+for (const record of workerTest.mockSubmissions.values()) {
+  if (record.id === submitAdded.id) record.status = 'processing';
+}
+const immutableRuntime = await worker.fetch(mkReq('PATCH', `/api/submissions/${submitAdded.id}/runtime`, {
+  requested_runtime: 'auto',
+}, creatorHeaders), realEnv);
+check('submit runtime: processing and later states are immutable', immutableRuntime.status === 409);
 
 const submitMismatch = await worker.fetch(mkReq('POST', '/api/submit', {
   name: 'Different workflow', content: submissionContent,
@@ -578,6 +652,7 @@ check('woven: completed Modal output settles once and preserves the schema-valid
 
 const facebookEnv = {
   ...realEnv,
+  LLM_BASE_URL: 'https://opencode.ai/zen/go/v1',
   FACEBOOK_ADS_MODAL_URL: 'https://facebook.modal.invalid',
   HOSTED_MODAL_PROXY_TOKEN_ID: 'wk-hosted-test-id',
   HOSTED_MODAL_PROXY_TOKEN_SECRET: 'ws-hosted-test-secret',
@@ -585,19 +660,52 @@ const facebookEnv = {
 const facebookMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook', {}), env)).json();
 const facebookHeaders = { Authorization: `Bearer ${facebookMe.api_key}`, 'Idempotency-Key': 'facebook-router-0001' };
 const facebookInput = { slug: 'facebook-ads-copywriter', input: facebookCases.happy_path.input };
+const facebookProviderCallsBeforeEvil = llmCalls.length;
+const facebookEvilMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_evil', {}), env)).json();
+const facebookEvilOriginFailure = await worker.fetch(mkReq('POST', '/api/run', facebookInput, {
+  Authorization: `Bearer ${facebookEvilMe.api_key}`,
+  'Idempotency-Key': 'facebook-router-evil-origin',
+}), { ...facebookEnv, LLM_BASE_URL: 'https://attacker.invalid/zen/go/v1' });
+const facebookEvilOriginBody = await facebookEvilOriginFailure.json();
+check('hosted registry: evil Worker provider origin fails configuration before fetch or auth emission', facebookEvilOriginFailure.status === 503 && facebookEvilOriginBody.error === 'hosted_worker_provider_base_url_invalid' && facebookCalls.length === 0 && llmCalls.length === facebookProviderCallsBeforeEvil);
 const facebookStartResponse = await worker.fetch(mkReq('POST', '/api/run', facebookInput, facebookHeaders), facebookEnv);
 const facebookStart = await facebookStartResponse.json();
-check('hosted registry: Facebook Ads dispatches asynchronously at the server-owned $0.10 quote', facebookStartResponse.status === 202 && facebookStart.status === 'running' && facebookStart.quoted_cost_usd === 0.1 && facebookStart.billed_amount_usd === 0.1);
-check('hosted registry: exact typed input and shared Proxy Token headers reach Modal', JSON.parse(facebookCalls[0].body).tone === 'warm' && facebookCalls[0].headers['Modal-Key'] === 'wk-hosted-test-id' && facebookCalls[0].headers['Modal-Secret'] === 'ws-hosted-test-secret');
+check('hosted registry: Facebook Ads executes Worker-native synchronously at the server-owned $0.10 quote', facebookStartResponse.status === 200 && facebookStart.status === 'completed' && facebookStart.output.ads.length === 3 && facebookStart.cost_usd === 0.1 && facebookStart.balance === 4.9);
+check('hosted registry: Worker-native path calls the server-owned LLM provider directly without Modal', facebookCalls.length === 0 && llmCalls.at(-1).messages[0].content.includes('senior Facebook ads copywriter') && !llmCalls.at(-1).messages[1].content.includes('MALICIOUS'));
 const badFacebook = await worker.fetch(mkReq('POST', '/api/run', { slug: 'facebook-ads-copywriter', input: { ...facebookInput.input, objective: 'awareness' } }, { ...facebookHeaders, 'Idempotency-Key': 'facebook-router-bad1' }), facebookEnv);
-check('hosted registry: invalid Facebook Ads input fails before debit or Modal spend', badFacebook.status === 422 && facebookCalls.length === 1);
-const facebookRunning = await worker.fetch(mkReq('GET', `/api/run/${facebookStart.run_id}`, {}, { Authorization: `Bearer ${facebookMe.api_key}` }), facebookEnv);
-check('hosted registry: Facebook Ads status poll proxies Modal running state', facebookRunning.status === 202);
-facebookStatuses.set('fc-FACEBOOKROUTER01', { status: 200, body: facebookCases.happy_path.output });
+const facebookAfterBad = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook', {}), env)).json();
+check('hosted registry: invalid Facebook Ads input fails before debit or provider spend', badFacebook.status === 422 && facebookCalls.length === 0 && facebookAfterBad.balance_usd === 4.9);
 const facebookDoneResponse = await worker.fetch(mkReq('GET', `/api/run/${facebookStart.run_id}`, {}, { Authorization: `Bearer ${facebookMe.api_key}` }), facebookEnv);
 const facebookDone = await facebookDoneResponse.json();
 const facebookAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook', {}), env)).json();
-check('hosted registry: validated Facebook Ads output settles exactly once', facebookDoneResponse.status === 200 && facebookDone.status === 'completed' && facebookDone.output.ads.length === 3 && facebookAfter.balance_usd === 4.9);
+check('hosted registry: completed Worker-native output replays from durable state', facebookDoneResponse.status === 200 && facebookDone.status === 'completed' && facebookDone.output.ads.length === 3 && facebookAfter.balance_usd === 4.9);
+
+const facebookReplay = await (await worker.fetch(mkReq('POST', '/api/run', facebookInput, facebookHeaders), facebookEnv)).json();
+check('hosted registry: Worker-native idempotent replay returns prior run and never double-charges', facebookReplay.idempotent_replay === true && facebookReplay.run_id === facebookStart.run_id && llmCalls.filter((call) => call.messages[0].content.includes('senior Facebook ads copywriter')).length === 1 && facebookAfter.balance_usd === 4.9);
+
+workerNativeMode = 'invalid_json';
+const facebookJsonMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_json', {}), env)).json();
+const badJson = await worker.fetch(mkReq('POST', '/api/run', facebookInput, { Authorization: `Bearer ${facebookJsonMe.api_key}`, 'Idempotency-Key': 'facebook-router-json1' }), facebookEnv);
+const badJsonBody = await badJson.json();
+const facebookJsonAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_json', {}), env)).json();
+check('hosted registry: invalid Worker-native provider JSON refunds exactly once', badJson.status === 502 && badJsonBody.reason === 'worker_native_invalid_json' && facebookJsonAfter.balance_usd === 5);
+
+workerNativeMode = 'invalid_schema';
+const facebookSchemaMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_schema', {}), env)).json();
+const badSchemaHeaders = { Authorization: `Bearer ${facebookSchemaMe.api_key}`, 'Idempotency-Key': 'facebook-router-schema1' };
+const badSchema = await worker.fetch(mkReq('POST', '/api/run', facebookInput, badSchemaHeaders), facebookEnv);
+const badSchemaBody = await badSchema.json();
+const badSchemaReplay = await worker.fetch(mkReq('POST', '/api/run', facebookInput, badSchemaHeaders), facebookEnv);
+const facebookSchemaAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_schema', {}), env)).json();
+check('hosted registry: invalid Worker-native output schema refunds once and replays failure', badSchema.status === 502 && badSchemaBody.reason === 'worker_native_invalid_output' && badSchemaReplay.status === 502 && facebookSchemaAfter.balance_usd === 5);
+
+workerNativeMode = 'provider_error';
+const facebookProviderMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_provider', {}), env)).json();
+const providerFailure = await worker.fetch(mkReq('POST', '/api/run', facebookInput, { Authorization: `Bearer ${facebookProviderMe.api_key}`, 'Idempotency-Key': 'facebook-router-provider1' }), facebookEnv);
+const providerFailureBody = await providerFailure.json();
+const facebookProviderAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_provider', {}), env)).json();
+check('hosted registry: Worker-native provider failure refunds exactly once', providerFailure.status === 502 && providerFailureBody.reason === 'worker_native_provider_error' && facebookProviderAfter.balance_usd === 5);
+workerNativeMode = 'valid';
 
 // ── Japanese Style Story Video → private Modal + async progress ───────────
 

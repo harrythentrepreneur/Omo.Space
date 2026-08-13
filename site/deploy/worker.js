@@ -62,7 +62,7 @@ import { Pool, neon } from '@neondatabase/serverless';
 import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts, MIN_TOPUP_USD } from './balance.mjs';
 import { runPrice, llmWorkflow } from './cost-model.mjs';
 import { handleMcpRequest } from './mcp-server.mjs';
-import { HOSTED_MODAL_SKILL_ROWS, HOSTED_SERVER_CATALOG_ROWS } from './hosted-skills.generated.mjs';
+import { HOSTED_WORKER_SKILL_ROWS, HOSTED_MODAL_SKILL_ROWS, HOSTED_SERVER_CATALOG_ROWS } from './hosted-skills.generated.mjs';
 
 // ── System prompts (hardened: exact JSON shape, flat string arrays, no fences) ──
 
@@ -151,7 +151,25 @@ const DEMELLO_QUOTED_RUN_CENTS = 10;
 const DEMELLO_PAID_TRAFFIC_READY = false;
 const DEMELLO_PHASES = ['reserved', 'running', 'transcribing', 'directing', 'generating', 'assembling', 'delivered', 'failed'];
 const DEMELLO_PHASE_RANK = new Map(DEMELLO_PHASES.map((phase, index) => [phase, index]));
+const HOSTED_WORKER_SKILLS = new Map(HOSTED_WORKER_SKILL_ROWS);
 const HOSTED_MODAL_SKILLS = new Map(HOSTED_MODAL_SKILL_ROWS);
+assertHostedRegistryDisjoint();
+const REQUESTED_RUNTIMES = new Set(['auto', 'worker-native', 'modal-hosted']);
+const SUBMISSION_RUNTIME_MUTABLE_STATES = new Set(['queued', 'needs_review']);
+const HOSTED_WORKER_EXECUTOR_SPEC_VERSION = 'omo.worker-single-llm/v1';
+const HOSTED_WORKER_EXECUTION_KIND = 'single_llm';
+const HOSTED_WORKER_OPERATION = 'chat.completions.strict_json';
+const HOSTED_WORKER_PROVIDERS = new Set(['opencode-go']);
+const HOSTED_WORKER_PROVIDER_DESCRIPTORS = new Map([
+  ['opencode-go', {
+    api_key_env: 'LLM_API_KEY',
+    base_url_env: 'LLM_BASE_URL',
+    default_base_url: 'https://opencode.ai/zen/go/v1',
+    origin: 'https://opencode.ai',
+    path: '/zen/go/v1',
+  }],
+]);
+const HOSTED_WORKER_MAX_RESPONSE_BYTES = 256 * 1024;
 
 // Server-owned catalog. The Instagram tuples mirror site/ig-workflows.js and
 // site/ig-more.js, but intentionally include only runtime-safe fields. Client
@@ -201,6 +219,13 @@ const SERVER_CATALOG = new Map(CATALOG_ROWS.map((row) => {
     workflow: { steps: [{ type: 'llm', role: 'main', model, max_output: maxTokens, system: systemPrompt }] },
   }];
 }));
+
+function assertHostedRegistryDisjoint() {
+  const overlaps = HOSTED_WORKER_SKILL_ROWS
+    .map((row) => row[0])
+    .filter((slug) => HOSTED_MODAL_SKILLS.has(slug));
+  if (overlaps.length) throw new Error(`hosted registries overlap: ${overlaps.join(', ')}`);
+}
 
 const MAX_TOPUP_USD_DEFAULT = 1000;
 const MAX_SUBMISSION_BYTES = 200 * 1024;
@@ -277,6 +302,8 @@ const ROUTES = {
 };
 
 function dynamicRoute(pathname) {
+  const submissionRuntime = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/runtime$/.exec(pathname);
+  if (submissionRuntime) return { handler: handleSubmissionRuntime, methods: ['PATCH'], params: { submissionId: submissionRuntime[1] } };
   const progress = /^\/api\/run\/(run_[A-Za-z0-9_-]{4,91})\/progress$/.exec(pathname);
   if (progress) return { handler: handleRunProgressWebhook, methods: ['POST'], params: { runId: progress[1] } };
   const status = /^\/api\/run\/(run_[A-Za-z0-9_-]{4,91})$/.exec(pathname);
@@ -444,14 +471,18 @@ async function handleGenericRun(request, env) {
   const slug = String(body.slug || '').trim();
   const fields = body.fields && typeof body.fields === 'object' && !Array.isArray(body.fields) ? body.fields : {};
   const isDemello = slug === DEMELLO_SLUG;
-  const hosted = HOSTED_MODAL_SKILLS.get(slug) || null;
+  const hostedWorker = HOSTED_WORKER_SKILLS.get(slug) || null;
+  const hostedModal = HOSTED_MODAL_SKILLS.get(slug) || null;
+  const hosted = hostedWorker || hostedModal;
+  const isHostedWorker = Boolean(hostedWorker);
+  const isHostedModal = Boolean(hostedModal);
   const isHosted = Boolean(hosted);
   // Hosted workflows can spend Modal/provider budget and are never anonymous,
   // including in otherwise zero-config local mode.
   const real = isRealMode(env) || isDemello || isHosted;
-  const listing = SERVER_CATALOG.get(slug);
+  const listing = isHosted ? null : SERVER_CATALOG.get(slug);
   if (!slug) return json({ error: 'Send slug.' }, 400, cors());
-  if (real && !listing) return json({ error: 'unknown_catalog_slug' }, 404, cors());
+  if (real && !isHosted && !listing) return json({ error: 'unknown_catalog_slug' }, 404, cors());
 
   let userId = '';
   let authMethod = 'demo';
@@ -476,8 +507,13 @@ async function handleGenericRun(request, env) {
   }
   let hostedInput = null;
   if (isHosted) {
-    const configError = hostedModalConfigError(env, hosted);
-    if (configError) return json({ error: configError }, 503, cors());
+    if (isHostedModal) {
+      const configError = hostedModalConfigError(env, hosted);
+      if (configError) return json({ error: configError }, 503, cors());
+    } else {
+      const configError = hostedWorkerConfigError(env, hosted);
+      if (configError) return json({ error: configError }, 503, cors());
+    }
     const candidate = body.input && typeof body.input === 'object' && !Array.isArray(body.input)
       ? body.input : fields;
     const errors = validateSchemaValue(candidate, hosted.input_schema);
@@ -490,7 +526,7 @@ async function handleGenericRun(request, env) {
     ? listing.maxTokens
     : boundedInt(body.max_tokens, 1, 8000, Number(env.DEMO_MAX_TOKENS_RUN || 4000));
   const model = listing ? listing.model : (env.LLM_MODEL || 'deepseek-v4-flash');
-  if (!systemPrompt) return json({ error: 'Send slug and system_prompt.' }, 400, cors());
+  if (!isHosted && !systemPrompt) return json({ error: 'Send slug and system_prompt.' }, 400, cors());
 
   // Flatten fields into the user prompt, rejecting oversized payloads. The
   // de Mello branch validates and hashes a typed server-owned input instead.
@@ -543,9 +579,9 @@ async function handleGenericRun(request, env) {
   let runId = runRequest ? runRequest.row.run_id : '';
   if (userId) {
     billing = (await getUserRecord(env, userId)).record;
-    reservedCents = listing
+    reservedCents = isHosted
       ? runCostCents
-      : Math.round(runPrice(llmWorkflow(systemPrompt, maxTokens, model)) * 100);
+      : (listing ? runCostCents : Math.round(runPrice(llmWorkflow(systemPrompt, maxTokens, model)) * 100));
     costUsd = reservedCents / 100;
     if (!runId) runId = makeId('run');
     const reservation = reservedCents === 0
@@ -569,11 +605,11 @@ async function handleGenericRun(request, env) {
       return json(response, 402, cors());
     }
     balanceAfterDebit = reservation.balance_cents;
-    if (runRequest && (isDemello || isHosted)) {
+    if (runRequest && (isDemello || isHostedModal)) {
       await putRunProgress(env, {
         run_id: runId, user_id: userId, phase: 'reserved', progress_pct: 1,
         progress_source: 'derived', modal_status: 'reserved',
-        modal_status_url: isHosted ? hostedModalEndpoint(env, hosted) : demelloModalStatusUrl(env, runId),
+        modal_status_url: isHostedModal ? hostedModalEndpoint(env, hosted) : demelloModalStatusUrl(env, runId),
         input_notice: demelloInputNotice,
       });
     }
@@ -586,8 +622,13 @@ async function handleGenericRun(request, env) {
       demelloInputNotice, reservedCents, costUsd, balanceAfterDebit, authMethod,
     });
   }
-  if (isHosted) {
+  if (isHostedModal) {
     return dispatchHostedModalRun(env, hosted, {
+      runRequest, runId, userId, hostedInput, costUsd, balanceAfterDebit, authMethod,
+    });
+  }
+  if (isHostedWorker) {
+    return dispatchHostedWorkerRun(env, hosted, {
       runRequest, runId, userId, hostedInput, costUsd, balanceAfterDebit, authMethod,
     });
   }
@@ -681,6 +722,183 @@ function validateSchemaValue(value, schema, path = '$') {
     errors.push(`${path} must be true or false.`);
   }
   return errors;
+}
+
+function hostedWorkerPrompt(input) {
+  return `Input JSON:\n${JSON.stringify(input)}\n\nRun the reviewed workflow using only this JSON input. Return only the complete JSON object required by the output schema.`;
+}
+
+async function dispatchHostedWorkerRun(env, hosted, context) {
+  const {
+    runRequest, runId, userId, hostedInput, costUsd, balanceAfterDebit, authMethod,
+  } = context;
+  const llm = await callHostedWorkerProvider(env, hosted.executor, hostedWorkerPrompt(hostedInput));
+  if (llm.error) {
+    return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_provider_error', 502);
+  }
+  const parsed = parseStrictJsonObject(llm.content);
+  if (!parsed.ok) {
+    return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_invalid_json', 502);
+  }
+  const outputErrors = validateSchemaValue(parsed.value, hosted.output_schema);
+  if (outputErrors.length) {
+    return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_invalid_output', 502);
+  }
+  const result = {
+    ok: true, slug: hosted.slug, run_id: runId, status: 'completed', state: 'succeeded',
+    phase: 'delivered', progress_pct: 100, status_url: `/api/run/${encodeURIComponent(runId)}`,
+    quoted_cost_usd: Number(hosted.run_price_cents) / 100,
+    billed_amount_usd: Number(runRequest.row.cost_cents) / 100,
+    cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
+    auth: authMethod, output: parsed.value,
+  };
+  await finishRunRequest(env, runId, 'succeeded', result, 200);
+  return json(result, 200, cors());
+}
+
+function hostedWorkerConfigError(env, hosted) {
+  const executor = hosted && hosted.executor;
+  if (!executor || typeof executor !== 'object') return 'hosted_worker_executor_missing';
+  if (executor.spec_version !== HOSTED_WORKER_EXECUTOR_SPEC_VERSION) return 'hosted_worker_executor_spec_unsupported';
+  if (executor.execution_kind !== HOSTED_WORKER_EXECUTION_KIND) return 'hosted_worker_execution_kind_unsupported';
+  if (executor.operation !== HOSTED_WORKER_OPERATION) return 'hosted_worker_operation_unsupported';
+  if (!HOSTED_WORKER_PROVIDERS.has(executor.provider)) return 'hosted_worker_provider_unsupported';
+  const provider = HOSTED_WORKER_PROVIDER_DESCRIPTORS.get(executor.provider);
+  if (!provider) return 'hosted_worker_provider_unsupported';
+  if (!String(executor.model || '').trim()) return 'hosted_worker_model_missing';
+  if (!String(executor.system_prompt || '').trim()) return 'hosted_worker_system_prompt_missing';
+  if (!String(executor.workflow_version || '').trim()) return 'hosted_worker_workflow_version_missing';
+  if (!Number.isInteger(executor.max_output_tokens) || executor.max_output_tokens < 1 || executor.max_output_tokens > 8000) return 'hosted_worker_max_output_tokens_unbounded';
+  if (!Number.isFinite(Number(executor.temperature)) || Number(executor.temperature) < 0 || Number(executor.temperature) > 1) return 'hosted_worker_temperature_unbounded';
+  if (!Number.isInteger(executor.timeout_seconds) || executor.timeout_seconds < 1 || executor.timeout_seconds > 120) return 'hosted_worker_timeout_unbounded';
+  if (!String(env[provider.api_key_env] || '').trim()) return 'hosted_worker_provider_key_missing';
+  const baseUrl = hostedWorkerProviderBaseUrl(env, provider);
+  if (baseUrl.error) return baseUrl.error;
+  return '';
+}
+
+async function callHostedWorkerProvider(env, executor, userPrompt) {
+  const provider = HOSTED_WORKER_PROVIDER_DESCRIPTORS.get(executor.provider);
+  const baseUrl = hostedWorkerProviderBaseUrl(env, provider);
+  if (!provider || baseUrl.error) return { error: 'provider_config_invalid' };
+  const apiKey = String(env[provider.api_key_env] || '');
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), Number(executor.timeout_seconds) * 1000) : null;
+  try {
+    const response = await fetch(`${baseUrl.value}/chat/completions`, {
+      method: 'POST',
+      signal: controller ? controller.signal : undefined,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: executor.model,
+        max_tokens: executor.max_output_tokens,
+        temperature: Number(executor.temperature),
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: executor.system_prompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+    });
+    if (!response.ok) return { error: 'provider_http_status' };
+    const textResult = await readResponseTextBounded(response, HOSTED_WORKER_MAX_RESPONSE_BYTES);
+    if (textResult.error) return { error: textResult.error };
+    let data;
+    try { data = JSON.parse(textResult.text); } catch { return { error: 'provider_invalid_envelope' }; }
+    const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (typeof content !== 'string' || !content.trim()) return { error: 'provider_empty_content' };
+    return { content };
+  } catch {
+    return { error: 'provider_fetch_failed' };
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function hostedWorkerProviderBaseUrl(env, provider) {
+  if (!provider) return { error: 'hosted_worker_provider_unsupported' };
+  const raw = String(env[provider.base_url_env] || provider.default_base_url || '').trim();
+  if (!raw) return { error: 'hosted_worker_provider_base_url_invalid' };
+  let parsed;
+  try { parsed = new URL(raw); } catch { return { error: 'hosted_worker_provider_base_url_invalid' }; }
+  const hasNonDefaultPort = Boolean(parsed.port) && !((parsed.protocol === 'https:' && parsed.port === '443') || (parsed.protocol === 'http:' && parsed.port === '80'));
+  if (
+    parsed.protocol !== 'https:' ||
+    parsed.origin !== provider.origin ||
+    parsed.pathname.replace(/\/+$/, '') !== provider.path ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    hasNonDefaultPort
+  ) {
+    return { error: 'hosted_worker_provider_base_url_invalid' };
+  }
+  return { value: `${provider.origin}${provider.path}` };
+}
+
+async function readResponseTextBounded(response, maxBytes) {
+  if (response.body && typeof response.body.getReader === 'function') {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let bytes = 0;
+    let text = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        try { await reader.cancel(); } catch {}
+        return { error: 'provider_response_too_large' };
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return { text };
+  }
+  const text = await response.text();
+  if (new TextEncoder().encode(text).length > maxBytes) return { error: 'provider_response_too_large' };
+  return { text };
+}
+
+function parseStrictJsonObject(raw) {
+  const text = String(raw || '').trim();
+  if (!text || text[0] !== '{' || text[text.length - 1] !== '}') return { ok: false };
+  try {
+    const value = JSON.parse(text);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return { ok: false };
+    return { ok: true, value };
+  } catch {
+    return { ok: false };
+  }
+}
+
+async function failHostedWorkerRun(env, hosted, row, reason, httpStatus = 502) {
+  const current = await getRunRequestById(env, row.run_id);
+  if (current && current.state === 'succeeded') {
+    const terminal = terminalRunResult(current);
+    return json(terminal.body, terminal.status, cors());
+  }
+  if (current) row = current;
+  const response = {
+    ok: false, error: 'run_failed', reason, slug: hosted.slug, run_id: row.run_id,
+    status: 'failed', state: 'refunded', phase: 'failed', progress_pct: 0,
+    quoted_cost_usd: Number(hosted.run_price_cents) / 100, billed_amount_usd: 0,
+    status_url: `/api/run/${encodeURIComponent(row.run_id)}`,
+  };
+  const ownsRefund = await finishRunRequest(env, row.run_id, 'refunded', response, httpStatus);
+  if (ownsRefund && await runDebitExists(env, row.run_id)) {
+    await refundRunCredits(env, row.user_id, Number(row.cost_cents), row.run_id);
+  }
+  const terminal = await getRunRequestById(env, row.run_id);
+  if (terminal) {
+    const result = terminalRunResult(terminal);
+    return json(result.body, result.status, cors());
+  }
+  return json(response, httpStatus, cors());
 }
 
 function hostedModalEndpoint(env, hosted) {
@@ -1474,6 +1692,14 @@ async function handleSubmission(request, env) {
   if (body.visibility && body.visibility !== 'public') {
     return json({ ok: false, error: 'unsupported_visibility', message: 'Private workflow hosting is not available yet.' }, 400, cors());
   }
+  const runtimePreference = readRuntimePreference(body, 'auto');
+  if (runtimePreference.error) {
+    return json({ ok: false, error: runtimePreference.error, message: runtimePreference.message }, 400, cors());
+  }
+  const requestedRuntime = runtimePreference.value;
+  if (!requestedRuntime) {
+    return json({ ok: false, error: 'invalid_runtime_preference', message: 'runtime_preference must be auto, worker-native, or modal-hosted.' }, 400, cors());
+  }
 
   const parsed = parseSubmissionMarkdown(body.content);
   if (parsed.error) return json({ ok: false, ...parsed }, 400, cors());
@@ -1492,15 +1718,58 @@ async function handleSubmission(request, env) {
   const id = `sub_${(await sha256Hex(`${userId}\u0000${sourceSha256}`)).slice(0, 32)}`;
   const stored = await insertSubmission(env, {
     id, userId, name: parsed.name, slug: parsed.slug, content: parsed.content, sourceSha256,
+    requestedRuntime,
   });
+  if (stored.preference_conflict) {
+    return json({
+      ok: false,
+      error: 'runtime_preference_conflict',
+      id: stored.id,
+      status: stored.status,
+      runtime_preference: stored.requested_runtime,
+      compatibility: 'pending_review',
+      message: 'This workflow source is already queued with a different runtime preference.',
+    }, 409, cors());
+  }
   return json({
     ok: true,
     id: stored.id,
     slug: parsed.slug,
     status: stored.status,
+    runtime_preference: stored.requested_runtime || requestedRuntime,
+    compatibility: 'pending_review',
+    changed: !stored.duplicate,
     duplicate: stored.duplicate,
     message: stored.duplicate ? 'This workflow is already in your queue.' : 'Queued for Omo review and hosting.',
   }, 202, cors());
+}
+
+async function handleSubmissionRuntime(request, env, _url, params) {
+  const auth = await authenticateAccount(request, env, false);
+  if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors());
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const runtimePreference = readRuntimePreference(body, '');
+  if (runtimePreference.error) {
+    return json({ ok: false, error: runtimePreference.error, message: runtimePreference.message }, 400, cors());
+  }
+  const requestedRuntime = runtimePreference.value;
+  if (!requestedRuntime) {
+    return json({ ok: false, error: 'invalid_runtime_preference', message: 'runtime_preference must be auto, worker-native, or modal-hosted.' }, 400, cors());
+  }
+  const result = await updateSubmissionRuntime(env, auth.userId, params.submissionId, requestedRuntime);
+  if (result.status === 'not_found') return json({ ok: false, error: 'submission_not_found' }, 404, cors());
+  if (result.status === 'immutable') {
+    return json({ ok: false, error: 'submission_runtime_immutable', id: params.submissionId, status: result.row.status }, 409, cors());
+  }
+  return json({
+    ok: true,
+    id: result.row.id,
+    status: result.row.status,
+    runtime_preference: result.row.requested_runtime,
+    compatibility: 'pending_review',
+    changed: result.changed,
+  }, 200, cors());
 }
 
 // ── Route: dashboard /api/me ──────────────────────────────────────────────
@@ -1937,40 +2206,131 @@ async function insertWaitlistEntry(env, email, source) {
 
 async function insertSubmission(env, submission) {
   const now = new Date().toISOString();
+  const requestedRuntime = normalizeRequestedRuntime(submission.requestedRuntime || 'auto');
   const values = [
     submission.id, submission.userId, submission.name, submission.slug,
-    submission.content, submission.sourceSha256, 'queued', now, now,
+    submission.content, submission.sourceSha256, requestedRuntime, 'queued', now, now,
   ];
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
-      'omo-submission-insert-v1',
-      'INSERT INTO submissions (id,user_id,name,slug,content,source_sha256,status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (user_id,source_sha256) DO NOTHING RETURNING id,status',
+      'omo-submission-insert-v2',
+      'INSERT INTO submissions (id,user_id,name,slug,content,source_sha256,requested_runtime,status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (user_id,source_sha256) DO NOTHING RETURNING id,status,requested_runtime',
       values
     ));
-    if (result.rowCount === 1) return { ...result.rows[0], duplicate: false };
+    if (result.rowCount === 1) return { ...result.rows[0], duplicate: false, preference_conflict: false };
     const existing = await getNeonPool(env).query(prepared(
-      'omo-submission-existing-v1',
-      'SELECT id,status FROM submissions WHERE user_id = $1 AND source_sha256 = $2',
+      'omo-submission-existing-v2',
+      'SELECT id,status,requested_runtime FROM submissions WHERE user_id = $1 AND source_sha256 = $2',
       [submission.userId, submission.sourceSha256]
     ));
     if (!existing.rows[0]) throw new Error('submission insert conflict could not be resolved');
-    return { ...existing.rows[0], duplicate: true };
+    return {
+      ...existing.rows[0],
+      duplicate: true,
+      preference_conflict: existing.rows[0].requested_runtime !== requestedRuntime,
+    };
   }
   if (databaseKind(env) === 'd1') {
     const result = await env.BALANCE_DB
-      .prepare('INSERT OR IGNORE INTO submissions (id,user_id,name,slug,content,source_sha256,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
+      .prepare('INSERT OR IGNORE INTO submissions (id,user_id,name,slug,content,source_sha256,requested_runtime,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
       .bind(...values).run();
     const existing = await env.BALANCE_DB
-      .prepare('SELECT id,status FROM submissions WHERE user_id = ? AND source_sha256 = ?')
+      .prepare('SELECT id,status,requested_runtime FROM submissions WHERE user_id = ? AND source_sha256 = ?')
       .bind(submission.userId, submission.sourceSha256).first();
     if (!existing) throw new Error('submission insert conflict could not be resolved');
-    return { ...existing, duplicate: Number(result && result.meta && result.meta.changes) !== 1 };
+    const duplicate = Number(result && result.meta && result.meta.changes) !== 1;
+    return {
+      ...existing,
+      duplicate,
+      preference_conflict: duplicate && existing.requested_runtime !== requestedRuntime,
+    };
   }
   const key = `${submission.userId}\u0000${submission.sourceSha256}`;
-  if (mockSubmissions.has(key)) return { ...mockSubmissions.get(key), duplicate: true };
-  const record = { ...submission, status: 'queued', created_at: now, updated_at: now };
+  if (mockSubmissions.has(key)) {
+    const existing = mockSubmissions.get(key);
+    return {
+      ...existing,
+      duplicate: true,
+      preference_conflict: existing.requested_runtime !== requestedRuntime,
+    };
+  }
+  const record = { ...submission, requested_runtime: requestedRuntime, status: 'queued', created_at: now, updated_at: now };
   mockSubmissions.set(key, record);
-  return { id: record.id, status: record.status, duplicate: false };
+  return { id: record.id, status: record.status, requested_runtime: record.requested_runtime, duplicate: false, preference_conflict: false };
+}
+
+function normalizeRequestedRuntime(value) {
+  const requested = String(value || 'auto').trim();
+  return REQUESTED_RUNTIMES.has(requested) ? requested : '';
+}
+
+function readRuntimePreference(body, fallback) {
+  const hasRuntimePreference = Object.prototype.hasOwnProperty.call(body || {}, 'runtime_preference');
+  const hasRequestedRuntime = Object.prototype.hasOwnProperty.call(body || {}, 'requested_runtime');
+  const canonical = hasRuntimePreference ? normalizeRequestedRuntime(body.runtime_preference) : '';
+  const alias = hasRequestedRuntime ? normalizeRequestedRuntime(body.requested_runtime) : '';
+  if ((hasRuntimePreference && !canonical) || (hasRequestedRuntime && !alias)) {
+    return {
+      value: '',
+      error: 'invalid_runtime_preference',
+      message: 'runtime_preference must be auto, worker-native, or modal-hosted.',
+    };
+  }
+  if (hasRuntimePreference && hasRequestedRuntime && canonical !== alias) {
+    return {
+      value: '',
+      error: 'conflicting_runtime_preference',
+      message: 'Use runtime_preference; requested_runtime is only a backward-compatible alias.',
+    };
+  }
+  return { value: canonical || alias || normalizeRequestedRuntime(fallback) };
+}
+
+async function updateSubmissionRuntime(env, userId, submissionId, requestedRuntime) {
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-submission-runtime-update-v1',
+      `UPDATE submissions SET requested_runtime = $1, updated_at = $2
+       WHERE id = $3 AND user_id = $4 AND status IN ('queued','needs_review') AND requested_runtime <> $1
+       RETURNING id,status,requested_runtime`,
+      [requestedRuntime, now, submissionId, userId]
+    ));
+    if (result.rowCount === 1) return { status: 'updated', row: result.rows[0], changed: true };
+    const existing = await getNeonPool(env).query(prepared(
+      'omo-submission-runtime-existing-v1',
+      'SELECT id,status,requested_runtime FROM submissions WHERE id = $1 AND user_id = $2',
+      [submissionId, userId]
+    ));
+    if (!existing.rows[0]) return { status: 'not_found' };
+    if (!SUBMISSION_RUNTIME_MUTABLE_STATES.has(existing.rows[0].status)) return { status: 'immutable', row: existing.rows[0] };
+    if (existing.rows[0].requested_runtime === requestedRuntime) return { status: 'updated', row: existing.rows[0], changed: false };
+    return { status: 'immutable', row: existing.rows[0] };
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare("UPDATE submissions SET requested_runtime = ?, updated_at = ? WHERE id = ? AND user_id = ? AND status IN ('queued','needs_review') AND requested_runtime <> ?")
+      .bind(requestedRuntime, now, submissionId, userId, requestedRuntime).run();
+    if (result.meta && result.meta.changes) {
+      const row = await env.BALANCE_DB.prepare('SELECT id,status,requested_runtime FROM submissions WHERE id = ? AND user_id = ?').bind(submissionId, userId).first();
+      return { status: 'updated', row, changed: true };
+    }
+    const existing = await env.BALANCE_DB.prepare('SELECT id,status,requested_runtime FROM submissions WHERE id = ? AND user_id = ?').bind(submissionId, userId).first();
+    if (!existing) return { status: 'not_found' };
+    if (!SUBMISSION_RUNTIME_MUTABLE_STATES.has(existing.status)) return { status: 'immutable', row: existing };
+    if (existing.requested_runtime === requestedRuntime) return { status: 'updated', row: existing, changed: false };
+    return { status: 'immutable', row: existing };
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.id === submissionId && record.userId === userId) {
+      if (!SUBMISSION_RUNTIME_MUTABLE_STATES.has(record.status)) return { status: 'immutable', row: record };
+      if (record.requested_runtime === requestedRuntime) return { status: 'updated', row: record, changed: false };
+      record.requested_runtime = requestedRuntime;
+      record.updated_at = now;
+      return { status: 'updated', row: record, changed: true };
+    }
+  }
+  return { status: 'not_found' };
 }
 
 function balanceSecret(env) {
