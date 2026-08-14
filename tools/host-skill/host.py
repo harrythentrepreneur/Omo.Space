@@ -29,6 +29,7 @@ CATALOG_START = "  // host-skill:generated:start"
 CATALOG_END = "  // host-skill:generated:end"
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 RUNTIME_PREFERENCES = {"auto", "worker-native", "modal-hosted"}
 WORKER_EXECUTOR_SPEC_VERSION = "omo.worker-single-llm/v1"
 WORKER_EXECUTION_KIND = "single_llm"
@@ -294,6 +295,9 @@ def build_hosted_profile(
     run_price_cents = round(price_usd * 100)
     if run_price_cents < 1 or abs(price_usd - run_price_cents / 100) > 0.000001:
         raise ValueError("display price must resolve to whole USD cents")
+    reviewed_source_sha256 = require_text(container_manifest.get("source_sha256"), "source_sha256")
+    if not SHA256_RE.fullmatch(reviewed_source_sha256):
+        raise ValueError("source_sha256 must be a lowercase SHA-256 digest")
 
     placement = decide_runtime_placement(profile)
     deployment = market.get("deployment") or {}
@@ -386,6 +390,7 @@ def build_hosted_profile(
         "slug": slug,
         "container_slug": profile["slug"],
         "kind": placement["effective"],
+        "reviewed_source_sha256": reviewed_source_sha256,
         "input_schema": input_schema,
         "output_schema": output_schema,
         "run_price_cents": run_price_cents,

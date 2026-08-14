@@ -634,6 +634,7 @@
       "title": "Completed Facebook ads copy package",
       "type": "object"
     },
+    "reviewed_source_sha256": "4b7031309819a929130648c55fd16a38a8dce779998f696364817ef0a35b075e",
     "run_price_cents": 10,
     "slug": "facebook-ads-copywriter"
   },

@@ -109,6 +109,7 @@ const neonSqlCalls = [];
 let neonPoolShouldThrow = false;
 let neonInfoSchemaTableExists = false;
 let neonInfoSchemaColumns = [];
+let neonApprovalRow = null;
 
 class MockPool {
   constructor(options) {
@@ -131,6 +132,9 @@ class MockPool {
         }
         if (entry.text.includes('information_schema.columns')) {
           return { rows: neonInfoSchemaColumns.map((column_name) => ({ column_name })), rowCount: neonInfoSchemaColumns.length };
+        }
+        if (entry.name === 'omo-submission-approve-v1') {
+          return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -251,10 +255,19 @@ const sandbox = {
   crypto: webcrypto,
   console,
   Pool: MockPool,
-  neon: () => ({ query: async () => ({ rows: [], rowCount: 0 }) }),
+  neon: (connectionString) => ({
+    query: async (text, values = []) => {
+      const entry = { text, values, name: text.includes('WITH updated AS') ? 'omo-submission-approve-v1' : null, connectionString };
+      neonSqlCalls.push(entry);
+      if (entry.name === 'omo-submission-approve-v1') {
+        return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    },
+  }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -333,6 +346,17 @@ check('creator upload: lifecycle UI is honest and opens workflow only after depl
   uploadSource.includes('Queued for review') &&
   uploadSource.includes('Build gates running') &&
   !uploadSource.includes('automated research'));
+check('creator upload: exact-match slug collision approval is visible, confirmed, disabled while pending, refreshed, and error-rendered',
+  uploadSource.includes('Approve exact-match update') &&
+  uploadSource.includes('approval sends it back through build/test/deploy gates and does not instantly publish') &&
+  uploadSource.includes("submission.status === 'needs_review'") &&
+  uploadSource.includes("submission.failure_code === 'slug_collision'") &&
+  uploadSource.includes("fetch(apiBase() + '/api/submissions/' + encodeURIComponent(submission.id) + '/approve'") &&
+  uploadSource.includes("Authorization: 'Bearer ' + token") &&
+  uploadSource.includes('button.disabled = true') &&
+  uploadSource.includes('aria-live') &&
+  uploadSource.includes('refreshSubmissions(submission.id)') &&
+  uploadSource.includes('fetchSubmissionDetail(submission.id)'));
 
 let browserCheckoutCall = null;
 const stripeClientSandbox = {
@@ -567,6 +591,128 @@ const nonOwnerDetail = await worker.fetch(mkReq('GET', `/api/submissions/${submi
 const missingDetail = await worker.fetch(mkReq('GET', '/api/submissions/sub_00000000000000000000000000000000', {}, creatorHeaders), realEnv);
 const missingListAuth = await worker.fetch(mkReq('GET', '/api/submissions', {}, {}), realEnv);
 check('submissions API: missing auth, non-owner, and missing details fail closed', missingListAuth.status === 401 && nonOwnerDetail.status === 404 && missingDetail.status === 404);
+
+const reviewedWovenSourceSha = '6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf';
+const approvalAllowlist = workerTest.reviewedSourceApprovalAllowlist();
+check('approval allowlist: derives exact reviewed source hashes from generated hosted registry metadata',
+  approvalAllowlist.get(reviewedWovenSourceSha) === 'woven-relationship-book-maker' &&
+  !approvalAllowlist.has('f'.repeat(64)));
+
+const approvalRecord = {
+  id: 'sub_approvable000000000000000001',
+  userId: 'user_creator',
+  user_id: 'user_creator',
+  name: 'Woven Storybook Pipeline',
+  slug: 'woven-storybook-pipeline',
+  content: 'server keeps content private',
+  sourceSha256: reviewedWovenSourceSha,
+  source_sha256: reviewedWovenSourceSha,
+  requested_runtime: 'auto',
+  status: 'needs_review',
+  failure_code: 'slug_collision',
+  created_at: '2026-08-14T00:00:00.000Z',
+  updated_at: '2026-08-14T00:00:00.000Z',
+};
+workerTest.mockSubmissions.set(`user_creator\u0000${reviewedWovenSourceSha}`, approvalRecord);
+const approveMissingAuth = await worker.fetch(mkReq('POST', `/api/submissions/${approvalRecord.id}/approve`, {
+  source_sha256: 'f'.repeat(64), slug: 'attacker-slug', decision: 'approve',
+}, { Origin: 'https://omo.space' }), realEnv);
+const approveWrongOrigin = await worker.fetch(mkReq('OPTIONS', `/api/submissions/${approvalRecord.id}/approve`, {}, {
+  Origin: 'https://evil.example',
+}), realEnv);
+const approveNonOwner = await worker.fetch(mkReq('POST', `/api/submissions/${approvalRecord.id}/approve`, {}, otherCreatorHeaders), realEnv);
+const approveResponse = await worker.fetch(mkReq('POST', `/api/submissions/${approvalRecord.id}/approve`, {
+  source_sha256: 'f'.repeat(64), slug: 'attacker-slug', decision: 'approve',
+}, creatorHeaders), realEnv);
+const approveBody = await approveResponse.json();
+const approvalText = JSON.stringify(approveBody);
+check('submission approval: Clerk owner can approve only server-reviewed exact hash and receives a safe summary',
+  approveMissingAuth.status === 401 &&
+  approveWrongOrigin.headers.get('Access-Control-Allow-Origin') === null &&
+  approveNonOwner.status === 404 &&
+  approveResponse.status === 200 &&
+  approveBody.ok === true &&
+  approveBody.approved === true &&
+  approveBody.submission.id === approvalRecord.id &&
+  approveBody.submission.status === 'ready_for_deploy' &&
+  approveBody.submission.failure_code === null &&
+  approveBody.submission.approval_reason === 'exact_source_slug_collision' &&
+  approveBody.submission.approved_by === 'user_creator' &&
+  !approvalText.includes('server keeps content private') &&
+  !approvalText.includes('attacker-slug') &&
+  !approvalText.includes('decision'));
+
+const approveReplay = await (await worker.fetch(mkReq('POST', `/api/submissions/${approvalRecord.id}/approve`, {}, creatorHeaders), realEnv)).json();
+check('submission approval: idempotent owner replay returns current approved state',
+  approveReplay.ok === true &&
+  approveReplay.approved === true &&
+  approveReplay.submission.id === approvalRecord.id &&
+  approveReplay.submission.status === 'ready_for_deploy' &&
+  approveReplay.submission.failure_code === null);
+
+const failClosedRecords = [
+  ['sub_mismatch00000000000000000001', 'needs_review', 'slug_collision', 'f'.repeat(64)],
+  ['sub_wrongreason00000000000000001', 'needs_review', 'reviewed_profile_required', reviewedWovenSourceSha],
+  ['sub_wrongstatus00000000000000001', 'failed', 'slug_collision', reviewedWovenSourceSha],
+];
+for (const [id, status, failureCode, sourceSha256] of failClosedRecords) {
+  workerTest.mockSubmissions.set(`user_creator\u0000${id}`, {
+    id,
+    userId: 'user_creator',
+    user_id: 'user_creator',
+    name: 'Blocked approval',
+    slug: 'woven-storybook-pipeline',
+    content: 'private',
+    sourceSha256,
+    source_sha256: sourceSha256,
+    requested_runtime: 'auto',
+    status,
+    failure_code: failureCode,
+    created_at: '2026-08-14T00:00:00.000Z',
+    updated_at: '2026-08-14T00:00:00.000Z',
+  });
+}
+const approveMismatch = await worker.fetch(mkReq('POST', '/api/submissions/sub_mismatch00000000000000000001/approve', {}, creatorHeaders), realEnv);
+const approveWrongReason = await worker.fetch(mkReq('POST', '/api/submissions/sub_wrongreason00000000000000001/approve', {}, creatorHeaders), realEnv);
+const approveWrongStatus = await worker.fetch(mkReq('POST', '/api/submissions/sub_wrongstatus00000000000000001/approve', {}, creatorHeaders), realEnv);
+check('submission approval: mismatched hash, other failure reasons, and other statuses fail closed',
+  approveMismatch.status === 409 &&
+  approveWrongReason.status === 409 &&
+  approveWrongStatus.status === 409);
+
+neonSqlCalls.length = 0;
+neonApprovalRow = {
+  ...approvalRecord,
+  user_id: 'user_creator',
+  source_sha256: reviewedWovenSourceSha,
+  status: 'ready_for_deploy',
+  failure_code: null,
+  approved_at: '2026-08-14T00:01:00.000Z',
+  approved_by: 'user_creator',
+  approval_reason: 'exact_source_slug_collision',
+  updated_at: '2026-08-14T00:01:00.000Z',
+};
+const approveNeonResponse = await worker.fetch(mkReq('POST', `/api/submissions/${approvalRecord.id}/approve`, {
+  source_sha256: 'f'.repeat(64), slug: 'attacker-slug',
+}, creatorHeaders), { ...realEnv, NEON_DATABASE_URL: 'postgres://approval-user:secret@db.invalid/omo' });
+const approveNeonBody = await approveNeonResponse.json();
+const approveNeonCall = neonSqlCalls.find((call) => call.name === 'omo-submission-approve-v1');
+neonApprovalRow = null;
+check('submission approval: Neon uses one atomic guarded UPDATE and ignores client hash/slug/decision',
+  approveNeonResponse.status === 200 &&
+  approveNeonBody.submission.status === 'ready_for_deploy' &&
+  approveNeonCall &&
+  approveNeonCall.text.includes('UPDATE submissions') &&
+  approveNeonCall.text.includes("status = 'needs_review'") &&
+  approveNeonCall.text.includes("failure_code = 'slug_collision'") &&
+  approveNeonCall.text.includes('source_sha256 = ANY($3::text[])') &&
+  approveNeonCall.text.includes("SET status = 'ready_for_deploy'") &&
+  approveNeonCall.values[0] === approvalRecord.id &&
+  approveNeonCall.values[1] === 'user_creator' &&
+  Array.isArray(approveNeonCall.values[2]) &&
+  approveNeonCall.values[2].includes(reviewedWovenSourceSha) &&
+  JSON.stringify(neonSqlCalls).includes('attacker-slug') === false &&
+  JSON.stringify(neonSqlCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
 
 // Private build-worker bridge: bearer-only, no CORS, bounded strict payloads.
 const buildEnv = { ...realEnv, BUILD_WORKER_TOKEN: 'bridge-token-for-tests' };

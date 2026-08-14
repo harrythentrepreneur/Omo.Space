@@ -259,6 +259,7 @@ export const HOSTED_WORKER_SKILL_ROWS = [
         "title": "Completed Facebook ads copy package",
         "type": "object"
       },
+      "reviewed_source_sha256": "4b7031309819a929130648c55fd16a38a8dce779998f696364817ef0a35b075e",
       "run_price_cents": 10,
       "slug": "facebook-ads-copywriter"
     }
@@ -433,6 +434,7 @@ export const HOSTED_MODAL_SKILL_ROWS = [
       },
       "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
       "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+      "reviewed_source_sha256": "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf",
       "run_price_cents": 40,
       "slug": "woven-relationship-book-maker"
     }

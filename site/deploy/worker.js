@@ -326,6 +326,8 @@ function dynamicRoute(pathname) {
   if (internalDeployed) return { handler: handleInternalSubmissionDeployed, methods: ['POST'], params: { submissionId: internalDeployed[1] }, internal: true };
   const submissionDetail = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})$/.exec(pathname);
   if (submissionDetail) return { handler: handleSubmissionDetail, methods: ['GET'], params: { submissionId: submissionDetail[1] } };
+  const submissionApproval = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/approve$/.exec(pathname);
+  if (submissionApproval) return { handler: handleSubmissionApproval, methods: ['POST'], params: { submissionId: submissionApproval[1] } };
   const submissionRuntime = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/runtime$/.exec(pathname);
   if (submissionRuntime) return { handler: handleSubmissionRuntime, methods: ['PATCH'], params: { submissionId: submissionRuntime[1] } };
   const progress = /^\/api\/run\/(run_[A-Za-z0-9_-]{4,91})\/progress$/.exec(pathname);
@@ -1834,6 +1836,21 @@ async function handleSubmissionDetail(request, env, _url, params) {
   return json({ ok: true, submission: publicSubmission(row) }, 200, cors());
 }
 
+async function handleSubmissionApproval(request, env, _url, params) {
+  const auth = await authenticateAccount(request, env, false);
+  if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
+  const approved = await approveExactMatchSlugCollision(env, auth.userId, params.submissionId);
+  if (approved.status === 'not_found') return json({ ok: false, error: 'submission_not_found' }, 404, cors(request, env));
+  if (approved.status === 'not_approvable') {
+    return json({ ok: false, error: 'submission_not_approvable' }, 409, cors(request, env));
+  }
+  return json({
+    ok: true,
+    approved: true,
+    submission: publicSubmission(approved.row),
+  }, 200, cors(request, env));
+}
+
 function publicSubmission(row) {
   const selectedRuntime = safeRuntime(row.selected_runtime);
   const status = safeSubmissionStatus(row.status);
@@ -1847,11 +1864,15 @@ function publicSubmission(row) {
     runtime_policy: safeRuntimePolicy(row.runtime_policy),
     compatibility: safeCompatibility(row.runtime_compatibility),
     source_sha256: safeSha256(row.source_sha256 || row.sourceSha256),
+    failure_code: safePublicFailureCode(row.failure_code || row.failureCode),
     workflow_version: safeText(row.workflow_version, 160),
     published_slug: safeSlug(row.published_slug),
     created_at: safeTimestamp(row.created_at),
     updated_at: safeTimestamp(row.updated_at),
     deployed_at: safeTimestamp(row.deployed_at),
+    approved_at: safeTimestamp(row.approved_at),
+    approved_by: safeUserId(row.approved_by),
+    approval_reason: safeApprovalReason(row.approval_reason),
     build_evidence: safeBuildEvidence(row.build_evidence),
   };
 }
@@ -1886,6 +1907,21 @@ function safeSubmissionStatus(value) {
   return ['queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed'].includes(text)
     ? text
     : 'queued';
+}
+
+function safePublicFailureCode(value) {
+  const code = String(value || '').trim().toLowerCase();
+  return SAFE_FAILURE_RE.test(code) ? code : null;
+}
+
+function safeUserId(value) {
+  const text = String(value || '').trim();
+  return USER_ID_RE.test(text) ? text : null;
+}
+
+function safeApprovalReason(value) {
+  const text = String(value || '').trim();
+  return text === 'exact_source_slug_collision' ? text : null;
 }
 
 function safeRuntimePolicy(value) {
@@ -1952,6 +1988,9 @@ const REQUIRED_SUBMISSIONS_COLUMNS = [
   'failure_code',
   'created_at',
   'updated_at',
+  'approved_at',
+  'approved_by',
+  'approval_reason',
   'deployed_at',
 ];
 
@@ -1976,6 +2015,9 @@ const CREATE_SUBMISSIONS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS submissions (
   failure_code  TEXT,
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL,
+  approved_at   TEXT,
+  approved_by   TEXT,
+  approval_reason TEXT,
   deployed_at   TEXT,
   UNIQUE (user_id, source_sha256)
 )`;
@@ -2002,6 +2044,9 @@ const SUBMISSIONS_SCHEMA_MIGRATIONS = [
   ['failure_code', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS failure_code TEXT'],
   ['created_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS created_at TEXT'],
   ['updated_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS updated_at TEXT'],
+  ['approved_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS approved_at TEXT'],
+  ['approved_by', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS approved_by TEXT'],
+  ['approval_reason', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS approval_reason TEXT'],
   ['deployed_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS deployed_at TEXT'],
   ['idx_submissions_status_created', 'CREATE INDEX IF NOT EXISTS idx_submissions_status_created\n  ON submissions (status, created_at)'],
   ['idx_submissions_user_created', 'CREATE INDEX IF NOT EXISTS idx_submissions_user_created\n  ON submissions (user_id, created_at DESC)'],
@@ -3045,8 +3090,138 @@ async function updateSubmissionRuntime(env, userId, submissionId, requestedRunti
   return { status: 'not_found' };
 }
 
+function reviewedSourceApprovalAllowlist() {
+  const rows = [...HOSTED_MODAL_SKILL_ROWS, ...HOSTED_WORKER_SKILL_ROWS];
+  const allowlist = new Map();
+  for (const [runtimeSlug, runtime] of rows) {
+    const sourceSha256 = safeSha256(runtime && runtime.reviewed_source_sha256);
+    const safeRuntimeSlug = safeSlug(runtimeSlug);
+    if (sourceSha256 && safeRuntimeSlug) allowlist.set(sourceSha256, safeRuntimeSlug);
+  }
+  return allowlist;
+}
+
+const APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION = 'exact_source_slug_collision';
+
+function approvalSafeRow(row) {
+  return row && safeSubmissionId(row.id) ? row : null;
+}
+
+async function approveExactMatchSlugCollision(env, userId, submissionId) {
+  const allowedSourceHashes = reviewedSourceApprovalAllowlist();
+  if (!allowedSourceHashes.size) return { status: 'not_approvable' };
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-submission-approve-v1',
+      `WITH updated AS (
+         UPDATE submissions
+         SET status = 'ready_for_deploy',
+             failure_code = NULL,
+             updated_at = CURRENT_TIMESTAMP,
+             approved_at = CURRENT_TIMESTAMP,
+             approved_by = $2,
+             approval_reason = '${APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION}'
+         WHERE id = $1
+           AND user_id = $2
+           AND source_sha256 = ANY($3::text[])
+           AND status = 'needs_review'
+           AND failure_code = 'slug_collision'
+         RETURNING id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence
+       ),
+       current AS (
+         SELECT id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence
+         FROM submissions
+         WHERE id = $1
+           AND user_id = $2
+           AND source_sha256 = ANY($3::text[])
+           AND status = 'ready_for_deploy'
+           AND failure_code IS NULL
+           AND approved_by = $2
+           AND approval_reason = '${APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION}'
+           AND approved_at IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM updated)
+       )
+       SELECT * FROM updated
+       UNION ALL
+       SELECT * FROM current
+       LIMIT 1`,
+      [submissionId, userId, [...allowedSourceHashes.keys()]]
+    ));
+    const row = approvalSafeRow(result.rows[0]);
+    if (row) return { status: 'approved', row };
+    const existing = await getSubmissionApprovalState(env, userId, submissionId);
+    if (!existing) return { status: 'not_found' };
+    return { status: 'not_approvable' };
+  }
+  if (databaseKind(env) === 'd1') {
+    for (const sourceSha256 of allowedSourceHashes.keys()) {
+      const updated = await env.BALANCE_DB
+        .prepare(`UPDATE submissions
+          SET status = 'ready_for_deploy', failure_code = NULL, updated_at = ?, approved_at = ?, approved_by = ?, approval_reason = ?
+          WHERE id = ? AND user_id = ? AND source_sha256 = ? AND status = 'needs_review' AND failure_code = 'slug_collision'`)
+        .bind(now, now, userId, APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION, submissionId, userId, sourceSha256).run();
+      if (updated.meta && updated.meta.changes) {
+        const row = await getSubmissionForOwner(env, userId, submissionId);
+        return { status: 'approved', row };
+      }
+    }
+    const existing = await getSubmissionApprovalState(env, userId, submissionId);
+    if (!existing) return { status: 'not_found' };
+    if (existing.status === 'ready_for_deploy' && !existing.failure_code &&
+        safeSha256(existing.source_sha256) && allowedSourceHashes.has(safeSha256(existing.source_sha256)) &&
+        existing.approved_by === userId &&
+        existing.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
+        existing.approved_at) {
+      return { status: 'approved', row: existing };
+    }
+    return { status: 'not_approvable' };
+  }
+  let foundOwnerRecord = false;
+  for (const record of mockSubmissions.values()) {
+    if (record.id !== submissionId || (record.userId !== userId && record.user_id !== userId)) continue;
+    foundOwnerRecord = true;
+    const sourceSha256 = safeSha256(record.source_sha256 || record.sourceSha256);
+    if (record.status === 'ready_for_deploy' && !record.failure_code &&
+        sourceSha256 && allowedSourceHashes.has(sourceSha256) &&
+        record.approved_by === userId &&
+        record.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
+        record.approved_at) {
+      return { status: 'approved', row: record };
+    }
+    if (record.status === 'needs_review' && record.failure_code === 'slug_collision' &&
+        sourceSha256 && allowedSourceHashes.has(sourceSha256)) {
+      record.status = 'ready_for_deploy';
+      record.failure_code = null;
+      record.updated_at = now;
+      record.approved_at = now;
+      record.approved_by = userId;
+      record.approval_reason = APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION;
+      return { status: 'approved', row: record };
+    }
+    return { status: 'not_approvable' };
+  }
+  return foundOwnerRecord ? { status: 'not_approvable' } : { status: 'not_found' };
+}
+
+async function getSubmissionApprovalState(env, userId, submissionId) {
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence';
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-submission-approval-state-v1',
+      `SELECT ${columns} FROM submissions WHERE id = $1 AND user_id = $2`,
+      [submissionId, userId]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return env.BALANCE_DB.prepare(`SELECT ${columns} FROM submissions WHERE id = ? AND user_id = ?`).bind(submissionId, userId).first();
+  }
+  return getSubmissionForOwner(env, userId, submissionId);
+}
+
 async function listSubmissions(env, userId, limit) {
-  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,workflow_version,published_slug,created_at,updated_at,deployed_at,build_evidence';
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-submissions-list-v1',
@@ -3068,7 +3243,7 @@ async function listSubmissions(env, userId, limit) {
 }
 
 async function getSubmissionForOwner(env, userId, submissionId) {
-  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,workflow_version,published_slug,created_at,updated_at,deployed_at,build_evidence';
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-submission-detail-v1',

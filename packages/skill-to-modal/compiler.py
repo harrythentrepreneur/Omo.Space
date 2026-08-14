@@ -904,6 +904,7 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str]:
         "slug": profile["slug"],
         "name": profile["name"],
         "description": parsed["description"],
+        "source_sha256": source_hash,
         "version": profile["version"],
         "readiness": {
             "status": "ready" if ready else "not_ready",

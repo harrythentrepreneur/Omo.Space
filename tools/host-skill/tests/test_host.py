@@ -39,6 +39,8 @@ def test_hosted_profile_is_deterministic_and_schema_driven() -> None:
     assert first == second
     assert first["runtime"]["input_schema"] == profile["input_schema"]
     assert first["runtime"]["output_schema"] == profile["output_schema"]
+    assert first["runtime"]["reviewed_source_sha256"] == manifest["source_sha256"]
+    assert len(first["runtime"]["reviewed_source_sha256"]) == 64
     assert first["run_manifest"]["price_usd"] == pricing["display_price_usd"] == 0.1
 
 
@@ -194,6 +196,7 @@ def test_registry_separates_worker_and_modal_rows() -> None:
     rendered = host.render_registry([worker, modal])
     assert "HOSTED_WORKER_SKILL_ROWS" in rendered
     assert "HOSTED_MODAL_SKILL_ROWS" in rendered
+    assert "reviewed_source_sha256" in rendered
 
 
 def test_legacy_runtime_without_kind_remains_modal() -> None:
