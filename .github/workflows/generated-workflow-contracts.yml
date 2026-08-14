@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: "22"
       - name: Install Python test dependencies
-        run: python -m pip install pytest jsonschema pyyaml pillow reportlab pypdf
+        run: python -m pip install pytest jsonschema pyyaml pillow reportlab pypdf numpy
       - name: Python host/compiler/render contracts
         run: PYTHONPATH=. pytest -q tools/host-skill/tests tools/skill-to-modal/tests tools/render/tests
       - name: Worker and API contracts
