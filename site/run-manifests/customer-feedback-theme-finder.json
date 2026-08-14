@@ -1,0 +1,337 @@
+{
+  "chargeable": true,
+  "container_slug": "customer-feedback-theme-finder",
+  "examples": [
+    {
+      "caption": "Product improvement analysis",
+      "id": "northstar-notes-feedback",
+      "input": {
+        "feedback": [
+          "Search is fast, but I need filters for project and date.",
+          "I can find notes quickly, though filtering by date would save time.",
+          "The mobile app loses my draft when I switch apps.",
+          "I love how quickly search returns the right note.",
+          "Please fix drafts disappearing on mobile; I lost meeting notes twice."
+        ],
+        "goal": "product_improvement",
+        "product_name": "Northstar Notes"
+      },
+      "output_preview": "Three themes grounded in five supplied comments, with exact quotes and two practical actions.",
+      "title": "Notes product feedback"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/customer-feedback-theme-finder/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "A product name, 3–100 untrusted customer comments, and the analysis goal.",
+    "properties": {
+      "feedback": {
+        "description": "Customer comments in original order. Blank strings are accepted as submitted but ignored during analysis.",
+        "items": {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 3,
+        "title": "Customer feedback",
+        "type": "array"
+      },
+      "goal": {
+        "description": "The goal used to prioritize evidence-backed themes.",
+        "enum": [
+          "product_improvement",
+          "marketing_insights",
+          "retention"
+        ],
+        "title": "Analysis goal",
+        "type": "string"
+      },
+      "product_name": {
+        "description": "The product or service discussed in the feedback.",
+        "examples": [
+          "Northstar Notes"
+        ],
+        "maxLength": 160,
+        "minLength": 1,
+        "title": "Product name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "product_name",
+      "feedback",
+      "goal"
+    ],
+    "title": "Customer feedback theme-finding request",
+    "type": "object"
+  },
+  "input_schema_source": "containers/customer-feedback-theme-finder/schemas/input.json",
+  "output_schema": {
+    "$id": "https://omo.space/schemas/customer-feedback-theme-finder/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "goal": {
+        "enum": [
+          "product_improvement",
+          "marketing_insights",
+          "retention"
+        ],
+        "title": "Analysis goal",
+        "type": "string"
+      },
+      "limitations": {
+        "items": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 8,
+        "minItems": 1,
+        "title": "Evidence limitations",
+        "type": "array"
+      },
+      "product_name": {
+        "maxLength": 160,
+        "minLength": 1,
+        "title": "Product name",
+        "type": "string"
+      },
+      "recommended_actions": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            "based_on_themes": {
+              "items": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "confidence": {
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "type": "string"
+            },
+            "success_signal": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "based_on_themes",
+            "confidence",
+            "success_signal"
+          ],
+          "type": "object"
+        },
+        "maxItems": 5,
+        "title": "Recommended actions",
+        "type": "array"
+      },
+      "run_id": {
+        "minLength": 8,
+        "title": "Run ID",
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "summary": {
+        "maxLength": 1200,
+        "minLength": 1,
+        "title": "Summary",
+        "type": "string"
+      },
+      "themes": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "comment_indexes": {
+              "items": {
+                "maximum": 99,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "evidence_quotes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "comment_index": {
+                    "maximum": 99,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "quote": {
+                    "maxLength": 4000,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "comment_index",
+                  "quote"
+                ],
+                "type": "object"
+              },
+              "maxItems": 2,
+              "type": "array"
+            },
+            "name": {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            "priority": {
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ],
+              "type": "string"
+            },
+            "priority_reason": {
+              "maxLength": 360,
+              "minLength": 1,
+              "type": "string"
+            },
+            "sentiment": {
+              "enum": [
+                "positive",
+                "negative",
+                "mixed",
+                "neutral"
+              ],
+              "type": "string"
+            },
+            "support_count": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "name",
+            "sentiment",
+            "priority",
+            "support_count",
+            "comment_indexes",
+            "evidence_quotes",
+            "priority_reason"
+          ],
+          "type": "object"
+        },
+        "maxItems": 8,
+        "title": "Evidence-backed themes",
+        "type": "array"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "title": "Provider usage",
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "customer-feedback-theme-finder@0.1.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "product_name",
+      "goal",
+      "summary",
+      "themes",
+      "recommended_actions",
+      "limitations",
+      "usage"
+    ],
+    "title": "Completed customer feedback theme report",
+    "type": "object"
+  },
+  "output_schema_source": "containers/customer-feedback-theme-finder/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Finding evidence-backed themes"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "customer-feedback-theme-finder",
+  "ui": {
+    "fields": {
+      "feedback": {
+        "widget": "textarea"
+      },
+      "goal": {
+        "widget": "select"
+      },
+      "product_name": {
+        "widget": "text"
+      }
+    },
+    "order": [
+      "product_name",
+      "feedback",
+      "goal"
+    ]
+  }
+}
