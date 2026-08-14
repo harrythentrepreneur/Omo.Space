@@ -22,3 +22,23 @@ complete request/result contract without keys, network access, or spend.
 The current allowlist admits only `single_llm` candidates with a reviewed
 OpenAI-compatible operation. The two practice skills are intentionally marked
 `complex_external` and `not_ready`.
+
+## Reusable generator capabilities
+
+Reviewed profiles may opt into two bounded, default-off capabilities:
+
+- `input_adapters: ["whatsapp_zip"]` plus
+  `input_adapter_config.whatsapp_zip` adds an exact-one-source input contract.
+  The generated runtime accepts a base64 WhatsApp export ZIP, requires one
+  `_chat.txt`, rejects unsafe/encrypted/oversized archives with typed errors,
+  aliases participants, strips metadata, bounds the transcript, and makes one
+  strict schema-validated extraction pass before the workflow. Relationship-
+  book profiles should use this adapter because chat-export ZIPs are a natural
+  source for the direct story fields.
+- `artifact: {"type": "book_pdf", ...}` adds deterministic ReportLab book
+  composition after the provider step, immutable run-scoped Modal Volume
+  persistence, a checksum/page-count descriptor, and a short-lived signed PDF
+  download route. Markdown and other reviewed outputs remain in the envelope.
+
+Capabilities are materialized only when declared by a reviewed profile;
+profiles without these fields receive neither upload parsing nor rendering.

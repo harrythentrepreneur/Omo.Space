@@ -1,17 +1,35 @@
 {
   "apt_packages": [],
   "artifacts": [],
+  "artifact": {
+    "cover_colors": {
+      "playful": "#D87843",
+      "poetic": "#536B78",
+      "warm": "#B45F4A"
+    },
+    "filename": "woven-keepsake.pdf",
+    "footer": "Woven | A relationship keepsake",
+    "signed_url_ttl_seconds": 3600,
+    "signing_key_env": "LLM_API_KEY",
+    "subtitle": "A story made from the moments you shared",
+    "type": "book_pdf",
+    "volume_name": "omo-woven-storybook-artifacts"
+  },
   "capabilities": [
     "opencode-go-chat-completions",
-    "schema-validated-json-output"
+    "schema-validated-json-output",
+    "whatsapp-zip-input-adapter",
+    "deterministic-book-pdf",
+    "signed-persisted-artifact-delivery"
   ],
   "cost_drivers": [
-    "One DeepSeek V4 Flash drafting call with a 2,200-token output ceiling",
-    "Modal CPU, request latency, and schema-invalid provider retries",
+    "One DeepSeek V4 Flash drafting call, plus one bounded extraction call only for WhatsApp ZIP inputs",
+    "Modal CPU, deterministic ReportLab composition, artifact persistence, request latency, and schema-invalid provider retries",
     "The $0.08 guard preserves the existing $0.40 buyer quote while staging evidence accumulates"
   ],
   "execution_kind": "single_llm",
   "form": [
+    {"field": "chat_zip", "widget": "private_artifact_upload"},
     {"field": "how_you_met", "widget": "textarea"},
     {"field": "favorite_moments", "widget": "textarea"},
     {"field": "inside_jokes", "widget": "textarea"},
@@ -27,6 +45,17 @@
       "style": "warm"
     },
     "output": {
+      "artifact": {
+        "bytes": 8421,
+        "content_type": "application/pdf",
+        "filename": "woven-keepsake.pdf",
+        "kind": "pdf",
+        "object_key": "runs/run-fixture-woven-preview/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/woven-keepsake.pdf",
+        "page_count": 5,
+        "role": "book",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "artifact_url": "/v1/artifacts/run-fixture-woven-preview/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/woven-keepsake.pdf?expires=1700003600&signature=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "book": "# Wrong Turn, Best View\n\n## The Bookshop in the Rain\n\nIt began with two hands reaching for the same travel book while rain traced the window. They talked until closing, discovering that an ordinary detour could become the start of everything.\n\n## Two Cities and One Small Home\n\nSeven years carried them through two cities and into a first tiny apartment. The rooms were modest, but the life inside them kept expanding—especially after a sock-stealing corgi arrived and claimed the softest corners.\n\n## The View They Kept\n\nPlans still went sideways. Breakfast still occasionally became a smoke-alarm serenade. Each time, they returned to the phrase that had become their compass: wrong turn, best view. Their keepsake was never a perfect route; it was the joy of finding the view together.",
       "page_plan": [
         "Cover — Wrong Turn, Best View, with a rainy bookshop motif",
@@ -46,14 +75,14 @@
         "prompt_tokens": 410,
         "provider": "opencode-go"
       },
-      "workflow_version": "woven-storybook-pipeline@0.2.0"
+      "workflow_version": "woven-storybook-pipeline@0.3.0"
     }
   },
   "input_schema": {
     "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "The safe hosted preview accepts story facts directly. The full WhatsApp archive/PDF pipeline remains private and is not this runtime scope.",
+    "description": "Accept story facts directly or derive them from one bounded WhatsApp export ZIP. Uploaded chat is hostile data and is never executed.",
     "properties": {
       "favorite_moments": {
         "description": "Milestones and memories the story should include.",
@@ -95,8 +124,19 @@
       }
     },
     "required": ["how_you_met", "favorite_moments", "inside_jokes", "style", "length"],
-    "title": "Woven keepsake drafting preview",
+    "title": "Woven relationship keepsake",
     "type": "object"
+  },
+  "input_adapters": ["whatsapp_zip"],
+  "input_adapter_config": {
+    "whatsapp_zip": {
+      "description": "Reusable relationship-book adapter: users naturally upload a WhatsApp export ZIP, so parse _chat.txt as hostile data and derive the reviewed story fields before generation.",
+      "max_messages": 4000,
+      "max_uncompressed_bytes": 600000,
+      "max_zip_bytes": 2000000,
+      "source_field": "chat_zip",
+      "target_fields": ["how_you_met", "favorite_moments", "inside_jokes", "style", "length"]
+    }
   },
   "live": {
     "api_key_env": "LLM_API_KEY",
@@ -131,12 +171,12 @@
     "catalog_managed": false,
     "category": "content",
     "cover": "covers/woven-relationship-book-maker.svg",
-    "demo_cap": "Hosted run: narrative draft + PDF-ready page plan",
+    "demo_cap": "Hosted run: WhatsApp ZIP or story fields to a PDF keepsake",
     "deployment": {
       "default_endpoint": "https://omo-space--cognition-woven-storybook-pipeline-api.modal.run",
       "endpoint_env": "WOVEN_MODAL_URL"
     },
-    "description": "Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted run delivers a Markdown book draft and PDF-ready page plan for $0.40; the full private chat-archive-to-PDF pipeline remains a separate production milestone.",
+    "description": "Upload a WhatsApp export ZIP or share your story fields directly. Woven derives a factual relationship brief, writes a warm chaptered story, and delivers a beautiful PDF keepsake for $0.40. Markdown and the page plan remain available; unparseable or oversized ZIPs fail with a typed blocker.",
     "emoji": "💞",
     "example_in": "We met after reaching for the same book at a rainy-day shop · seven years, two cities, and one badly behaved corgi · warm and playful · short",
     "example_out": [
@@ -160,6 +200,7 @@
     ],
     "free": false,
     "inputs": [
+      "chat_zip: a WhatsApp export ZIP, instead of the story fields below",
       "how_you_met: a line about how you met",
       "favorite_moments: milestones and memories you want included",
       "inside_jokes: favorite jokes, phrases, and tiny details",
@@ -170,8 +211,9 @@
     "maker_name": "Woven Studio",
     "niche": "copy",
     "outputs": [
-      "book — a chaptered relationship story in Markdown",
-      "page_plan — a PDF-ready page plan with chapter breaks and keepsake prompts"
+      "artifact_url — a signed link to the beautiful PDF keepsake book",
+      "book — the chaptered relationship story in Markdown",
+      "page_plan — the keepsake page plan retained in the result"
     ],
     "phases": [
       {"id": "running", "label": "Writing and polishing your story"},
@@ -185,19 +227,25 @@
     "title": "Woven Relationship Book Maker",
     "ui": {
       "fields": {
+        "chat_zip": {"widget": "private_artifact_upload"},
         "favorite_moments": {"widget": "textarea"},
         "how_you_met": {"widget": "textarea"},
         "inside_jokes": {"widget": "textarea"},
         "length": {"widget": "select"},
         "style": {"widget": "select"}
       },
-      "order": ["how_you_met", "favorite_moments", "inside_jokes", "style", "length"]
+      "order": ["chat_zip", "how_you_met", "favorite_moments", "inside_jokes", "style", "length"]
     },
     "upvotes": 84,
     "version": "v1.0.0 · 2026-08-11"
   },
   "name": "woven-storybook-pipeline",
   "negative_cases": [
+    {
+      "id": "mixed-input-sources",
+      "input": {"chat_zip": {"content_base64": "UEsDBAAAAAAAAAAAAA==", "filename": "messages.zip"}, "favorite_moments": "Seven years and two cities together.", "how_you_met": "We met in a rainy bookshop after reaching for one book.", "inside_jokes": "Wrong turn, best view.", "length": "short", "style": "warm"},
+      "reason": "exactly one source is accepted: chat_zip or all direct fields"
+    },
     {
       "id": "missing-how-you-met",
       "input": {"favorite_moments": "Seven years and two cities together.", "inside_jokes": "Wrong turn, best view.", "length": "short", "style": "warm"},
@@ -248,10 +296,10 @@
         "title": "Provider usage",
         "type": "object"
       },
-      "workflow_version": {"const": "woven-storybook-pipeline@0.2.0"}
+      "workflow_version": {"const": "woven-storybook-pipeline@0.3.0"}
     },
     "required": ["run_id", "status", "workflow_version", "title", "book", "page_plan", "usage"],
-    "title": "Completed Woven drafting preview",
+    "title": "Completed Woven PDF keepsake",
     "type": "object"
   },
   "pricing": {
@@ -260,17 +308,17 @@
     "estimates": [
       {
         "guard_cost_usd": 0.08,
-        "notes": ["The existing $0.40 quote is retained as a conservative staging guard over one bounded provider call and Modal compute."],
+        "notes": ["The existing $0.40 quote is retained as a conservative staging guard over the conditional WhatsApp extraction call, story call, deterministic PDF render, and Modal artifact persistence."],
         "tier": "drafting_preview",
-        "workflow": {"steps": [{"estimated_input_tokens": 1500, "max_output_tokens": 2200, "model": "deepseek-v4-flash", "role": "draft", "type": "llm"}]}
+        "workflow": {"steps": [{"estimated_input_tokens": 3500, "max_output_tokens": 600, "model": "deepseek-v4-flash", "role": "whatsapp_extract_if_supplied", "type": "llm"}, {"estimated_input_tokens": 1500, "max_output_tokens": 2200, "model": "deepseek-v4-flash", "role": "draft", "type": "llm"}]}
       }
     ],
-    "notes": ["$0.40 applies the repository 5x launch markup to the $0.08 staging guard.", "This price is for the hosted drafting preview, not the full private archive-to-PDF pipeline."],
+    "notes": ["$0.40 applies the repository 5x launch markup to the $0.08 staging guard.", "The hosted product includes bounded WhatsApp ZIP extraction, Markdown, page plan, PDF composition, and signed artifact delivery."],
     "quote_status": "staging_guarded",
     "unpriced_costs": []
   },
   "prompts": {
-    "run.txt": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, or quotations. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object."
+    "run.txt": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, quotations, or motivations. Preserve actor/action attribution exactly and preserve temporal status: never turn a plan, wish, or future event into something that already happened. Omit an ambiguous detail instead of inferring it. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object."
   },
   "readiness": {"blockers": [], "can_submit": true},
   "required_env_names": ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"],
@@ -279,5 +327,5 @@
   "steps": [
     {"id": "draft", "operation": "chat.completions.strict_json", "prompt": "run.txt", "provider": "opencode-go", "readiness": "ready", "type": "llm"}
   ],
-  "version": "0.2.0"
+  "version": "0.3.0"
 }

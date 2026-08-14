@@ -1,8 +1,22 @@
 {
-  "compiler": "skill-to-modal/0.1.0",
+  "artifact": {
+    "cover_colors": {
+      "playful": "#D87843",
+      "poetic": "#536B78",
+      "warm": "#B45F4A"
+    },
+    "filename": "woven-keepsake.pdf",
+    "footer": "Woven | A relationship keepsake",
+    "signed_url_ttl_seconds": 3600,
+    "signing_key_env": "LLM_API_KEY",
+    "subtitle": "A story made from the moments you shared",
+    "type": "book_pdf",
+    "volume_name": "omo-woven-storybook-artifacts"
+  },
+  "compiler": "skill-to-modal/0.2.3",
   "cost_drivers": [
-    "One DeepSeek V4 Flash drafting call with a 2,200-token output ceiling",
-    "Modal CPU, request latency, and schema-invalid provider retries",
+    "One DeepSeek V4 Flash drafting call, plus one bounded extraction call only for WhatsApp ZIP inputs",
+    "Modal CPU, deterministic ReportLab composition, artifact persistence, request latency, and schema-invalid provider retries",
     "The $0.08 guard preserves the existing $0.40 buyer quote while staging evidence accumulates"
   ],
   "description": "WhatsApp chats to keepsake storybooks via Woven backend.",
@@ -11,6 +25,9 @@
     "ghostscript",
     "headless-chromium",
     "runware"
+  ],
+  "input_adapters": [
+    "whatsapp_zip"
   ],
   "name": "woven-storybook-pipeline",
   "parsed_workflow_steps": [

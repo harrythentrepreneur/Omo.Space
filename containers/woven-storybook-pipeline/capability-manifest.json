@@ -4,14 +4,20 @@
   ],
   "approved": [
     "opencode-go-chat-completions",
-    "schema-validated-json-output"
+    "schema-validated-json-output",
+    "whatsapp-zip-input-adapter",
+    "deterministic-book-pdf",
+    "signed-persisted-artifact-delivery"
   ],
   "blockers": [],
   "decision": "approved",
   "execution_kind": "single_llm",
   "requested": [
     "opencode-go-chat-completions",
-    "schema-validated-json-output"
+    "schema-validated-json-output",
+    "whatsapp-zip-input-adapter",
+    "deterministic-book-pdf",
+    "signed-persisted-artifact-delivery"
   ],
   "schema_version": "cognition.capabilities/v1",
   "slug": "woven-storybook-pipeline"

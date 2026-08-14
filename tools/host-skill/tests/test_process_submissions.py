@@ -10,6 +10,8 @@ import stat
 from pathlib import Path
 from urllib.error import HTTPError
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 PROCESS_PATH = ROOT / "tools" / "host-skill" / "process-submissions.py"
@@ -590,7 +592,8 @@ def test_reviewed_profile_auto_inherits_exact_match_runtime_from_hosted_metadata
     assert profile["runtime_preference"] == "modal-hosted"
     assert decision["requested"] == "modal-hosted"
     assert decision["effective"] == "modal-hosted"
-    assert decision["reason"] == "creator_selected_modal"
+    assert decision["recommended"] == "modal-hosted"
+    assert decision["reason"] == "worker_executor_contract_not_satisfied"
 
 
 def test_runtime_preference_helper_is_data_only_and_changes_only_auto() -> None:
@@ -605,22 +608,17 @@ def test_runtime_preference_helper_is_data_only_and_changes_only_auto() -> None:
     assert process.runtime_preference_for_reviewed_source(None, source_sha, runtime_by_source) is None
 
 
-def test_reviewed_profile_explicit_runtime_override_is_not_silently_changed(tmp_path: Path) -> None:
+def test_reviewed_profile_rejects_worker_override_for_modal_only_capabilities(tmp_path: Path) -> None:
     process = load_process_submissions()
     woven_source_sha = "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf"
 
-    profile_path, decision = process.reviewed_profile_artifact(
-        "woven-storybook-pipeline",
-        "worker-native",
-        tmp_path,
-        source_sha256=woven_source_sha,
-    )
-    profile = json.loads(profile_path.read_text(encoding="utf-8"))
-
-    assert profile["runtime_preference"] == "worker-native"
-    assert decision["requested"] == "worker-native"
-    assert decision["effective"] == "worker-native"
-    assert decision["reason"] == "bounded_single_llm_is_worker_compatible"
+    with pytest.raises(ValueError, match="workflow requires Modal"):
+        process.reviewed_profile_artifact(
+            "woven-storybook-pipeline",
+            "worker-native",
+            tmp_path,
+            source_sha256=woven_source_sha,
+        )
 
 
 def test_process_row_retries_exact_match_with_inherited_modal_runtime(monkeypatch, tmp_path: Path) -> None:

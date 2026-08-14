@@ -1235,8 +1235,8 @@ window.OMO_CATALOG = [
     "maker": "Woven",
     "makerName": "Woven Studio",
     "version": "v1.0.0 · 2026-08-11",
-    "demoCap": "Hosted run: narrative draft + PDF-ready page plan",
-    "desc": "Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted run delivers a Markdown book draft and PDF-ready page plan for $0.40; the full private chat-archive-to-PDF pipeline remains a separate production milestone.",
+    "demoCap": "Hosted run: WhatsApp export ZIP or story fields to a beautiful PDF keepsake",
+    "desc": "Upload a WhatsApp export ZIP or share your story fields directly. Woven derives a factual relationship brief, writes a warm chaptered story, and delivers a beautiful PDF keepsake for $0.40. Markdown and the page plan remain available; unparseable or oversized ZIPs return typed blockers.",
     "cover": "covers/woven-relationship-book-maker.svg",
     "images": [
       "covers/woven-2-chapters.webp",
@@ -1245,6 +1245,7 @@ window.OMO_CATALOG = [
     ],
     "upvotes": 84,
     "inputs": [
+      "source: WhatsApp export ZIP or the story fields below",
       "how_you_met: a line about how you met",
       "favorite_moments: milestones and memories you want included",
       "inside_jokes: favorite jokes, phrases, and tiny details",
@@ -1252,22 +1253,28 @@ window.OMO_CATALOG = [
       "length: short or long"
     ],
     "outputs": [
-      "book — a chaptered relationship story in Markdown",
-      "page_plan — a PDF-ready page plan with chapter breaks and keepsake prompts"
+      "artifact_url — a signed link to the beautiful PDF keepsake book",
+      "book — the chaptered relationship story in Markdown",
+      "page_plan — the keepsake page plan retained in the result"
     ],
-    "exampleIn": "We met after reaching for the same book at a rainy-day shop · seven years, two cities, and one badly behaved corgi · warm and playful · short",
+    "exampleIn": "WhatsApp export ZIP — or: rainy-day bookshop · seven years, two cities, and one badly behaved corgi · warm and playful · short",
     "exampleOut": [
       "A warm chaptered story that carries the rainy bookshop meeting through seven years together",
-      "A PDF-ready page plan with chapter breaks, memory prompts, and the corgi joke woven through"
+      "A polished PDF keepsake with a designed cover, chapter typography, page numbers, and the corgi joke woven through"
     ],
     "workflow": {
       "steps": [
         {
+          "type": "pipeline",
+          "role": "whatsapp_zip",
+          "label": "Parse a WhatsApp export and derive the reviewed story fields"
+        },
+        {
           "type": "llm",
           "role": "write",
           "model": "deepseek-v4-flash",
-          "max_output": 900,
-          "system": "Write a personalized relationship keepsake from only the details supplied. Return EXACTLY this JSON shape: {\"book\":\"a warm chaptered relationship story in Markdown\",\"page_plan\":[\"PDF-ready page or chapter note\"]}. Keep the couple's facts accurate, weave in their own phrases and inside jokes naturally, and give the story a beginning, middle, and hopeful close. HARD RULES: page_plan is a flat array of STRINGS, never invent names, dates, events, or quotations, and output ONLY the JSON object."
+          "max_output": 2200,
+          "system": "Write a personalized relationship keepsake from only the details supplied. Preserve who did what and whether an event happened or is only planned. Return EXACTLY one JSON object with title, book, and page_plan. Keep the couple's facts accurate, weave in their own phrases and inside jokes naturally, never invent names, dates, events, dialogue, quotations, or motivations, and output only JSON."
         },
         {
           "type": "pipeline",
@@ -1282,7 +1289,7 @@ window.OMO_CATALOG = [
         {
           "type": "pipeline",
           "role": "deliver",
-          "label": "Deliver Markdown book and PDF-ready page plan"
+          "label": "Render, persist, and sign the beautiful PDF keepsake"
         }
       ]
     },

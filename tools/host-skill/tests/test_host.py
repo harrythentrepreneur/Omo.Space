@@ -38,11 +38,31 @@ def test_hosted_profile_is_deterministic_and_schema_driven() -> None:
     first = host.build_hosted_profile(profile, manifest, pricing)
     second = host.build_hosted_profile(profile, manifest, pricing)
     assert first == second
-    assert first["runtime"]["input_schema"] == profile["input_schema"]
-    assert first["runtime"]["output_schema"] == profile["output_schema"]
+    assert first["runtime"]["input_schema"] == manifest["input_schema"]
+    assert first["runtime"]["output_schema"] == manifest["output_schema"]
     assert first["runtime"]["reviewed_source_sha256"] == manifest["source_sha256"]
     assert len(first["runtime"]["reviewed_source_sha256"]) == 64
     assert first["run_manifest"]["price_usd"] == pricing["display_price_usd"] == 0.1
+
+
+def test_host_registration_preserves_compiler_materialized_adapter_and_artifact_schemas() -> None:
+    skill = ROOT / "containers" / "woven-storybook-pipeline" / "source" / "SKILL.md"
+    profile_path = (
+        ROOT / "packages" / "skill-to-modal" / "profiles" / "woven-storybook-pipeline.json"
+    )
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = host.COMPILER.build_files(skill.read_text(encoding="utf-8"), profile)
+    manifest = json.loads(files["manifest.json"])
+    pricing = json.loads(files["pricing-report.json"])
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    input_schema = hosted["runtime"]["input_schema"]
+    output_schema = hosted["runtime"]["output_schema"]
+
+    assert "chat_zip" in input_schema["properties"]
+    assert len(input_schema["oneOf"]) == 2
+    assert {"artifact", "artifact_url"} <= set(output_schema["required"])
+    assert hosted["run_manifest"]["input_schema"] == input_schema
+    assert hosted["run_manifest"]["output_schema"] == output_schema
 
 
 def test_catalog_patch_is_idempotent() -> None:

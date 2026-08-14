@@ -72,6 +72,46 @@ def test_generation_is_byte_deterministic() -> None:
     assert json.loads(first["manifest.json"])["readiness"]["can_submit"] is True
 
 
+def test_generator_materializes_whatsapp_zip_and_book_pdf_contracts() -> None:
+    skill_path = ROOT / "containers" / "woven-storybook-pipeline" / "source" / "SKILL.md"
+    profile_path = (
+        ROOT / "packages" / "skill-to-modal" / "profiles" / "woven-storybook-pipeline.json"
+    )
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = compiler.build_files(skill_path.read_text(encoding="utf-8"), profile)
+    input_schema = json.loads(files["schemas/input.json"])
+    output_schema = json.loads(files["schemas/output.json"])
+    manifest = json.loads(files["manifest.json"])
+
+    assert input_schema["properties"]["chat_zip"]["properties"]["content_base64"]["maxLength"] == 2_666_668
+    assert input_schema["oneOf"][0]["required"] == profile["input_adapter_config"]["whatsapp_zip"]["target_fields"]
+    assert input_schema["oneOf"][1]["required"] == ["chat_zip"]
+    assert {"artifact", "artifact_url"} <= set(output_schema["required"])
+    assert output_schema["properties"]["usage"]["properties"]["llm_calls"]["maximum"] == 4
+    assert manifest["input_adapters"] == ["whatsapp_zip"]
+    assert manifest["artifacts"][0]["type"] == "book_pdf"
+    assert "prompts/whatsapp_zip.txt" in files
+    assert "modal.Volume.from_name('omo-woven-storybook-artifacts'" in files["modal_app.py"]
+    assert "render_book_pdf" in files["modal_app.py"]
+    assert "timeout=510" in files["modal_app.py"]
+
+
+def test_generator_rejects_unknown_adapter_and_artifact_types() -> None:
+    skill_path = ROOT / "containers" / "woven-storybook-pipeline" / "source" / "SKILL.md"
+    profile_path = (
+        ROOT / "packages" / "skill-to-modal" / "profiles" / "woven-storybook-pipeline.json"
+    )
+    skill = skill_path.read_text(encoding="utf-8")
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile["input_adapters"] = ["execute_chat_archive"]
+    with pytest.raises(ValueError, match="unsupported input adapter"):
+        compiler.build_files(skill, profile)
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile["artifact"]["type"] = "html_dump"
+    with pytest.raises(ValueError, match="artifact.type"):
+        compiler.build_files(skill, profile)
+
+
 def test_live_metering_rates_come_from_canonical_cost_model() -> None:
     skill = SKILL_PATH.read_text(encoding="utf-8")
     profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))

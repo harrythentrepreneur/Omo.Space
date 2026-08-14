@@ -321,8 +321,11 @@ def build_hosted_profile(
         if not ENV_NAME_RE.fullmatch(endpoint_env):
             raise ValueError("marketplace deployment endpoint_env must be an uppercase env name")
 
-    input_schema = profile["input_schema"]
-    output_schema = profile["output_schema"]
+    # The compiler is authoritative for generator-level schema capabilities
+    # such as upload adapters and artifact envelopes. Registration must carry
+    # the materialized contracts, not the pre-generation profile sketches.
+    input_schema = container_manifest.get("input_schema") or profile["input_schema"]
+    output_schema = container_manifest.get("output_schema") or profile["output_schema"]
     ui = market.get("ui") or {
         "order": [item["field"] for item in profile["form"]],
         "fields": {item["field"]: {"widget": item["widget"]} for item in profile["form"]},
@@ -357,20 +360,31 @@ def build_hosted_profile(
     }
 
     prompt_name = profile["live"]["prompt"]
-    workflow_steps = [
-        {
-            "type": "llm",
-            "role": profile["steps"][0]["id"],
-            "model": profile["live"]["default_model"],
-            "max_output": int(profile["live"]["max_tokens"]),
-            "system": profile["prompts"][prompt_name],
-        }
-    ]
+    workflow_steps = []
+    if "whatsapp_zip" in profile.get("input_adapters", []):
+        workflow_steps.append({
+            "type": "pipeline",
+            "role": "whatsapp_zip",
+            "label": "Parse WhatsApp export and derive the reviewed story fields",
+        })
+    workflow_steps.append({
+        "type": "llm",
+        "role": profile["steps"][0]["id"],
+        "model": profile["live"]["default_model"],
+        "max_output": int(profile["live"]["max_tokens"]),
+        "system": profile["prompts"][prompt_name],
+    })
     workflow_steps.extend(
         {"type": "pipeline", "role": phase["id"], "label": phase["label"]}
         for phase in phases
         if phase["id"] != "delivered"
     )
+    if isinstance(profile.get("artifact"), dict) and profile["artifact"].get("type") == "book_pdf":
+        workflow_steps.append({
+            "type": "pipeline",
+            "role": "render_book_pdf",
+            "label": "Render, persist, and sign the beautiful PDF keepsake",
+        })
     catalog = {
         "slug": slug,
         "name": require_text(market.get("title"), "title"),
@@ -406,6 +420,8 @@ def build_hosted_profile(
         "input_schema": input_schema,
         "output_schema": output_schema,
         "run_price_cents": run_price_cents,
+        "input_adapters": list(profile.get("input_adapters") or []),
+        "artifact": profile.get("artifact"),
     }
     if placement["effective"] == "modal-hosted":
         runtime.update({
