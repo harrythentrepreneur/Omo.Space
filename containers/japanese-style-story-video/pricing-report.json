@@ -1,20 +1,20 @@
 {
-  "chargeable": false,
+  "chargeable": true,
   "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
   "default_tier": "sample_demello_10s",
-  "display_price_usd": 0.9,
+  "display_price_usd": 0.1,
   "estimates": [
     {
       "cost_model_run_price_usd": 0.1,
       "detail": [],
-      "guard_cost_usd": 0.18,
-      "guarded_price_floor_usd": 0.9,
+      "guard_cost_usd": 0.003,
+      "guarded_price_floor_usd": 0.1,
       "modeled_cost_usd": 0.0,
       "notes": [
-        "The guard covers CPU media work, artifact delivery, and retry tail until delivered-run evidence replaces it.",
-        "At the canonical repository 5x markup, the $0.18 guard yields the requested $0.90 buyer quote."
+        "The procedural sample lane has zero provider spend and a conservative $0.003 delivered-compute guard.",
+        "The canonical repository formula max($0.10, cost x 5) yields the $0.10 buyer quote."
       ],
-      "pricing_cost_usd": 0.18,
+      "pricing_cost_usd": 0.003,
       "tier": "sample_demello_10s"
     },
     {
@@ -44,17 +44,35 @@
   ],
   "floor_usd": 0.1,
   "markup": 5.0,
-  "notes": [
-    "The $0.90 display amount is a reviewed target, not an approved charge, while readiness.can_submit is false.",
-    "The bundled sample reuses a reviewed transcript and procedural renderer, so it reports zero provider spend rather than fabricating an ASR or image-provider charge."
+  "measured_evidence": [
+    {
+      "artifact_bytes": 384681,
+      "artifact_sha256": "8308cb0299c83bdc7256eb62c3a88eb5f5178f657458f5db0a3478d2e6afe14c",
+      "canonical_markup": 5,
+      "canonical_price_usd": 0.1,
+      "compute_cost_usd": 0.00061482,
+      "cpu_core_seconds": 40.13183,
+      "cpu_rate_usd_per_core_second": 1.31e-05,
+      "duration_seconds": 10,
+      "measured_at": "2026-08-15",
+      "memory_gib_seconds": 40.13183,
+      "memory_rate_usd_per_gib_second": 2.22e-06,
+      "provider_cost_usd": 0,
+      "sample": "sample-demello-10s",
+      "wall_seconds": 20.065915
+    }
   ],
-  "quote_status": "blocked_media_executor_and_control_plane",
+  "notes": [
+    "The $0.10 quote applies only to the bundled deterministic 10-second sample lane.",
+    "The bundled sample reuses a reviewed transcript and procedural renderer, so it reports zero provider spend rather than fabricating an ASR or image-provider charge.",
+    "Arbitrary audio remains rejected before provider work and is not priced or chargeable."
+  ],
+  "quote_status": "measured_sample_lane",
   "rate_snapshot": "repository-2026-08",
   "schema_version": "cognition.pricing/v1",
   "source_model": "site/deploy/cost-model.mjs",
   "unpriced_costs": [
-    "delivered Modal CPU and memory p95 for the generated hosted alias",
-    "artifact storage and egress under the final owner-scoped store",
-    "accepted-output retry and visual QA tail"
+    "arbitrary-audio transcription, direction, and image generation",
+    "long-run artifact egress outside the bundled sample canary"
   ]
 }

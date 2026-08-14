@@ -246,6 +246,76 @@ def test_video_contract_resolves_video_and_domain_state_and_emits_runtime_pieces
     compile(modal_app, "generated-video-modal-app", "exec")
 
 
+def test_japanese_profile_materializes_owned_executor_and_unblocks_readiness(
+    tmp_path: Path,
+) -> None:
+    slug = "japanese-style-story-video"
+    skill_path = ROOT / "containers" / slug / "source" / "SKILL.md"
+    profile_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = compiler.build_files(skill_path.read_text(encoding="utf-8"), profile)
+    output = tmp_path / slug
+    assert compiler.write_or_check(files, output, check=False) == 0
+
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    capabilities = json.loads(
+        (output / "capability-manifest.json").read_text(encoding="utf-8")
+    )
+    pricing = json.loads((output / "pricing-report.json").read_text(encoding="utf-8"))
+    assert manifest["readiness"]["can_submit"] is True
+    assert manifest["readiness"]["blockers"] == []
+    assert manifest["pricing"] == {
+        "chargeable": True,
+        "currency": "USD",
+        "display_price_usd": 0.1,
+        "label": "$0.10 per run",
+        "quote_status": "measured_sample_lane",
+        "report_path": "pricing-report.json",
+    }
+    assert capabilities["decision"] == "approved"
+    assert [item["name"] for item in capabilities["selected"]] == [
+        "domain_state",
+        "video_processing",
+    ]
+    assert capabilities["blockers"] == []
+    assert capabilities["workflow_blockers"] == []
+    assert [item["id"] for item in capabilities["skill_owned_resources"]] == [
+        "japanese_procedural_sumi_e_v1"
+    ]
+    assert pricing["display_price_usd"] == 0.1
+    assert pricing["chargeable"] is True
+    assert pricing["measured_evidence"][0]["provider_cost_usd"] == 0
+    assert pricing["measured_evidence"][0]["compute_cost_usd"] == 0.00061482
+    assert pricing["measured_evidence"][0]["canonical_price_usd"] == 0.1
+    assert (output / "resources" / "demello_resource" / "image_gen.py").read_bytes() == (
+        ROOT / "containers" / "demello-awake" / "image_gen.py"
+    ).read_bytes()
+    assert (output / "resources" / "demello_resource" / "workflow.py").is_file()
+    assert (output / "resources" / "demello_resource" / "media.py").is_file()
+    assert (
+        output
+        / "resources"
+        / "demello_resource"
+        / "assets"
+        / "sample-demello-10s.m4a"
+    ).read_bytes() == (
+        ROOT / "containers" / "demello-awake" / "assets" / "sample-demello-10s.m4a"
+    ).read_bytes()
+    generated_runtime = (output / "modal_app.py").read_text(encoding="utf-8")
+    assert "def run_sample_pipeline(" in generated_runtime
+    assert "ProceduralSumiEGenerator" not in generated_runtime
+    assert ".add_local_dir(LOCAL_ROOT / \"resources\"" in generated_runtime
+    assert "@modal.asgi_app(requires_proxy_auth=True)" in generated_runtime
+    compile(generated_runtime, "generated-japanese-modal-app", "exec")
+
+
+def test_skill_owned_resource_is_slug_locked() -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["skill_owned_resource"] = "japanese_procedural_sumi_e_v1"
+    with pytest.raises(ValueError, match="another slug"):
+        compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
+
+
 def test_plain_llm_contract_resolves_neither_video_nor_domain_state() -> None:
     profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
     resolution = compiler.resolve_capabilities(profile, "d" * 64)

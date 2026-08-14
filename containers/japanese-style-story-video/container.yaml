@@ -1,15 +1,15 @@
 spec_version: cognition.container/v1
 name: "japanese-style-story-video"
 slug: japanese-style-story-video
-version: "0.1.0"
-status: not-ready
+version: "0.2.0"
+status: ready
 generated:
-  compiler: skill-to-modal/0.1.0
+  compiler: skill-to-modal/0.3.0
   hand_edit_allowed: false
 source:
   kind: vendored-skill-md
   path: source/SKILL.md
-  sha256: c4db870d3055d1a5b3772e53812c64f5673014013f17eaff08ca5cc66e458cd7
+  sha256: e8ad3662a6852a90a5fe02bea4b9987cdafc266358c57b7c17381932f0bda764
 image:
   base: debian-slim
   python: "3.12"
@@ -33,70 +33,56 @@ endpoint:
   invalid_input_status: 422
   not_ready_status: 503
 readiness:
-  can_submit: false
+  can_submit: true
   execution_kind: sample_media_pipeline
-  blockers:
-    - code: MEDIA_EXECUTION_KIND_UNSUPPORTED
-      detail: "The reviewed skill compiler currently allowlists only single_llm as ready and does not yet materialize the existing demello-awake media executor for this container."
-    - code: HOSTED_SAMPLE_INTEGRATION_PENDING
-      detail: "The real sample, procedural frame lane, FFmpeg assembly, and QA exist in containers/demello-awake, but the generated hosted container does not yet package that code or its owner-scoped artifact delivery contract."
-    - code: CONTROL_PLANE_PRICE_COLLISION
-      detail: "site/deploy/worker.js still routes this slug through the legacy nonpaid de Mello branch quoted at $0.10; it must be reconciled with the requested $0.90 generated hosted profile before charging."
-    - code: PROVIDER_BENCHMARKS_PENDING
-      detail: "Arbitrary-audio transcription, semantic direction, and image-generation providers do not yet have accepted-output latency, cost, and retry benchmarks for this listing."
-    - code: PRE_SPEND_CONTROLS_PENDING
-      detail: "The arbitrary-audio lane lacks reviewed per-phase reservations, hard cost ceilings before provider calls, and delivered-cost reconciliation."
-    - code: ARBITRARY_AUDIO_DISABLED
-      detail: "The hosted input schema intentionally accepts only sample-demello-10s; user uploads and URLs remain out of scope."
+  blockers: []
 required_env_names:
-  - LLM_API_KEY
-  - LLM_BASE_URL
-  - LLM_MODEL
 steps:
   - id: admit-sample
     type: native
     operation: "sample_demello.allowlist_and_normalize"
-    readiness: blocked
+    readiness: ready
     provider: local
   - id: transcribe
     type: native
     operation: "bundled_transcript.load_and_validate"
-    readiness: blocked
+    readiness: ready
     provider: local
   - id: direct
     type: native
     operation: "demello.deterministic_transcript_director"
-    readiness: blocked
+    readiness: ready
     provider: local
     system_prompt: prompts/director.txt
   - id: generate-frames
     type: native
     operation: "demello.procedural_sumi_e"
-    readiness: blocked
+    readiness: ready
     provider: local
     system_prompt: prompts/frame.txt
   - id: expand-frames
     type: native
     operation: "demello.expand_semantic_frames"
-    readiness: blocked
+    readiness: ready
     provider: local
   - id: assemble
     type: native
     operation: "ffmpeg.h264_aac_portrait"
-    readiness: blocked
+    readiness: ready
     provider: local
   - id: validate
     type: quality
     operation: "ffprobe.full_decode_and_visual_contract"
-    readiness: blocked
+    readiness: ready
     provider: local
   - id: deliver
     type: artifact
     operation: "private_artifacts.persist_and_sign"
-    readiness: blocked
+    readiness: ready
 input_schema: schemas/input.json
 output_schema: schemas/output.json
 frontend_manifest: manifest.json
+capability_manifest: capability-manifest.json
 pricing_report: pricing-report.json
 tests:
   contract: tests/test_contract.py

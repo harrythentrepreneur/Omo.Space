@@ -1098,6 +1098,201 @@ export const HOSTED_MODAL_SKILL_ROWS = [
     }
   ],
   [
+    "japanese-style-story-video",
+    {
+      "artifact": null,
+      "container_slug": "japanese-style-story-video",
+      "default_endpoint": "https://omo-space--cognition-japanese-style-story-video-api.modal.run",
+      "endpoint_env": "JAPANESE_STORY_VIDEO_MODAL_URL",
+      "input_adapters": [],
+      "input_schema": {
+        "$id": "https://omo.space/schemas/japanese-style-story-video/input.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Fail-closed hosted milestone input. Only the bundled 10-second sample is accepted; arbitrary audio is not enabled.",
+        "properties": {
+          "audio": {
+            "const": "sample-demello-10s",
+            "description": "The only audio source enabled for the hosted milestone.",
+            "title": "Audio source",
+            "type": "string"
+          },
+          "duration": {
+            "const": 10,
+            "description": "The exact duration of the bundled sample in seconds.",
+            "title": "Duration",
+            "type": "integer"
+          },
+          "style": {
+            "const": "sumi-e",
+            "description": "The reviewed Japanese ink style for this release.",
+            "title": "Visual style",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audio",
+          "style",
+          "duration"
+        ],
+        "title": "Japanese Style Story Video hosted sample",
+        "type": "object"
+      },
+      "kind": "modal-hosted",
+      "output_schema": {
+        "$id": "https://omo.space/schemas/japanese-style-story-video/output.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "bytes": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "content_type": {
+                  "enum": [
+                    "video/mp4",
+                    "image/jpeg",
+                    "application/json"
+                  ],
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "video",
+                    "contact_sheet",
+                    "transcript",
+                    "frame_brief",
+                    "frame_manifest"
+                  ],
+                  "type": "string"
+                },
+                "object_key": {
+                  "maxLength": 512,
+                  "minLength": 3,
+                  "pattern": "^owners/[0-9a-f]{24}/runs/run-[0-9a-f]{32}/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "url": {
+                  "maxLength": 4096,
+                  "pattern": "^https://",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "object_key",
+                "sha256",
+                "bytes",
+                "content_type",
+                "url"
+              ],
+              "type": "object"
+            },
+            "maxItems": 5,
+            "minItems": 5,
+            "type": "array"
+          },
+          "media": {
+            "additionalProperties": false,
+            "properties": {
+              "audio_codec": {
+                "const": "aac"
+              },
+              "duration_seconds": {
+                "maximum": 10.2,
+                "minimum": 9.8,
+                "type": "number"
+              },
+              "fps": {
+                "const": 30
+              },
+              "height": {
+                "const": 1920
+              },
+              "video_codec": {
+                "const": "h264"
+              },
+              "width": {
+                "const": 1080
+              }
+            },
+            "required": [
+              "duration_seconds",
+              "width",
+              "height",
+              "fps",
+              "video_codec",
+              "audio_codec"
+            ],
+            "type": "object"
+          },
+          "run_id": {
+            "minLength": 8,
+            "type": "string"
+          },
+          "status": {
+            "const": "completed"
+          },
+          "usage": {
+            "additionalProperties": false,
+            "properties": {
+              "accepted_frames": {
+                "const": 30
+              },
+              "generated_frames": {
+                "const": 30
+              },
+              "generation_provider": {
+                "const": "procedural-fallback"
+              },
+              "output_frames": {
+                "const": 300
+              },
+              "provider_cost_usd": {
+                "const": 0
+              }
+            },
+            "required": [
+              "generated_frames",
+              "accepted_frames",
+              "output_frames",
+              "generation_provider",
+              "provider_cost_usd"
+            ],
+            "type": "object"
+          },
+          "workflow_version": {
+            "const": "japanese-style-story-video@0.2.0"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "workflow_version",
+          "artifacts",
+          "media",
+          "usage"
+        ],
+        "title": "Completed Japanese Style Story Video run",
+        "type": "object"
+      },
+      "protocol": "owner-scoped-async-v1",
+      "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+      "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+      "reviewed_source_sha256": "e8ad3662a6852a90a5fe02bea4b9987cdafc266358c57b7c17381932f0bda764",
+      "run_price_cents": 10,
+      "slug": "japanese-style-story-video"
+    }
+  ],
+  [
     "phoneme-counter",
     {
       "container_slug": "phoneme-counter",
@@ -2441,6 +2636,15 @@ export const HOSTED_SERVER_CATALOG_ROWS = [
     "deepseek-v4-flash",
     1200,
     "Convert the supplied English word or grapheme to a likely phoneme sequence in the selected dialect. Include explanation/examples only when requested, never claim one universal mapping, and return only JSON."
+  ],
+  [
+    "japanese-style-story-video",
+    "Japanese Style Story Video",
+    29.0,
+    0.1,
+    "native-media",
+    0,
+    "Execute the reviewed server-owned native media pipeline."
   ],
   [
     "phoneme-counter",

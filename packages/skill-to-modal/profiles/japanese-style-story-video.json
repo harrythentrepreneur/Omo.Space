@@ -42,7 +42,7 @@
   "cost_drivers": [
     "CPU-only 10-second portrait frame generation, FFmpeg assembly, and full-decode QA",
     "Run-scoped video, transcript, frame brief, frame manifest, and contact-sheet storage and egress",
-    "The reviewed $0.18 delivered-cost guard becomes the requested $0.90 quote under the canonical repository 5x markup",
+    "The reviewed procedural lane has zero provider cost; measured Modal compute has remained below $0.003 per delivered 10-second run",
     "The arbitrary-audio planning estimate uses deepseek-v4-flash rates from site/deploy/cost-model.mjs; it is not an enabled hosted lane"
   ],
   "execution_kind": "sample_media_pipeline",
@@ -72,7 +72,7 @@
           "bytes": 388765,
           "content_type": "video/mp4",
           "kind": "video",
-          "object_key": "runs/run-sample-demello/video.mp4",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/1111111111111111111111111111111111111111111111111111111111111111/video.mp4",
           "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/video.mp4"
         },
@@ -80,7 +80,7 @@
           "bytes": 182440,
           "content_type": "image/jpeg",
           "kind": "contact_sheet",
-          "object_key": "runs/run-sample-demello/contact-sheet.jpg",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/2222222222222222222222222222222222222222222222222222222222222222/contact-sheet.jpg",
           "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/contact-sheet.jpg"
         },
@@ -88,7 +88,7 @@
           "bytes": 483,
           "content_type": "application/json",
           "kind": "transcript",
-          "object_key": "runs/run-sample-demello/transcript.json",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/3333333333333333333333333333333333333333333333333333333333333333/transcript.json",
           "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/transcript.json"
         },
@@ -96,7 +96,7 @@
           "bytes": 24180,
           "content_type": "application/json",
           "kind": "frame_brief",
-          "object_key": "runs/run-sample-demello/frame-brief.json",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/4444444444444444444444444444444444444444444444444444444444444444/frame-brief.json",
           "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/frame-brief.json"
         },
@@ -104,7 +104,7 @@
           "bytes": 9120,
           "content_type": "application/json",
           "kind": "frame_manifest",
-          "object_key": "runs/run-sample-demello/frames.json",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/5555555555555555555555555555555555555555555555555555555555555555/frames.json",
           "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/frames.json"
         }
@@ -117,7 +117,7 @@
         "video_codec": "h264",
         "width": 1080
       },
-      "run_id": "run-sample-demello",
+      "run_id": "run-0123456789abcdef0123456789abcdef",
       "status": "completed",
       "usage": {
         "accepted_frames": 30,
@@ -126,7 +126,7 @@
         "output_frames": 300,
         "provider_cost_usd": 0
       },
-      "workflow_version": "japanese-style-story-video@0.1.0"
+      "workflow_version": "japanese-style-story-video@0.2.0"
     }
   },
   "input_schema": {
@@ -171,7 +171,7 @@
       "default_endpoint": "https://omo-space--cognition-japanese-style-story-video-api.modal.run",
       "endpoint_env": "JAPANESE_STORY_VIDEO_MODAL_URL"
     },
-    "description": "Turn short audio into a directed Japanese-style drawing animation. The downloadable workflow supports your own audio; the current hosted milestone is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It transcribes the source, plans semantic ink-drawing beats, generates and expands the frames, then delivers a validated portrait MP4 with its frame artifacts.",
+    "description": "Turn the reviewed 10-second sample into a deterministic Japanese-style drawing animation. The hosted lane is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It loads the reviewed transcript, plans semantic ink-drawing beats, renders procedural sumi-e frames, then delivers a validated portrait MP4 with owner-scoped frame artifacts.",
     "emoji": "🎋",
     "example_in": "sample-demello-10s · sumi-e · 10 seconds",
     "example_out": [
@@ -240,7 +240,7 @@
     ],
     "title": "Japanese Style Story Video",
     "upvotes": 118,
-    "version": "v1.0.0 · 2026-08-14"
+    "version": "v1.1.0 · 2026-08-15"
   },
   "name": "japanese-style-story-video",
   "negative_cases": [
@@ -333,7 +333,7 @@
             "object_key": {
               "maxLength": 512,
               "minLength": 3,
-              "pattern": "^runs/[A-Za-z0-9_-]+/[A-Za-z0-9._/-]+$",
+              "pattern": "^owners/[0-9a-f]{24}/runs/run-[0-9a-f]{32}/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
               "type": "string"
             },
             "sha256": {
@@ -430,7 +430,7 @@
         "type": "object"
       },
       "workflow_version": {
-        "const": "japanese-style-story-video@0.1.0"
+        "const": "japanese-style-story-video@0.2.0"
       }
     },
     "required": [
@@ -445,14 +445,14 @@
     "type": "object"
   },
   "pricing": {
-    "chargeable": false,
+    "chargeable": true,
     "default_tier": "sample_demello_10s",
     "estimates": [
       {
-        "guard_cost_usd": 0.18,
+        "guard_cost_usd": 0.003,
         "notes": [
-          "The guard covers CPU media work, artifact delivery, and retry tail until delivered-run evidence replaces it.",
-          "At the canonical repository 5x markup, the $0.18 guard yields the requested $0.90 buyer quote."
+          "The procedural sample lane has zero provider spend and a conservative $0.003 delivered-compute guard.",
+          "The canonical repository formula max($0.10, cost x 5) yields the $0.10 buyer quote."
         ],
         "tier": "sample_demello_10s",
         "workflow": {
@@ -484,15 +484,33 @@
         }
       }
     ],
-    "notes": [
-      "The $0.90 display amount is a reviewed target, not an approved charge, while readiness.can_submit is false.",
-      "The bundled sample reuses a reviewed transcript and procedural renderer, so it reports zero provider spend rather than fabricating an ASR or image-provider charge."
+    "measured_evidence": [
+      {
+        "artifact_bytes": 384681,
+        "artifact_sha256": "8308cb0299c83bdc7256eb62c3a88eb5f5178f657458f5db0a3478d2e6afe14c",
+        "canonical_markup": 5,
+        "canonical_price_usd": 0.1,
+        "compute_cost_usd": 0.00061482,
+        "cpu_core_seconds": 40.13183,
+        "cpu_rate_usd_per_core_second": 0.0000131,
+        "duration_seconds": 10,
+        "measured_at": "2026-08-15",
+        "memory_gib_seconds": 40.13183,
+        "memory_rate_usd_per_gib_second": 0.00000222,
+        "provider_cost_usd": 0,
+        "sample": "sample-demello-10s",
+        "wall_seconds": 20.065915
+      }
     ],
-    "quote_status": "blocked_media_executor_and_control_plane",
+    "notes": [
+      "The $0.10 quote applies only to the bundled deterministic 10-second sample lane.",
+      "The bundled sample reuses a reviewed transcript and procedural renderer, so it reports zero provider spend rather than fabricating an ASR or image-provider charge.",
+      "Arbitrary audio remains rejected before provider work and is not priced or chargeable."
+    ],
+    "quote_status": "measured_sample_lane",
     "unpriced_costs": [
-      "delivered Modal CPU and memory p95 for the generated hosted alias",
-      "artifact storage and egress under the final owner-scoped store",
-      "accepted-output retry and visual QA tail"
+      "arbitrary-audio transcription, direction, and image generation",
+      "long-run artifact egress outside the bundled sample canary"
     ]
   },
   "prompts": {
@@ -500,39 +518,19 @@
     "frame.txt": "Render one portrait 1080×1920 Japanese sumi-e drawing frame from the reviewed semantic cell. Preserve the prior accepted frame's anchor identity and geometry. Apply only the named countable delta; keep prior changes persistent. Black ink on warm white paper, no text, seals, logos, borders, faces, or landscape output."
   },
   "readiness": {
-    "blockers": [
-      {
-        "code": "MEDIA_EXECUTION_KIND_UNSUPPORTED",
-        "detail": "The reviewed skill compiler currently allowlists only single_llm as ready and does not yet materialize the existing demello-awake media executor for this container."
-      },
-      {
-        "code": "HOSTED_SAMPLE_INTEGRATION_PENDING",
-        "detail": "The real sample, procedural frame lane, FFmpeg assembly, and QA exist in containers/demello-awake, but the generated hosted container does not yet package that code or its owner-scoped artifact delivery contract."
-      },
-      {
-        "code": "CONTROL_PLANE_PRICE_COLLISION",
-        "detail": "site/deploy/worker.js still routes this slug through the legacy nonpaid de Mello branch quoted at $0.10; it must be reconciled with the requested $0.90 generated hosted profile before charging."
-      },
-      {
-        "code": "PROVIDER_BENCHMARKS_PENDING",
-        "detail": "Arbitrary-audio transcription, semantic direction, and image-generation providers do not yet have accepted-output latency, cost, and retry benchmarks for this listing."
-      },
-      {
-        "code": "PRE_SPEND_CONTROLS_PENDING",
-        "detail": "The arbitrary-audio lane lacks reviewed per-phase reservations, hard cost ceilings before provider calls, and delivered-cost reconciliation."
-      },
-      {
-        "code": "ARBITRARY_AUDIO_DISABLED",
-        "detail": "The hosted input schema intentionally accepts only sample-demello-10s; user uploads and URLs remain out of scope."
-      }
-    ],
-    "can_submit": false
+    "blockers": [],
+    "can_submit": true
   },
-  "required_env_names": [
-    "LLM_API_KEY",
-    "LLM_BASE_URL",
-    "LLM_MODEL"
+  "required_env_names": [],
+  "outputs": [
+    {
+      "kind": "run_status"
+    }
   ],
+  "runtime": {
+    "ownership_scope": "per_run"
+  },
+  "skill_owned_resource": "japanese_procedural_sumi_e_v1",
   "resources": {
     "cpu": 2.0,
     "max_containers": 2,
@@ -545,14 +543,14 @@
       "id": "admit-sample",
       "operation": "sample_demello.allowlist_and_normalize",
       "provider": "local",
-      "readiness": "blocked",
+      "readiness": "ready",
       "type": "native"
     },
     {
       "id": "transcribe",
       "operation": "bundled_transcript.load_and_validate",
       "provider": "local",
-      "readiness": "blocked",
+      "readiness": "ready",
       "type": "native"
     },
     {
@@ -560,7 +558,7 @@
       "operation": "demello.deterministic_transcript_director",
       "prompt": "director.txt",
       "provider": "local",
-      "readiness": "blocked",
+      "readiness": "ready",
       "type": "native"
     },
     {
@@ -568,36 +566,37 @@
       "operation": "demello.procedural_sumi_e",
       "prompt": "frame.txt",
       "provider": "local",
-      "readiness": "blocked",
+      "readiness": "ready",
       "type": "native"
     },
     {
       "id": "expand-frames",
       "operation": "demello.expand_semantic_frames",
       "provider": "local",
-      "readiness": "blocked",
+      "readiness": "ready",
       "type": "native"
     },
     {
       "id": "assemble",
       "operation": "ffmpeg.h264_aac_portrait",
       "provider": "local",
-      "readiness": "blocked",
+      "readiness": "ready",
+      "execution_mode": "long_running",
       "type": "native"
     },
     {
       "id": "validate",
       "operation": "ffprobe.full_decode_and_visual_contract",
       "provider": "local",
-      "readiness": "blocked",
+      "readiness": "ready",
       "type": "quality"
     },
     {
       "id": "deliver",
       "operation": "private_artifacts.persist_and_sign",
-      "readiness": "blocked",
+      "readiness": "ready",
       "type": "artifact"
     }
   ],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

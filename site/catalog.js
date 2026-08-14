@@ -1160,19 +1160,19 @@ window.OMO_CATALOG = [
     "promise": "Turn short audio into a vertical sumi-e drawing animation.",
     "maker": "de Mello",
     "makerName": "de Mello Studio",
-    "version": "v1.0.0 · 2026-08-11",
-    "demoCap": "Hosted milestone: bundled 10-second sample",
-    "desc": "Turn short audio into a directed Japanese-style drawing animation. The downloadable workflow supports your own audio; the current hosted milestone is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It transcribes the source, plans semantic ink-drawing beats, generates and expands the frames, then delivers a validated portrait MP4 with its frame artifacts.",
+    "version": "v1.1.0 · 2026-08-15",
+    "demoCap": "Ready hosted lane: bundled 10-second sample only",
+    "desc": "Turn the reviewed 10-second sample into a deterministic Japanese-style drawing animation. The hosted lane is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It loads the reviewed transcript, plans semantic ink-drawing beats, renders procedural sumi-e frames, then delivers a validated portrait MP4 with owner-scoped artifacts.",
     "cover": "covers/japanese-style-story-video.svg",
     "upvotes": 118,
     "inputs": [
-      "audio: hosted milestone requires sample-demello-10s (the downloaded workflow supports your own short audio)",
-      "style: sumi-e Japanese ink (pinned for this release)",
-      "duration: 5–20 seconds"
+      "audio: sample-demello-10s (the only enabled hosted sample)",
+      "style: sumi-e Japanese ink",
+      "duration: exactly 10 seconds"
     ],
     "outputs": [
       "video — 1080×1920 H.264/AAC MP4",
-      "frames — generated drawing frames and contact sheet"
+      "artifacts — owner-scoped transcript, frame brief, frame manifest, and contact sheet"
     ],
     "exampleIn": "A 10-second reflection about waking up to the present moment · quiet sumi-e · 10 seconds",
     "exampleOut": [
@@ -1183,15 +1183,13 @@ window.OMO_CATALOG = [
       "steps": [
         {
           "type": "pipeline",
-          "role": "transcribe",
-          "label": "Transcribe audio"
+          "role": "load-transcript",
+          "label": "Load the reviewed sample transcript"
         },
         {
-          "type": "llm",
+          "type": "pipeline",
           "role": "direct",
-          "model": "deepseek-v4-flash",
-          "max_output": 300,
-          "system": "Direct a short spoken story into a sparse, coherent sequence of Japanese sumi-e drawing beats. Preserve the source meaning and return only the bounded shot plan."
+          "label": "Direct deterministic ink beats"
         },
         {
           "type": "pipeline",
@@ -1211,6 +1209,12 @@ window.OMO_CATALOG = [
       ]
     },
     "runPrice": 0.1,
+    "runManifest": "run-manifests/japanese-style-story-video.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
+    "known_limits": "The hosted executor accepts only sample-demello-10s at exactly 10 seconds; arbitrary audio is rejected before work and remains unpriced.",
     "icon": null
   },
   {

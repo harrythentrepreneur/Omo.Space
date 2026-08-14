@@ -32,7 +32,7 @@
           "object_key": {
             "maxLength": 512,
             "minLength": 3,
-            "pattern": "^runs/[A-Za-z0-9_-]+/[A-Za-z0-9._/-]+$",
+            "pattern": "^owners/[0-9a-f]{24}/runs/run-[0-9a-f]{32}/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
             "type": "string"
           },
           "sha256": {
@@ -129,7 +129,7 @@
       "type": "object"
     },
     "workflow_version": {
-      "const": "japanese-style-story-video@0.1.0"
+      "const": "japanese-style-story-video@0.2.0"
     }
   },
   "required": [

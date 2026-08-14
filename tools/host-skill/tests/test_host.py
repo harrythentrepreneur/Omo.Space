@@ -65,6 +65,32 @@ def test_host_registration_preserves_compiler_materialized_adapter_and_artifact_
     assert hosted["run_manifest"]["output_schema"] == output_schema
 
 
+def test_host_registration_supports_owned_native_media_executor() -> None:
+    slug = "japanese-style-story-video"
+    skill = ROOT / "containers" / slug / "source" / "SKILL.md"
+    profile_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = host.COMPILER.build_files(skill.read_text(encoding="utf-8"), profile)
+    manifest = json.loads(files["manifest.json"])
+    pricing = json.loads(files["pricing-report.json"])
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+
+    assert hosted["catalog_managed"] is False
+    assert hosted["runtime_placement"]["effective"] == "modal-hosted"
+    assert hosted["runtime"]["protocol"] == "owner-scoped-async-v1"
+    assert hosted["runtime"]["run_price_cents"] == 10
+    assert hosted["runtime"]["input_schema"] == manifest["input_schema"]
+    assert hosted["runtime"]["output_schema"] == manifest["output_schema"]
+    assert hosted["server_catalog"]["model"] == "native-media"
+    assert hosted["server_catalog"]["max_tokens"] == 0
+    assert hosted["catalog"]["runManifest"] == (
+        "run-manifests/japanese-style-story-video.json"
+    )
+    assert all(
+        step["type"] == "pipeline" for step in hosted["catalog"]["workflow"]["steps"]
+    )
+
+
 def test_catalog_patch_is_idempotent() -> None:
     profile, manifest, pricing = compiled_inputs()
     hosted = host.build_hosted_profile(profile, manifest, pricing)

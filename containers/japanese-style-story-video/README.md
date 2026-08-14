@@ -1,25 +1,18 @@
 # japanese-style-story-video
 
 Generated Modal candidate for `japanese-style-story-video`. The source skill is vendored
-at `source/SKILL.md` (SHA-256 `c4db870d3055d1a5b3772e53812c64f5673014013f17eaff08ca5cc66e458cd7`). Generated files must be changed
+at `source/SKILL.md` (SHA-256 `e8ad3662a6852a90a5fe02bea4b9987cdafc266358c57b7c17381932f0bda764`). Generated files must be changed
 through the compiler profile, not edited by hand.
 
 ## Readiness
 
-**NOT READY for live runs or charging.** `POST /v1/runs` is protected with Modal Proxy Token auth and returns `503 WORKFLOW_NOT_READY` before spawning or spending while these blockers remain:
+**READY for authenticated staging runs.** `POST /v1/runs` validates the input schema before spawning a provider-backed job.
 
-- `MEDIA_EXECUTION_KIND_UNSUPPORTED` — The reviewed skill compiler currently allowlists only single_llm as ready and does not yet materialize the existing demello-awake media executor for this container.
-- `HOSTED_SAMPLE_INTEGRATION_PENDING` — The real sample, procedural frame lane, FFmpeg assembly, and QA exist in containers/demello-awake, but the generated hosted container does not yet package that code or its owner-scoped artifact delivery contract.
-- `CONTROL_PLANE_PRICE_COLLISION` — site/deploy/worker.js still routes this slug through the legacy nonpaid de Mello branch quoted at $0.10; it must be reconciled with the requested $0.90 generated hosted profile before charging.
-- `PROVIDER_BENCHMARKS_PENDING` — Arbitrary-audio transcription, semantic direction, and image-generation providers do not yet have accepted-output latency, cost, and retry benchmarks for this listing.
-- `PRE_SPEND_CONTROLS_PENDING` — The arbitrary-audio lane lacks reviewed per-phase reservations, hard cost ceilings before provider calls, and delivered-cost reconciliation.
-- `ARBITRARY_AUDIO_DISABLED` — The hosted input schema intentionally accepts only sample-demello-10s; user uploads and URLs remain out of scope.
+- None for this reviewed runtime scope.
 
 Required environment variable names (values never belong in this repository):
 
-- `LLM_API_KEY`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
+
 
 ## Contract
 
@@ -28,7 +21,7 @@ Required environment variable names (values never belong in this repository):
 - Invalid input: `422` before spawn
 - Blocked release: `503` before spawn when `readiness.can_submit` is false
 - Input/UI contract: `manifest.json`
-- Pricing evidence: `pricing-report.json` (display estimate `$0.90`, not chargeable)
+- Pricing evidence: `pricing-report.json` (`$0.10` per run)
 
 Prompt assets:
 
@@ -45,7 +38,7 @@ python3 packages/skill-to-modal/compiler.py \
 python3 -m pytest -q -p no:cacheprovider containers/japanese-style-story-video/tests/test_contract.py
 ```
 
-Deployment is intentionally gated on readiness review. Once the generated manifest says `can_submit: true`, required provider capabilities exist, and tests pass:
+Deploy after the named Modal secret exists and the offline tests pass:
 
 ```bash
 modal deploy containers/japanese-style-story-video/modal_app.py

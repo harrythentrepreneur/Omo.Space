@@ -94,7 +94,7 @@ Before a hosted request can be charged, all of these must be true:
 - the public run manifest, Worker dispatch input, and Modal input schema agree;
 - the existing special de Mello route and the generic hosted registry have one
   authoritative endpoint, price, idempotency, settlement, and refund path;
-- the $0.90 quote is reserved before work and failures refund exactly once;
+- the $0.10 bundled-sample quote is reserved before work and failures refund exactly once;
 - output storage supports ownership, exact-object checksums, signed download,
   retention, and deletion;
 - the pinned sample passes repeatable cold/warm canaries and visual review.
@@ -121,4 +121,3 @@ of arbitrary audio, deterministic sample replay, idempotency conflict handling,
 ffprobe and full-decode validation, exact 1080×1920 H.264/AAC output, frame and
 artifact checksum checks, compiler drift checks, canonical pricing verification,
 and authenticated submit/poll/download tests.
-

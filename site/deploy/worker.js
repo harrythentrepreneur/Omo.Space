@@ -526,9 +526,13 @@ async function handleGenericRun(request, env) {
   try { body = await request.json(); } catch { body = {}; }
   const slug = String(body.slug || '').trim();
   const fields = body.fields && typeof body.fields === 'object' && !Array.isArray(body.fields) ? body.fields : {};
-  const isDemello = slug === DEMELLO_SLUG;
   const hostedWorker = HOSTED_WORKER_SKILLS.get(slug) || null;
-  const hostedModal = HOSTED_MODAL_SKILLS.get(slug) || null;
+  const registeredHostedModal = HOSTED_MODAL_SKILLS.get(slug) || null;
+  // A generated hosted registration supersedes the legacy nonpaid de Mello
+  // bridge. The explicit flag exists only for bounded rollback/legacy tests.
+  const isDemello = slug === DEMELLO_SLUG
+    && (!registeredHostedModal || String(env.DEMELLO_LEGACY_EXECUTOR || '') === '1');
+  const hostedModal = isDemello ? null : registeredHostedModal;
   const hosted = hostedWorker || hostedModal;
   const isHostedWorker = Boolean(hostedWorker);
   const isHostedModal = Boolean(hostedModal);
@@ -978,9 +982,33 @@ function hostedModalConfigError(env, hosted) {
   return '';
 }
 
-function hostedModalHeaders(env, hosted) {
+function hostedModalHeaders(env, hosted, ownerId = '') {
   const credentials = hostedModalCredentials(env, hosted);
-  return { 'Modal-Key': credentials.id, 'Modal-Secret': credentials.secret, Accept: 'application/json' };
+  const headers = { 'Modal-Key': credentials.id, 'Modal-Secret': credentials.secret, Accept: 'application/json' };
+  if (hosted.protocol === 'owner-scoped-async-v1' && ownerId) headers['X-Omo-Owner-Id'] = String(ownerId);
+  return headers;
+}
+
+function hostedModalRemote(hosted, upstream) {
+  const callId = String(upstream && upstream.call_id || '');
+  const resultUrl = String(upstream && upstream.result_url || '');
+  if (!/^fc-[A-Za-z0-9_-]+$/.test(callId)) return null;
+  if (hosted.protocol === 'owner-scoped-async-v1') {
+    const matched = /^\/v1\/runs\/(run-[0-9a-f]{32})\?call_id=(fc-[A-Za-z0-9_-]+)&access_token=([A-Za-z0-9_-]{32,200})$/.exec(resultUrl);
+    if (!matched || matched[2] !== callId || String(upstream.run_id || '') !== matched[1]) return null;
+    return { call_id: callId, run_id: matched[1], result_url: resultUrl };
+  }
+  if (!/^\/v1\/runs\/fc-[A-Za-z0-9_-]+$/.test(resultUrl)) return null;
+  return { call_id: callId, result_url: resultUrl };
+}
+
+function hostedModalStoredRemote(hosted, value) {
+  if (!value || typeof value !== 'object') return null;
+  return hostedModalRemote(hosted, {
+    call_id: value.call_id,
+    run_id: value.run_id,
+    result_url: value.result_url,
+  });
 }
 
 function hostedModalPublicRunning(row, hosted, extra = {}) {
@@ -999,7 +1027,7 @@ async function dispatchHostedModalRun(env, hosted, context) {
   try {
     response = await fetch(`${hostedModalEndpoint(env, hosted)}/v1/runs`, {
       method: 'POST',
-      headers: { ...hostedModalHeaders(env, hosted), 'Content-Type': 'application/json' },
+      headers: { ...hostedModalHeaders(env, hosted, userId), 'Content-Type': 'application/json' },
       body: JSON.stringify(hostedInput),
     });
   } catch {
@@ -1007,10 +1035,10 @@ async function dispatchHostedModalRun(env, hosted, context) {
   }
   let upstream = {};
   try { upstream = await response.json(); } catch { upstream = {}; }
-  if (response.status !== 202 || !/^fc-[A-Za-z0-9_-]+$/.test(String(upstream.call_id || '')) || !/^\/v1\/runs\/fc-[A-Za-z0-9_-]+$/.test(String(upstream.result_url || ''))) {
+  const remote = hostedModalRemote(hosted, upstream);
+  if (response.status !== 202 || !remote) {
     return failHostedModalRun(env, hosted, runRequest.row, `hosted_modal_dispatch_${response.status}`, 502);
   }
-  const remote = { call_id: upstream.call_id, result_url: upstream.result_url };
   await putRunProgress(env, {
     run_id: runId, user_id: userId, phase: 'running', progress_pct: 35,
     progress_source: 'modal', modal_status: 'accepted',
@@ -1031,12 +1059,13 @@ async function refreshHostedModalRun(env, hosted, row) {
   const progress = await getRunProgress(env, row.run_id);
   let remote = {};
   try { remote = JSON.parse(progress && progress.result_json || '{}'); } catch { remote = {}; }
-  if (!/^\/v1\/runs\/fc-[A-Za-z0-9_-]+$/.test(String(remote.result_url || ''))) {
+  remote = hostedModalStoredRemote(hosted, remote);
+  if (!remote) {
     return failHostedModalRun(env, hosted, row, 'hosted_modal_poll_contract_missing', 502, true);
   }
   let response;
   try {
-    response = await fetch(hostedModalEndpoint(env, hosted) + remote.result_url, { headers: hostedModalHeaders(env, hosted) });
+    response = await fetch(hostedModalEndpoint(env, hosted) + remote.result_url, { headers: hostedModalHeaders(env, hosted, row.user_id) });
   } catch {
     await touchRunRequest(env, row.run_id);
     return { status: 202, body: hostedModalPublicRunning(row, hosted, { poll_warning: 'hosted_modal_status_unavailable' }) };
@@ -1048,6 +1077,9 @@ async function refreshHostedModalRun(env, hosted, row) {
     return { status: 202, body: hostedModalPublicRunning(row, hosted) };
   }
   const outputErrors = response.status === 200 ? validateSchemaValue(upstream, hosted.output_schema) : ['upstream failed'];
+  if (response.status === 200 && hosted.protocol === 'owner-scoped-async-v1' && upstream.run_id !== remote.run_id) {
+    outputErrors.push('owner-scoped upstream run identity mismatch');
+  }
   if (response.status !== 200 || outputErrors.length) {
     return failHostedModalRun(env, hosted, row, response.status === 200 ? 'hosted_modal_invalid_output' : `hosted_modal_poll_${response.status}`, 502, true);
   }
@@ -1282,13 +1314,14 @@ async function handleRunStatus(request, env, _url, params) {
   if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
   const row = await getRunRequestById(env, params.runId);
   if (!row || row.user_id !== auth.userId) return json({ error: 'run_not_found' }, 404, cors());
-  if (row.slug === DEMELLO_SLUG) {
-    const result = await refreshDemelloRun(env, row);
-    return json(result.body, result.status, cors());
-  }
-  const hosted = HOSTED_MODAL_SKILLS.get(row.slug);
+  const hosted = row.slug === DEMELLO_SLUG && String(env.DEMELLO_LEGACY_EXECUTOR || '') === '1'
+    ? null : HOSTED_MODAL_SKILLS.get(row.slug);
   if (hosted) {
     const result = await refreshHostedModalRun(env, hosted, row);
+    return json(result.body, result.status, cors());
+  }
+  if (row.slug === DEMELLO_SLUG) {
+    const result = await refreshDemelloRun(env, row);
     return json(result.body, result.status, cors());
   }
   if (row.state === 'succeeded' || row.state === 'refunded') {
@@ -3956,13 +3989,14 @@ async function replayRunResponse(env, row, requestHash) {
     body.run_id = row.run_id;
     return json(body, Number(row.http_status) || (row.state === 'succeeded' ? 200 : 500), cors());
   }
+  const hosted = row.slug === DEMELLO_SLUG && String(env.DEMELLO_LEGACY_EXECUTOR || '') === '1'
+    ? null : HOSTED_MODAL_SKILLS.get(row.slug);
+  if (hosted) {
+    return json(hostedModalPublicRunning(row, hosted, { idempotent_replay: true }), 202, cors());
+  }
   if (row.slug === DEMELLO_SLUG) {
     const progress = await getRunProgress(env, row.run_id);
     return json(demelloPublicRunning(row, progress, { idempotent_replay: true }), 202, cors());
-  }
-  const hosted = HOSTED_MODAL_SKILLS.get(row.slug);
-  if (hosted) {
-    return json(hostedModalPublicRunning(row, hosted, { idempotent_replay: true }), 202, cors());
   }
   return json({
     ok: true, idempotent_replay: true, run_id: row.run_id, state: row.state,

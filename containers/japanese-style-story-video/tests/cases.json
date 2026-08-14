@@ -11,7 +11,7 @@
           "bytes": 388765,
           "content_type": "video/mp4",
           "kind": "video",
-          "object_key": "runs/run-sample-demello/video.mp4",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/1111111111111111111111111111111111111111111111111111111111111111/video.mp4",
           "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/video.mp4"
         },
@@ -19,7 +19,7 @@
           "bytes": 182440,
           "content_type": "image/jpeg",
           "kind": "contact_sheet",
-          "object_key": "runs/run-sample-demello/contact-sheet.jpg",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/2222222222222222222222222222222222222222222222222222222222222222/contact-sheet.jpg",
           "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/contact-sheet.jpg"
         },
@@ -27,7 +27,7 @@
           "bytes": 483,
           "content_type": "application/json",
           "kind": "transcript",
-          "object_key": "runs/run-sample-demello/transcript.json",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/3333333333333333333333333333333333333333333333333333333333333333/transcript.json",
           "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/transcript.json"
         },
@@ -35,7 +35,7 @@
           "bytes": 24180,
           "content_type": "application/json",
           "kind": "frame_brief",
-          "object_key": "runs/run-sample-demello/frame-brief.json",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/4444444444444444444444444444444444444444444444444444444444444444/frame-brief.json",
           "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/frame-brief.json"
         },
@@ -43,7 +43,7 @@
           "bytes": 9120,
           "content_type": "application/json",
           "kind": "frame_manifest",
-          "object_key": "runs/run-sample-demello/frames.json",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/5555555555555555555555555555555555555555555555555555555555555555/frames.json",
           "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
           "url": "https://artifacts.example.invalid/runs/run-sample-demello/frames.json"
         }
@@ -56,7 +56,7 @@
         "video_codec": "h264",
         "width": 1080
       },
-      "run_id": "run-sample-demello",
+      "run_id": "run-0123456789abcdef0123456789abcdef",
       "status": "completed",
       "usage": {
         "accepted_frames": 30,
@@ -65,7 +65,7 @@
         "output_frames": 300,
         "provider_cost_usd": 0
       },
-      "workflow_version": "japanese-style-story-video@0.1.0"
+      "workflow_version": "japanese-style-story-video@0.2.0"
     }
   },
   "negative_cases": [

@@ -359,7 +359,8 @@ def build_hosted_profile(
         "ui": ui,
     }
 
-    prompt_name = profile["live"]["prompt"]
+    live = profile.get("live") if isinstance(profile.get("live"), dict) else None
+    prompt_name = live["prompt"] if live is not None else None
     workflow_steps = []
     if "whatsapp_zip" in profile.get("input_adapters", []):
         workflow_steps.append({
@@ -367,13 +368,26 @@ def build_hosted_profile(
             "role": "whatsapp_zip",
             "label": "Parse WhatsApp export and derive the reviewed story fields",
         })
-    workflow_steps.append({
-        "type": "llm",
-        "role": profile["steps"][0]["id"],
-        "model": profile["live"]["default_model"],
-        "max_output": int(profile["live"]["max_tokens"]),
-        "system": profile["prompts"][prompt_name],
-    })
+    if live is not None:
+        workflow_steps.append({
+            "type": "llm",
+            "role": profile["steps"][0]["id"],
+            "model": live["default_model"],
+            "max_output": int(live["max_tokens"]),
+            "system": profile["prompts"][prompt_name],
+        })
+    elif profile.get("skill_owned_resource"):
+        workflow_steps.extend(
+            {
+                "type": "pipeline",
+                "role": str(step.get("id") or "native"),
+                "label": str(step.get("operation") or step.get("id") or "Native step"),
+            }
+            for step in profile.get("steps", [])
+            if isinstance(step, dict)
+        )
+    else:
+        raise ValueError("hosted native profiles require a reviewed skill-owned resource")
     workflow_steps.extend(
         {"type": "pipeline", "role": phase["id"], "label": phase["label"]}
         for phase in phases
@@ -429,6 +443,11 @@ def build_hosted_profile(
             "endpoint_env": endpoint_env,
             "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
             "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+            "protocol": (
+                "owner-scoped-async-v1"
+                if profile.get("skill_owned_resource")
+                else "modal-function-call-v1"
+            ),
         })
     else:
         runtime["executor"] = build_worker_executor(profile)
@@ -437,9 +456,13 @@ def build_hosted_profile(
         "name": catalog["name"],
         "license_price_usd": catalog["priceOwn"],
         "run_price_usd": price_usd,
-        "model": profile["live"]["default_model"],
-        "max_tokens": int(profile["live"]["max_tokens"]),
-        "system_prompt": profile["prompts"][prompt_name],
+        "model": live["default_model"] if live is not None else "native-media",
+        "max_tokens": int(live["max_tokens"]) if live is not None else 0,
+        "system_prompt": (
+            profile["prompts"][prompt_name]
+            if live is not None
+            else "Execute the reviewed server-owned native media pipeline."
+        ),
     }
     return {
         "schema_version": "omo.hosted-profile/v1",

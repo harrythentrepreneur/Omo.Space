@@ -1,0 +1,561 @@
+{
+  "catalog": {
+    "category": "content",
+    "cover": "covers/japanese-style-story-video.svg",
+    "demoCap": "Hosted milestone: bundled 10-second sample",
+    "desc": "Turn the reviewed 10-second sample into a deterministic Japanese-style drawing animation. The hosted lane is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It loads the reviewed transcript, plans semantic ink-drawing beats, renders procedural sumi-e frames, then delivers a validated portrait MP4 with owner-scoped frame artifacts.",
+    "emoji": "🎋",
+    "exampleIn": "sample-demello-10s · sumi-e · 10 seconds",
+    "exampleOut": [
+      "A validated 1080×1920 H.264/AAC MP4 with the bundled reflection audio",
+      "The reviewed transcript, semantic frame brief, frame manifest, and contact sheet"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "audio: hosted milestone requires sample-demello-10s",
+      "style: sumi-e Japanese ink",
+      "duration: exactly 10 seconds"
+    ],
+    "maker": "de Mello",
+    "makerName": "de Mello Studio",
+    "name": "Japanese Style Story Video",
+    "niche": "video",
+    "outputs": [
+      "video — validated 1080×1920 H.264/AAC MP4",
+      "frames — transcript, semantic frame brief, frame manifest, and contact sheet"
+    ],
+    "priceMaintain": 8.0,
+    "priceOwn": 29.0,
+    "promise": "Turn short audio into a vertical sumi-e drawing animation.",
+    "runManifest": "run-manifests/japanese-style-story-video.json",
+    "runPrice": 0.1,
+    "slug": "japanese-style-story-video",
+    "tags": [
+      "video",
+      "animation",
+      "japanese",
+      "sumi-e",
+      "storytelling",
+      "audio"
+    ],
+    "upvotes": 118,
+    "version": "v1.1.0 · 2026-08-15",
+    "workflow": {
+      "steps": [
+        {
+          "label": "sample_demello.allowlist_and_normalize",
+          "role": "admit-sample",
+          "type": "pipeline"
+        },
+        {
+          "label": "bundled_transcript.load_and_validate",
+          "role": "transcribe",
+          "type": "pipeline"
+        },
+        {
+          "label": "demello.deterministic_transcript_director",
+          "role": "direct",
+          "type": "pipeline"
+        },
+        {
+          "label": "demello.procedural_sumi_e",
+          "role": "generate-frames",
+          "type": "pipeline"
+        },
+        {
+          "label": "demello.expand_semantic_frames",
+          "role": "expand-frames",
+          "type": "pipeline"
+        },
+        {
+          "label": "ffmpeg.h264_aac_portrait",
+          "role": "assemble",
+          "type": "pipeline"
+        },
+        {
+          "label": "ffprobe.full_decode_and_visual_contract",
+          "role": "validate",
+          "type": "pipeline"
+        },
+        {
+          "label": "private_artifacts.persist_and_sign",
+          "role": "deliver",
+          "type": "pipeline"
+        },
+        {
+          "label": "Validating transcript",
+          "role": "transcribing",
+          "type": "pipeline"
+        },
+        {
+          "label": "Directing ink beats",
+          "role": "directing",
+          "type": "pipeline"
+        },
+        {
+          "label": "Generating frames",
+          "role": "generating",
+          "type": "pipeline"
+        },
+        {
+          "label": "Assembling and validating",
+          "role": "assembling",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": false,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "japanese-style-story-video",
+    "examples": [
+      {
+        "caption": "Sumi-e · bundled 10-second sample",
+        "id": "sample-demello-10s",
+        "input": {
+          "audio": "sample-demello-10s",
+          "duration": 10,
+          "style": "sumi-e"
+        },
+        "output_preview": "A validated portrait MP4 plus the reviewed transcript and run-scoped frame artifacts.",
+        "title": "Present-moment reflection"
+      }
+    ],
+    "input_schema": {
+      "$id": "https://omo.space/schemas/japanese-style-story-video/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Fail-closed hosted milestone input. Only the bundled 10-second sample is accepted; arbitrary audio is not enabled.",
+      "properties": {
+        "audio": {
+          "const": "sample-demello-10s",
+          "description": "The only audio source enabled for the hosted milestone.",
+          "title": "Audio source",
+          "type": "string"
+        },
+        "duration": {
+          "const": 10,
+          "description": "The exact duration of the bundled sample in seconds.",
+          "title": "Duration",
+          "type": "integer"
+        },
+        "style": {
+          "const": "sumi-e",
+          "description": "The reviewed Japanese ink style for this release.",
+          "title": "Visual style",
+          "type": "string"
+        }
+      },
+      "required": [
+        "audio",
+        "style",
+        "duration"
+      ],
+      "title": "Japanese Style Story Video hosted sample",
+      "type": "object"
+    },
+    "input_schema_source": "containers/japanese-style-story-video/schemas/input.json",
+    "output_schema": {
+      "$id": "https://omo.space/schemas/japanese-style-story-video/output.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "bytes": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "content_type": {
+                "enum": [
+                  "video/mp4",
+                  "image/jpeg",
+                  "application/json"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "video",
+                  "contact_sheet",
+                  "transcript",
+                  "frame_brief",
+                  "frame_manifest"
+                ],
+                "type": "string"
+              },
+              "object_key": {
+                "maxLength": 512,
+                "minLength": 3,
+                "pattern": "^owners/[0-9a-f]{24}/runs/run-[0-9a-f]{32}/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "url": {
+                "maxLength": 4096,
+                "pattern": "^https://",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "object_key",
+              "sha256",
+              "bytes",
+              "content_type",
+              "url"
+            ],
+            "type": "object"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array"
+        },
+        "media": {
+          "additionalProperties": false,
+          "properties": {
+            "audio_codec": {
+              "const": "aac"
+            },
+            "duration_seconds": {
+              "maximum": 10.2,
+              "minimum": 9.8,
+              "type": "number"
+            },
+            "fps": {
+              "const": 30
+            },
+            "height": {
+              "const": 1920
+            },
+            "video_codec": {
+              "const": "h264"
+            },
+            "width": {
+              "const": 1080
+            }
+          },
+          "required": [
+            "duration_seconds",
+            "width",
+            "height",
+            "fps",
+            "video_codec",
+            "audio_codec"
+          ],
+          "type": "object"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "accepted_frames": {
+              "const": 30
+            },
+            "generated_frames": {
+              "const": 30
+            },
+            "generation_provider": {
+              "const": "procedural-fallback"
+            },
+            "output_frames": {
+              "const": 300
+            },
+            "provider_cost_usd": {
+              "const": 0
+            }
+          },
+          "required": [
+            "generated_frames",
+            "accepted_frames",
+            "output_frames",
+            "generation_provider",
+            "provider_cost_usd"
+          ],
+          "type": "object"
+        },
+        "workflow_version": {
+          "const": "japanese-style-story-video@0.2.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "artifacts",
+        "media",
+        "usage"
+      ],
+      "title": "Completed Japanese Style Story Video run",
+      "type": "object"
+    },
+    "output_schema_source": "containers/japanese-style-story-video/schemas/output.json",
+    "phases": [
+      {
+        "id": "transcribing",
+        "label": "Validating transcript"
+      },
+      {
+        "id": "directing",
+        "label": "Directing ink beats"
+      },
+      {
+        "id": "generating",
+        "label": "Generating frames"
+      },
+      {
+        "id": "assembling",
+        "label": "Assembling and validating"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "japanese-style-story-video",
+    "ui": {
+      "fields": {
+        "audio": {
+          "widget": "select"
+        },
+        "duration": {
+          "widget": "hidden"
+        },
+        "style": {
+          "widget": "hidden"
+        }
+      },
+      "order": [
+        "audio",
+        "style",
+        "duration"
+      ]
+    }
+  },
+  "runtime": {
+    "artifact": null,
+    "container_slug": "japanese-style-story-video",
+    "default_endpoint": "https://omo-space--cognition-japanese-style-story-video-api.modal.run",
+    "endpoint_env": "JAPANESE_STORY_VIDEO_MODAL_URL",
+    "input_adapters": [],
+    "input_schema": {
+      "$id": "https://omo.space/schemas/japanese-style-story-video/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Fail-closed hosted milestone input. Only the bundled 10-second sample is accepted; arbitrary audio is not enabled.",
+      "properties": {
+        "audio": {
+          "const": "sample-demello-10s",
+          "description": "The only audio source enabled for the hosted milestone.",
+          "title": "Audio source",
+          "type": "string"
+        },
+        "duration": {
+          "const": 10,
+          "description": "The exact duration of the bundled sample in seconds.",
+          "title": "Duration",
+          "type": "integer"
+        },
+        "style": {
+          "const": "sumi-e",
+          "description": "The reviewed Japanese ink style for this release.",
+          "title": "Visual style",
+          "type": "string"
+        }
+      },
+      "required": [
+        "audio",
+        "style",
+        "duration"
+      ],
+      "title": "Japanese Style Story Video hosted sample",
+      "type": "object"
+    },
+    "kind": "modal-hosted",
+    "output_schema": {
+      "$id": "https://omo.space/schemas/japanese-style-story-video/output.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "bytes": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "content_type": {
+                "enum": [
+                  "video/mp4",
+                  "image/jpeg",
+                  "application/json"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "video",
+                  "contact_sheet",
+                  "transcript",
+                  "frame_brief",
+                  "frame_manifest"
+                ],
+                "type": "string"
+              },
+              "object_key": {
+                "maxLength": 512,
+                "minLength": 3,
+                "pattern": "^owners/[0-9a-f]{24}/runs/run-[0-9a-f]{32}/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "url": {
+                "maxLength": 4096,
+                "pattern": "^https://",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "object_key",
+              "sha256",
+              "bytes",
+              "content_type",
+              "url"
+            ],
+            "type": "object"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array"
+        },
+        "media": {
+          "additionalProperties": false,
+          "properties": {
+            "audio_codec": {
+              "const": "aac"
+            },
+            "duration_seconds": {
+              "maximum": 10.2,
+              "minimum": 9.8,
+              "type": "number"
+            },
+            "fps": {
+              "const": 30
+            },
+            "height": {
+              "const": 1920
+            },
+            "video_codec": {
+              "const": "h264"
+            },
+            "width": {
+              "const": 1080
+            }
+          },
+          "required": [
+            "duration_seconds",
+            "width",
+            "height",
+            "fps",
+            "video_codec",
+            "audio_codec"
+          ],
+          "type": "object"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "accepted_frames": {
+              "const": 30
+            },
+            "generated_frames": {
+              "const": 30
+            },
+            "generation_provider": {
+              "const": "procedural-fallback"
+            },
+            "output_frames": {
+              "const": 300
+            },
+            "provider_cost_usd": {
+              "const": 0
+            }
+          },
+          "required": [
+            "generated_frames",
+            "accepted_frames",
+            "output_frames",
+            "generation_provider",
+            "provider_cost_usd"
+          ],
+          "type": "object"
+        },
+        "workflow_version": {
+          "const": "japanese-style-story-video@0.2.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "artifacts",
+        "media",
+        "usage"
+      ],
+      "title": "Completed Japanese Style Story Video run",
+      "type": "object"
+    },
+    "protocol": "owner-scoped-async-v1",
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "reviewed_source_sha256": "e8ad3662a6852a90a5fe02bea4b9987cdafc266358c57b7c17381932f0bda764",
+    "run_price_cents": 10,
+    "slug": "japanese-style-story-video"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "legacy_profile_defaults_to_modal",
+    "recommended": "modal-hosted",
+    "requested": "modal-hosted"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 29.0,
+    "max_tokens": 0,
+    "model": "native-media",
+    "name": "Japanese Style Story Video",
+    "run_price_usd": 0.1,
+    "slug": "japanese-style-story-video",
+    "system_prompt": "Execute the reviewed server-owned native media pipeline."
+  }
+}
