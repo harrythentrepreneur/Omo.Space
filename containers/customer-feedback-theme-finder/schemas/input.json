@@ -1,0 +1,46 @@
+{
+  "$id": "https://omo.space/schemas/customer-feedback-theme-finder/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A product name, 3–100 untrusted customer comments, and the analysis goal.",
+  "properties": {
+    "feedback": {
+      "description": "Customer comments in original order. Blank strings are accepted as submitted but ignored during analysis.",
+      "items": {
+        "maxLength": 4000,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 3,
+      "title": "Customer feedback",
+      "type": "array"
+    },
+    "goal": {
+      "description": "The goal used to prioritize evidence-backed themes.",
+      "enum": [
+        "product_improvement",
+        "marketing_insights",
+        "retention"
+      ],
+      "title": "Analysis goal",
+      "type": "string"
+    },
+    "product_name": {
+      "description": "The product or service discussed in the feedback.",
+      "examples": [
+        "Northstar Notes"
+      ],
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Product name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "product_name",
+    "feedback",
+    "goal"
+  ],
+  "title": "Customer feedback theme-finding request",
+  "type": "object"
+}

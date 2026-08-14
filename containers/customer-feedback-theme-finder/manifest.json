@@ -1,0 +1,94 @@
+{
+  "artifacts": [],
+  "description": "Turn supplied customer feedback into evidence-backed themes, representative verbatim quotes, priorities, and practical next actions without inventing customer claims.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "product_name",
+      "widget": "text"
+    },
+    {
+      "field": "feedback",
+      "widget": "textarea"
+    },
+    {
+      "field": "goal",
+      "widget": "select"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/customer-feedback-theme-finder/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "A product name, 3–100 untrusted customer comments, and the analysis goal.",
+    "properties": {
+      "feedback": {
+        "description": "Customer comments in original order. Blank strings are accepted as submitted but ignored during analysis.",
+        "items": {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 3,
+        "title": "Customer feedback",
+        "type": "array"
+      },
+      "goal": {
+        "description": "The goal used to prioritize evidence-backed themes.",
+        "enum": [
+          "product_improvement",
+          "marketing_insights",
+          "retention"
+        ],
+        "title": "Analysis goal",
+        "type": "string"
+      },
+      "product_name": {
+        "description": "The product or service discussed in the feedback.",
+        "examples": [
+          "Northstar Notes"
+        ],
+        "maxLength": 160,
+        "minLength": 1,
+        "title": "Product name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "product_name",
+      "feedback",
+      "goal"
+    ],
+    "title": "Customer feedback theme-finding request",
+    "type": "object"
+  },
+  "name": "customer-feedback-theme-finder",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "cost_model",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "customer-feedback-theme-finder",
+  "source_sha256": "3503deb0509f31462dba7fd771cfa11f7cfade7c325a9d7b53df0d8e7e5f7e27",
+  "version": "0.1.0"
+}

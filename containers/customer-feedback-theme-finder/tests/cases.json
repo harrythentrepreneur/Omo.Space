@@ -1,0 +1,282 @@
+{
+  "happy_path": {
+    "input": {
+      "feedback": [
+        "Search is fast, but I need filters for project and date.",
+        "I can find notes quickly, though filtering by date would save time.",
+        "The mobile app loses my draft when I switch apps.",
+        "I love how quickly search returns the right note.",
+        "Please fix drafts disappearing on mobile; I lost meeting notes twice."
+      ],
+      "goal": "product_improvement",
+      "product_name": "Northstar Notes"
+    },
+    "output": {
+      "goal": "product_improvement",
+      "limitations": [
+        "This is qualitative evidence from five supplied comments and is not statistically significant."
+      ],
+      "product_name": "Northstar Notes",
+      "recommended_actions": [
+        {
+          "action": "Reproduce and fix mobile draft loss when the app is backgrounded.",
+          "based_on_themes": [
+            "Mobile draft loss"
+          ],
+          "confidence": "high",
+          "success_signal": "The background-switch draft-loss reproduction test passes with zero lost drafts."
+        },
+        {
+          "action": "Prototype project and date filters and test them with note-search users.",
+          "based_on_themes": [
+            "More search filters"
+          ],
+          "confidence": "medium",
+          "success_signal": "Prototype testers complete filtered note-finding tasks faster than with the current search."
+        }
+      ],
+      "run_id": "run-fixture-feedback-themes",
+      "status": "completed",
+      "summary": "Five comments show strong search performance alongside recurring requests for better filtering and reports of mobile draft loss. Draft reliability has the highest customer impact, while filters are the most repeated improvement request.",
+      "themes": [
+        {
+          "comment_indexes": [
+            2,
+            4
+          ],
+          "evidence_quotes": [
+            {
+              "comment_index": 2,
+              "quote": "The mobile app loses my draft when I switch apps."
+            },
+            {
+              "comment_index": 4,
+              "quote": "Please fix drafts disappearing on mobile; I lost meeting notes twice."
+            }
+          ],
+          "name": "Mobile draft loss",
+          "priority": "high",
+          "priority_reason": "Two comments describe lost work, making this a high-impact reliability issue for product improvement.",
+          "sentiment": "negative",
+          "support_count": 2
+        },
+        {
+          "comment_indexes": [
+            0,
+            1
+          ],
+          "evidence_quotes": [
+            {
+              "comment_index": 0,
+              "quote": "Search is fast, but I need filters for project and date."
+            },
+            {
+              "comment_index": 1,
+              "quote": "I can find notes quickly, though filtering by date would save time."
+            }
+          ],
+          "name": "More search filters",
+          "priority": "medium",
+          "priority_reason": "Two comments request filtering, but they describe workflow friction rather than data loss.",
+          "sentiment": "negative",
+          "support_count": 2
+        },
+        {
+          "comment_indexes": [
+            0,
+            1,
+            3
+          ],
+          "evidence_quotes": [
+            {
+              "comment_index": 1,
+              "quote": "I can find notes quickly, though filtering by date would save time."
+            },
+            {
+              "comment_index": 3,
+              "quote": "I love how quickly search returns the right note."
+            }
+          ],
+          "name": "Fast search",
+          "priority": "low",
+          "priority_reason": "Three comments praise search speed, so the evidence supports preserving this strength while addressing higher-impact issues.",
+          "sentiment": "positive",
+          "support_count": 3
+        }
+      ],
+      "usage": {
+        "completion_tokens": 1030,
+        "estimated_cost_usd": 0.00058,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 1080,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "customer-feedback-theme-finder@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "too-few-feedback-comments",
+      "input": {
+        "feedback": [
+          "Fast search.",
+          "Needs filters."
+        ],
+        "goal": "product_improvement",
+        "product_name": "Northstar Notes"
+      },
+      "reason": "feedback requires at least three submitted comments"
+    },
+    {
+      "id": "too-many-feedback-comments",
+      "input": {
+        "feedback": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31",
+          "32",
+          "33",
+          "34",
+          "35",
+          "36",
+          "37",
+          "38",
+          "39",
+          "40",
+          "41",
+          "42",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47",
+          "48",
+          "49",
+          "50",
+          "51",
+          "52",
+          "53",
+          "54",
+          "55",
+          "56",
+          "57",
+          "58",
+          "59",
+          "60",
+          "61",
+          "62",
+          "63",
+          "64",
+          "65",
+          "66",
+          "67",
+          "68",
+          "69",
+          "70",
+          "71",
+          "72",
+          "73",
+          "74",
+          "75",
+          "76",
+          "77",
+          "78",
+          "79",
+          "80",
+          "81",
+          "82",
+          "83",
+          "84",
+          "85",
+          "86",
+          "87",
+          "88",
+          "89",
+          "90",
+          "91",
+          "92",
+          "93",
+          "94",
+          "95",
+          "96",
+          "97",
+          "98",
+          "99",
+          "100",
+          "101"
+        ],
+        "goal": "retention",
+        "product_name": "Northstar Notes"
+      },
+      "reason": "feedback is bounded at 100 comments"
+    },
+    {
+      "id": "unsupported-goal",
+      "input": {
+        "feedback": [
+          "Fast.",
+          "Useful.",
+          "Clear."
+        ],
+        "goal": "sales",
+        "product_name": "Northstar Notes"
+      },
+      "reason": "goal is a reviewed enum"
+    },
+    {
+      "id": "missing-product-name",
+      "input": {
+        "feedback": [
+          "Fast.",
+          "Useful.",
+          "Clear."
+        ],
+        "goal": "marketing_insights"
+      },
+      "reason": "product_name is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "feedback": [
+          "Fast.",
+          "Useful.",
+          "Clear."
+        ],
+        "goal": "retention",
+        "ignore_policy": true,
+        "product_name": "Northstar Notes"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}
