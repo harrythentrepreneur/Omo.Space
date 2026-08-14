@@ -4,6 +4,9 @@ from __future__ import annotations
 import fcntl, hashlib, json, os, re, stat, subprocess, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from modal_builder_launcher import dispatch_id_for, launch_modal_builder
+
 ROOT = Path(__file__).resolve().parents[3]
 PROCESSOR = ROOT / "tools" / "host-skill" / "process-submissions.py"
 ID_RE = re.compile(r"^sub_[A-Za-z0-9_-]{8,100}$")
@@ -78,6 +81,25 @@ def run_once() -> int:
         if hashlib.sha256(resolved.read_bytes()).hexdigest() != source_hash:
             bounded_log("review_handoff_rejected", id=submission_id, slug=slug)
             return 1
+        launcher = str(os.environ.get("OMO_BUILDER_LAUNCHER", "modal")).strip().lower()
+        if launcher == "modal":
+            dispatch_id = dispatch_id_for(submission_id, source_hash)
+            try:
+                launch_modal_builder(
+                    submission_id=submission_id,
+                    slug=slug,
+                    source_sha256=source_hash,
+                    dispatch_id=dispatch_id,
+                )
+            except (ImportError, OSError, RuntimeError, ValueError):
+                bounded_log("builder_launch_failed", id=submission_id, slug=slug)
+                return 1
+            bounded_log("builder_dispatched", id=submission_id, slug=slug, status="processing")
+            return 0
+        if launcher != "local":
+            bounded_log("builder_launch_failed", id=submission_id, slug=slug)
+            return 1
+
         prompt = f"""Process exactly one authorized Omo marketplace submission.
 Submission ID: {submission_id}
 Slug: {slug}

@@ -38,6 +38,7 @@ def test_idle_claim_starts_no_agent(monkeypatch, tmp_path: Path, capsys) -> None
 def test_valid_private_review_starts_builder_once_without_source_in_prompt(monkeypatch, tmp_path: Path, capsys) -> None:
     dispatch = load_dispatch()
     root = setup_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("OMO_BUILDER_LAUNCHER", "local")
     source = b"untrusted creator source SECRET_SENTINEL"
     submission_id = "sub_abcdefgh12345678"
     review_dir = root / submission_id
@@ -62,6 +63,52 @@ def test_valid_private_review_starts_builder_once_without_source_in_prompt(monke
     assert "SECRET_SENTINEL" not in prompt
     assert "SECRET_SENTINEL" not in capsys.readouterr().out
     assert stat.S_IMODE(review.stat().st_mode) == 0o600
+
+def test_modal_launcher_receives_only_validated_identity_not_source_or_path(monkeypatch, tmp_path: Path, capsys) -> None:
+    dispatch = load_dispatch()
+    root = setup_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("OMO_BUILDER_LAUNCHER", "modal")
+    source = b"untrusted creator source MODAL_SECRET_SENTINEL"
+    submission_id = "sub_abcdefgh12345678"
+    review_dir = root / submission_id
+    review_dir.mkdir(mode=0o700)
+    review = review_dir / "SKILL.md"
+    review.write_bytes(source)
+    review.chmod(0o600)
+    digest = hashlib.sha256(source).hexdigest()
+    result = {"id": submission_id, "slug": "safe-skill", "status": "needs_review", "failure_code": "reviewed_profile_required", "source_sha256": digest, "review_path": str(review)}
+    process_calls = []
+    launch_calls = []
+
+    def fake_run(command, **kwargs):
+        process_calls.append(command)
+        return SimpleNamespace(returncode=0, stdout=json.dumps(result) + "\n")
+
+    def fake_launch(**kwargs):
+        launch_calls.append(kwargs)
+        return {"call_id": "fc-test", "dispatch_id": kwargs["dispatch_id"]}
+
+    monkeypatch.setattr(dispatch.subprocess, "run", fake_run)
+    monkeypatch.setattr(dispatch, "launch_modal_builder", fake_launch)
+    assert dispatch.run_once() == 0
+    assert len(process_calls) == 1
+    assert len(launch_calls) == 1
+    payload = launch_calls[0]
+    assert set(payload) == {"submission_id", "slug", "source_sha256", "dispatch_id"}
+    assert payload["submission_id"] == submission_id
+    assert payload["slug"] == "safe-skill"
+    assert payload["source_sha256"] == digest
+    serialized = json.dumps(payload)
+    assert str(review) not in serialized
+    assert "MODAL_SECRET_SENTINEL" not in serialized
+    assert "MODAL_SECRET_SENTINEL" not in capsys.readouterr().out
+
+def test_dispatch_identity_is_stable_and_source_scoped() -> None:
+    dispatch = load_dispatch()
+    first = dispatch.dispatch_id_for("sub_abcdefgh12345678", "a" * 64)
+    assert first == dispatch.dispatch_id_for("sub_abcdefgh12345678", "a" * 64)
+    assert first != dispatch.dispatch_id_for("sub_abcdefgh12345678", "b" * 64)
+    assert first.startswith("dispatch_")
 
 def test_malformed_claim_cannot_inject_builder_arguments(monkeypatch, tmp_path: Path) -> None:
     dispatch = load_dispatch()
