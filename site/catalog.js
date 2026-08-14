@@ -7273,6 +7273,45 @@ window.OMO_CATALOG = [
         "alt_text — one line per image",
         "notes — what you deliberately included/excluded"
       ]
+    },
+    {
+      "slug": "skill-md-to-hosted-workflow",
+      "name": "Skill.md to Hosted Workflow",
+      "emoji": "🛠️",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "developer-tools",
+      "promise": "Send a skill.md. Receive a tested, priced, hosted marketplace listing.",
+      "maker": "Omo",
+      "makerName": "Omo Studio",
+      "cover": "covers/thumb-skill-md-to-hosted-workflow-v5.webp",
+      "priceLabel": "$5.00 per run · In review",
+      "runPrice": 5,
+      "status": "in-review",
+      "statusLabel": "In review — live soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Submit the contents of one SKILL.md as hostile data. Omo validates it without executing it, then queues, builds, tests, prices, and prepares one hosted marketplace listing. The provider economics are sub-cent for typical builds; the $5.00 fee covers the bounded build service, validation, testing, hosting work, and a typed result. Omo's stated product bar is about 70% hosted success across a rolling submission set. Skills that require external accounts, unavailable media renderers, credentials, or unsupported infrastructure may return a typed blocker with the exact reason, evidence, and resume point.",
+      "inputs": [
+        "skill_md: required SKILL.md content, 1–20,000 characters; treated as data and never executed",
+        "display_name: optional listing name",
+        "category: optional marketplace category",
+        "price_guidance_usd: optional non-negative price guidance"
+      ],
+      "outputs": [
+        "status — queued, building, blocked, or live",
+        "listing_url and slug — the prepared listing identity; URL may be null before hosting",
+        "typed_blocker — nullable reason, evidence, and resume point",
+        "build_meta — builder version, provider cost, and tests passed"
+      ],
+      "tags": [
+        "skill-md",
+        "hosting",
+        "workflow-builder",
+        "developer-tools",
+        "marketplace"
+      ]
     }
   ]
 );
