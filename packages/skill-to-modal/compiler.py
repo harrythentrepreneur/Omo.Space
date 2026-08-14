@@ -1284,6 +1284,192 @@ def live_model_rates(live: dict[str, Any]) -> dict[str, Decimal]:
     return LLM_RATES[model]
 
 
+def _schema_type_is(schema: Any, expected: str) -> bool:
+    if not isinstance(schema, dict):
+        return False
+    declared = schema.get("type")
+    return declared == expected or (
+        isinstance(declared, list) and expected in declared
+    )
+
+
+def _object_array_requires(schema: Any, fields: set[str]) -> bool:
+    if not _schema_type_is(schema, "array"):
+        return False
+    items = schema.get("items", {})
+    return _schema_type_is(items, "object") and fields <= set(items.get("required", []))
+
+
+def _reviewed_semantic_promises(profile: dict[str, Any]) -> str:
+    """Return only reviewed contract prose used to disambiguate schema shapes."""
+    reviewed = profile.get("reviewed_spec", {})
+    if not isinstance(reviewed, dict):
+        return ""
+    selected = {
+        "constraints": reviewed.get("constraints", []),
+        "source_expected_contract": reviewed.get("source_expected_contract", {}),
+        "typed_inputs": reviewed.get("typed_inputs", []),
+        "typed_outputs": reviewed.get("typed_outputs", []),
+    }
+    return json.dumps(selected, ensure_ascii=False, sort_keys=True).lower()
+
+
+def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
+    """Derive deterministic evidence from the reviewed contract, never its slug.
+
+    Field names here are contract vocabulary: a class is selected only when the
+    input/output schemas expose its complete evidence shape and the reviewed
+    promises confirm the intended grounding rule.
+    """
+    live = profile.get("live")
+    if not isinstance(live, dict):
+        return {"kind": "schema_only", "version": 1}
+    input_properties = profile.get("input_schema", {}).get("properties", {})
+    output_properties = live.get("model_output_schema", {}).get("properties", {})
+    if not isinstance(input_properties, dict) or not isinstance(output_properties, dict):
+        return {"kind": "schema_only", "version": 1}
+    promises = _reviewed_semantic_promises(profile)
+    normalizers = profile.get("semantic_normalizers", {})
+    if isinstance(normalizers, dict) and normalizers:
+        return {
+            "kind": "profile_semantic_normalizers",
+            "normalizers": sorted(normalizers),
+            "version": 1,
+        }
+
+    if (
+        _schema_type_is(input_properties.get("copy"), "string")
+        and _schema_type_is(output_properties.get("revised_copy"), "string")
+        and _schema_type_is(output_properties.get("unsupported_claims"), "array")
+        and _object_array_requires(output_properties.get("edits"), {"after", "rationale"})
+        and "supplied facts" in promises
+        and ("revised draft" in promises or "revision" in promises)
+    ):
+        return {
+            "kind": "copy_revision",
+            "source_field": "copy",
+            "revised_field": "revised_copy",
+            "unsupported_claims_field": "unsupported_claims",
+            "edits_field": "edits",
+            "after_field": "after",
+            "rationale_field": "rationale",
+            "version": 1,
+        }
+
+    if (
+        _schema_type_is(input_properties.get("facts"), "array")
+        and _schema_type_is(output_properties.get("fact_indexes_used"), "array")
+        and _schema_type_is(output_properties.get("key_points"), "array")
+        and "facts" in promises
+    ):
+        return {
+            "kind": "indexed_facts",
+            "facts_field": "facts",
+            "indexes_field": "fact_indexes_used",
+            "points_field": "key_points",
+            "version": 1,
+        }
+
+    if (
+        _schema_type_is(input_properties.get("contract_text"), "string")
+        and _object_array_requires(output_properties.get("obligations"), {"source_quote"})
+        and _object_array_requires(output_properties.get("risks"), {"source_quote"})
+        and _schema_type_is(output_properties.get("disclaimer"), "string")
+        and "quote only supplied language" in promises
+        and "disclaimer" in promises
+    ):
+        return {
+            "kind": "quoted_risk_review",
+            "source_field": "contract_text",
+            "quoted_item_fields": ["obligations", "risks"],
+            "quote_field": "source_quote",
+            "disclaimer_field": "disclaimer",
+            "version": 1,
+        }
+
+    if (
+        _schema_type_is(input_properties.get("raw_notes"), "string")
+        and _object_array_requires(output_properties.get("action_items"), {"source_quote"})
+        and _schema_type_is(output_properties.get("summary"), "string")
+        and "source quotes must be exact" in promises
+    ):
+        point_fields = [
+            field
+            for field in ("summary", "decisions", "open_questions")
+            if field in output_properties
+        ]
+        return {
+            "kind": "source_referenced_notes",
+            "source_field": "raw_notes",
+            "references_field": "action_items",
+            "quote_field": "source_quote",
+            "point_fields": point_fields,
+            "version": 1,
+        }
+
+    invoice_fields = {
+        "line_items", "subtotal", "tax", "shipping", "discount", "total",
+        "arithmetic_check",
+    }
+    if (
+        _schema_type_is(input_properties.get("invoice_text"), "string")
+        and invoice_fields <= set(output_properties)
+        and _object_array_requires(
+            output_properties.get("line_items"),
+            {"description", "quantity", "unit_price", "amount"},
+        )
+        and "recompute line extensions" in promises
+        and "subtotal" in promises
+    ):
+        return {
+            "kind": "invoice_arithmetic",
+            "source_field": "invoice_text",
+            "line_items_field": "line_items",
+            "total_fields": ["subtotal", "tax", "shipping", "discount", "total"],
+            "arithmetic_check_field": "arithmetic_check",
+            "version": 1,
+        }
+
+    budget_input = input_properties.get("lines", {})
+    budget_output = output_properties.get("line_items", {})
+    if (
+        _object_array_requires(
+            budget_input,
+            {"department", "category", "monthly_budget", "monthly_actual"},
+        )
+        and _object_array_requires(
+            budget_output,
+            {"department", "category", "budget_total", "actual_total", "variance_amount"},
+        )
+        and {"department_totals", "company_budget_total", "company_actual_total"}
+        <= set(output_properties)
+        and "reconcile every total" in promises
+        and "actual minus budget" in promises
+    ):
+        return {
+            "kind": "budget_arithmetic",
+            "lines_field": "lines",
+            "period_field": "period",
+            "currency_field": "currency",
+            "target_field": "target_total",
+            "version": 1,
+        }
+
+    if (
+        _schema_type_is(input_properties.get("product_name"), "string")
+        and {"headline", "sections", "unsupported_claims"} <= set(output_properties)
+        and "use only supplied offer" in promises
+        and "never fabricate" in promises
+    ):
+        return {
+            "kind": "grounded_copy",
+            "required_input_fields": ["product_name"],
+            "version": 1,
+        }
+
+    return {"kind": "schema_only", "version": 1}
+
+
 def _relax_flag_controlled_fields(
     schema: dict[str, Any], normalizers: dict[str, Any]
 ) -> dict[str, Any]:
@@ -2560,6 +2746,7 @@ LIVE_INPUT_RATE_PER_MILLION = {float(live_rates['input'])!r}
 LIVE_OUTPUT_RATE_PER_MILLION = {float(live_rates['output'])!r}
 LIVE_MODEL_OUTPUT_SCHEMA = {runtime_model_output_schema(profile)!r}
 SEMANTIC_NORMALIZERS = {profile.get('semantic_normalizers', {})!r}
+SEMANTIC_EVIDENCE_SPEC = {semantic_evidence_spec(profile)!r}
 '''
         live_executor = '''
 
@@ -3228,9 +3415,407 @@ def _normalize_syllable_separators(
         item[syllabified_field] = desired.join(parts)
 
 
+_EVIDENCE_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "been", "by", "for", "from",
+    "has", "have", "in", "is", "it", "of", "on", "or", "that", "the", "their",
+    "this", "to", "was", "were", "will", "with",
+}
+
+
+def _evidence_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return " ".join(_evidence_text(item) for item in value.values())
+    if isinstance(value, list):
+        return " ".join(_evidence_text(item) for item in value)
+    return str(value) if value is not None else ""
+
+
+def _evidence_number_tokens(value: Any) -> set[str]:
+    return {
+        token.replace(",", "")
+        for token in re.findall(
+            r"(?<![A-Za-z])[-+]?\\d+(?:[.,]\\d+)*", _evidence_text(value)
+        )
+    }
+
+
+def _evidence_content_tokens(value: Any) -> set[str]:
+    tokens: set[str] = set()
+    for token in re.findall(r"[a-z0-9]+", _evidence_text(value).lower()):
+        if len(token) < 3 or token in _EVIDENCE_STOPWORDS:
+            continue
+        tokens.add(token[:-1] if token.endswith("s") and len(token) > 3 else token)
+    return tokens
+
+
+def _references_any_source(point: Any, sources: list[str]) -> bool:
+    point_tokens = _evidence_content_tokens(point)
+    if not point_tokens:
+        return False
+    point_numbers = _evidence_number_tokens(point)
+    for source in sources:
+        source_tokens = _evidence_content_tokens(source)
+        overlap = point_tokens & source_tokens
+        required_overlap = 1 if len(point_tokens) <= 3 else 2
+        if len(overlap) < required_overlap:
+            continue
+        if point_numbers and not point_numbers <= _evidence_number_tokens(source):
+            continue
+        return True
+    return False
+
+
+def _numbers_equal(left: Any, right: Any, tolerance: float = 0.011) -> bool:
+    return (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+        and abs(float(left) - float(right)) <= tolerance
+    )
+
+
+def _normalize_contract_evidence(generated: dict[str, Any]) -> None:
+    if SEMANTIC_EVIDENCE_SPEC.get("kind") != "copy_revision":
+        return
+    revised_field = str(SEMANTIC_EVIDENCE_SPEC["revised_field"])
+    claims_field = str(SEMANTIC_EVIDENCE_SPEC["unsupported_claims_field"])
+    revised = str(generated.get(revised_field) or "").casefold()
+    claims = generated.get(claims_field, [])
+    if isinstance(claims, list):
+        # Providers sometimes report claims they considered and then removed.
+        # Drop edit suggestions that contain them, then retain only claims that
+        # actually survived into the final copy before requiring an empty list.
+        unsupported = [
+            claim
+            for claim in claims
+            if isinstance(claim, str) and claim.strip()
+        ]
+        edits_field = str(SEMANTIC_EVIDENCE_SPEC["edits_field"])
+        after_field = str(SEMANTIC_EVIDENCE_SPEC["after_field"])
+        edits = generated.get(edits_field, [])
+        if isinstance(edits, list):
+            generated[edits_field] = [
+                item
+                for item in edits
+                if isinstance(item, dict)
+                and not any(
+                    claim.casefold() in str(item.get(after_field) or "").casefold()
+                    for claim in unsupported
+                )
+            ]
+        generated[claims_field] = [
+            claim for claim in unsupported if claim.casefold() in revised
+        ]
+
+
+def _parse_invoice_source(source: str) -> dict[str, Any] | None:
+    number = r"[-+]?\\d[\\d,]*(?:\\.\\d+)?"
+    line_pattern = re.compile(
+        r"^\\s*(.+?):\\s*quantity\\s+(" + number + r")\\s+at\\s+"
+        r"(?:[A-Z]{3}\\s+)?(" + number + r")(?:\\s+each)?,\\s*amount\\s+"
+        r"(?:[A-Z]{3}\\s+)?(" + number + r")\\s*$",
+        flags=re.I,
+    )
+    total_pattern = re.compile(
+        r"^\\s*(subtotal|tax|shipping|discount|total)\\s*:\\s*"
+        r"(?:[A-Z]{3}\\s+)?(" + number + r")\\s*$",
+        flags=re.I,
+    )
+
+    def parsed_number(raw: str) -> float:
+        return float(raw.replace(",", ""))
+
+    lines: list[dict[str, Any]] = []
+    totals: dict[str, float] = {}
+    for raw_line in source.splitlines():
+        line_match = line_pattern.match(raw_line)
+        if line_match:
+            description, quantity, unit_price, amount = line_match.groups()
+            lines.append(
+                {
+                    "description": re.sub(r"\\s+", " ", description).strip(),
+                    "quantity": parsed_number(quantity),
+                    "unit_price": parsed_number(unit_price),
+                    "amount": parsed_number(amount),
+                }
+            )
+            continue
+        total_match = total_pattern.match(raw_line)
+        if total_match:
+            label, value = total_match.groups()
+            totals[label.lower()] = parsed_number(value)
+    required_totals = {"subtotal", "tax", "shipping", "discount", "total"}
+    if not lines or not required_totals <= set(totals):
+        return None
+    return {"line_items": lines, **totals}
+
+
+def _copy_revision_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    spec = SEMANTIC_EVIDENCE_SPEC
+    details: list[str] = []
+    source = str(payload.get(spec["source_field"]) or "").strip()
+    revised = str(generated.get(spec["revised_field"]) or "").strip()
+    if not revised or revised == source:
+        details.append("$.revised_copy:semantic_revision_required")
+    if generated.get(spec["unsupported_claims_field"], []):
+        details.append("$.unsupported_claims:semantic_unsupported_claim")
+    edits = generated.get(spec["edits_field"], [])
+    if not isinstance(edits, list) or not edits:
+        details.append("$.edits:semantic_edit_evidence_required")
+    else:
+        for item in edits:
+            if not isinstance(item, dict) or not str(item.get(spec["after_field"]) or "").strip():
+                details.append("$.edits[*].after:semantic_edit_evidence_required")
+                break
+            if not str(item.get(spec["rationale_field"]) or "").strip():
+                details.append("$.edits[*].rationale:semantic_edit_evidence_required")
+                break
+    if _evidence_number_tokens(revised) - _evidence_number_tokens(payload):
+        details.append("$.revised_copy:semantic_invented_number")
+    return details
+
+
+def _indexed_facts_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    spec = SEMANTIC_EVIDENCE_SPEC
+    details: list[str] = []
+    facts = payload.get(spec["facts_field"], [])
+    indexes = generated.get(spec["indexes_field"], [])
+    valid = (
+        isinstance(facts, list)
+        and isinstance(indexes, list)
+        and bool(indexes)
+        and len(indexes) == len(set(indexes))
+        and all(
+            isinstance(index, int)
+            and not isinstance(index, bool)
+            and 0 <= index < len(facts)
+            for index in indexes
+        )
+    )
+    if not valid:
+        details.append("$.fact_indexes_used:semantic_fact_index")
+        return details
+    selected = [str(facts[index]) for index in indexes]
+    points = generated.get(spec["points_field"], [])
+    if not isinstance(points, list) or not points or any(
+        not _references_any_source(point, selected) for point in points
+    ):
+        details.append("$.key_points:semantic_fact_reference")
+    return details
+
+
+def _quoted_review_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    spec = SEMANTIC_EVIDENCE_SPEC
+    details: list[str] = []
+    source = str(payload.get(spec["source_field"]) or "")
+    for item_field in spec["quoted_item_fields"]:
+        items = generated.get(item_field, [])
+        if not isinstance(items, list) or any(
+            not isinstance(item, dict)
+            or not str(item.get(spec["quote_field"]) or "").strip()
+            or str(item.get(spec["quote_field"])) not in source
+            for item in items
+        ):
+            details.append(f"$.{item_field}[*].source_quote:semantic_source_quote")
+    if not str(generated.get(spec["disclaimer_field"]) or "").strip():
+        details.append("$.disclaimer:semantic_disclaimer_required")
+    return details
+
+
+def _source_referenced_notes_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    spec = SEMANTIC_EVIDENCE_SPEC
+    details: list[str] = []
+    source = str(payload.get(spec["source_field"]) or "")
+    references = generated.get(spec["references_field"], [])
+    if not isinstance(references, list) or not references or any(
+        not isinstance(item, dict)
+        or not str(item.get(spec["quote_field"]) or "").strip()
+        or str(item.get(spec["quote_field"])) not in source
+        for item in references
+    ):
+        details.append("$.action_items[*].source_quote:semantic_source_quote")
+    points: list[Any] = []
+    for field in spec["point_fields"]:
+        value = generated.get(field)
+        points.extend(value if isinstance(value, list) else [value])
+    points = [point for point in points if str(point or "").strip()]
+    if not points or any(not _references_any_source(point, [source]) for point in points):
+        details.append("$.summary:semantic_fact_reference")
+    return details
+
+
+def _invoice_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    spec = SEMANTIC_EVIDENCE_SPEC
+    parsed = _parse_invoice_source(str(payload.get(spec["source_field"]) or ""))
+    if parsed is None:
+        return ["$:semantic_invoice_source_unparseable"]
+    details: list[str] = []
+
+    def identity(value: Any) -> str:
+        return re.sub(r"\\s+", " ", str(value or "")).strip().casefold()
+
+    expected = {identity(item["description"]): item for item in parsed["line_items"]}
+    actual_items = generated.get(spec["line_items_field"], [])
+    actual = {
+        identity(item.get("description")): item
+        for item in actual_items
+        if isinstance(item, dict)
+    } if isinstance(actual_items, list) else {}
+    if set(actual) != set(expected) or len(actual) != len(actual_items):
+        details.append("$.line_items:semantic_invoice_identity")
+    for name, expected_item in expected.items():
+        item = actual.get(name, {})
+        if any(
+            not _numbers_equal(item.get(field), expected_item[field])
+            for field in ("quantity", "unit_price", "amount")
+        ):
+            details.append("$.line_items:semantic_invoice_values")
+            break
+    for field in spec["total_fields"]:
+        if not _numbers_equal(generated.get(field), parsed[field]):
+            details.append(f"$.{field}:semantic_invoice_total")
+    expected_arithmetic = "pass" if (
+        all(
+            _numbers_equal(item["amount"], item["quantity"] * item["unit_price"])
+            for item in parsed["line_items"]
+        )
+        and _numbers_equal(
+            parsed["subtotal"], sum(item["amount"] for item in parsed["line_items"])
+        )
+        and _numbers_equal(
+            parsed["total"],
+            parsed["subtotal"] + parsed["tax"] + parsed["shipping"] - parsed["discount"],
+        )
+    ) else "fail"
+    if generated.get(spec["arithmetic_check_field"]) != expected_arithmetic:
+        details.append("$.arithmetic_check:semantic_invoice_arithmetic")
+    return details
+
+
+def _budget_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    spec = SEMANTIC_EVIDENCE_SPEC
+    details: list[str] = []
+    for field in (spec["period_field"], spec["currency_field"]):
+        if generated.get(field) != payload.get(field):
+            details.append(f"$.{field}:semantic_input_value")
+    expected: dict[tuple[str, str], dict[str, float]] = {}
+    departments: dict[str, dict[str, float]] = {}
+    for line in payload.get(spec["lines_field"], []):
+        budget = float(sum(line.get("monthly_budget", [])))
+        actual = float(sum(line.get("monthly_actual", [])))
+        variance = actual - budget
+        expected[(str(line.get("department")), str(line.get("category")))] = {
+            "budget_total": budget,
+            "actual_total": actual,
+            "variance_amount": variance,
+            "variance_percent": None if budget == 0 else round(100 * variance / budget, 2),
+        }
+        department = departments.setdefault(
+            str(line.get("department")), {"budget_total": 0.0, "actual_total": 0.0}
+        )
+        department["budget_total"] += budget
+        department["actual_total"] += actual
+    returned = {
+        (str(item.get("department")), str(item.get("category"))): item
+        for item in generated.get("line_items", [])
+        if isinstance(item, dict)
+    }
+    if set(returned) != set(expected):
+        details.append("$.line_items:semantic_budget_identity")
+    for key, expected_item in expected.items():
+        item = returned.get(key, {})
+        for field, value in expected_item.items():
+            if value is None:
+                valid = item.get(field) is None
+            else:
+                valid = _numbers_equal(item.get(field), value)
+            if not valid:
+                details.append("$.line_items:semantic_budget_arithmetic")
+                break
+    returned_departments = {
+        str(item.get("department")): item
+        for item in generated.get("department_totals", [])
+        if isinstance(item, dict)
+    }
+    if set(returned_departments) != set(departments):
+        details.append("$.department_totals:semantic_budget_identity")
+    for name, expected_item in departments.items():
+        item = returned_departments.get(name, {})
+        if not (
+            _numbers_equal(item.get("budget_total"), expected_item["budget_total"])
+            and _numbers_equal(item.get("actual_total"), expected_item["actual_total"])
+            and _numbers_equal(
+                item.get("variance_amount"),
+                expected_item["actual_total"] - expected_item["budget_total"],
+            )
+        ):
+            details.append("$.department_totals:semantic_budget_arithmetic")
+            break
+    company_budget = sum(item["budget_total"] for item in expected.values())
+    company_actual = sum(item["actual_total"] for item in expected.values())
+    for field, value in (
+        ("company_budget_total", company_budget),
+        ("company_actual_total", company_actual),
+        ("forecast_total", company_actual),
+        ("target_variance", company_budget - float(payload.get(spec["target_field"], 0))),
+    ):
+        if not _numbers_equal(generated.get(field), value):
+            details.append(f"$.{field}:semantic_budget_arithmetic")
+    allowed_numbers = _evidence_number_tokens(payload) | _evidence_number_tokens(
+        {"lines": expected, "departments": departments, "company": [company_budget, company_actual]}
+    )
+    if _evidence_number_tokens(generated) - allowed_numbers:
+        details.append("$:semantic_invented_number")
+    return details
+
+
+def _contract_evidence_validation_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    kind = SEMANTIC_EVIDENCE_SPEC.get("kind")
+    if kind == "copy_revision":
+        return _copy_revision_semantic_diff(generated, payload)
+    if kind == "indexed_facts":
+        return _indexed_facts_semantic_diff(generated, payload)
+    if kind == "quoted_risk_review":
+        return _quoted_review_semantic_diff(generated, payload)
+    if kind == "source_referenced_notes":
+        return _source_referenced_notes_semantic_diff(generated, payload)
+    if kind == "invoice_arithmetic":
+        return _invoice_semantic_diff(generated, payload)
+    if kind == "budget_arithmetic":
+        return _budget_semantic_diff(generated, payload)
+    if kind == "grounded_copy":
+        details: list[str] = []
+        output_text = _evidence_text(generated).casefold()
+        for field in SEMANTIC_EVIDENCE_SPEC["required_input_fields"]:
+            if str(payload.get(field) or "").strip().casefold() not in output_text:
+                details.append(f"$:{field}_missing")
+        if _evidence_number_tokens(generated) - _evidence_number_tokens(payload):
+            details.append("$:semantic_invented_number")
+        return details
+    return []
+
+
 def _semantic_normalize(
     generated: dict[str, Any], payload: dict[str, Any]
 ) -> dict[str, Any]:
+    _normalize_contract_evidence(generated)
     if isinstance(SEMANTIC_NORMALIZERS.get("digraph_spans"), dict):
         generated["occurrences"] = _reviewed_digraph_occurrences(payload, generated)
         generated["summary"] = list(
@@ -3385,6 +3970,7 @@ def _semantic_validation_diff(
         path = rule.get("path", [])
         if _output_path_exists(generated, path):
             details.append("$" + "".join("[*]" if part == "*" else "." + part for part in path) + ":flag_disabled")
+    details.extend(_contract_evidence_validation_diff(generated, payload))
     return ";".join(dict.fromkeys(details))
 
 

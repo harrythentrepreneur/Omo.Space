@@ -26,6 +26,15 @@ def load_compiler():
 compiler = load_compiler()
 SKILL_PATH = ROOT / "packages" / "facebook-ads-copywriter" / "SKILL.md"
 PROFILE_PATH = ROOT / "packages" / "skill-to-modal" / "profiles" / "facebook-ads-copywriter.json"
+SEMANTIC_REPLAY_PATH = (
+    ROOT
+    / "packages"
+    / "skill-to-modal"
+    / "tests"
+    / "fixtures"
+    / "semantic-adapter-real-runs.json"
+)
+SEMANTIC_INPUTS_PATH = SEMANTIC_REPLAY_PATH.with_name("semantic-adapter-inputs.json")
 
 
 def test_parse_skill_requires_and_returns_frontmatter() -> None:
@@ -503,6 +512,202 @@ def _model_fixture(profile: dict) -> dict:
         name: json.loads(json.dumps(output[name]))
         for name in profile["live"]["model_output_schema"]["properties"]
         if name in output
+    }
+
+
+_WRAPPER_OUTPUT_FIELDS = {"run_id", "status", "workflow_version", "usage"}
+_SEMANTIC_PROMISES = {
+    "copy-editing": {
+        "constraints": ["Use only supplied facts", "Return a revised draft with before/after revision evidence"],
+        "source_expected_contract": {"outputs": "A revised draft and revision report."},
+    },
+    "internal-comms": {
+        "constraints": ["Use only supplied facts"],
+        "source_expected_contract": {"inputs": "Source facts", "outputs": "Key points."},
+    },
+    "contract-review": {
+        "constraints": ["Quote only supplied language", "Always include a disclaimer"],
+        "source_expected_contract": {"outputs": "Risks, obligations, and legal-review disclaimer."},
+    },
+    "note-taking": {
+        "constraints": ["Action source quotes must be exact"],
+        "source_expected_contract": {"outputs": "Structured Markdown note with summary and action items."},
+    },
+    "invoice-processing": {
+        "constraints": ["Recompute line extensions, subtotal, and total"],
+        "source_expected_contract": {"outputs": "Invoice line items and arithmetic checks."},
+    },
+}
+_SEMANTIC_KINDS = {
+    "copy-editing": "copy_revision",
+    "internal-comms": "indexed_facts",
+    "contract-review": "quoted_risk_review",
+    "note-taking": "source_referenced_notes",
+    "invoice-processing": "invoice_arithmetic",
+}
+
+
+def _fixture_schema(value):
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, bool):
+        return {"type": "boolean"}
+    if isinstance(value, int):
+        return {"type": "integer"}
+    if isinstance(value, float):
+        return {"type": "number"}
+    if isinstance(value, str):
+        return {"type": "string"}
+    if isinstance(value, list):
+        return {
+            "type": "array",
+            "items": _fixture_schema(value[0]) if value else {},
+        }
+    if isinstance(value, dict):
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {name: _fixture_schema(item) for name, item in value.items()},
+            "required": list(value),
+        }
+    raise AssertionError(f"unsupported fixture value: {type(value)!r}")
+
+
+def _semantic_replay_runtime(tmp_path: Path, source_slug: str):
+    replay = json.loads(SEMANTIC_REPLAY_PATH.read_text(encoding="utf-8"))
+    inputs = json.loads(SEMANTIC_INPUTS_PATH.read_text(encoding="utf-8"))
+    case = next(item for item in replay["cases"] if item["slug"] == source_slug)
+    payload = inputs[source_slug]
+    output = case["output"]
+    assert compiler.sha256_text(
+        json.dumps(output, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    ) == case["output_sha256"]
+    assert compiler.sha256_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    ) == case["input_sha256"]
+
+    business = {
+        name: value for name, value in output.items() if name not in _WRAPPER_OUTPUT_FIELDS
+    }
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    structural_slug = "structural-" + source_slug
+    profile["slug"] = structural_slug
+    profile["name"] = structural_slug
+    profile["input_schema"] = _fixture_schema(payload)
+    profile["live"]["model_output_schema"] = _fixture_schema(business)
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = _SEMANTIC_PROMISES[source_slug]
+    runtime_path = tmp_path / (structural_slug + ".py")
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + structural_slug.replace("-", "_"), runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == _SEMANTIC_KINDS[source_slug]
+    normalized = runtime._semantic_normalize(json.loads(json.dumps(output)), payload)
+    return runtime, payload, normalized
+
+
+def test_copy_revision_replays_recorded_good_output_with_contract_evidence(tmp_path: Path) -> None:
+    runtime, payload, output = _semantic_replay_runtime(tmp_path, "copy-editing")
+    assert runtime._semantic_validation_diff(output, payload) == ""
+    output["unsupported_claims"] = ["No credit card required"]
+    output["edits"].append({
+        "after": "No credit card required",
+        "before": "Choose the Team plan today.",
+        "rationale": "A considered but unsupported risk reducer.",
+        "sweep": "zero_risk",
+    })
+    runtime._semantic_normalize(output, payload)
+    assert output["unsupported_claims"] == []
+    assert all("No credit card required" not in item["after"] for item in output["edits"])
+    assert runtime._semantic_validation_diff(output, payload) == ""
+    output["revised_copy"] = payload["copy"]
+    assert "semantic_revision_required" in runtime._semantic_validation_diff(output, payload)
+
+
+def test_indexed_facts_replays_recorded_paraphrases_with_valid_indexes(tmp_path: Path) -> None:
+    runtime, payload, output = _semantic_replay_runtime(tmp_path, "internal-comms")
+    assert runtime._semantic_validation_diff(output, payload) == ""
+    output["fact_indexes_used"] = [len(payload["facts"])]
+    assert "semantic_fact_index" in runtime._semantic_validation_diff(output, payload)
+
+
+def test_quoted_risk_review_replays_disclaimer_wording_and_source_quotes(tmp_path: Path) -> None:
+    runtime, payload, output = _semantic_replay_runtime(tmp_path, "contract-review")
+    assert runtime._semantic_validation_diff(output, payload) == ""
+    output["risks"][0]["source_quote"] = "language not present in the contract"
+    assert "semantic_source_quote" in runtime._semantic_validation_diff(output, payload)
+
+
+def test_source_referenced_notes_allow_normalized_dates_and_paraphrases(tmp_path: Path) -> None:
+    runtime, payload, output = _semantic_replay_runtime(tmp_path, "note-taking")
+    assert output["action_items"][0]["due_date"] == "2026-08-18"
+    assert runtime._semantic_validation_diff(output, payload) == ""
+    output["action_items"][0]["source_quote"] = "missing source sentence"
+    assert "semantic_source_quote" in runtime._semantic_validation_diff(output, payload)
+
+
+def test_invoice_arithmetic_replays_correct_values_despite_nullable_header_shape(tmp_path: Path) -> None:
+    runtime, payload, output = _semantic_replay_runtime(tmp_path, "invoice-processing")
+    assert output["due_date"] == ""
+    assert output["po_reference"] == ""
+    assert runtime._semantic_validation_diff(output, payload) == ""
+    output["total"] = 71
+    assert "semantic_invoice_total" in runtime._semantic_validation_diff(output, payload)
+
+
+def test_structural_selector_preserves_grounded_copy_budget_and_education_classes() -> None:
+    grounded_copy = {
+        "input_schema": {"properties": {"product_name": {"type": "string"}}},
+        "live": {"model_output_schema": {"properties": {
+            "headline": {"type": "string"},
+            "sections": {"type": "array"},
+            "unsupported_claims": {"type": "array"},
+        }}},
+        "reviewed_spec": {"constraints": [
+            "Use only supplied offer, proof, and differentiators",
+            "Never fabricate statistics or testimonials",
+        ]},
+    }
+    assert compiler.semantic_evidence_spec(grounded_copy)["kind"] == "grounded_copy"
+
+    budget = {
+        "input_schema": {"properties": {"lines": {
+            "type": "array",
+            "items": {"type": "object", "required": [
+                "department", "category", "monthly_budget", "monthly_actual"
+            ]},
+        }}},
+        "live": {"model_output_schema": {"properties": {
+            "line_items": {
+                "type": "array",
+                "items": {"type": "object", "required": [
+                    "department", "category", "budget_total", "actual_total", "variance_amount"
+                ]},
+            },
+            "department_totals": {"type": "array"},
+            "company_budget_total": {"type": "number"},
+            "company_actual_total": {"type": "number"},
+        }}},
+        "reviewed_spec": {"constraints": [
+            "Reconcile every total from supplied arrays",
+            "Variance equals actual minus budget",
+        ]},
+    }
+    assert compiler.semantic_evidence_spec(budget)["kind"] == "budget_arithmetic"
+
+    education = json.loads(
+        (ROOT / "packages" / "skill-to-modal" / "profiles" / "phonics-list-generator.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert compiler.semantic_evidence_spec(education) == {
+        "kind": "profile_semantic_normalizers",
+        "normalizers": ["phoneme_containment"],
+        "version": 1,
     }
 
 
