@@ -90,20 +90,36 @@ def test_generation_preserves_source_without_a_final_newline() -> None:
     assert json.loads(files["skill-analysis.json"])["source"]["sha256"] == compiler.sha256_text(skill)
 
 
-def _generated_runtime(tmp_path: Path):
-    skill = (ROOT / "containers" / "phoneme-counter" / "source" / "SKILL.md").read_text(encoding="utf-8")
+def _generated_runtime_for(tmp_path: Path, slug: str):
+    skill = (ROOT / "containers" / slug / "source" / "SKILL.md").read_text(encoding="utf-8")
     profile = json.loads(
-        (ROOT / "packages" / "skill-to-modal" / "profiles" / "phoneme-counter.json").read_text(
+        (ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json").read_text(
             encoding="utf-8"
         )
     )
     files = compiler.build_files(skill, profile)
-    assert compiler.write_or_check(files, tmp_path, check=False) == 0
-    spec = importlib.util.spec_from_file_location("generated_phoneme_counter", tmp_path / "modal_app.py")
+    output = tmp_path / slug
+    assert compiler.write_or_check(files, output, check=False) == 0
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + slug.replace("-", "_"), output / "modal_app.py"
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module, profile
+
+
+def _generated_runtime(tmp_path: Path):
+    return _generated_runtime_for(tmp_path, "phoneme-counter")
+
+
+def _model_fixture(profile: dict) -> dict:
+    output = profile["happy_path"]["output"]
+    return {
+        name: json.loads(json.dumps(output[name]))
+        for name in profile["live"]["model_output_schema"]["properties"]
+        if name in output
+    }
 
 
 def test_generated_repair_is_schema_driven_and_wrapper_allows_one_retry(tmp_path: Path) -> None:
@@ -152,6 +168,159 @@ def test_generated_repair_is_schema_driven_and_wrapper_allows_one_retry(tmp_path
         (ROOT / "containers" / "phoneme-counter" / "source" / "SKILL.md").read_text(encoding="utf-8"),
         profile,
     )["modal_app.py"]
+
+
+def test_generated_digraph_normalizer_derives_exact_absolute_source_occurrences(
+    tmp_path: Path,
+) -> None:
+    runtime, _profile = _generated_runtime_for(tmp_path, "digraph-spotter")
+    payload = {
+        "text": "The chick and the sheep sat by the shed.",
+        "digraph_type": "consonant",
+        "include_explanations": True,
+        "dialect": "en-US",
+    }
+    provider_value = {
+        "occurrences": [
+            {
+                "text": "ch",
+                "word": "chick",
+                "start": 4,
+                "end": 6,
+                "type": "consonant",
+                "explanation": "Provider prose for the exact occurrence.",
+            },
+            {
+                "text": "ch",
+                "word": "sheep",
+                "start": 16,
+                "end": 18,
+                "type": "consonant",
+                "explanation": "Provider prose for a bad span.",
+            },
+        ],
+        "summary": ["ch"],
+        "warnings": [],
+    }
+    normalized, diff = runtime._candidate(json.dumps(provider_value), payload)
+    assert diff == ""
+    assert normalized is not None
+    assert [
+        (item["text"], item["word"], item["start"], item["end"], item["type"])
+        for item in normalized["occurrences"]
+    ] == [
+        ("Th", "The", 0, 2, "consonant"),
+        ("ch", "chick", 4, 6, "consonant"),
+        ("ck", "chick", 7, 9, "consonant"),
+        ("th", "the", 14, 16, "consonant"),
+        ("sh", "sheep", 18, 20, "consonant"),
+        ("th", "the", 31, 33, "consonant"),
+        ("sh", "shed", 35, 37, "consonant"),
+    ]
+    assert normalized["summary"] == ["th", "ch", "ck", "sh"]
+    assert normalized["occurrences"][1]["explanation"] == "Provider prose for the exact occurrence."
+    assert "explanation" not in normalized["occurrences"][4]
+    broken = json.loads(json.dumps(normalized))
+    broken["occurrences"][0]["start"] = 1
+    assert "semantic_source_spans" in runtime._semantic_validation_diff(broken, payload)
+
+
+@pytest.mark.parametrize(
+    "slug,flag,path",
+    [
+        ("phoneme-counter", "show_transcription", ("ipa",)),
+        (
+            "decodable-sentence-creator",
+            "include_sight_words",
+            ("sentences", 0, "sight_or_irregular_words"),
+        ),
+        (
+            "digraph-spotter",
+            "include_explanations",
+            ("occurrences", 0, "explanation"),
+        ),
+        (
+            "grapheme-to-phoneme-converter",
+            "include_rules_explanation",
+            ("rules_explanation",),
+        ),
+    ],
+)
+def test_false_flags_remove_optional_fields_instead_of_emptying_them(
+    tmp_path: Path, slug: str, flag: str, path: tuple[str | int, ...]
+) -> None:
+    runtime, profile = _generated_runtime_for(tmp_path, slug)
+    payload = json.loads(json.dumps(profile["happy_path"]["input"]))
+    payload[flag] = False
+    normalized, diff = runtime._candidate(json.dumps(_model_fixture(profile)), payload)
+    assert diff == ""
+    assert normalized is not None
+    parent = normalized
+    for part in path[:-1]:
+        parent = parent[part]
+    assert path[-1] not in parent
+
+    wrapper = compiler.runtime_output_schema(profile)
+    current = wrapper
+    configured_path = profile["semantic_normalizers"]["flag_fields"][0]["path"]
+    for part in configured_path[:-1]:
+        current = current["items"] if part == "*" else current["properties"][part]
+    assert configured_path[-1] not in current.get("required", [])
+
+
+def test_phoneme_containment_drops_invalid_words_and_reports_safe_semantic_count(
+    tmp_path: Path,
+) -> None:
+    runtime, _profile = _generated_runtime_for(tmp_path, "phonics-list-generator")
+    payload = {
+        "phonemes": ["ai", "ay"],
+        "topic": "outdoor play",
+        "difficulty_level": "intermediate",
+        "dialect": "en-GB",
+        "word_count": 5,
+    }
+
+    def item(word: str, claimed: str) -> dict:
+        return {
+            "word": word,
+            "matched_phonemes": [claimed],
+            "target_position": "medial",
+            "pronunciation_note": "Review pronunciation in the selected dialect.",
+        }
+
+    provider_value = {
+        "words": [
+            item("play", "ay"),
+            item("rain", "ai"),
+            item("swing", "ai"),
+            item("slide", "ai"),
+            item("clay", "ay"),
+            item("paint", "ai"),
+            item("trail", "ai"),
+        ],
+        "coverage": ["ai", "ay"],
+        "warnings": [],
+    }
+    normalized, diff = runtime._candidate(json.dumps(provider_value), payload)
+    assert diff == ""
+    assert normalized is not None
+    assert [entry["word"] for entry in normalized["words"]] == [
+        "play",
+        "rain",
+        "clay",
+        "paint",
+        "trail",
+    ]
+    assert normalized["coverage"] == ["ai", "ay"]
+    assert normalized["words"][0]["matched_phonemes"] == ["ay"]
+    assert normalized["words"][0]["target_position"] == "final"
+    assert normalized["warnings"][-1].startswith("Removed 2 words")
+
+    retry_payload = {**payload, "word_count": 6}
+    _shortened, semantic_diff = runtime._candidate(json.dumps(provider_value), retry_payload)
+    assert "semantic_word_count(expected=6,actual=5)" in semantic_diff
+    assert "swing" not in semantic_diff
+    assert "slide" not in semantic_diff
 
 
 def test_generated_runtime_retries_once_with_diff_and_aggregates_usage(

@@ -403,6 +403,16 @@
     "timeout_seconds": 180,
     "max_containers": 4
   },
+  "semantic_normalizers": {
+    "flag_fields": [
+      {
+        "flag": "show_transcription",
+        "path": [
+          "ipa"
+        ]
+      }
+    ]
+  },
   "slug": "phoneme-counter",
   "steps": [
     {

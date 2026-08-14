@@ -568,6 +568,30 @@
     "timeout_seconds": 180,
     "max_containers": 4
   },
+  "semantic_normalizers": {
+    "phoneme_containment": {
+      "phoneme_to_graphemes": {
+        "ai": [
+          "ai"
+        ],
+        "ay": [
+          "ay"
+        ],
+        "ch": [
+          "ch"
+        ],
+        "ee": [
+          "ee"
+        ],
+        "sh": [
+          "sh"
+        ],
+        "th": [
+          "th"
+        ]
+      }
+    }
+  },
   "slug": "phonics-list-generator",
   "steps": [
     {

@@ -95,7 +95,6 @@
     "dialect",
     "phonemes",
     "phoneme_count",
-    "ipa",
     "uncertainty",
     "usage"
   ],

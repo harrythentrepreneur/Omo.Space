@@ -532,6 +532,18 @@
     "timeout_seconds": 180,
     "max_containers": 4
   },
+  "semantic_normalizers": {
+    "flag_fields": [
+      {
+        "flag": "include_sight_words",
+        "path": [
+          "sentences",
+          "*",
+          "sight_or_irregular_words"
+        ]
+      }
+    ]
+  },
   "slug": "decodable-sentence-creator",
   "steps": [
     {

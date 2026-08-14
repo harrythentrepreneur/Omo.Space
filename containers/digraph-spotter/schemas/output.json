@@ -42,8 +42,7 @@
           "word",
           "start",
           "end",
-          "type",
-          "explanation"
+          "type"
         ],
         "type": "object"
       },

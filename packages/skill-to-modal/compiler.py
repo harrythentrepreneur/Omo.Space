@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 
-COMPILER_VERSION = "skill-to-modal/0.2.1"
+COMPILER_VERSION = "skill-to-modal/0.2.2"
 COST_MODEL_PATH = Path(__file__).resolve().parents[2] / "site" / "deploy" / "cost-model.mjs"
 ALLOWED_EXECUTION_KINDS = {"single_llm"}
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -237,9 +237,49 @@ def live_model_rates(live: dict[str, Any]) -> dict[str, Decimal]:
     return LLM_RATES[model]
 
 
+def _relax_flag_controlled_fields(
+    schema: dict[str, Any], normalizers: dict[str, Any]
+) -> dict[str, Any]:
+    """Make fields removed by false input flags optional in generated schemas."""
+    relaxed = copy.deepcopy(schema)
+    for rule in normalizers.get("flag_fields", []):
+        path = rule.get("path") if isinstance(rule, dict) else None
+        if not isinstance(path, list) or not path or not all(isinstance(part, str) for part in path):
+            raise ValueError("semantic_normalizers.flag_fields paths must be non-empty string lists")
+        current = relaxed
+        for part in path[:-1]:
+            if part == "*":
+                current = current.get("items", {})
+            else:
+                current = current.get("properties", {}).get(part, {})
+            if not isinstance(current, dict) or not current:
+                raise ValueError("flag-controlled output path is absent from schema: " + ".".join(path))
+        field = path[-1]
+        if field == "*" or field not in current.get("properties", {}):
+            raise ValueError("flag-controlled output field is absent from schema: " + ".".join(path))
+        required = current.get("required")
+        if isinstance(required, list):
+            current["required"] = [name for name in required if name != field]
+    return relaxed
+
+
+def runtime_model_output_schema(profile: dict[str, Any]) -> dict[str, Any]:
+    """Return the provider-result schema adjusted for deterministic post-processing."""
+    live = profile.get("live")
+    if not isinstance(live, dict):
+        return {}
+    normalizers = profile.get("semantic_normalizers", {})
+    if not isinstance(normalizers, dict):
+        raise ValueError("semantic_normalizers must be an object")
+    return _relax_flag_controlled_fields(live["model_output_schema"], normalizers)
+
+
 def runtime_output_schema(profile: dict[str, Any]) -> dict[str, Any]:
-    """Return the generated wrapper schema, including one bounded retry."""
-    schema = copy.deepcopy(profile["output_schema"])
+    """Return the generated wrapper schema, including deterministic post-processing."""
+    normalizers = profile.get("semantic_normalizers", {})
+    if not isinstance(normalizers, dict):
+        raise ValueError("semantic_normalizers must be an object")
+    schema = _relax_flag_controlled_fields(profile["output_schema"], normalizers)
     usage = schema.get("properties", {}).get("usage", {})
     llm_calls = usage.get("properties", {}).get("llm_calls")
     if isinstance(llm_calls, dict) and llm_calls.get("const") == 1:
@@ -284,7 +324,8 @@ LIVE_TEMPERATURE = {float(live['temperature'])!r}
 LIVE_TIMEOUT_SECONDS = {int(live.get('timeout_seconds', 120))}
 LIVE_INPUT_RATE_PER_MILLION = {float(live_rates['input'])!r}
 LIVE_OUTPUT_RATE_PER_MILLION = {float(live_rates['output'])!r}
-LIVE_MODEL_OUTPUT_SCHEMA = {live['model_output_schema']!r}
+LIVE_MODEL_OUTPUT_SCHEMA = {runtime_model_output_schema(profile)!r}
+SEMANTIC_NORMALIZERS = {profile.get('semantic_normalizers', {})!r}
 '''
         live_executor = '''
 
@@ -601,6 +642,270 @@ def _repair_to_schema(
     return repaired if isinstance(repaired, dict) else {}
 
 
+def _strip_output_path(value: Any, path: list[str]) -> None:
+    if not path:
+        return
+    part = path[0]
+    if part == "*":
+        if isinstance(value, list):
+            for item in value:
+                _strip_output_path(item, path[1:])
+        return
+    if not isinstance(value, dict) or part not in value:
+        return
+    if len(path) == 1:
+        value.pop(part, None)
+        return
+    _strip_output_path(value[part], path[1:])
+
+
+def _output_path_exists(value: Any, path: list[str]) -> bool:
+    if not path:
+        return True
+    part = path[0]
+    if part == "*":
+        return isinstance(value, list) and any(_output_path_exists(item, path[1:]) for item in value)
+    return isinstance(value, dict) and part in value and _output_path_exists(value[part], path[1:])
+
+
+def _containing_word(source: str, start: int, end: int) -> str:
+    left, right = start, end
+    while left > 0 and (source[left - 1].isalnum() or source[left - 1] in "'-"):
+        left -= 1
+    while right < len(source) and (source[right].isalnum() or source[right] in "'-"):
+        right += 1
+    return source[left:right]
+
+
+def _reviewed_digraph_occurrences(
+    payload: dict[str, Any], generated: dict[str, Any]
+) -> list[dict[str, Any]]:
+    config = SEMANTIC_NORMALIZERS.get("digraph_spans")
+    if not isinstance(config, dict):
+        return []
+    source = str(payload.get("text") or "")
+    requested = str(payload.get("digraph_type") or "all")
+    include_explanations = payload.get("include_explanations") is not False
+    prose: dict[tuple[str, str], list[str]] = {}
+    for item in generated.get("occurrences", []):
+        if not isinstance(item, dict):
+            continue
+        explanation = item.get("explanation")
+        token = str(item.get("text") or "").lower()
+        word = str(item.get("word") or "").lower()
+        if include_explanations and isinstance(explanation, str) and explanation.strip() and token:
+            prose.setdefault((token, word), []).append(explanation)
+
+    kinds = ("consonant", "vowel") if requested == "all" else (requested,)
+    occurrences: list[dict[str, Any]] = []
+    seen: set[tuple[int, int, str]] = set()
+    lower_source = source.lower()
+    for kind in kinds:
+        reviewed = config.get(kind, [])
+        if not isinstance(reviewed, list):
+            continue
+        for raw_token in reviewed:
+            token = str(raw_token).lower()
+            if not token:
+                continue
+            start = 0
+            while True:
+                start = lower_source.find(token, start)
+                if start < 0:
+                    break
+                end = start + len(token)
+                marker = (start, end, kind)
+                if marker not in seen:
+                    seen.add(marker)
+                    word = _containing_word(source, start, end)
+                    occurrence: dict[str, Any] = {
+                        "text": source[start:end],
+                        "word": word,
+                        "start": start,
+                        "end": end,
+                        "type": kind,
+                    }
+                    available = prose.get((token, word.lower()), [])
+                    if include_explanations and available:
+                        occurrence["explanation"] = available.pop(0)
+                    occurrences.append(occurrence)
+                start += 1
+    return sorted(
+        occurrences,
+        key=lambda item: (item["start"], item["end"], item["type"], item["text"].lower()),
+    )
+
+
+def _variant_index(word: str, variant: str) -> tuple[int, int] | None:
+    clean_word = re.sub(r"[^a-z]", "", word.lower())
+    clean_variant = variant.lower()
+    if "_" in clean_variant:
+        pieces = [re.sub(r"[^a-z]", "", piece) for piece in clean_variant.split("_")]
+        pieces = [piece for piece in pieces if piece]
+        if not pieces:
+            return None
+        match = re.search(".*?".join(re.escape(piece) for piece in pieces), clean_word)
+        return (match.start(), match.end()) if match else None
+    needle = re.sub(r"[^a-z]", "", clean_variant)
+    start = clean_word.find(needle) if needle else -1
+    return (start, start + len(needle)) if start >= 0 else None
+
+
+def _matching_requested_phonemes(
+    word: str, requested: list[str], phoneme_map: dict[str, Any]
+) -> tuple[list[str], list[tuple[int, int]]]:
+    matched: list[str] = []
+    spans: list[tuple[int, int]] = []
+    for raw_phoneme in requested:
+        phoneme = str(raw_phoneme)
+        variants = phoneme_map.get(phoneme.lower(), [phoneme])
+        if not isinstance(variants, list):
+            variants = [phoneme]
+        found = next(
+            (span for variant in variants if (span := _variant_index(word, str(variant))) is not None),
+            None,
+        )
+        if found is not None:
+            matched.append(phoneme)
+            spans.append(found)
+    return matched, spans
+
+
+def _phoneme_target_position(word: str, spans: list[tuple[int, int]]) -> str:
+    clean_length = len(re.sub(r"[^a-z]", "", word.lower()))
+    if len(spans) != 1:
+        return "multiple"
+    start, end = spans[0]
+    if start == 0:
+        return "initial"
+    if end == clean_length:
+        return "final"
+    return "medial"
+
+
+def _append_bounded_warning(generated: dict[str, Any], warning: str) -> None:
+    schema = LIVE_MODEL_OUTPUT_SCHEMA.get("properties", {}).get("warnings", {})
+    maximum = int(schema.get("maxItems", 0))
+    if maximum <= 0:
+        return
+    warnings = [str(item) for item in generated.get("warnings", []) if str(item).strip()]
+    if warning in warnings:
+        generated["warnings"] = warnings[:maximum]
+        return
+    generated["warnings"] = (warnings[: maximum - 1] + [warning]) if len(warnings) >= maximum else warnings + [warning]
+
+
+def _normalize_phoneme_containment(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> None:
+    config = SEMANTIC_NORMALIZERS.get("phoneme_containment")
+    if not isinstance(config, dict):
+        return
+    requested = [str(item) for item in payload.get("phonemes", [])]
+    phoneme_map = config.get("phoneme_to_graphemes", {})
+    if not isinstance(phoneme_map, dict):
+        phoneme_map = {}
+    kept: list[dict[str, Any]] = []
+    removed = 0
+    for item in generated.get("words", []):
+        if not isinstance(item, dict):
+            removed += 1
+            continue
+        word = str(item.get("word") or "")
+        matched, spans = _matching_requested_phonemes(word, requested, phoneme_map)
+        if not matched:
+            removed += 1
+            continue
+        item["matched_phonemes"] = matched
+        item["target_position"] = _phoneme_target_position(word, spans)
+        kept.append(item)
+    generated["words"] = kept
+    generated["coverage"] = [
+        phoneme
+        for phoneme in requested
+        if any(phoneme in item.get("matched_phonemes", []) for item in kept)
+    ]
+    if removed:
+        _append_bounded_warning(
+            generated,
+            f"Removed {removed} word{'s' if removed != 1 else ''} without a reviewed grapheme for the requested phonemes.",
+        )
+
+
+def _semantic_normalize(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> dict[str, Any]:
+    if isinstance(SEMANTIC_NORMALIZERS.get("digraph_spans"), dict):
+        generated["occurrences"] = _reviewed_digraph_occurrences(payload, generated)
+        generated["summary"] = list(
+            dict.fromkeys(item["text"].lower() for item in generated["occurrences"])
+        )
+    _normalize_phoneme_containment(generated, payload)
+    for rule in SEMANTIC_NORMALIZERS.get("flag_fields", []):
+        if isinstance(rule, dict) and payload.get(rule.get("flag")) is False:
+            _strip_output_path(generated, rule.get("path", []))
+    return generated
+
+
+def _semantic_validation_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> str:
+    details: list[str] = []
+    if isinstance(SEMANTIC_NORMALIZERS.get("digraph_spans"), dict):
+        expected = _reviewed_digraph_occurrences(payload, {})
+        fields = ("text", "word", "start", "end", "type")
+        expected_signatures = [tuple(item.get(field) for field in fields) for item in expected]
+        actual_signatures = [
+            tuple(item.get(field) for field in fields)
+            for item in generated.get("occurrences", [])
+            if isinstance(item, dict)
+        ]
+        if actual_signatures != expected_signatures:
+            details.append(
+                "$.occurrences:semantic_source_spans(expected="
+                + str(len(expected_signatures))
+                + ",actual="
+                + str(len(actual_signatures))
+                + ")"
+            )
+        expected_summary = list(dict.fromkeys(item["text"].lower() for item in expected))
+        if generated.get("summary") != expected_summary:
+            details.append("$.summary:semantic_digraph_coverage")
+
+    config = SEMANTIC_NORMALIZERS.get("phoneme_containment")
+    if isinstance(config, dict):
+        requested = [str(item) for item in payload.get("phonemes", [])]
+        phoneme_map = config.get("phoneme_to_graphemes", {})
+        words = generated.get("words", [])
+        if len(words) != payload.get("word_count"):
+            details.append(
+                "$.words:semantic_word_count(expected="
+                + str(payload.get("word_count"))
+                + ",actual="
+                + str(len(words))
+                + ")"
+            )
+        covered: set[str] = set()
+        for item in words:
+            matched, _spans = _matching_requested_phonemes(
+                str(item.get("word") or ""), requested, phoneme_map
+            )
+            if item.get("matched_phonemes") != matched or not matched:
+                details.append("$.words:semantic_phoneme_containment")
+                break
+            covered.update(matched)
+        if any(phoneme not in covered for phoneme in requested):
+            details.append("$.coverage:semantic_requested_phonemes")
+
+    for rule in SEMANTIC_NORMALIZERS.get("flag_fields", []):
+        if not isinstance(rule, dict) or payload.get(rule.get("flag")) is not False:
+            continue
+        path = rule.get("path", [])
+        if _output_path_exists(generated, path):
+            details.append("$" + "".join("[*]" if part == "*" else "." + part for part in path) + ":flag_disabled")
+    return ";".join(dict.fromkeys(details))
+
+
 def _validation_diff(instance: Any, schema: dict[str, Any]) -> str:
     errors = sorted(
         Draft202012Validator(schema).iter_errors(instance),
@@ -678,7 +983,12 @@ def _candidate(
     except Exception:
         return None, "$:invalid_json"
     repaired = _repair_to_schema(parsed, LIVE_MODEL_OUTPUT_SCHEMA, payload)
-    return repaired, _validation_diff(repaired, LIVE_MODEL_OUTPUT_SCHEMA)
+    normalized = _semantic_normalize(repaired, payload)
+    diffs = [
+        _validation_diff(normalized, LIVE_MODEL_OUTPUT_SCHEMA),
+        _semantic_validation_diff(normalized, payload),
+    ]
+    return normalized, ";".join(diff for diff in diffs if diff)
 
 
 def _provider_completion(payload: dict[str, Any]) -> dict[str, Any]:

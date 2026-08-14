@@ -48,8 +48,7 @@
         },
         "required": [
           "text",
-          "target_words",
-          "sight_or_irregular_words"
+          "target_words"
         ],
         "type": "object"
       },

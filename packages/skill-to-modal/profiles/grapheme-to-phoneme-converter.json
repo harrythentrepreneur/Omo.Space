@@ -443,6 +443,16 @@
     "timeout_seconds": 180,
     "max_containers": 4
   },
+  "semantic_normalizers": {
+    "flag_fields": [
+      {
+        "flag": "include_rules_explanation",
+        "path": [
+          "rules_explanation"
+        ]
+      }
+    ]
+  },
   "slug": "grapheme-to-phoneme-converter",
   "steps": [
     {

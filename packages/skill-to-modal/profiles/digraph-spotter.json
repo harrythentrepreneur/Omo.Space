@@ -500,6 +500,52 @@
     "timeout_seconds": 180,
     "max_containers": 4
   },
+  "semantic_normalizers": {
+    "digraph_spans": {
+      "consonant": [
+        "ch",
+        "ck",
+        "gh",
+        "kn",
+        "ng",
+        "ph",
+        "qu",
+        "sh",
+        "th",
+        "wh",
+        "wr"
+      ],
+      "vowel": [
+        "ai",
+        "au",
+        "aw",
+        "ay",
+        "ea",
+        "ee",
+        "ew",
+        "ie",
+        "oa",
+        "oe",
+        "oi",
+        "oo",
+        "ou",
+        "ow",
+        "oy",
+        "ue",
+        "ui"
+      ]
+    },
+    "flag_fields": [
+      {
+        "flag": "include_explanations",
+        "path": [
+          "occurrences",
+          "*",
+          "explanation"
+        ]
+      }
+    ]
+  },
   "slug": "digraph-spotter",
   "steps": [
     {

@@ -1,5 +1,5 @@
 {
-  "compiler": "skill-to-modal/0.2.1",
+  "compiler": "skill-to-modal/0.2.2",
   "cost_drivers": [
     "One DeepSeek V4 Flash educational-content call with a 1,200-token output ceiling",
     "Modal CPU, request latency, and schema-invalid provider failures",
