@@ -810,6 +810,12 @@
 
       var slug = '';
       try { slug = (new URLSearchParams(window.location.search || '').get('slug') || '').trim(); } catch (error) {}
+      if (!slug) {
+        try {
+          var cleanPathMatch = window.location.pathname.match(/^\/workflows\/([a-z0-9][a-z0-9-]*)\/?$/);
+          if (cleanPathMatch) slug = decodeURIComponent(cleanPathMatch[1]);
+        } catch (error) {}
+      }
       var listing = products[slug] || null;
       if (!listing) {
         el('not-found').hidden = false;
