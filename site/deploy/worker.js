@@ -328,6 +328,8 @@ function dynamicRoute(pathname) {
   if (submissionDetail) return { handler: handleSubmissionDetail, methods: ['GET'], params: { submissionId: submissionDetail[1] } };
   const submissionApproval = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/approve$/.exec(pathname);
   if (submissionApproval) return { handler: handleSubmissionApproval, methods: ['POST'], params: { submissionId: submissionApproval[1] } };
+  const submissionRetry = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/retry$/.exec(pathname);
+  if (submissionRetry) return { handler: handleSubmissionRetry, methods: ['POST'], params: { submissionId: submissionRetry[1] } };
   const submissionRuntime = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/runtime$/.exec(pathname);
   if (submissionRuntime) return { handler: handleSubmissionRuntime, methods: ['PATCH'], params: { submissionId: submissionRuntime[1] } };
   const progress = /^\/api\/run\/(run_[A-Za-z0-9_-]{4,91})\/progress$/.exec(pathname);
@@ -1851,6 +1853,21 @@ async function handleSubmissionApproval(request, env, _url, params) {
   }, 200, cors(request, env));
 }
 
+async function handleSubmissionRetry(request, env, _url, params) {
+  const auth = await authenticateAccount(request, env, false);
+  if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
+  const retried = await retryApprovedExactMatchBuildFailure(env, auth.userId, params.submissionId);
+  if (retried.status === 'not_found') return json({ ok: false, error: 'submission_not_found' }, 404, cors(request, env));
+  if (retried.status === 'not_retryable') {
+    return json({ ok: false, error: 'submission_not_retryable' }, 409, cors(request, env));
+  }
+  return json({
+    ok: true,
+    retried: true,
+    submission: publicSubmission(retried.row),
+  }, 200, cors(request, env));
+}
+
 function publicSubmission(row) {
   const selectedRuntime = safeRuntime(row.selected_runtime);
   const status = safeSubmissionStatus(row.status);
@@ -3202,6 +3219,104 @@ async function approveExactMatchSlugCollision(env, userId, submissionId) {
     return { status: 'not_approvable' };
   }
   return foundOwnerRecord ? { status: 'not_approvable' } : { status: 'not_found' };
+}
+
+async function retryApprovedExactMatchBuildFailure(env, userId, submissionId) {
+  const allowedSourceHashes = reviewedSourceApprovalAllowlist();
+  if (!allowedSourceHashes.size) return { status: 'not_retryable' };
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-submission-retry-v1',
+      `WITH updated AS (
+         UPDATE submissions
+         SET status = 'ready_for_deploy',
+             failure_code = NULL,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+           AND user_id = $2
+           AND source_sha256 = ANY($3::text[])
+           AND status = 'failed'
+           AND failure_code = 'build_or_deploy_failed'
+           AND approved_by = $2
+           AND approval_reason = '${APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION}'
+           AND approved_at IS NOT NULL
+         RETURNING id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence
+       ),
+       current AS (
+         SELECT id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence
+         FROM submissions
+         WHERE id = $1
+           AND user_id = $2
+           AND source_sha256 = ANY($3::text[])
+           AND status = 'ready_for_deploy'
+           AND failure_code IS NULL
+           AND approved_by = $2
+           AND approval_reason = '${APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION}'
+           AND approved_at IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM updated)
+       )
+       SELECT * FROM updated
+       UNION ALL
+       SELECT * FROM current
+       LIMIT 1`,
+      [submissionId, userId, [...allowedSourceHashes.keys()]]
+    ));
+    const row = approvalSafeRow(result.rows[0]);
+    if (row) return { status: 'retried', row };
+    const existing = await getSubmissionApprovalState(env, userId, submissionId);
+    if (!existing) return { status: 'not_found' };
+    return { status: 'not_retryable' };
+  }
+  if (databaseKind(env) === 'd1') {
+    for (const sourceSha256 of allowedSourceHashes.keys()) {
+      const updated = await env.BALANCE_DB
+        .prepare(`UPDATE submissions
+          SET status = 'ready_for_deploy', failure_code = NULL, updated_at = ?
+          WHERE id = ? AND user_id = ? AND source_sha256 = ? AND status = 'failed' AND failure_code = 'build_or_deploy_failed' AND approved_by = ? AND approval_reason = ? AND approved_at IS NOT NULL`)
+        .bind(now, submissionId, userId, sourceSha256, userId, APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION).run();
+      if (updated.meta && updated.meta.changes) {
+        const row = await getSubmissionForOwner(env, userId, submissionId);
+        return { status: 'retried', row };
+      }
+    }
+    const existing = await getSubmissionApprovalState(env, userId, submissionId);
+    if (!existing) return { status: 'not_found' };
+    if (existing.status === 'ready_for_deploy' && !existing.failure_code &&
+        safeSha256(existing.source_sha256) && allowedSourceHashes.has(safeSha256(existing.source_sha256)) &&
+        existing.approved_by === userId &&
+        existing.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
+        existing.approved_at) {
+      return { status: 'retried', row: existing };
+    }
+    return { status: 'not_retryable' };
+  }
+  let foundOwnerRecord = false;
+  for (const record of mockSubmissions.values()) {
+    if (record.id !== submissionId || (record.userId !== userId && record.user_id !== userId)) continue;
+    foundOwnerRecord = true;
+    const sourceSha256 = safeSha256(record.source_sha256 || record.sourceSha256);
+    if (record.status === 'ready_for_deploy' && !record.failure_code &&
+        sourceSha256 && allowedSourceHashes.has(sourceSha256) &&
+        record.approved_by === userId &&
+        record.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
+        record.approved_at) {
+      return { status: 'retried', row: record };
+    }
+    if (record.status === 'failed' &&
+        record.failure_code === 'build_or_deploy_failed' &&
+        sourceSha256 && allowedSourceHashes.has(sourceSha256) &&
+        record.approved_by === userId &&
+        record.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
+        record.approved_at) {
+      record.status = 'ready_for_deploy';
+      record.failure_code = null;
+      record.updated_at = now;
+      return { status: 'retried', row: record };
+    }
+    return { status: 'not_retryable' };
+  }
+  return foundOwnerRecord ? { status: 'not_retryable' } : { status: 'not_found' };
 }
 
 async function getSubmissionApprovalState(env, userId, submissionId) {

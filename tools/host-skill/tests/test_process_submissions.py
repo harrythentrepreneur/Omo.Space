@@ -96,7 +96,7 @@ def test_process_row_fails_closed_when_generated_source_hash_differs(monkeypatch
     validated = process.validate_submission("Facebook Ads Copywriter", source)
     repo = FakeRepository()
     monkeypatch.setattr(process, "evaluate_review_gate", lambda validated, allow_matching_container=False: ("ready_for_build", None))
-    monkeypatch.setattr(process, "reviewed_profile_artifact", lambda slug, requested_runtime, temp_dir: (write_profile(tmp_path, "worker-native"), {"effective": "worker-native"}))
+    monkeypatch.setattr(process, "reviewed_profile_artifact", lambda slug, requested_runtime, temp_dir, source_sha256=None: (write_profile(tmp_path, "worker-native"), {"effective": "worker-native"}))
     monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: None)
     monkeypatch.setattr(process, "generated_runtime_metadata", lambda slug, profile_path, expected_source_sha256: (_ for _ in ()).throw(RuntimeError("generated_source_hash_mismatch")))
 
@@ -116,6 +116,93 @@ def test_process_row_fails_closed_when_generated_source_hash_differs(monkeypatch
         "failure_code": "generated_source_hash_mismatch",
     }
     assert repo.statuses[-1] == ("sub_sourcehashmismatch", "failed", "generated_source_hash_mismatch")
+
+
+def test_reviewed_profile_auto_inherits_exact_match_runtime_from_hosted_metadata(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    woven_source_sha = "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf"
+
+    profile_path, decision = process.reviewed_profile_artifact(
+        "woven-storybook-pipeline",
+        "auto",
+        tmp_path,
+        source_sha256=woven_source_sha,
+    )
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+
+    assert profile["runtime_preference"] == "modal-hosted"
+    assert decision["requested"] == "modal-hosted"
+    assert decision["effective"] == "modal-hosted"
+    assert decision["reason"] == "creator_selected_modal"
+
+
+def test_runtime_preference_helper_is_data_only_and_changes_only_auto() -> None:
+    process = load_process_submissions()
+    source_sha = "1" * 64
+    runtime_by_source = {source_sha: "modal-hosted"}
+
+    assert process.runtime_preference_for_reviewed_source("auto", source_sha, runtime_by_source) == "modal-hosted"
+    assert process.runtime_preference_for_reviewed_source("worker-native", source_sha, runtime_by_source) == "worker-native"
+    assert process.runtime_preference_for_reviewed_source("modal-hosted", source_sha, runtime_by_source) == "modal-hosted"
+    assert process.runtime_preference_for_reviewed_source("auto", "2" * 64, runtime_by_source) == "auto"
+    assert process.runtime_preference_for_reviewed_source(None, source_sha, runtime_by_source) is None
+
+
+def test_reviewed_profile_explicit_runtime_override_is_not_silently_changed(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    woven_source_sha = "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf"
+
+    profile_path, decision = process.reviewed_profile_artifact(
+        "woven-storybook-pipeline",
+        "worker-native",
+        tmp_path,
+        source_sha256=woven_source_sha,
+    )
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+
+    assert profile["runtime_preference"] == "worker-native"
+    assert decision["requested"] == "worker-native"
+    assert decision["effective"] == "worker-native"
+    assert decision["reason"] == "bounded_single_llm_is_worker_compatible"
+
+
+def test_process_row_retries_exact_match_with_inherited_modal_runtime(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source = (process.ROOT / "containers" / "woven-storybook-pipeline" / "source" / "SKILL.md").read_text(encoding="utf-8")
+    validated = process.validate_submission("Woven Storybook Pipeline", source)
+    repo = FakeRepository()
+    profile_decisions: list[dict] = []
+
+    monkeypatch.setattr(process, "evaluate_review_gate", lambda validated, allow_matching_container=False: ("ready_for_build", None))
+    monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: None)
+    monkeypatch.setattr(process, "generated_runtime_metadata", lambda slug, profile_path, expected_source_sha256: {
+        "decision": {"effective": "modal-hosted", "requested": "modal-hosted", "recommended": "worker-native", "compatible": True, "reason": "creator_selected_modal"},
+        "published_slug": "woven-relationship-book-maker",
+        "workflow_version": "woven-storybook-pipeline@0.2.0",
+        "build_evidence": {"checks": ["compile"], "source_sha256": expected_source_sha256},
+    })
+
+    original_reviewed_profile_artifact = process.reviewed_profile_artifact
+    def recording_reviewed_profile_artifact(slug, requested_runtime, temp_dir, source_sha256=None):
+        profile_path, decision = original_reviewed_profile_artifact(slug, requested_runtime, temp_dir, source_sha256=source_sha256)
+        profile_decisions.append(decision)
+        return profile_path, decision
+    monkeypatch.setattr(process, "reviewed_profile_artifact", recording_reviewed_profile_artifact)
+
+    result = process.process_row({
+        "id": "sub_08b017bc6b22fca3112dead68f19f4a2",
+        "name": "Woven Storybook Pipeline",
+        "content": source,
+        "source_sha256": validated.source_sha256,
+        "slug": validated.slug,
+        "requested_runtime": "auto",
+        "prior_status": "ready_for_deploy",
+    }, repo, deploy=False)
+
+    assert result["status"] == "ready_for_deploy"
+    assert profile_decisions[0]["effective"] == "modal-hosted"
+    assert repo.runtime_decisions[-1][1]["effective"] == "modal-hosted"
+    assert repo.deployments[-1][2] == "woven-relationship-book-maker"
 
 
 def test_deployed_gate_requires_publish_slug_version_and_evidence() -> None:
