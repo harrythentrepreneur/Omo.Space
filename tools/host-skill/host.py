@@ -92,6 +92,13 @@ def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def display_path(path: Path) -> str:
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def js_json(value: Any, indent: int = 0) -> str:
     rendered = json.dumps(value, ensure_ascii=True, indent=2, sort_keys=True)
     prefix = " " * indent
@@ -587,7 +594,15 @@ def main() -> int:
     )
     contract_test = out / "tests" / "test_contract.py"
     run_checked([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(contract_test)])
-    run_checked(["node", str(ROOT / "packages" / "skill-to-modal" / "verify-pricing.mjs"), slug])
+    run_checked(
+        [
+            "node",
+            str(ROOT / "packages" / "skill-to-modal" / "verify-pricing.mjs"),
+            slug,
+            "--report",
+            str(out / "pricing-report.json"),
+        ]
+    )
 
     manifest = read_json(out / "manifest.json")
     pricing = read_json(out / "pricing-report.json")
@@ -606,7 +621,7 @@ def main() -> int:
         "status": "ready_for_catalog" if manifest["readiness"]["can_submit"] else "blocked",
         "slug": slug,
         "source_sha256": read_json(out / "skill-analysis.json")["source"]["sha256"],
-        "manifest": (out / "manifest.json").relative_to(ROOT).as_posix(),
+        "manifest": display_path(out / "manifest.json"),
         "price_usd": pricing["display_price_usd"],
         "chargeable": manifest["pricing"]["chargeable"],
         "registered": bool(registered),

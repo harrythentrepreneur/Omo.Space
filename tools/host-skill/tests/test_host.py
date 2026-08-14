@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -228,3 +229,26 @@ def test_unknown_generated_runtime_kind_is_rejected() -> None:
     hosted["runtime"]["kind"] = "edge-magic"
     with pytest.raises(ValueError, match="unsupported generated runtime kind"):
         host.render_registry([hosted])
+
+
+def test_pricing_verifier_checks_the_requested_compiled_report(tmp_path: Path) -> None:
+    profile, _manifest, pricing = compiled_inputs()
+    report_path = tmp_path / "pricing-report.json"
+    report_path.write_text(json.dumps(pricing), encoding="utf-8")
+    command = [
+        "node",
+        str(ROOT / "packages" / "skill-to-modal" / "verify-pricing.mjs"),
+        profile["slug"],
+        "--report",
+        str(report_path),
+    ]
+    assert subprocess.run(command, cwd=ROOT, check=False).returncode == 0
+
+    pricing["estimates"][0]["modeled_cost_usd"] = 999.0
+    report_path.write_text(json.dumps(pricing), encoding="utf-8")
+    assert subprocess.run(command, cwd=ROOT, check=False).returncode != 0
+
+
+def test_display_path_supports_output_outside_the_repository(tmp_path: Path) -> None:
+    assert host.display_path(ROOT / "containers" / "example") == "containers/example"
+    assert host.display_path(tmp_path / "manifest.json") == str(tmp_path / "manifest.json")

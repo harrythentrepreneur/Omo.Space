@@ -449,6 +449,25 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
     assert not any("/tmp/" in command and "SKILL.md" in command for command in flattened)
 
 
+def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    slug = "education-workflow"
+    container = tmp_path / "containers" / slug
+    container.mkdir(parents=True)
+    (container / "hosted-profile.json").write_text(
+        json.dumps({"runtime": {"slug": "education-workflow-pro"}}),
+        encoding="utf-8",
+    )
+    run_manifests = tmp_path / "site" / "run-manifests"
+    run_manifests.mkdir(parents=True)
+    aliased = run_manifests / "education-workflow-pro.json"
+    aliased.write_text("{}", encoding="utf-8")
+
+    assert "site/run-manifests/education-workflow-pro.json" in process.release_allowlisted_paths(
+        slug, root=tmp_path
+    )
+
+
 def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> None:
     process = load_process_submissions()
     create_commands: list[list[str]] = []

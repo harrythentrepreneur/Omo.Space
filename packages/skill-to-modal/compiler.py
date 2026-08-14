@@ -951,7 +951,7 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str]:
         "schemas/output.json": canonical_json(profile["output_schema"]),
         "tests/cases.json": canonical_json(cases),
         "tests/test_contract.py": contract_test_template(profile),
-        "source/SKILL.md": skill_text if skill_text.endswith("\n") else skill_text + "\n",
+        "source/SKILL.md": skill_text,
     }
     for name, prompt in profile["prompts"].items():
         files[f"prompts/{name}"] = prompt.strip() + "\n"

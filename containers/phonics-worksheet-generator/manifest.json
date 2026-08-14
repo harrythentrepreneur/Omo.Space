@@ -185,5 +185,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "phonics-worksheet-generator",
+  "source_sha256": "3766b71879a8a53f77634ef9ebf5f516e1502a7d0e11a1a1cceca3cc0b0a69a1",
   "version": "0.1.0"
 }

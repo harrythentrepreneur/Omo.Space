@@ -7,11 +7,24 @@ import process from 'node:process';
 import { estimateWorkflowCost, runPrice } from '../../site/deploy/cost-model.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const slugs = process.argv.slice(2);
+const args = process.argv.slice(2);
+const reportFlag = args.indexOf('--report');
+let reportPath = null;
+if (reportFlag !== -1) {
+  if (reportFlag + 1 >= args.length || args.indexOf('--report', reportFlag + 1) !== -1) {
+    throw new Error('--report requires exactly one path');
+  }
+  reportPath = path.resolve(args[reportFlag + 1]);
+  args.splice(reportFlag, 2);
+}
+const slugs = args;
 const selected = slugs.length ? slugs : [
   'audio-symbolic-animation',
   'woven-storybook-pipeline',
 ];
+if (reportPath && selected.length !== 1) {
+  throw new Error('--report requires exactly one skill slug');
+}
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -42,7 +55,7 @@ function materializeWorkflow(workflow) {
 
 for (const slug of selected) {
   const profile = readJson(path.join(root, 'packages/skill-to-modal/profiles', `${slug}.json`));
-  const report = readJson(path.join(root, 'containers', slug, 'pricing-report.json'));
+  const report = readJson(reportPath || path.join(root, 'containers', slug, 'pricing-report.json'));
   for (const estimate of profile.pricing.estimates) {
     const workflow = materializeWorkflow(estimate.workflow);
     const actualCost = estimateWorkflowCost(workflow).costUsd;

@@ -836,10 +836,20 @@ def hash_release_artifacts(slug: str, root: Path = ROOT) -> str:
 def release_allowlisted_paths(slug: str, root: Path = ROOT) -> list[str]:
     if not SAFE_SLUG_RE.fullmatch(slug):
         raise ValueError("invalid release slug")
+    run_manifest_slugs = {slug}
+    hosted_profile_path = root / "containers" / slug / "hosted-profile.json"
+    if hosted_profile_path.is_file():
+        try:
+            hosted_profile = json.loads(hosted_profile_path.read_text(encoding="utf-8"))
+            published_slug = str(hosted_profile.get("runtime", {}).get("slug") or "")
+        except (OSError, json.JSONDecodeError, AttributeError):
+            published_slug = ""
+        if SAFE_SLUG_RE.fullmatch(published_slug):
+            run_manifest_slugs.add(published_slug)
     candidates = [
         f"containers/{slug}",
         f"packages/skill-to-modal/profiles/{slug}.json",
-        f"site/run-manifests/{slug}.json",
+        *(f"site/run-manifests/{manifest_slug}.json" for manifest_slug in sorted(run_manifest_slugs)),
         "site/catalog.js",
         "site/deploy/hosted-skills.generated.mjs",
         "site/deploy/schema.sql",

@@ -72,6 +72,14 @@ def test_generation_is_byte_deterministic() -> None:
     assert json.loads(first["manifest.json"])["readiness"]["can_submit"] is True
 
 
+def test_generation_preserves_source_without_a_final_newline() -> None:
+    skill = SKILL_PATH.read_text(encoding="utf-8").rstrip("\n")
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    files = compiler.build_files(skill, profile)
+    assert files["source/SKILL.md"] == skill
+    assert json.loads(files["skill-analysis.json"])["source"]["sha256"] == compiler.sha256_text(skill)
+
+
 def test_profile_cannot_change_source_identity() -> None:
     skill = SKILL_PATH.read_text(encoding="utf-8")
     profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
