@@ -96,7 +96,7 @@ def test_generator_materializes_whatsapp_zip_and_book_pdf_contracts() -> None:
     assert "timeout=510" in files["modal_app.py"]
 
 
-def test_generator_rejects_unknown_adapter_and_artifact_types() -> None:
+def test_unknown_adapter_and_artifact_types_emit_typed_capability_blockers() -> None:
     skill_path = ROOT / "containers" / "woven-storybook-pipeline" / "source" / "SKILL.md"
     profile_path = (
         ROOT / "packages" / "skill-to-modal" / "profiles" / "woven-storybook-pipeline.json"
@@ -104,12 +104,87 @@ def test_generator_rejects_unknown_adapter_and_artifact_types() -> None:
     skill = skill_path.read_text(encoding="utf-8")
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
     profile["input_adapters"] = ["execute_chat_archive"]
-    with pytest.raises(ValueError, match="unsupported input adapter"):
-        compiler.build_files(skill, profile)
+    files = compiler.build_files(skill, profile)
+    capabilities = json.loads(files["capability-manifest.json"])
+    manifest = json.loads(files["manifest.json"])
+    pricing = json.loads(files["pricing-report.json"])
+    assert capabilities["decision"] == "blocked"
+    assert capabilities["approved"] == []
+    assert capabilities["blockers"][0]["code"] == "CAPABILITY_UNAVAILABLE"
+    assert capabilities["blockers"][0]["missing_capability"] == "input.adapt:execute_chat_archive"
+    assert manifest["readiness"]["can_submit"] is False
+    assert manifest["pricing"]["chargeable"] is False
+    assert pricing["chargeable"] is False
+
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
     profile["artifact"]["type"] = "html_dump"
-    with pytest.raises(ValueError, match="artifact.type"):
-        compiler.build_files(skill, profile)
+    files = compiler.build_files(skill, profile)
+    capabilities = json.loads(files["capability-manifest.json"])
+    blocker = capabilities["blockers"][0]
+    assert blocker["code"] == "CAPABILITY_UNAVAILABLE"
+    assert blocker["missing_capability"] == "artifact.render:html_dump"
+    assert blocker["contract_pointer"] == "/artifact"
+    assert json.loads(files["manifest.json"])["readiness"]["can_submit"] is False
+
+
+def test_generic_contract_resolves_minimal_capabilities_and_chart_trigger() -> None:
+    profile_path = (
+        ROOT / "packages" / "skill-to-modal" / "profiles" / "woven-storybook-pipeline.json"
+    )
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile["name"] = "synthetic-capability-contract"
+    profile["slug"] = "synthetic-capability-contract"
+    skill = """---
+name: synthetic-capability-contract
+description: A deliberately unrelated contract fixture.
+---
+
+## Workflow
+
+1. **Transform:** Run the reviewed typed contract.
+"""
+    files = compiler.build_files(skill, profile)
+    capabilities = json.loads(files["capability-manifest.json"])
+
+    assert capabilities["schema_version"] == "cognition.capabilities/v2"
+    assert capabilities["decision"] == "approved"
+    assert [item["name"] for item in capabilities["selected"]] == [
+        "book_pdf_renderer",
+        "whatsapp_zip_adapter",
+    ]
+    assert capabilities["approved"] == [
+        "book_pdf_renderer@1.0.0",
+        "whatsapp_zip_adapter@1.0.0",
+    ]
+    assert {item["name"] for item in capabilities["needs"]} == {
+        "artifact.render:book_pdf",
+        "input.adapt:whatsapp_export_zip",
+    }
+    assert {item["name"] for item in capabilities["generated"]["dependencies"]} == {
+        "artifact_store",
+        "private_input_artifact_reader",
+    }
+    assert "render_book_pdf" in files["modal_app.py"]
+    assert "prompts/whatsapp_zip.txt" in files
+
+    chart_resolution = compiler.resolve_capabilities(
+        {
+            "artifacts": [
+                {"kind": "metrics_viz", "content_media_type": "image/png"}
+            ],
+            "capabilities": [],
+            "execution_kind": "single_llm",
+            "output_schema": {"properties": {"chart": {"type": "object"}}},
+            "readiness": {"blockers": [], "can_submit": True},
+            "steps": [{"operation": "visualization.render.chart"}],
+        },
+        "c" * 64,
+    )
+    assert [item["name"] for item in chart_resolution["selected"]] == ["chart_generation"]
+    assert chart_resolution["approved"] == ["chart_generation@1.0.0"]
+    assert chart_resolution["generated"]["tool_bindings"] == [
+        "tools.render.charts.render_chart_png"
+    ]
 
 
 def test_live_metering_rates_come_from_canonical_cost_model() -> None:
