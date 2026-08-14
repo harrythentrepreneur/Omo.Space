@@ -38,7 +38,7 @@ LIVE_MAX_TOKENS = 1200
 LIVE_TEMPERATURE = 0.2
 LIVE_TIMEOUT_SECONDS = 120
 LIVE_INPUT_RATE_PER_MILLION = 0.14
-LIVE_OUTPUT_RATE_PER_MILLION = 0.28
+LIVE_OUTPUT_RATE_PER_MILLION = 0.42
 LIVE_MODEL_OUTPUT_SCHEMA = {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'type': 'object', 'additionalProperties': False, 'properties': {'input': {'type': 'string', 'minLength': 1, 'maxLength': 80}, 'dialect': {'enum': ['en-US', 'en-GB', 'en-AU']}, 'phonemes': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 20}, 'minItems': 1, 'maxItems': 30}, 'ipa': {'type': 'string', 'maxLength': 120}, 'rules_explanation': {'type': 'string', 'maxLength': 800}, 'example_words': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 80}, 'maxItems': 5}, 'uncertainty': {'type': 'string', 'minLength': 1, 'maxLength': 300}}, 'required': ['input', 'dialect', 'phonemes', 'ipa', 'rules_explanation', 'example_words', 'uncertainty']}
 
 

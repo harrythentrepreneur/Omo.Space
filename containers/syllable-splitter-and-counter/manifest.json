@@ -81,5 +81,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "syllable-splitter-and-counter",
+  "source_sha256": "3c4d4425b6a87366540c7575d58d96291ae519ff9d5a309f0446c4ddc1feadd3",
   "version": "0.1.0"
 }

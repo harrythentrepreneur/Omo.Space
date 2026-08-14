@@ -1,0 +1,1 @@
+Direct the reviewed transcript into exactly thirty semantic sumi-e cells for a ten-second portrait animation. Preserve the spoken meaning. Each cell must name one visible mechanical delta, one stable anchor, and the state that must persist. Do not invent dialogue, themes, objects, or claims absent from the transcript. Return strict JSON only.

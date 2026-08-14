@@ -228,6 +228,14 @@ def price_report(profile: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def live_model_rates(live: dict[str, Any]) -> dict[str, Decimal]:
+    """Return live metering rates from the canonical repository cost model."""
+    model = str(live.get("default_model") or "").strip()
+    if model not in LLM_RATES:
+        raise ValueError(f"unknown live model in cost model: {model or '<missing>'}")
+    return LLM_RATES[model]
+
+
 def modal_app_template(profile: dict[str, Any]) -> str:
     slug = profile["slug"]
     app_name = f"cognition-{slug}"
@@ -240,6 +248,7 @@ def modal_app_template(profile: dict[str, Any]) -> str:
     ready = bool(profile["readiness"]["can_submit"])
     live = profile.get("live") if ready else None
     if live:
+        live_rates = live_model_rates(live)
         live_constants = f'''\nLIVE_PROVIDER = {live['provider']!r}
 LIVE_BASE_URL_ENV = {live['base_url_env']!r}
 LIVE_MODEL_ENV = {live['model_env']!r}
@@ -250,8 +259,8 @@ LIVE_PROMPT_PATH = {('prompts/' + live['prompt'])!r}
 LIVE_MAX_TOKENS = {int(live['max_tokens'])}
 LIVE_TEMPERATURE = {float(live['temperature'])!r}
 LIVE_TIMEOUT_SECONDS = {int(live.get('timeout_seconds', 120))}
-LIVE_INPUT_RATE_PER_MILLION = {float(live['input_rate_per_million_usd'])!r}
-LIVE_OUTPUT_RATE_PER_MILLION = {float(live['output_rate_per_million_usd'])!r}
+LIVE_INPUT_RATE_PER_MILLION = {float(live_rates['input'])!r}
+LIVE_OUTPUT_RATE_PER_MILLION = {float(live_rates['output'])!r}
 LIVE_MODEL_OUTPUT_SCHEMA = {live['model_output_schema']!r}
 '''
         live_executor = '''

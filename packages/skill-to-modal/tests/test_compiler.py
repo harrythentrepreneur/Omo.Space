@@ -72,6 +72,16 @@ def test_generation_is_byte_deterministic() -> None:
     assert json.loads(first["manifest.json"])["readiness"]["can_submit"] is True
 
 
+def test_live_metering_rates_come_from_canonical_cost_model() -> None:
+    skill = SKILL_PATH.read_text(encoding="utf-8")
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["live"]["input_rate_per_million_usd"] = 99
+    profile["live"]["output_rate_per_million_usd"] = 99
+    modal_app = compiler.build_files(skill, profile)["modal_app.py"]
+    assert "LIVE_INPUT_RATE_PER_MILLION = 0.14" in modal_app
+    assert "LIVE_OUTPUT_RATE_PER_MILLION = 0.42" in modal_app
+
+
 def test_generation_preserves_source_without_a_final_newline() -> None:
     skill = SKILL_PATH.read_text(encoding="utf-8").rstrip("\n")
     profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))

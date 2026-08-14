@@ -93,5 +93,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "story-idea-generator",
+  "source_sha256": "33cd33478647ee5d5c77ef67473b949ca1004edcbeb542c2470bc2aeb71a0c9f",
   "version": "0.1.0"
 }

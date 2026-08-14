@@ -114,5 +114,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "decodable-sentence-creator",
+  "source_sha256": "de9789e410223c8607961a62553604f150b2eee00c9caabe30f7efebf25b052c",
   "version": "0.1.0"
 }

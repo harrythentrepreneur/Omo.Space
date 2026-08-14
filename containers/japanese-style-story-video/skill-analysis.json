@@ -1,0 +1,152 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "CPU-only 10-second portrait frame generation, FFmpeg assembly, and full-decode QA",
+    "Run-scoped video, transcript, frame brief, frame manifest, and contact-sheet storage and egress",
+    "The reviewed $0.18 delivered-cost guard becomes the requested $0.90 quote under the canonical repository 5x markup",
+    "The arbitrary-audio planning estimate uses deepseek-v4-flash rates from site/deploy/cost-model.mjs; it is not an enabled hosted lane"
+  ],
+  "description": "Turn short audio into a validated vertical sumi-e drawing animation MP4.",
+  "detected_provider_needs": [
+    "ffmpeg"
+  ],
+  "name": "japanese-style-story-video",
+  "parsed_workflow_steps": [
+    {
+      "id": "admit-the-sample",
+      "number": "1",
+      "title": "Admit the sample"
+    },
+    {
+      "id": "acquire-and-transcribe",
+      "number": "2",
+      "title": "Acquire and transcribe"
+    },
+    {
+      "id": "plan-semantic-ink-beats",
+      "number": "3",
+      "title": "Plan semantic ink beats"
+    },
+    {
+      "id": "generate-keyframes",
+      "number": "4",
+      "title": "Generate keyframes"
+    },
+    {
+      "id": "expand-frames",
+      "number": "5",
+      "title": "Expand frames"
+    },
+    {
+      "id": "assemble-the-mp4",
+      "number": "6",
+      "title": "Assemble the MP4"
+    },
+    {
+      "id": "validate-delivery",
+      "number": "7",
+      "title": "Validate delivery"
+    },
+    {
+      "id": "publish-artifacts",
+      "number": "8",
+      "title": "Publish artifacts"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "admit-sample",
+      "operation": "sample_demello.allowlist_and_normalize",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "transcribe",
+      "operation": "bundled_transcript.load_and_validate",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "direct",
+      "operation": "demello.deterministic_transcript_director",
+      "prompt": "director.txt",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "generate-frames",
+      "operation": "demello.procedural_sumi_e",
+      "prompt": "frame.txt",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "expand-frames",
+      "operation": "demello.expand_semantic_frames",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "assemble",
+      "operation": "ffmpeg.h264_aac_portrait",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "native"
+    },
+    {
+      "id": "validate",
+      "operation": "ffprobe.full_decode_and_visual_contract",
+      "provider": "local",
+      "readiness": "blocked",
+      "type": "quality"
+    },
+    {
+      "id": "deliver",
+      "operation": "private_artifacts.persist_and_sign",
+      "readiness": "blocked",
+      "type": "artifact"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "japanese-style-story-video",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "c4db870d3055d1a5b3772e53812c64f5673014013f17eaff08ca5cc66e458cd7"
+  },
+  "unresolved": [
+    {
+      "code": "MEDIA_EXECUTION_KIND_UNSUPPORTED",
+      "detail": "The reviewed skill compiler currently allowlists only single_llm as ready and does not yet materialize the existing demello-awake media executor for this container."
+    },
+    {
+      "code": "HOSTED_SAMPLE_INTEGRATION_PENDING",
+      "detail": "The real sample, procedural frame lane, FFmpeg assembly, and QA exist in containers/demello-awake, but the generated hosted container does not yet package that code or its owner-scoped artifact delivery contract."
+    },
+    {
+      "code": "CONTROL_PLANE_PRICE_COLLISION",
+      "detail": "site/deploy/worker.js still routes this slug through the legacy nonpaid de Mello branch quoted at $0.10; it must be reconciled with the requested $0.90 generated hosted profile before charging."
+    },
+    {
+      "code": "PROVIDER_BENCHMARKS_PENDING",
+      "detail": "Arbitrary-audio transcription, semantic direction, and image-generation providers do not yet have accepted-output latency, cost, and retry benchmarks for this listing."
+    },
+    {
+      "code": "PRE_SPEND_CONTROLS_PENDING",
+      "detail": "The arbitrary-audio lane lacks reviewed per-phase reservations, hard cost ceilings before provider calls, and delivered-cost reconciliation."
+    },
+    {
+      "code": "ARBITRARY_AUDIO_DISABLED",
+      "detail": "The hosted input schema intentionally accepts only sample-demello-10s; user uploads and URLs remain out of scope."
+    }
+  ]
+}

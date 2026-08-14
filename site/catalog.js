@@ -7282,7 +7282,8 @@ window.OMO_CATALOG = [
 window.OMO_VISIBLE_SLUGS = [
   'japanese-style-story-video',
   'woven-relationship-book-maker',
-  'customer-feedback-theme-finder'
+  'customer-feedback-theme-finder',
+  'facebook-ads-copywriter'
 ];
 window.OMO_VISIBLE_CATALOG = window.OMO_CATALOG.filter(function (listing) {
   return listing && window.OMO_VISIBLE_SLUGS.indexOf(listing.slug) !== -1;

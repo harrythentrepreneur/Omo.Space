@@ -72,5 +72,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "phoneme-counter",
+  "source_sha256": "4ab30f0ffa0041f2d232d38fec59fa31d4be8fd90c7f288778bd9c09de4d5966",
   "version": "0.1.0"
 }

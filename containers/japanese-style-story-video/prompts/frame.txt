@@ -1,0 +1,1 @@
+Render one portrait 1080×1920 Japanese sumi-e drawing frame from the reviewed semantic cell. Preserve the prior accepted frame's anchor identity and geometry. Apply only the named countable delta; keep prior changes persistent. Black ink on warm white paper, no text, seals, logos, borders, faces, or landscape output.

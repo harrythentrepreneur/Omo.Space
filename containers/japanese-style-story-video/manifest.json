@@ -1,0 +1,132 @@
+{
+  "artifacts": [
+    {
+      "content_type": "video/mp4",
+      "kind": "video",
+      "required": true
+    },
+    {
+      "content_type": "image/jpeg",
+      "kind": "contact_sheet",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "transcript",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "frame_brief",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "frame_manifest",
+      "required": true
+    }
+  ],
+  "description": "Turn short audio into a validated vertical sumi-e drawing animation MP4.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "audio",
+      "widget": "select"
+    },
+    {
+      "field": "style",
+      "widget": "hidden"
+    },
+    {
+      "field": "duration",
+      "widget": "hidden"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/japanese-style-story-video/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Fail-closed hosted milestone input. Only the bundled 10-second sample is accepted; arbitrary audio is not enabled.",
+    "properties": {
+      "audio": {
+        "const": "sample-demello-10s",
+        "description": "The only audio source enabled for the hosted milestone.",
+        "title": "Audio source",
+        "type": "string"
+      },
+      "duration": {
+        "const": 10,
+        "description": "The exact duration of the bundled sample in seconds.",
+        "title": "Duration",
+        "type": "integer"
+      },
+      "style": {
+        "const": "sumi-e",
+        "description": "The reviewed Japanese ink style for this release.",
+        "title": "Visual style",
+        "type": "string"
+      }
+    },
+    "required": [
+      "audio",
+      "style",
+      "duration"
+    ],
+    "title": "Japanese Style Story Video hosted sample",
+    "type": "object"
+  },
+  "name": "japanese-style-story-video",
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": false,
+    "currency": "USD",
+    "display_price_usd": 0.9,
+    "label": "Projected $0.90 — unavailable",
+    "quote_status": "blocked_media_executor_and_control_plane",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "MEDIA_EXECUTION_KIND_UNSUPPORTED",
+        "detail": "The reviewed skill compiler currently allowlists only single_llm as ready and does not yet materialize the existing demello-awake media executor for this container."
+      },
+      {
+        "code": "HOSTED_SAMPLE_INTEGRATION_PENDING",
+        "detail": "The real sample, procedural frame lane, FFmpeg assembly, and QA exist in containers/demello-awake, but the generated hosted container does not yet package that code or its owner-scoped artifact delivery contract."
+      },
+      {
+        "code": "CONTROL_PLANE_PRICE_COLLISION",
+        "detail": "site/deploy/worker.js still routes this slug through the legacy nonpaid de Mello branch quoted at $0.10; it must be reconciled with the requested $0.90 generated hosted profile before charging."
+      },
+      {
+        "code": "PROVIDER_BENCHMARKS_PENDING",
+        "detail": "Arbitrary-audio transcription, semantic direction, and image-generation providers do not yet have accepted-output latency, cost, and retry benchmarks for this listing."
+      },
+      {
+        "code": "PRE_SPEND_CONTROLS_PENDING",
+        "detail": "The arbitrary-audio lane lacks reviewed per-phase reservations, hard cost ceilings before provider calls, and delivered-cost reconciliation."
+      },
+      {
+        "code": "ARBITRARY_AUDIO_DISABLED",
+        "detail": "The hosted input schema intentionally accepts only sample-demello-10s; user uploads and URLs remain out of scope."
+      }
+    ],
+    "can_submit": false,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "not_ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "japanese-style-story-video",
+  "source_sha256": "c4db870d3055d1a5b3772e53812c64f5673014013f17eaff08ca5cc66e458cd7",
+  "version": "0.1.0"
+}

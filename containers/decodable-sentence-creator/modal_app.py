@@ -38,7 +38,7 @@ LIVE_MAX_TOKENS = 1200
 LIVE_TEMPERATURE = 0.2
 LIVE_TIMEOUT_SECONDS = 120
 LIVE_INPUT_RATE_PER_MILLION = 0.14
-LIVE_OUTPUT_RATE_PER_MILLION = 0.28
+LIVE_OUTPUT_RATE_PER_MILLION = 0.42
 LIVE_MODEL_OUTPUT_SCHEMA = {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'type': 'object', 'additionalProperties': False, 'properties': {'sentences': {'type': 'array', 'minItems': 1, 'maxItems': 5, 'items': {'type': 'object', 'additionalProperties': False, 'properties': {'text': {'type': 'string', 'minLength': 3, 'maxLength': 160}, 'target_words': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 40}, 'minItems': 1, 'maxItems': 20}, 'sight_or_irregular_words': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 40}, 'maxItems': 20}}, 'required': ['text', 'target_words', 'sight_or_irregular_words']}}, 'coverage': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 40}, 'minItems': 1, 'maxItems': 6, 'uniqueItems': True}, 'warnings': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 240}, 'maxItems': 8}}, 'required': ['sentences', 'coverage', 'warnings']}
 
 

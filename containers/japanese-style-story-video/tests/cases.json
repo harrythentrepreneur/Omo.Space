@@ -1,0 +1,127 @@
+{
+  "happy_path": {
+    "input": {
+      "audio": "sample-demello-10s",
+      "duration": 10,
+      "style": "sumi-e"
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 388765,
+          "content_type": "video/mp4",
+          "kind": "video",
+          "object_key": "runs/run-sample-demello/video.mp4",
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/video.mp4"
+        },
+        {
+          "bytes": 182440,
+          "content_type": "image/jpeg",
+          "kind": "contact_sheet",
+          "object_key": "runs/run-sample-demello/contact-sheet.jpg",
+          "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/contact-sheet.jpg"
+        },
+        {
+          "bytes": 483,
+          "content_type": "application/json",
+          "kind": "transcript",
+          "object_key": "runs/run-sample-demello/transcript.json",
+          "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/transcript.json"
+        },
+        {
+          "bytes": 24180,
+          "content_type": "application/json",
+          "kind": "frame_brief",
+          "object_key": "runs/run-sample-demello/frame-brief.json",
+          "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/frame-brief.json"
+        },
+        {
+          "bytes": 9120,
+          "content_type": "application/json",
+          "kind": "frame_manifest",
+          "object_key": "runs/run-sample-demello/frames.json",
+          "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/frames.json"
+        }
+      ],
+      "media": {
+        "audio_codec": "aac",
+        "duration_seconds": 10,
+        "fps": 30,
+        "height": 1920,
+        "video_codec": "h264",
+        "width": 1080
+      },
+      "run_id": "run-sample-demello",
+      "status": "completed",
+      "usage": {
+        "accepted_frames": 30,
+        "generated_frames": 30,
+        "generation_provider": "procedural-fallback",
+        "output_frames": 300,
+        "provider_cost_usd": 0
+      },
+      "workflow_version": "japanese-style-story-video@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-audio",
+      "input": {
+        "duration": 10,
+        "style": "sumi-e"
+      },
+      "reason": "audio is required"
+    },
+    {
+      "id": "arbitrary-audio-reference",
+      "input": {
+        "audio": "customer-upload-001",
+        "duration": 10,
+        "style": "sumi-e"
+      },
+      "reason": "the hosted lane accepts only sample-demello-10s"
+    },
+    {
+      "id": "arbitrary-audio-url",
+      "input": {
+        "audio": "https://example.com/customer.mp3",
+        "duration": 10,
+        "style": "sumi-e"
+      },
+      "reason": "arbitrary audio is rejected before provider work"
+    },
+    {
+      "id": "wrong-style",
+      "input": {
+        "audio": "sample-demello-10s",
+        "duration": 10,
+        "style": "photorealistic"
+      },
+      "reason": "this release is pinned to sumi-e"
+    },
+    {
+      "id": "wrong-duration",
+      "input": {
+        "audio": "sample-demello-10s",
+        "duration": 20,
+        "style": "sumi-e"
+      },
+      "reason": "the hosted milestone does not stretch the 10-second sample"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "audio": "sample-demello-10s",
+        "duration": 10,
+        "provider": "unreviewed",
+        "style": "sumi-e"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "chargeable": false,
+  "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
+  "default_tier": "sample_demello_10s",
+  "display_price_usd": 0.9,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 0.1,
+      "detail": [],
+      "guard_cost_usd": 0.18,
+      "guarded_price_floor_usd": 0.9,
+      "modeled_cost_usd": 0.0,
+      "notes": [
+        "The guard covers CPU media work, artifact delivery, and retry tail until delivered-run evidence replaces it.",
+        "At the canonical repository 5x markup, the $0.18 guard yields the requested $0.90 buyer quote."
+      ],
+      "pricing_cost_usd": 0.18,
+      "tier": "sample_demello_10s"
+    },
+    {
+      "cost_model_run_price_usd": 0.6,
+      "detail": [
+        {
+          "cost_usd": 0.00076,
+          "qty": 1,
+          "step": "llm(semantic-director)"
+        },
+        {
+          "cost_usd": 0.12,
+          "qty": 3,
+          "step": "api(openai_image)"
+        }
+      ],
+      "guard_cost_usd": 0.18,
+      "guarded_price_floor_usd": 0.9,
+      "modeled_cost_usd": 0.12076,
+      "notes": [
+        "Planning is modeled with canonical deepseek-v4-flash rates and three canonical openai_image calls only as a conservative future benchmark.",
+        "This arbitrary-audio lane is not enabled or chargeable."
+      ],
+      "pricing_cost_usd": 0.18,
+      "tier": "arbitrary_audio_10s_unavailable"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "notes": [
+    "The $0.90 display amount is a reviewed target, not an approved charge, while readiness.can_submit is false.",
+    "The bundled sample reuses a reviewed transcript and procedural renderer, so it reports zero provider spend rather than fabricating an ASR or image-provider charge."
+  ],
+  "quote_status": "blocked_media_executor_and_control_plane",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model.mjs",
+  "unpriced_costs": [
+    "delivered Modal CPU and memory p95 for the generated hosted alias",
+    "artifact storage and egress under the final owner-scoped store",
+    "accepted-output retry and visual QA tail"
+  ]
+}

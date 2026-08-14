@@ -138,7 +138,6 @@
     "base_url_env": "LLM_BASE_URL",
     "default_base_url": "https://opencode.ai/zen/go/v1",
     "default_model": "deepseek-v4-flash",
-    "input_rate_per_million_usd": 0.14,
     "max_tokens": 2400,
     "modal_secret_name": "omo-skill-providers",
     "model_env": "LLM_MODEL",
@@ -199,7 +198,6 @@
       "required": ["product_name", "goal", "summary", "themes", "recommended_actions", "limitations"],
       "type": "object"
     },
-    "output_rate_per_million_usd": 0.42,
     "prompt": "run.txt",
     "provider": "opencode-go",
     "temperature": 0,

@@ -83,5 +83,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "digraph-spotter",
+  "source_sha256": "1a4df000a3a1308000352a2519a7a11c33ff11c6895319566b15a0984855171b",
   "version": "0.1.0"
 }

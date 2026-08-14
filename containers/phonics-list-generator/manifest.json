@@ -100,5 +100,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "phonics-list-generator",
+  "source_sha256": "e01b41ab16ef547264e99fe46c721f30bba4e2dc2a3a47def11689d1b8959278",
   "version": "0.1.0"
 }

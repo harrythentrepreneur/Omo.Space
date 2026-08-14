@@ -1,0 +1,145 @@
+{
+  "$id": "https://omo.space/schemas/japanese-style-story-video/output.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "video/mp4",
+              "image/jpeg",
+              "application/json"
+            ],
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "video",
+              "contact_sheet",
+              "transcript",
+              "frame_brief",
+              "frame_manifest"
+            ],
+            "type": "string"
+          },
+          "object_key": {
+            "maxLength": 512,
+            "minLength": 3,
+            "pattern": "^runs/[A-Za-z0-9_-]+/[A-Za-z0-9._/-]+$",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 4096,
+            "pattern": "^https://",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "object_key",
+          "sha256",
+          "bytes",
+          "content_type",
+          "url"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    },
+    "media": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_codec": {
+          "const": "aac"
+        },
+        "duration_seconds": {
+          "maximum": 10.2,
+          "minimum": 9.8,
+          "type": "number"
+        },
+        "fps": {
+          "const": 30
+        },
+        "height": {
+          "const": 1920
+        },
+        "video_codec": {
+          "const": "h264"
+        },
+        "width": {
+          "const": 1080
+        }
+      },
+      "required": [
+        "duration_seconds",
+        "width",
+        "height",
+        "fps",
+        "video_codec",
+        "audio_codec"
+      ],
+      "type": "object"
+    },
+    "run_id": {
+      "minLength": 8,
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_frames": {
+          "const": 30
+        },
+        "generated_frames": {
+          "const": 30
+        },
+        "generation_provider": {
+          "const": "procedural-fallback"
+        },
+        "output_frames": {
+          "const": 300
+        },
+        "provider_cost_usd": {
+          "const": 0
+        }
+      },
+      "required": [
+        "generated_frames",
+        "accepted_frames",
+        "output_frames",
+        "generation_provider",
+        "provider_cost_usd"
+      ],
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "japanese-style-story-video@0.1.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "artifacts",
+    "media",
+    "usage"
+  ],
+  "title": "Completed Japanese Style Story Video run",
+  "type": "object"
+}

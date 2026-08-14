@@ -106,5 +106,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "phonics-reading-error-coach",
+  "source_sha256": "f405ce903c74633c5cb069e04194bc2eb03b651b7d9bcca5c5e16821e4ec356b",
   "version": "0.1.0"
 }

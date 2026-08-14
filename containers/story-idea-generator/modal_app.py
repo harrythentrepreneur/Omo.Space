@@ -38,7 +38,7 @@ LIVE_MAX_TOKENS = 1200
 LIVE_TEMPERATURE = 0.2
 LIVE_TIMEOUT_SECONDS = 120
 LIVE_INPUT_RATE_PER_MILLION = 0.14
-LIVE_OUTPUT_RATE_PER_MILLION = 0.28
+LIVE_OUTPUT_RATE_PER_MILLION = 0.42
 LIVE_MODEL_OUTPUT_SCHEMA = {'$schema': 'https://json-schema.org/draft/2020-12/schema', 'type': 'object', 'additionalProperties': False, 'properties': {'ideas': {'type': 'array', 'minItems': 1, 'maxItems': 10, 'items': {'type': 'object', 'additionalProperties': False, 'properties': {'title': {'type': 'string', 'minLength': 2, 'maxLength': 120}, 'premise': {'type': 'string', 'minLength': 40, 'maxLength': 700}, 'writing_hook': {'type': 'string', 'minLength': 8, 'maxLength': 240}}, 'required': ['title', 'premise', 'writing_hook']}}, 'constraints_used': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 120}, 'maxItems': 8}}, 'required': ['ideas', 'constraints_used']}
 
 

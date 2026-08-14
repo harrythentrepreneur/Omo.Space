@@ -1,0 +1,46 @@
+{
+  "allowlist": [
+    "single_llm"
+  ],
+  "approved": [],
+  "blockers": [
+    {
+      "code": "MEDIA_EXECUTION_KIND_UNSUPPORTED",
+      "detail": "The reviewed skill compiler currently allowlists only single_llm as ready and does not yet materialize the existing demello-awake media executor for this container."
+    },
+    {
+      "code": "HOSTED_SAMPLE_INTEGRATION_PENDING",
+      "detail": "The real sample, procedural frame lane, FFmpeg assembly, and QA exist in containers/demello-awake, but the generated hosted container does not yet package that code or its owner-scoped artifact delivery contract."
+    },
+    {
+      "code": "CONTROL_PLANE_PRICE_COLLISION",
+      "detail": "site/deploy/worker.js still routes this slug through the legacy nonpaid de Mello branch quoted at $0.10; it must be reconciled with the requested $0.90 generated hosted profile before charging."
+    },
+    {
+      "code": "PROVIDER_BENCHMARKS_PENDING",
+      "detail": "Arbitrary-audio transcription, semantic direction, and image-generation providers do not yet have accepted-output latency, cost, and retry benchmarks for this listing."
+    },
+    {
+      "code": "PRE_SPEND_CONTROLS_PENDING",
+      "detail": "The arbitrary-audio lane lacks reviewed per-phase reservations, hard cost ceilings before provider calls, and delivered-cost reconciliation."
+    },
+    {
+      "code": "ARBITRARY_AUDIO_DISABLED",
+      "detail": "The hosted input schema intentionally accepts only sample-demello-10s; user uploads and URLs remain out of scope."
+    }
+  ],
+  "decision": "blocked",
+  "execution_kind": "sample_media_pipeline",
+  "requested": [
+    "allowlisted-bundled-audio-read",
+    "reviewed-transcript-read",
+    "deterministic-semantic-direction",
+    "procedural-sumi-e-frame-generation",
+    "ffmpeg-h264-aac",
+    "ffprobe-full-decode-validation",
+    "private-artifact-write",
+    "signed-artifact-delivery"
+  ],
+  "schema_version": "cognition.capabilities/v1",
+  "slug": "japanese-style-story-video"
+}
