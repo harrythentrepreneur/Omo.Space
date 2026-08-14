@@ -331,10 +331,11 @@
       /^sub_[A-Za-z0-9_-]{8,100}$/.test(String(submission.id || '')));
   }
 
-  function isRetryableExactMatchBuildFailure(submission) {
+  function isRetryableExactMatchReleaseFailure(submission) {
     return !!(submission &&
       submission.status === 'failed' &&
-      submission.failure_code === 'build_or_deploy_failed' &&
+      (submission.failure_code === 'build_or_deploy_failed' ||
+        submission.failure_code === 'canary_or_internal_failed') &&
       submission.approval_reason === 'exact_source_slug_collision' &&
       submission.approved_at &&
       submission.approved_by &&
@@ -386,13 +387,13 @@
   }
 
   function renderRetryPanel(submission) {
-    if (!isRetryableExactMatchBuildFailure(submission)) return null;
+    if (!isRetryableExactMatchReleaseFailure(submission)) return null;
     var panel = document.createElement('section');
     panel.className = 'approval-panel';
     panel.setAttribute('aria-label', 'Retry approved exact-match build');
     var title = document.createElement('p');
     title.className = 'approval-title';
-    title.textContent = 'Build/deploy failed after owner approval';
+    title.textContent = 'Gated release failed after owner approval';
     var copy = document.createElement('p');
     copy.className = 'approval-copy';
     copy.textContent = 'Retry sends the same approved exact source back through gated build checks. It does not publish or change the selected runtime.';
