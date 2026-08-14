@@ -216,7 +216,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-digraph-spotter-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-digraph-spotter-api.modal.run",
       "endpoint_env": "DIGRAPH_SPOTTER_MODAL_URL"
     },
     "description": "Identify consonant or vowel digraphs in short English text with exact source spans and cautious explanations.",

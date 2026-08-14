@@ -188,7 +188,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-phonics-rule-explainer-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-phonics-rule-explainer-api.modal.run",
       "endpoint_env": "PHONICS_RULE_EXPLAINER_MODAL_URL"
     },
     "description": "Explain one reviewed English phonics pattern with audience-appropriate examples and an exceptions note.",

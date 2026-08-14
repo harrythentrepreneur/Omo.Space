@@ -273,7 +273,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-phonics-list-generator-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-phonics-list-generator-api.modal.run",
       "endpoint_env": "PHONICS_LIST_GENERATOR_MODAL_URL"
     },
     "description": "Generate a dialect-aware, teacher-reviewable phonics word list with target coverage and pronunciation cautions.",

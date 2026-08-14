@@ -1,0 +1,430 @@
+{
+  "catalog": {
+    "category": "education",
+    "cover": null,
+    "demoCap": "Hosted run: structured teacher-reviewable result",
+    "desc": "Split a short English word list into syllables and counts while flagging pronunciation or dialect ambiguity.",
+    "emoji": "✂️",
+    "exampleIn": "elephant, paper · en-US · hyphen",
+    "exampleOut": [
+      "Turn a word list into cautious syllable breaks and counts.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "words: reviewed bounded input",
+      "dialect: reviewed bounded input",
+      "notation: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "makerName": "PhonicsMaker",
+    "name": "Syllable Splitter and Counter",
+    "niche": "phonics",
+    "outputs": [
+      "items: schema-validated result",
+      "warnings: schema-validated result"
+    ],
+    "priceMaintain": 3.0,
+    "priceOwn": 12.0,
+    "promise": "Turn a word list into cautious syllable breaks and counts.",
+    "runManifest": "run-manifests/syllable-splitter-and-counter.json",
+    "runPrice": 0.1,
+    "slug": "syllable-splitter-and-counter",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13",
+    "workflow": {
+      "steps": [
+        {
+          "max_output": 1200,
+          "model": "deepseek-v4-flash",
+          "role": "generate",
+          "system": "For each supplied English word, return a likely spoken syllable split and count in the selected dialect and notation. Preserve the exact input word order and spelling; joining the syllable parts must recreate the input word exactly. Include an ambiguity note when pronunciation can vary. Return only JSON with items and warnings.",
+          "type": "llm"
+        },
+        {
+          "label": "Analyzing the phonics brief",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": true,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "syllable-splitter-and-counter",
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "dialect": "en-US",
+          "notation": "hyphen",
+          "words": [
+            "elephant",
+            "paper"
+          ]
+        },
+        "output_preview": "Turn a word list into cautious syllable breaks and counts.",
+        "title": "Syllable Splitter and Counter"
+      }
+    ],
+    "input_schema": {
+      "$id": "https://omo.space/schemas/syllable-splitter-and-counter/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "notation": {
+          "enum": [
+            "hyphen",
+            "dots"
+          ]
+        },
+        "words": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z'-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "words",
+        "dialect",
+        "notation"
+      ],
+      "type": "object"
+    },
+    "input_schema_source": "containers/syllable-splitter-and-counter/schemas/input.json",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "ambiguity_note": {
+                "maxLength": 240,
+                "type": "string"
+              },
+              "syllabified": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              "syllable_count": {
+                "maximum": 20,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "word": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "word",
+              "syllabified",
+              "syllable_count",
+              "ambiguity_note"
+            ],
+            "type": "object"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "workflow_version": {
+          "const": "syllable-splitter-and-counter@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "items",
+        "warnings",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "output_schema_source": "containers/syllable-splitter-and-counter/schemas/output.json",
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "syllable-splitter-and-counter",
+    "ui": {
+      "fields": {
+        "dialect": {
+          "widget": "select"
+        },
+        "notation": {
+          "widget": "select"
+        },
+        "words": {
+          "widget": "textarea"
+        }
+      },
+      "order": [
+        "words",
+        "dialect",
+        "notation"
+      ]
+    }
+  },
+  "runtime": {
+    "container_slug": "syllable-splitter-and-counter",
+    "default_endpoint": "https://omo-space--cognition-syllable-splitter-and-counter-api.modal.run",
+    "endpoint_env": "SYLLABLE_SPLITTER_AND_COUNTER_MODAL_URL",
+    "input_schema": {
+      "$id": "https://omo.space/schemas/syllable-splitter-and-counter/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "notation": {
+          "enum": [
+            "hyphen",
+            "dots"
+          ]
+        },
+        "words": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z'-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "words",
+        "dialect",
+        "notation"
+      ],
+      "type": "object"
+    },
+    "kind": "modal-hosted",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "ambiguity_note": {
+                "maxLength": 240,
+                "type": "string"
+              },
+              "syllabified": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              "syllable_count": {
+                "maximum": 20,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "word": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "word",
+              "syllabified",
+              "syllable_count",
+              "ambiguity_note"
+            ],
+            "type": "object"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "workflow_version": {
+          "const": "syllable-splitter-and-counter@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "items",
+        "warnings",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "reviewed_source_sha256": "3c4d4425b6a87366540c7575d58d96291ae519ff9d5a309f0446c4ddc1feadd3",
+    "run_price_cents": 10,
+    "slug": "syllable-splitter-and-counter"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "legacy_profile_defaults_to_modal",
+    "recommended": "modal-hosted",
+    "requested": "modal-hosted"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 12.0,
+    "max_tokens": 1200,
+    "model": "deepseek-v4-flash",
+    "name": "Syllable Splitter and Counter",
+    "run_price_usd": 0.1,
+    "slug": "syllable-splitter-and-counter",
+    "system_prompt": "For each supplied English word, return a likely spoken syllable split and count in the selected dialect and notation. Preserve the exact input word order and spelling; joining the syllable parts must recreate the input word exactly. Include an ambiguity note when pronunciation can vary. Return only JSON with items and warnings."
+  }
+}

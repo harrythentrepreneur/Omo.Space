@@ -175,7 +175,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-syllable-splitter-and-counter-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-syllable-splitter-and-counter-api.modal.run",
       "endpoint_env": "SYLLABLE_SPLITTER_AND_COUNTER_MODAL_URL"
     },
     "description": "Split a short English word list into syllables and counts while flagging pronunciation or dialect ambiguity.",

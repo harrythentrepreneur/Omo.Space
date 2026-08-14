@@ -175,7 +175,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-grapheme-to-phoneme-converter-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-grapheme-to-phoneme-converter-api.modal.run",
       "endpoint_env": "GRAPHEME_TO_PHONEME_CONVERTER_MODAL_URL"
     },
     "description": "Convert one English word or grapheme to a likely phoneme representation with dialect and context cautions.",

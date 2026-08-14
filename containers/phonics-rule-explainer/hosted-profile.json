@@ -1,0 +1,452 @@
+{
+  "catalog": {
+    "category": "education",
+    "cover": null,
+    "demoCap": "Hosted run: structured teacher-reviewable result",
+    "desc": "Explain one reviewed English phonics pattern with audience-appropriate examples and an exceptions note.",
+    "emoji": "📚",
+    "exampleIn": "silent_e · elementary · 3",
+    "exampleOut": [
+      "Turn a phonics pattern into a clear, cautious teaching explanation.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "phonics_rule: reviewed bounded input",
+      "target_audience: reviewed bounded input",
+      "num_examples: reviewed bounded input",
+      "dialect: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "makerName": "PhonicsMaker",
+    "name": "Phonics Rule Explainer",
+    "niche": "phonics",
+    "outputs": [
+      "rule: schema-validated result",
+      "explanation: schema-validated result",
+      "examples: schema-validated result",
+      "exceptions_note: schema-validated result",
+      "teacher_review_required: schema-validated result"
+    ],
+    "priceMaintain": 3.0,
+    "priceOwn": 12.0,
+    "promise": "Turn a phonics pattern into a clear, cautious teaching explanation.",
+    "runManifest": "run-manifests/phonics-rule-explainer.json",
+    "runPrice": 0.1,
+    "slug": "phonics-rule-explainer",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13",
+    "workflow": {
+      "steps": [
+        {
+          "max_output": 1200,
+          "model": "deepseek-v4-flash",
+          "role": "generate",
+          "system": "Explain the selected reviewed phonics pattern for the requested audience and dialect. Provide exactly the requested number of genuine examples plus a clear exceptions or variation note. Return only JSON.",
+          "type": "llm"
+        },
+        {
+          "label": "Analyzing the phonics brief",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": true,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "phonics-rule-explainer",
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "dialect": "en-US",
+          "num_examples": 3,
+          "phonics_rule": "silent_e",
+          "target_audience": "elementary"
+        },
+        "output_preview": "Turn a phonics pattern into a clear, cautious teaching explanation.",
+        "title": "Phonics Rule Explainer"
+      }
+    ],
+    "input_schema": {
+      "$id": "https://omo.space/schemas/phonics-rule-explainer/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "num_examples": {
+          "maximum": 5,
+          "minimum": 2,
+          "type": "integer"
+        },
+        "phonics_rule": {
+          "enum": [
+            "silent_e",
+            "c_rules",
+            "g_rules",
+            "digraphs_sh_ch_th_wh",
+            "vowel_teams_ai_ay",
+            "r_controlled_vowels",
+            "igh_rule",
+            "kn_gn_silent_letters"
+          ]
+        },
+        "target_audience": {
+          "enum": [
+            "early_reader",
+            "elementary",
+            "teacher_parent"
+          ]
+        }
+      },
+      "required": [
+        "phonics_rule",
+        "target_audience",
+        "num_examples",
+        "dialect"
+      ],
+      "type": "object"
+    },
+    "input_schema_source": "containers/phonics-rule-explainer/schemas/input.json",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "examples": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "note": {
+                "maxLength": 240,
+                "minLength": 3,
+                "type": "string"
+              },
+              "word": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "word",
+              "note"
+            ],
+            "type": "object"
+          },
+          "maxItems": 5,
+          "minItems": 2,
+          "type": "array"
+        },
+        "exceptions_note": {
+          "maxLength": 500,
+          "minLength": 10,
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 1200,
+          "minLength": 30,
+          "type": "string"
+        },
+        "rule": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "teacher_review_required": {
+          "const": true
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "workflow_version": {
+          "const": "phonics-rule-explainer@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "rule",
+        "explanation",
+        "examples",
+        "exceptions_note",
+        "teacher_review_required",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "output_schema_source": "containers/phonics-rule-explainer/schemas/output.json",
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "phonics-rule-explainer",
+    "ui": {
+      "fields": {
+        "dialect": {
+          "widget": "select"
+        },
+        "num_examples": {
+          "widget": "number"
+        },
+        "phonics_rule": {
+          "widget": "select"
+        },
+        "target_audience": {
+          "widget": "select"
+        }
+      },
+      "order": [
+        "phonics_rule",
+        "target_audience",
+        "num_examples",
+        "dialect"
+      ]
+    }
+  },
+  "runtime": {
+    "container_slug": "phonics-rule-explainer",
+    "default_endpoint": "https://omo-space--cognition-phonics-rule-explainer-api.modal.run",
+    "endpoint_env": "PHONICS_RULE_EXPLAINER_MODAL_URL",
+    "input_schema": {
+      "$id": "https://omo.space/schemas/phonics-rule-explainer/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "num_examples": {
+          "maximum": 5,
+          "minimum": 2,
+          "type": "integer"
+        },
+        "phonics_rule": {
+          "enum": [
+            "silent_e",
+            "c_rules",
+            "g_rules",
+            "digraphs_sh_ch_th_wh",
+            "vowel_teams_ai_ay",
+            "r_controlled_vowels",
+            "igh_rule",
+            "kn_gn_silent_letters"
+          ]
+        },
+        "target_audience": {
+          "enum": [
+            "early_reader",
+            "elementary",
+            "teacher_parent"
+          ]
+        }
+      },
+      "required": [
+        "phonics_rule",
+        "target_audience",
+        "num_examples",
+        "dialect"
+      ],
+      "type": "object"
+    },
+    "kind": "modal-hosted",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "examples": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "note": {
+                "maxLength": 240,
+                "minLength": 3,
+                "type": "string"
+              },
+              "word": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "word",
+              "note"
+            ],
+            "type": "object"
+          },
+          "maxItems": 5,
+          "minItems": 2,
+          "type": "array"
+        },
+        "exceptions_note": {
+          "maxLength": 500,
+          "minLength": 10,
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 1200,
+          "minLength": 30,
+          "type": "string"
+        },
+        "rule": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "teacher_review_required": {
+          "const": true
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "workflow_version": {
+          "const": "phonics-rule-explainer@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "rule",
+        "explanation",
+        "examples",
+        "exceptions_note",
+        "teacher_review_required",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "reviewed_source_sha256": "e5027826977a6290bd9b036480ca09dc89f14114dd76ae5d3c020ce361c6ab06",
+    "run_price_cents": 10,
+    "slug": "phonics-rule-explainer"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "legacy_profile_defaults_to_modal",
+    "recommended": "worker-native",
+    "requested": "modal-hosted"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 12.0,
+    "max_tokens": 1200,
+    "model": "deepseek-v4-flash",
+    "name": "Phonics Rule Explainer",
+    "run_price_usd": 0.1,
+    "slug": "phonics-rule-explainer",
+    "system_prompt": "Explain the selected reviewed phonics pattern for the requested audience and dialect. Provide exactly the requested number of genuine examples plus a clear exceptions or variation note. Return only JSON."
+  }
+}

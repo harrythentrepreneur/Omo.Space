@@ -189,7 +189,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-story-idea-generator-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-story-idea-generator-api.modal.run",
       "endpoint_env": "STORY_IDEA_GENERATOR_MODAL_URL"
     },
     "description": "Create a bounded set of original, child-safe story premises for classroom writing.",

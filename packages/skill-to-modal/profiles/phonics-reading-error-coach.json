@@ -192,7 +192,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-phonics-reading-error-coach-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-phonics-reading-error-coach-api.modal.run",
       "endpoint_env": "PHONICS_READING_ERROR_COACH_MODAL_URL"
     },
     "description": "Compare one attempted word with its target and return a cautious, non-diagnostic phonics hypothesis and practice ideas.",

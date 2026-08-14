@@ -1,0 +1,204 @@
+{
+  "chargeable": true,
+  "container_slug": "story-idea-generator",
+  "examples": [
+    {
+      "caption": "Reviewed fixture",
+      "id": "reviewed-fixture",
+      "input": {
+        "age_band": "8-10",
+        "genre": "gentle mystery",
+        "num_characters": 2,
+        "num_ideas": 3,
+        "setting_keywords": "school garden"
+      },
+      "output_preview": "Turn a few constraints into original student writing ideas.",
+      "title": "Story Idea Generator"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/story-idea-generator/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "age_band": {
+        "enum": [
+          "5-7",
+          "8-10",
+          "11-13"
+        ]
+      },
+      "genre": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "num_characters": {
+        "maximum": 10,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "num_ideas": {
+        "maximum": 10,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "setting_keywords": {
+        "maxLength": 240,
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "genre",
+      "num_characters",
+      "setting_keywords",
+      "num_ideas",
+      "age_band"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/story-idea-generator/schemas/input.json",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "constraints_used": {
+        "items": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 8,
+        "type": "array"
+      },
+      "ideas": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "premise": {
+              "maxLength": 700,
+              "minLength": 40,
+              "type": "string"
+            },
+            "title": {
+              "maxLength": 120,
+              "minLength": 2,
+              "type": "string"
+            },
+            "writing_hook": {
+              "maxLength": 240,
+              "minLength": 8,
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "premise",
+            "writing_hook"
+          ],
+          "type": "object"
+        },
+        "maxItems": 10,
+        "minItems": 1,
+        "type": "array"
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "story-idea-generator@0.1.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "ideas",
+      "constraints_used",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/story-idea-generator/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Analyzing the phonics brief"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "story-idea-generator",
+  "ui": {
+    "fields": {
+      "age_band": {
+        "widget": "select"
+      },
+      "genre": {
+        "widget": "text"
+      },
+      "num_characters": {
+        "widget": "number"
+      },
+      "num_ideas": {
+        "widget": "number"
+      },
+      "setting_keywords": {
+        "widget": "text"
+      }
+    },
+    "order": [
+      "genre",
+      "num_characters",
+      "setting_keywords",
+      "num_ideas",
+      "age_band"
+    ]
+  }
+}

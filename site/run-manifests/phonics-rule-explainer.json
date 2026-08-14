@@ -1,0 +1,208 @@
+{
+  "chargeable": true,
+  "container_slug": "phonics-rule-explainer",
+  "examples": [
+    {
+      "caption": "Reviewed fixture",
+      "id": "reviewed-fixture",
+      "input": {
+        "dialect": "en-US",
+        "num_examples": 3,
+        "phonics_rule": "silent_e",
+        "target_audience": "elementary"
+      },
+      "output_preview": "Turn a phonics pattern into a clear, cautious teaching explanation.",
+      "title": "Phonics Rule Explainer"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/phonics-rule-explainer/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "num_examples": {
+        "maximum": 5,
+        "minimum": 2,
+        "type": "integer"
+      },
+      "phonics_rule": {
+        "enum": [
+          "silent_e",
+          "c_rules",
+          "g_rules",
+          "digraphs_sh_ch_th_wh",
+          "vowel_teams_ai_ay",
+          "r_controlled_vowels",
+          "igh_rule",
+          "kn_gn_silent_letters"
+        ]
+      },
+      "target_audience": {
+        "enum": [
+          "early_reader",
+          "elementary",
+          "teacher_parent"
+        ]
+      }
+    },
+    "required": [
+      "phonics_rule",
+      "target_audience",
+      "num_examples",
+      "dialect"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/phonics-rule-explainer/schemas/input.json",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "examples": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "note": {
+              "maxLength": 240,
+              "minLength": 3,
+              "type": "string"
+            },
+            "word": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "word",
+            "note"
+          ],
+          "type": "object"
+        },
+        "maxItems": 5,
+        "minItems": 2,
+        "type": "array"
+      },
+      "exceptions_note": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+      },
+      "explanation": {
+        "maxLength": 1200,
+        "minLength": 30,
+        "type": "string"
+      },
+      "rule": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "teacher_review_required": {
+        "const": true
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "phonics-rule-explainer@0.1.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "rule",
+      "explanation",
+      "examples",
+      "exceptions_note",
+      "teacher_review_required",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/phonics-rule-explainer/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Analyzing the phonics brief"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "phonics-rule-explainer",
+  "ui": {
+    "fields": {
+      "dialect": {
+        "widget": "select"
+      },
+      "num_examples": {
+        "widget": "number"
+      },
+      "phonics_rule": {
+        "widget": "select"
+      },
+      "target_audience": {
+        "widget": "select"
+      }
+    },
+    "order": [
+      "phonics_rule",
+      "target_audience",
+      "num_examples",
+      "dialect"
+    ]
+  }
+}

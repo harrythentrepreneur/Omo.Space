@@ -242,7 +242,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-decodable-sentence-creator-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-decodable-sentence-creator-api.modal.run",
       "endpoint_env": "DECODABLE_SENTENCE_CREATOR_MODAL_URL"
     },
     "description": "Generate short practice sentences constrained by reviewed phonics patterns, length, dialect, and sight-word policy.",
