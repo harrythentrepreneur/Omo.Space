@@ -1199,7 +1199,9 @@ def deploy_merged_release(
         direct_modal_canary(slug, release_profile_path)
     elif selected_runtime != "worker-native":
         raise RuntimeError("selected runtime must be worker-native or modal-hosted")
-    run_checked(["npx", "wrangler", "deploy"], release_root / "site" / "deploy")
+    worker_deploy_root = release_root / "site" / "deploy"
+    run_checked(["npm", "ci"], worker_deploy_root)
+    run_checked(["npx", "wrangler", "deploy"], worker_deploy_root)
     return {**verified, "release_phase": "promoted"}
 
 

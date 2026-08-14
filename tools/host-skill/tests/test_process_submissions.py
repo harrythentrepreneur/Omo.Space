@@ -164,7 +164,9 @@ def test_deploy_merged_release_runs_deploy_only_after_verified_merge(monkeypatch
     flattened = [" ".join(command) for command in commands]
     assert result["release_phase"] == "promoted"
     assert any("modal deploy" in command for command in flattened)
+    assert "npm ci" in flattened
     assert any("wrangler deploy" in command for command in flattened)
+    assert flattened.index("npm ci") < next(index for index, command in enumerate(flattened) if "wrangler deploy" in command)
     assert canaries == [("facebook-ads-copywriter", profile_path)]
 
 
@@ -203,7 +205,10 @@ def test_deploy_merged_release_uses_verified_checkout_when_adapter_provides_one(
     result = process.deploy_merged_release(SKILL_PATH, "facebook-ads-copywriter", dirty_profile, release, Adapter())
 
     assert result["release_phase"] == "promoted"
-    assert commands == [(["npx", "wrangler", "deploy"], release_root / "site" / "deploy")]
+    assert commands == [
+        (["npm", "ci"], release_root / "site" / "deploy"),
+        (["npx", "wrangler", "deploy"], release_root / "site" / "deploy"),
+    ]
     assert canaries == []
 
 
