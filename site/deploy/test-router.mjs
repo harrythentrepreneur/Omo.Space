@@ -257,9 +257,18 @@ const sandbox = {
   Pool: MockPool,
   neon: (connectionString) => ({
     query: async (text, values = []) => {
-      const entry = { text, values, name: text.includes('WITH updated AS') ? 'omo-submission-approve-v1' : null, connectionString };
+      const entry = {
+        text,
+        values,
+        name: text.includes('WITH updated AS') && text.includes("failure_code = 'slug_collision'")
+          ? 'omo-submission-approve-v1'
+          : text.includes('WITH updated AS') && text.includes("failure_code = 'build_or_deploy_failed'")
+            ? 'omo-submission-retry-v1'
+            : null,
+        connectionString,
+      };
       neonSqlCalls.push(entry);
-      if (entry.name === 'omo-submission-approve-v1') {
+      if (entry.name === 'omo-submission-approve-v1' || entry.name === 'omo-submission-retry-v1') {
         return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       return { rows: [], rowCount: 0 };
@@ -352,6 +361,18 @@ check('creator upload: exact-match slug collision approval is visible, confirmed
   uploadSource.includes("submission.status === 'needs_review'") &&
   uploadSource.includes("submission.failure_code === 'slug_collision'") &&
   uploadSource.includes("fetch(apiBase() + '/api/submissions/' + encodeURIComponent(submission.id) + '/approve'") &&
+  uploadSource.includes("Authorization: 'Bearer ' + token") &&
+  uploadSource.includes('button.disabled = true') &&
+  uploadSource.includes('aria-live') &&
+  uploadSource.includes('refreshSubmissions(submission.id)') &&
+  uploadSource.includes('fetchSubmissionDetail(submission.id)'));
+check('creator upload: failed approved exact-match build retry is visible, confirmed, disabled while pending, refreshed, and error-rendered',
+  uploadSource.includes('Retry gated build') &&
+  uploadSource.includes('Build/deploy failed after owner approval') &&
+  uploadSource.includes("submission.status === 'failed'") &&
+  uploadSource.includes("submission.failure_code === 'build_or_deploy_failed'") &&
+  uploadSource.includes("submission.approval_reason === 'exact_source_slug_collision'") &&
+  uploadSource.includes("fetch(apiBase() + '/api/submissions/' + encodeURIComponent(submission.id) + '/retry'") &&
   uploadSource.includes("Authorization: 'Bearer ' + token") &&
   uploadSource.includes('button.disabled = true') &&
   uploadSource.includes('aria-live') &&
@@ -712,6 +733,139 @@ check('submission approval: Neon uses one atomic guarded UPDATE and ignores clie
   Array.isArray(approveNeonCall.values[2]) &&
   approveNeonCall.values[2].includes(reviewedWovenSourceSha) &&
   JSON.stringify(neonSqlCalls).includes('attacker-slug') === false &&
+  JSON.stringify(neonSqlCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
+
+const retryRecord = {
+  id: 'sub_retryapproved0000000000000001',
+  userId: 'user_creator',
+  user_id: 'user_creator',
+  name: 'Woven Storybook Pipeline',
+  slug: 'woven-storybook-pipeline',
+  content: 'server keeps retry content private',
+  sourceSha256: reviewedWovenSourceSha,
+  source_sha256: reviewedWovenSourceSha,
+  requested_runtime: 'auto',
+  selected_runtime: 'worker-native',
+  runtime_policy: 'bounded_single_llm_is_worker_compatible',
+  status: 'failed',
+  failure_code: 'build_or_deploy_failed',
+  approved_at: '2026-08-14T00:01:00.000Z',
+  approved_by: 'user_creator',
+  approval_reason: 'exact_source_slug_collision',
+  created_at: '2026-08-14T00:00:00.000Z',
+  updated_at: '2026-08-14T00:02:00.000Z',
+};
+workerTest.mockSubmissions.set(`user_creator\u0000${retryRecord.id}`, retryRecord);
+const retryMissingAuth = await worker.fetch(mkReq('POST', `/api/submissions/${retryRecord.id}/retry`, {
+  source_sha256: 'f'.repeat(64), selected_runtime: 'worker-native', decision: 'retry-anyway',
+}, { Origin: 'https://omo.space' }), realEnv);
+const retryNonOwner = await worker.fetch(mkReq('POST', `/api/submissions/${retryRecord.id}/retry`, {}, otherCreatorHeaders), realEnv);
+const retryResponse = await worker.fetch(mkReq('POST', `/api/submissions/${retryRecord.id}/retry`, {
+  source_sha256: 'f'.repeat(64), selected_runtime: 'worker-native', decision: 'retry-anyway',
+}, creatorHeaders), realEnv);
+const retryBody = await retryResponse.json();
+const retryText = JSON.stringify(retryBody);
+check('submission retry: Clerk owner can retry only a failed approved exact-match build failure and receives safe ready state',
+  retryMissingAuth.status === 401 &&
+  retryNonOwner.status === 404 &&
+  retryResponse.status === 200 &&
+  retryBody.ok === true &&
+  retryBody.retried === true &&
+  retryBody.submission.id === retryRecord.id &&
+  retryBody.submission.status === 'ready_for_deploy' &&
+  retryBody.submission.failure_code === null &&
+  retryBody.submission.approved_by === 'user_creator' &&
+  retryBody.submission.approval_reason === 'exact_source_slug_collision' &&
+  retryBody.submission.selected_runtime === 'worker-native' &&
+  !retryText.includes('server keeps retry content private') &&
+  !retryText.includes('retry-anyway') &&
+  !retryText.includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'));
+
+const retryReplay = await (await worker.fetch(mkReq('POST', `/api/submissions/${retryRecord.id}/retry`, {}, creatorHeaders), realEnv)).json();
+check('submission retry: idempotent owner replay returns current ready_for_deploy state',
+  retryReplay.ok === true &&
+  retryReplay.retried === true &&
+  retryReplay.submission.id === retryRecord.id &&
+  retryReplay.submission.status === 'ready_for_deploy' &&
+  retryReplay.submission.failure_code === null);
+
+const retryFailClosedRecords = [
+  ['sub_retryhash00000000000000000001', 'failed', 'build_or_deploy_failed', '2026-08-14T00:01:00.000Z', 'user_creator', 'exact_source_slug_collision', 'f'.repeat(64)],
+  ['sub_retrystatus000000000000000001', 'needs_review', 'build_or_deploy_failed', '2026-08-14T00:01:00.000Z', 'user_creator', 'exact_source_slug_collision', reviewedWovenSourceSha],
+  ['sub_retrycode00000000000000000001', 'failed', 'canary_or_internal_failed', '2026-08-14T00:01:00.000Z', 'user_creator', 'exact_source_slug_collision', reviewedWovenSourceSha],
+  ['sub_retryapprover0000000000000001', 'failed', 'build_or_deploy_failed', '2026-08-14T00:01:00.000Z', 'user_other_creator', 'exact_source_slug_collision', reviewedWovenSourceSha],
+  ['sub_retryreason000000000000000001', 'failed', 'build_or_deploy_failed', '2026-08-14T00:01:00.000Z', 'user_creator', 'manual_approval', reviewedWovenSourceSha],
+  ['sub_retryapprovedat000000000001', 'failed', 'build_or_deploy_failed', null, 'user_creator', 'exact_source_slug_collision', reviewedWovenSourceSha],
+];
+for (const [id, status, failureCode, approvedAt, approvedBy, approvalReason, sourceSha256] of retryFailClosedRecords) {
+  workerTest.mockSubmissions.set(`user_creator\u0000${id}`, {
+    id,
+    userId: 'user_creator',
+    user_id: 'user_creator',
+    name: 'Blocked retry',
+    slug: 'woven-storybook-pipeline',
+    content: 'private',
+    sourceSha256,
+    source_sha256: sourceSha256,
+    requested_runtime: 'auto',
+    status,
+    failure_code: failureCode,
+    approved_at: approvedAt,
+    approved_by: approvedBy,
+    approval_reason: approvalReason,
+    created_at: '2026-08-14T00:00:00.000Z',
+    updated_at: '2026-08-14T00:02:00.000Z',
+  });
+}
+const retryMismatch = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryhash00000000000000000001/retry', {}, creatorHeaders), realEnv);
+const retryWrongStatus = await worker.fetch(mkReq('POST', '/api/submissions/sub_retrystatus000000000000000001/retry', {}, creatorHeaders), realEnv);
+const retryWrongCode = await worker.fetch(mkReq('POST', '/api/submissions/sub_retrycode00000000000000000001/retry', {}, creatorHeaders), realEnv);
+const retryWrongApprover = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryapprover0000000000000001/retry', {}, creatorHeaders), realEnv);
+const retryWrongReason = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryreason000000000000000001/retry', {}, creatorHeaders), realEnv);
+const retryMissingApprovedAt = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryapprovedat000000000001/retry', {}, creatorHeaders), realEnv);
+check('submission retry: arbitrary failed records cannot bypass exact-match approval gates',
+  retryMismatch.status === 409 &&
+  retryWrongStatus.status === 409 &&
+  retryWrongCode.status === 409 &&
+  retryWrongApprover.status === 409 &&
+  retryWrongReason.status === 409 &&
+  retryMissingApprovedAt.status === 409);
+
+neonSqlCalls.length = 0;
+neonApprovalRow = {
+  ...retryRecord,
+  user_id: 'user_creator',
+  source_sha256: reviewedWovenSourceSha,
+  status: 'ready_for_deploy',
+  failure_code: null,
+  approved_at: '2026-08-14T00:01:00.000Z',
+  approved_by: 'user_creator',
+  approval_reason: 'exact_source_slug_collision',
+  updated_at: '2026-08-14T00:03:00.000Z',
+};
+const retryNeonResponse = await worker.fetch(mkReq('POST', `/api/submissions/${retryRecord.id}/retry`, {
+  source_sha256: 'f'.repeat(64), selected_runtime: 'worker-native', decision: 'retry-anyway',
+}, creatorHeaders), { ...realEnv, NEON_DATABASE_URL: 'postgres://approval-user:secret@db.invalid/omo' });
+const retryNeonBody = await retryNeonResponse.json();
+const retryNeonCall = neonSqlCalls.find((call) => call.name === 'omo-submission-retry-v1');
+neonApprovalRow = null;
+check('submission retry: Neon uses one atomic guarded UPDATE and ignores client hash/runtime/decision',
+  retryNeonResponse.status === 200 &&
+  retryNeonBody.submission.status === 'ready_for_deploy' &&
+  retryNeonCall &&
+  retryNeonCall.text.includes('UPDATE submissions') &&
+  retryNeonCall.text.includes("status = 'failed'") &&
+  retryNeonCall.text.includes("failure_code = 'build_or_deploy_failed'") &&
+  retryNeonCall.text.includes('source_sha256 = ANY($3::text[])') &&
+  retryNeonCall.text.includes('approved_by = $2') &&
+  retryNeonCall.text.includes("approval_reason = 'exact_source_slug_collision'") &&
+  retryNeonCall.text.includes("SET status = 'ready_for_deploy'") &&
+  retryNeonCall.values[0] === retryRecord.id &&
+  retryNeonCall.values[1] === 'user_creator' &&
+  Array.isArray(retryNeonCall.values[2]) &&
+  retryNeonCall.values[2].includes(reviewedWovenSourceSha) &&
+  JSON.stringify(neonSqlCalls).includes('retry-anyway') === false &&
+  JSON.stringify(neonSqlCalls).includes('worker-native') === false &&
   JSON.stringify(neonSqlCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
 
 // Private build-worker bridge: bearer-only, no CORS, bounded strict payloads.

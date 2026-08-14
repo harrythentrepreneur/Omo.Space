@@ -79,6 +79,19 @@
     return submission.runtime_policy ? label + ' · ' + submission.runtime_policy.replace(/[_:-]+/g, ' ') : label;
   }
 
+  function failureReasonText(submission) {
+    if (!submission || submission.status !== 'failed' || !submission.failure_code) return '';
+    var labels = {
+      build_or_deploy_failed: 'Build/deploy failed after owner approval.',
+      generated_source_hash_mismatch: 'Generated source hash did not match the reviewed upload.',
+      source_identity_mismatch: 'Stored source identity did not match the reviewed upload.',
+      canary_or_internal_failed: 'The canary or internal review gate failed.',
+      slug_collision: 'A workflow with this slug already exists.',
+      reviewed_profile_required: 'A reviewed profile is required before build gates can run.'
+    };
+    return labels[submission.failure_code] || 'The review gate failed.';
+  }
+
   function renderSubmissions(submissions) {
     if (!hostedList || !hostedEmpty) return;
     submissions = Array.isArray(submissions) ? submissions : [];
@@ -109,8 +122,17 @@
       runtime.textContent = runtimeDecisionText(submission);
       item.append(title, meta);
       item.appendChild(runtime);
+      var failureReason = failureReasonText(submission);
+      if (failureReason) {
+        var failure = document.createElement('p');
+        failure.className = 'approval-error';
+        failure.textContent = failureReason;
+        item.appendChild(failure);
+      }
       var approvalPanel = renderApprovalPanel(submission);
       if (approvalPanel) item.appendChild(approvalPanel);
+      var retryPanel = renderRetryPanel(submission);
+      if (retryPanel) item.appendChild(retryPanel);
       if (submission.status === 'deployed' && submission.published_slug) {
         var open = document.createElement('a');
         open.className = 'button button-accent hosted-open';
@@ -248,10 +270,34 @@
     });
   }
 
+  function postRetry(submission) {
+    return sessionToken().then(function (token) {
+      return fetch(apiBase() + '/api/submissions/' + encodeURIComponent(submission.id) + '/retry', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
+      });
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (body) {
+        if (!response.ok) throw new Error(body.message || body.error || 'Could not retry this submission.');
+        return body.submission || null;
+      });
+    });
+  }
+
   function isApprovableCollision(submission) {
     return !!(submission &&
       submission.status === 'needs_review' &&
       submission.failure_code === 'slug_collision' &&
+      /^sub_[A-Za-z0-9_-]{8,100}$/.test(String(submission.id || '')));
+  }
+
+  function isRetryableExactMatchBuildFailure(submission) {
+    return !!(submission &&
+      submission.status === 'failed' &&
+      submission.failure_code === 'build_or_deploy_failed' &&
+      submission.approval_reason === 'exact_source_slug_collision' &&
+      submission.approved_at &&
+      submission.approved_by &&
       /^sub_[A-Za-z0-9_-]{8,100}$/.test(String(submission.id || '')));
   }
 
@@ -293,6 +339,50 @@
       }).finally(function () {
         button.disabled = false;
         button.textContent = 'Approve exact-match update';
+      });
+    });
+    panel.append(title, copy, button, error);
+    return panel;
+  }
+
+  function renderRetryPanel(submission) {
+    if (!isRetryableExactMatchBuildFailure(submission)) return null;
+    var panel = document.createElement('section');
+    panel.className = 'approval-panel';
+    panel.setAttribute('aria-label', 'Retry approved exact-match build');
+    var title = document.createElement('p');
+    title.className = 'approval-title';
+    title.textContent = 'Build/deploy failed after owner approval';
+    var copy = document.createElement('p');
+    copy.className = 'approval-copy';
+    copy.textContent = 'Retry sends the same approved exact source back through gated build checks. It does not publish or change the selected runtime.';
+    var error = document.createElement('p');
+    error.className = 'approval-error';
+    error.setAttribute('aria-live', 'polite');
+    error.hidden = true;
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button button-accent approval-button';
+    button.textContent = 'Retry gated build';
+    button.addEventListener('click', function () {
+      error.hidden = true;
+      error.textContent = '';
+      var confirmed = window.confirm('Retry this approved exact-match build? This does not publish or change the selected runtime.');
+      if (!confirmed) return;
+      button.disabled = true;
+      button.textContent = 'Retrying...';
+      postRetry(submission).then(function (detail) {
+        if (detail) updateProgress(detail, 'queued');
+        return fetchSubmissionDetail(submission.id).then(function (fresh) {
+          if (fresh) updateProgress(fresh, 'queued');
+          return refreshSubmissions(submission.id);
+        });
+      }).catch(function (retryError) {
+        error.textContent = retryError && retryError.message || 'Could not retry this submission.';
+        error.hidden = false;
+      }).finally(function () {
+        button.disabled = false;
+        button.textContent = 'Retry gated build';
       });
     });
     panel.append(title, copy, button, error);

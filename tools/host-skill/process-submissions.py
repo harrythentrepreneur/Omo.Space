@@ -51,6 +51,7 @@ SAFE_POLICY_RE = re.compile(r"^[a-z][a-z0-9_:-]{2,127}$")
 SAFE_RUNTIMES = {"auto", "worker-native", "modal-hosted"}
 SAFE_SELECTED_RUNTIMES = {"worker-native", "modal-hosted"}
 SAFE_PRIOR_STATUSES = {"queued", "needs_review", "ready_for_deploy"}
+HOSTED_PROFILE_GLOB = "*/hosted-profile.json"
 
 
 def _load_host_module() -> Any:
@@ -487,11 +488,59 @@ def direct_modal_canary(slug: str, profile_path: Path, timeout_seconds: int = 24
     raise RuntimeError("Modal canary timed out")
 
 
-def reviewed_profile_artifact(slug: str, requested_runtime: str | None, temp_dir: Path) -> tuple[Path, dict[str, Any]]:
+def reviewed_runtime_kind_by_source_sha256(container_root: Path = ROOT / "containers") -> dict[str, str]:
+    """Return generated, server-reviewed runtime kind keyed by reviewed source SHA."""
+    runtime_by_source: dict[str, str] = {}
+    for path in sorted(container_root.glob(HOSTED_PROFILE_GLOB)):
+        try:
+            hosted = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if not isinstance(hosted, dict) or hosted.get("schema_version") != "omo.hosted-profile/v1":
+            continue
+        runtime = hosted.get("runtime")
+        if not isinstance(runtime, dict):
+            continue
+        source_sha256 = str(runtime.get("reviewed_source_sha256") or "").strip()
+        kind = str(runtime.get("kind") or "modal-hosted").strip()
+        if not SAFE_SHA256_RE.fullmatch(source_sha256) or kind not in SAFE_SELECTED_RUNTIMES:
+            continue
+        previous = runtime_by_source.get(source_sha256)
+        if previous and previous != kind:
+            raise RuntimeError("reviewed source hash has conflicting generated runtime kinds")
+        runtime_by_source[source_sha256] = kind
+    return runtime_by_source
+
+
+def runtime_preference_for_reviewed_source(
+    requested_runtime: str | None,
+    source_sha256: str | None,
+    runtime_by_source_sha256: dict[str, str] | None = None,
+) -> str | None:
+    """Inherit exact-match reviewed runtime only for auto; explicit requests pass through."""
+    if requested_runtime not in SAFE_RUNTIMES and requested_runtime is not None:
+        return requested_runtime
+    if requested_runtime != "auto":
+        return requested_runtime
+    source = str(source_sha256 or "").strip()
+    if not SAFE_SHA256_RE.fullmatch(source):
+        return requested_runtime
+    runtime_by_source = runtime_by_source_sha256 if runtime_by_source_sha256 is not None else reviewed_runtime_kind_by_source_sha256()
+    inherited = runtime_by_source.get(source)
+    return inherited if inherited in SAFE_SELECTED_RUNTIMES else requested_runtime
+
+
+def reviewed_profile_artifact(
+    slug: str,
+    requested_runtime: str | None,
+    temp_dir: Path,
+    source_sha256: str | None = None,
+) -> tuple[Path, dict[str, Any]]:
     canonical_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
     profile = json.loads(canonical_path.read_text(encoding="utf-8"))
-    if requested_runtime:
-        profile["runtime_preference"] = requested_runtime
+    effective_request = runtime_preference_for_reviewed_source(requested_runtime, source_sha256)
+    if effective_request:
+        profile["runtime_preference"] = effective_request
     decision = HOST_MODULE.decide_runtime_placement(profile)
     profile_path = temp_dir / f"{slug}.reviewed-profile.json"
     profile_path.write_text(json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
@@ -578,6 +627,7 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
                 validated.slug,
                 row.get("requested_runtime"),
                 Path(temp_dir),
+                source_sha256=validated.source_sha256,
             )
             run_checked(host_command(skill_path, validated.slug, profile_path=profile_path))
             metadata = generated_runtime_metadata(validated.slug, profile_path, validated.source_sha256)
