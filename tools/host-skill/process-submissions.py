@@ -69,6 +69,74 @@ EXPECTED_MODAL_WORKSPACE = "omo-space"
 GITHUB_RELEASE_REPO = "harrythentrepreneur/Omo.Space"
 GITHUB_RELEASE_BASE = "main"
 REQUIRED_RELEASE_CHECKS = ("contracts",)
+WORKER_REGISTRY_FILENAME = "hosted-skills.generated.mjs"
+WORKER_DEPLOY_COMMAND = ("npx", "wrangler@4.123.0", "deploy")
+LIVE_WORKER_BASE_URL = "https://cognition-demos.harrythentrepreneurr.workers.dev"
+WORKER_REGISTRY_MISSING_SLUG = "hosted_worker_registry_missing_slug"
+WORKER_DEPLOY_FAILED = "hosted_worker_deploy_failed"
+WORKER_LIVE_SMOKE_UNRESOLVED = "hosted_worker_registry_unresolved"
+WORKER_LIVE_SMOKE_FAILED = "hosted_worker_live_smoke_failed"
+WORKER_RELEASE_REMEDIATIONS = {
+    WORKER_REGISTRY_MISSING_SLUG: (
+        "Regenerate site/deploy/hosted-skills.generated.mjs from the reviewed release "
+        "and verify each released slug has exactly one hosted runtime row."
+    ),
+    WORKER_DEPLOY_FAILED: (
+        "Fix the pinned Wrangler deployment error, confirm cognition-demos is the target, "
+        "and rerun the release promotion from R1."
+    ),
+    WORKER_LIVE_SMOKE_UNRESOLVED: (
+        "Redeploy cognition-demos from the verified release checkout and rerun /api/run "
+        "smoke checks until every released slug resolves in the live registry."
+    ),
+    WORKER_LIVE_SMOKE_FAILED: (
+        "Restore a reachable cognition-demos /api/run endpoint that returns an auth or "
+        "validation 4xx for the released slug, then rerun the release promotion from R1."
+    ),
+}
+HOSTED_AUTH_NOT_CONFIGURED = "hosted_modal_auth_not_configured"
+HOSTED_AUTH_INVALID = "hosted_modal_auth_invalid"
+HOSTED_AUTH_REMEDIATIONS = {
+    HOSTED_AUTH_NOT_CONFIGURED: (
+        "Configure HOSTED_MODAL_PROXY_TOKEN_ID and HOSTED_MODAL_PROXY_TOKEN_SECRET "
+        "for the deploy verifier and as Cloudflare Worker secrets from the same "
+        "omo-space Modal Proxy Token pair."
+    ),
+    HOSTED_AUTH_INVALID: (
+        "Create or select a current omo-space Modal Proxy Token, update both "
+        "HOSTED_MODAL_PROXY_TOKEN_ID and HOSTED_MODAL_PROXY_TOKEN_SECRET in the "
+        "Cloudflare Worker and deploy-verifier environments, then retry verification."
+    ),
+}
+
+
+class ReleaseBlocker(RuntimeError):
+    """Typed, resumable release blocker safe to return as a verdict."""
+
+    def __init__(self, code: str, gate: str, remediation: str):
+        self.code = code
+        self.gate = gate
+        self.remediation = remediation
+        super().__init__(code)
+
+
+class HostedPathBlocker(ReleaseBlocker):
+    """Typed, secret-free hosted verification blocker."""
+
+    def __init__(self, code: str):
+        if code not in HOSTED_AUTH_REMEDIATIONS:
+            raise ValueError("invalid hosted path blocker")
+        super().__init__(code, "modal_canary", HOSTED_AUTH_REMEDIATIONS[code])
+
+
+class WorkerReleaseBlocker(ReleaseBlocker):
+    """Typed blocker for the generated-registry, deploy, and live-smoke gates."""
+
+    def __init__(self, code: str, gate: str, slugs: list[str]):
+        if code not in WORKER_RELEASE_REMEDIATIONS:
+            raise ValueError("invalid worker release blocker")
+        self.slugs = tuple(slugs)
+        super().__init__(code, gate, WORKER_RELEASE_REMEDIATIONS[code])
 
 
 def _load_host_module() -> Any:
@@ -644,6 +712,106 @@ def run_capture(command: list[str], cwd: Path | None = None, text: bool = True) 
     return completed.stdout
 
 
+def normalize_release_slugs(slugs: list[str] | tuple[str, ...]) -> list[str]:
+    normalized = sorted({str(slug).strip() for slug in slugs})
+    if not normalized or any(not SAFE_SLUG_RE.fullmatch(slug) or len(slug) > 100 for slug in normalized):
+        raise ValueError("invalid released slugs")
+    return normalized
+
+
+def verify_generated_worker_registry(
+    slugs: list[str] | tuple[str, ...],
+    worker_root: Path = WORKER_ROOT,
+) -> dict[str, Any]:
+    """R1: prove every release slug has one build-time hosted runtime row."""
+    released_slugs = normalize_release_slugs(slugs)
+    registry_path = worker_root / WORKER_REGISTRY_FILENAME
+    try:
+        source = registry_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise WorkerReleaseBlocker(WORKER_REGISTRY_MISSING_SLUG, "R1", released_slugs) from error
+    server_catalog_marker = "export const HOSTED_SERVER_CATALOG_ROWS = ["
+    runtime_source, marker, _server_catalog = source.partition(server_catalog_marker)
+    if not marker:
+        raise WorkerReleaseBlocker(WORKER_REGISTRY_MISSING_SLUG, "R1", released_slugs)
+    counts = {
+        slug: len(re.findall(rf'(?m)^    "{re.escape(slug)}",$', runtime_source))
+        for slug in released_slugs
+    }
+    if any(count != 1 for count in counts.values()):
+        failed = [slug for slug, count in counts.items() if count != 1]
+        raise WorkerReleaseBlocker(WORKER_REGISTRY_MISSING_SLUG, "R1", failed)
+    return {
+        "status": "passed",
+        "registry": WORKER_REGISTRY_FILENAME,
+        "slug_counts": counts,
+    }
+
+
+def deploy_worker_registry(worker_root: Path = WORKER_ROOT) -> dict[str, Any]:
+    """R2: deploy the build-time registry and fail closed on any Wrangler error."""
+    try:
+        run_checked(list(WORKER_DEPLOY_COMMAND), worker_root)
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise WorkerReleaseBlocker(WORKER_DEPLOY_FAILED, "R2", []) from error
+    return {
+        "status": "passed",
+        "worker": "cognition-demos",
+        "wrangler": "4.123.0",
+    }
+
+
+def smoke_live_worker_registry(
+    slugs: list[str] | tuple[str, ...],
+    base_url: str = LIVE_WORKER_BASE_URL,
+    timeout_seconds: int = HTTP_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """R3: prove live /api/run resolves each slug without credentials or spend."""
+    released_slugs = normalize_release_slugs(slugs)
+    url = str(base_url).strip().rstrip("/") + "/api/run"
+    results: dict[str, dict[str, Any]] = {}
+    for slug in released_slugs:
+        request = urllib.request.Request(
+            url,
+            data=json.dumps({"slug": slug, "fields": {}}, sort_keys=True).encode("utf-8"),
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": "OmoReleaseRegistrySmoke/1.0",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+                status = int(getattr(response, "status", 0) or 0)
+                raw = response.read(HTTP_MAX_RESPONSE_BYTES + 1)
+        except urllib.error.HTTPError as error:
+            status = int(error.code)
+            raw = error.read(HTTP_MAX_RESPONSE_BYTES + 1)
+        except (OSError, urllib.error.URLError) as error:
+            raise WorkerReleaseBlocker(WORKER_LIVE_SMOKE_FAILED, "R3", [slug]) from error
+        if len(raw) > HTTP_MAX_RESPONSE_BYTES:
+            raise WorkerReleaseBlocker(WORKER_LIVE_SMOKE_FAILED, "R3", [slug])
+        body_text = raw.decode("utf-8", errors="replace")
+        if "unknown_catalog_slug" in body_text:
+            raise WorkerReleaseBlocker(WORKER_LIVE_SMOKE_UNRESOLVED, "R3", [slug])
+        if status < 400 or status >= 500:
+            raise WorkerReleaseBlocker(WORKER_LIVE_SMOKE_FAILED, "R3", [slug])
+        try:
+            body = json.loads(body_text)
+        except json.JSONDecodeError as error:
+            raise WorkerReleaseBlocker(WORKER_LIVE_SMOKE_FAILED, "R3", [slug]) from error
+        if not isinstance(body, dict):
+            raise WorkerReleaseBlocker(WORKER_LIVE_SMOKE_FAILED, "R3", [slug])
+        error_code = str(body.get("error") or "")[:80]
+        results[slug] = {"status": status, "error": error_code}
+    return {
+        "status": "passed",
+        "endpoint": url,
+        "slugs": results,
+    }
+
+
 def host_command(
     skill_path: Path,
     slug: str,
@@ -673,22 +841,41 @@ def direct_modal_canary(slug: str, profile_path: Path, timeout_seconds: int = 24
     token_id = os.environ.get("HOSTED_MODAL_PROXY_TOKEN_ID") or os.environ.get("WOVEN_MODAL_PROXY_TOKEN_ID")
     token_secret = os.environ.get("HOSTED_MODAL_PROXY_TOKEN_SECRET") or os.environ.get("WOVEN_MODAL_PROXY_TOKEN_SECRET")
     if not token_id or not token_secret:
-        raise RuntimeError("Modal Proxy Token environment variables are required for the canary")
+        raise HostedPathBlocker(HOSTED_AUTH_NOT_CONFIGURED)
     headers = {
         "Content-Type": "application/json",
         "Modal-Key": token_id,
         "Modal-Secret": token_secret,
     }
+    preflight = urllib.request.Request(endpoint + "/openapi.json", headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(preflight, timeout=30) as response:
+            if response.status != 200:
+                raise RuntimeError("Modal authenticated preflight did not return 200")
+    except urllib.error.HTTPError as error:
+        if error.code in {401, 403}:
+            raise HostedPathBlocker(HOSTED_AUTH_INVALID) from error
+        raise
     request = urllib.request.Request(
         endpoint + "/v1/runs",
         data=json.dumps(profile["happy_path"]["input"], ensure_ascii=False).encode("utf-8"),
         headers=headers,
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        if response.status != 202:
-            raise RuntimeError("Modal canary submit did not return 202")
-        accepted = json.load(response)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            if response.status not in {200, 202}:
+                raise RuntimeError("Modal canary submit did not return 200 or 202")
+            accepted = json.load(response)
+            if response.status == 200:
+                from jsonschema import Draft202012Validator
+
+                Draft202012Validator(profile["output_schema"]).validate(accepted)
+                return
+    except urllib.error.HTTPError as error:
+        if error.code in {401, 403}:
+            raise HostedPathBlocker(HOSTED_AUTH_INVALID) from error
+        raise
     result_url = str(accepted.get("result_url") or "")
     if not result_url.startswith("/v1/runs/"):
         raise RuntimeError("Modal canary returned an invalid result URL")
@@ -707,6 +894,8 @@ def direct_modal_canary(slug: str, profile_path: Path, timeout_seconds: int = 24
                 if response.status != 202:
                     raise RuntimeError("Modal canary poll returned a non-retryable status")
         except urllib.error.HTTPError as error:
+            if error.code in {401, 403}:
+                raise HostedPathBlocker(HOSTED_AUTH_INVALID) from error
             if error.code != 202:
                 raise
         time.sleep(2)
@@ -1254,9 +1443,21 @@ def deploy_merged_release(
     elif selected_runtime != "worker-native":
         raise RuntimeError("selected runtime must be worker-native or modal-hosted")
     worker_deploy_root = release_root / "site" / "deploy"
+    registry_evidence = verify_generated_worker_registry([slug], worker_deploy_root)
     run_checked(["npm", "ci"], worker_deploy_root)
-    run_checked(["npx", "wrangler", "deploy"], worker_deploy_root)
-    return {**verified, "release_phase": "promoted"}
+    deploy_evidence = deploy_worker_registry(worker_deploy_root)
+    smoke_evidence = smoke_live_worker_registry([slug])
+    return {
+        **verified,
+        "release_phase": "promoted",
+        "release_gates": {
+            "R1": registry_evidence,
+            "R2": deploy_evidence,
+            "R3": smoke_evidence,
+            "status": "live",
+            "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        },
+    }
 
 
 def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: bool, release_adapter: Any | None = None) -> dict[str, Any]:
@@ -1488,14 +1689,44 @@ def main() -> int:
             release_metadata = release_metadata_from_row(row)
             release_metadata["selected_runtime"] = selected_runtime
             adapter = GitHubReleaseAdapter()
-            promoted = deploy_merged_release(skill_path, slug, profile_path, release_metadata, adapter)
+            try:
+                promoted = deploy_merged_release(skill_path, slug, profile_path, release_metadata, adapter)
+            except ReleaseBlocker as blocker:
+                repository.set_status(submission_id, "failed", blocker.code)
+                output({
+                    "id": submission_id,
+                    "status": "blocked",
+                    "failure_code": blocker.code,
+                    "failed_gate": blocker.gate,
+                    "remediation": blocker.remediation,
+                    "slugs": list(getattr(blocker, "slugs", ())),
+                })
+                return 2
             repository.set_release_metadata(submission_id, promoted)
+            build_evidence = (
+                dict(row["build_evidence"])
+                if isinstance(row.get("build_evidence"), dict)
+                else {}
+            )
+            checks = [
+                str(check)
+                for check in build_evidence.get("checks", [])
+                if isinstance(check, str)
+            ]
+            for check in (
+                "worker_registry_generated",
+                "worker_registry_deployed",
+                "worker_registry_live_smoke",
+            ):
+                if check not in checks:
+                    checks.append(check)
+            build_evidence["checks"] = checks[:20]
             repository.set_deployment_metadata(
                 submission_id,
                 "ready_for_publish",
                 str(row.get("published_slug") or slug),
                 str(row.get("workflow_version") or ""),
-                row.get("build_evidence") if isinstance(row.get("build_evidence"), dict) else {"release_phase": "promoted"},
+                build_evidence,
             )
             output({"id": submission_id, **promoted})
             return 0

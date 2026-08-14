@@ -1411,6 +1411,7 @@ runtime_image = (
     .add_local_dir(LOCAL_ROOT / "schemas", IMAGE_ROOT / "schemas", copy=True)
     .add_local_dir(LOCAL_ROOT / "prompts", IMAGE_ROOT / "prompts", copy=True)
     .add_local_file(LOCAL_ROOT / "manifest.json", str(IMAGE_ROOT / "manifest.json"), copy=True)
+    .add_local_file(LOCAL_ROOT / "capability-manifest.json", str(IMAGE_ROOT / "capability-manifest.json"), copy=True)
     .add_local_file(RENDER_ROOT / "book.py", str(IMAGE_ROOT / "omo_book_renderer.py"), copy=True)
 )
 

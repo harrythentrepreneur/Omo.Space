@@ -135,7 +135,11 @@ def test_manifest_and_capabilities_are_honest() -> None:
     assert manifest["readiness"]["can_submit"] is EXPECTED_READY
     assert manifest["pricing"]["chargeable"] is EXPECTED_CHARGEABLE
     assert capabilities["decision"] == ("approved" if EXPECTED_READY else "blocked")
-    assert capabilities["approved"] == (capabilities["requested"] if EXPECTED_READY else [])
+    expected = [f"{item['name']}@{item['version']}" for item in capabilities["selected"]]
+    assert capabilities["approved"] == (expected if EXPECTED_READY else [])
+    assert capabilities["schema_version"] == "cognition.capabilities/v2"
+    assert capabilities["registry_digest"].startswith("sha256:")
+    assert capabilities["contract_digest"].startswith("sha256:")
 
 
 def _chat_zip(entries: dict[str, str]) -> dict[str, str]:
