@@ -21,9 +21,9 @@ from pathlib import Path
 from typing import Any
 
 
-COMPILER_VERSION = "skill-to-modal/0.2.3"
+COMPILER_VERSION = "skill-to-modal/0.2.4"
 CAPABILITY_RESOLVER_VERSION = "1.0.0"
-CAPABILITY_REGISTRY_VERSION = "1.0.0"
+CAPABILITY_REGISTRY_VERSION = "1.1.0"
 COST_MODEL_PATH = Path(__file__).resolve().parents[2] / "site" / "deploy" / "cost-model.mjs"
 ALLOWED_EXECUTION_KINDS = {"single_llm"}
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -245,15 +245,184 @@ CAPABILITY_REGISTRY: dict[str, dict[str, Any]] = {
             "missing artifact_store keeps the overall build blocked even when local rendering passes",
         ],
     },
+    "video_processing": {
+        "name": "video_processing",
+        "version": "1.0.0",
+        "status": "available",
+        "triggers": {
+            "all": [],
+            "any": [
+                {
+                    "scope": "steps",
+                    "where": {
+                        "operation": {
+                            "in": [
+                                "media.video.normalize",
+                                "media.video.cut_highlights",
+                                "media.video.extract_thumbnail",
+                                "ffmpeg.h264_aac_portrait",
+                                "ffmpeg.h264_aac_landscape",
+                            ]
+                        }
+                    },
+                },
+                {
+                    "scope": "steps",
+                    "where": {"tool": {"in": ["ffmpeg", "ffprobe"]}},
+                },
+                {
+                    "scope": "artifacts",
+                    "where": {
+                        "content_media_type": {
+                            "in": ["video/mp4", "video/quicktime"]
+                        }
+                    },
+                },
+                {
+                    "scope": "inputs",
+                    "where": {"content_media_type": {"matches": r"^video/"}},
+                },
+            ],
+            "excludes": [],
+        },
+        "covers": ["media.process:video"],
+        "requires": ["artifact_store", "ffmpeg_runtime"],
+        "generated_pieces": {
+            "files": [
+                "generated bounded media-step invocation module",
+                "video and thumbnail artifact declarations in the workflow manifest",
+            ],
+            "runtime_steps": [
+                "resolve one authorized run-scoped local source artifact",
+                "probe duration, dimensions, codecs, and byte size before render",
+                "invoke tools.render.video normalize, cut_highlights, or extract_thumbnail for the exact reviewed operation",
+                "validate H.264/AAC output, PNG thumbnails, declared dimensions, duration, byte count, and checksum",
+                "persist only validated outputs through the resolved artifact store",
+            ],
+            "tool_bindings": [
+                "tools.render.video.probe",
+                "tools.render.video.normalize",
+                "tools.render.video.cut_highlights",
+                "tools.render.video.extract_thumbnail",
+            ],
+            "packages": [],
+            "resources": {
+                "cpu": True,
+                "gpu": False,
+                "network": "artifact_plane_only",
+                "writable_scratch": "bounded_run_private",
+            },
+            "policy": [
+                "install pinned ffmpeg and ffprobe binaries in the runtime image",
+                "pass paths and generated numeric filters only through argv lists; media metadata, filenames, and clip titles remain inert data",
+                "allow at most 20 highlight clips and 10 minutes of selected output from a source no longer than 2 hours",
+                "cap normalized output at 1280px, validate timecodes against ffprobe duration, and reject overlap or reordering",
+                "record media type, dimensions, duration, codecs, byte length, SHA-256, and renderer/FFmpeg versions",
+            ],
+        },
+        "tests": [
+            "a generated two-second lavfi fixture normalizes to bounded H.264/AAC and probes successfully",
+            "repeated normalization is byte-identical within the pinned FFmpeg/libx264 image",
+            "exact highlight intervals concatenate to the expected bounded duration; overlap, invalid order, excess count, excess total, and out-of-range timecodes fail with MediaRenderError",
+            "exact timestamp extraction produces a PNG with the source dimensions and correct signature",
+            "unreadable, non-video, oversized, overlong, and over-dimension media fail closed before artifact publication",
+            "artifact ownership, immutable checksum, authorized download, scratch cleanup, and full-decode validation pass at integration time",
+        ],
+        "honest_limits": [
+            "the shared primitive performs CPU-only normalization, exact re-encoded cuts, concatenation, and thumbnail extraction; it does not provide GPU effects, generative VFX, motion graphics, title-card layout, speech recognition, or image generation",
+            "generated-frame-sequence plus source-audio assembly and full visual-contract QA remain specialized executor work; selecting this capability alone does not materialize the de Mello media engine",
+            "normalization and cuts use H.264/AAC at a bounded resolution; arbitrary codec preservation and lossless editing are not promised",
+            "bytes are deterministic where possible only within the same pinned FFmpeg, libx264, architecture, and invocation; encoder or container-library upgrades may change bytes despite fixed metadata and single-threaded encoding",
+            "highlight jobs are limited to 20 clips and 10 minutes total, normalized sources to 2 hours and 8192px input dimensions, and normalized output to 1280px",
+            "local media bytes do not prove hosted storage, authorization, retention, delivery, progress reporting, or full workflow readiness",
+            "missing artifact_store or ffmpeg_runtime keeps the overall build blocked even when local rendering passes",
+        ],
+    },
+    "domain_state": {
+        "name": "domain_state",
+        "version": "1.0.0",
+        "status": "available",
+        "triggers": {
+            "all": [],
+            "any": [
+                {
+                    "scope": "steps",
+                    "where": {
+                        "execution_mode": {"in": ["async", "long_running"]}
+                    },
+                },
+                {
+                    "scope": "outputs",
+                    "where": {"kind": {"in": ["run_status", "progress"]}},
+                },
+                {
+                    "scope": "runtime",
+                    "where": {"ownership_scope": {"equals": "per_run"}},
+                },
+            ],
+            "excludes": [],
+        },
+        "covers": ["runtime.state:per_run"],
+        "requires": [],
+        "generated_pieces": {
+            "files": [
+                "generated per-run state schema and transition adapter",
+                "generated submit/status response bindings",
+            ],
+            "runtime_steps": [
+                "create one owner-scoped record with run_id, owner_id, status, phase, progress_pct, timestamps, version, and expires_at",
+                "apply typed compare-and-set transitions queued -> processing -> done or blocked",
+                "reject unknown, stale, backward, cross-owner, and post-terminal transitions",
+                "expose only owner-authorized status fields and artifact references",
+                "expire records and associated runner state according to the reviewed retention contract",
+            ],
+            "tool_bindings": [
+                "runner.domain_state.create",
+                "runner.domain_state.transition",
+                "runner.domain_state.read_owned",
+                "runner.domain_state.expire",
+            ],
+            "packages": [],
+            "resources": {
+                "cpu": True,
+                "gpu": False,
+                "network": "runner_state_plane_only",
+                "writable_scratch": "none_or_runner_managed",
+            },
+            "policy": [
+                "run_id is opaque, unique, and never accepted as proof of ownership",
+                "status is exactly queued, processing, done, or blocked; terminal states are immutable",
+                "progress_pct is an integer from 0 to 100 and monotonic, with phase and updated_at recorded on every transition",
+                "every mutation is owner/run scoped, typed, version checked, idempotent where replayed, and auditable without payload or credential logging",
+                "expires_at is mandatory and cleanup cannot cross the owning run or tenant",
+            ],
+        },
+        "tests": [
+            "queued -> processing -> done and queued -> processing -> blocked are accepted with monotonic progress",
+            "skipped, backward, post-terminal, stale-version, invalid-progress, and unknown-run transitions fail with typed state errors",
+            "idempotent replay returns the same state while conflicting replay fails closed",
+            "concurrent compare-and-set leaves one valid transition and no torn record",
+            "cross-owner read/write denial, expiry behavior, status-field redaction, and run isolation pass for in-memory and DB-backed adapters",
+            "a long-running media fixture can submit, poll monotonic progress, reach a terminal state, and retrieve only its own validated artifacts",
+        ],
+        "honest_limits": [
+            "the runner may implement the record in memory for single-process tests or in a reviewed database for durable hosted work; in-memory state does not survive restart or coordinate replicas",
+            "this capability models run lifecycle and progress, not queues, worker leasing, billing, refunds, artifact storage, authentication, or provider retries",
+            "progress reports reviewed checkpoints rather than continuous completion estimates",
+            "expiry is retention enforcement, not proof that external provider or artifact copies were deleted",
+            "records contain identifiers and status only; credentials and reusable cross-run secrets are never stored in domain state",
+        ],
+    },
 }
 
 
 # These dependencies are supplied by the generated runtime substrate rather
 # than independently selectable product capabilities. Keeping them declared
 # makes dependency closure explicit without pretending they are registry
-# entries or growing the requested three-entry registry.
+# entries or growing the selectable registry.
 PLATFORM_CAPABILITY_DEPENDENCIES: dict[str, dict[str, str]] = {
     "artifact_store": {"version": "1.0.0", "status": "available"},
+    "ffmpeg_runtime": {"version": "8.1.2", "status": "available"},
     "private_input_artifact_reader": {"version": "1.0.0", "status": "available"},
 }
 
@@ -280,6 +449,7 @@ def normalize_capability_contract(profile: dict[str, Any]) -> dict[str, Any]:
         "outputs": [],
         "artifacts": [],
         "steps": [],
+        "runtime": [],
     }
     for scope in ("inputs", "outputs", "artifacts", "steps"):
         values = profile.get(scope, [])
@@ -287,7 +457,21 @@ def normalize_capability_contract(profile: dict[str, Any]) -> dict[str, Any]:
             continue
         for index, value in enumerate(values):
             if isinstance(value, dict):
-                contract[scope].append(_contract_item(value, f"/{scope}/{index}"))
+                item = copy.deepcopy(value)
+                if scope in {"inputs", "outputs", "artifacts"}:
+                    content_type = item.get("content_type")
+                    if isinstance(content_type, str):
+                        item.setdefault("content_media_type", content_type)
+                    declared_type = item.get("type")
+                    if isinstance(declared_type, str) and declared_type.startswith("video/"):
+                        item.setdefault("content_media_type", declared_type)
+                        if scope == "artifacts":
+                            item.setdefault("kind", "video")
+                contract[scope].append(_contract_item(item, f"/{scope}/{index}"))
+
+    runtime = profile.get("runtime")
+    if isinstance(runtime, dict):
+        contract["runtime"].append(_contract_item(runtime, "/runtime"))
 
     artifact = profile.get("artifact")
     if isinstance(artifact, dict):
@@ -302,6 +486,9 @@ def normalize_capability_contract(profile: dict[str, Any]) -> dict[str, Any]:
                 "kind", "chart" if artifact_type == "chart_png" else artifact_type
             )
             declaration.setdefault("content_media_type", "image/png")
+        elif artifact_type.startswith("video/"):
+            declaration.setdefault("kind", "video")
+            declaration.setdefault("content_media_type", artifact_type)
         contract["artifacts"].append(_contract_item(declaration, "/artifact"))
 
     adapters = profile.get("input_adapters", [])
@@ -348,21 +535,33 @@ def _predicate_evidence(
 ) -> list[str]:
     scope = predicate.get("scope")
     where = predicate.get("where")
-    if scope not in {"inputs", "outputs", "artifacts", "steps"} or not isinstance(where, dict):
+    if scope not in {"inputs", "outputs", "artifacts", "steps", "runtime"} or not isinstance(where, dict):
         raise ValueError("capability registry trigger must have a typed scope and where clause")
     evidence: list[str] = []
     for item in contract[scope]:
         matched = True
         for field, condition in where.items():
-            if not isinstance(condition, dict) or set(condition) not in ({"equals"}, {"in"}):
-                raise ValueError("capability registry trigger condition must use equals or in")
+            if not isinstance(condition, dict) or set(condition) not in (
+                {"equals"},
+                {"in"},
+                {"matches"},
+            ):
+                raise ValueError(
+                    "capability registry trigger condition must use equals, in, or matches"
+                )
             if "equals" in condition:
                 matched = item.get(field) == condition["equals"]
-            else:
+            elif "in" in condition:
                 allowed = condition["in"]
                 if not isinstance(allowed, list):
                     raise ValueError("capability registry trigger 'in' value must be an array")
                 matched = item.get(field) in allowed
+            else:
+                pattern = condition["matches"]
+                value = item.get(field)
+                if not isinstance(pattern, str):
+                    raise ValueError("capability registry trigger 'matches' value must be a string")
+                matched = isinstance(value, str) and re.search(pattern, value) is not None
             if not matched:
                 break
         if matched:
@@ -403,7 +602,7 @@ def _unknown_contract_needs(
 ) -> list[dict[str, str]]:
     """Collect typed declarations that no current registry trigger can cover."""
     needs: list[dict[str, str]] = []
-    known_artifact_kinds = {"book", "chart", "plot", "metrics_viz"}
+    known_artifact_kinds = {"book", "chart", "plot", "metrics_viz", "video"}
     for artifact in contract["artifacts"]:
         artifact_type = str(artifact.get("type") or artifact.get("kind") or "").strip()
         kind = str(artifact.get("kind") or "").strip()
@@ -411,6 +610,7 @@ def _unknown_contract_needs(
         known = (
             (kind == "book" and media_type == "application/pdf")
             or (kind in {"chart", "plot", "metrics_viz"} and media_type == "image/png")
+            or (kind == "video" and media_type in {"video/mp4", "video/quicktime"})
         )
         if artifact_type and (not known or kind not in known_artifact_kinds):
             needs.append(
@@ -428,6 +628,21 @@ def _unknown_contract_needs(
                 _capability_need(
                     "artifact.render:" + artifact_type,
                     str(output["contract_pointer"]),
+                )
+            )
+    for step in contract["steps"]:
+        operation = str(step.get("operation") or "").strip()
+        tool = str(step.get("tool") or "").strip()
+        declares_media = operation.startswith(("media.video.", "ffmpeg.", "ffprobe.")) or tool in {
+            "ffmpeg",
+            "ffprobe",
+        }
+        if declares_media and operation not in VIDEO_OPERATIONS:
+            missing = operation or tool
+            needs.append(
+                _capability_need(
+                    "media.process:" + missing,
+                    str(step["contract_pointer"]),
                 )
             )
     adapters = profile.get("input_adapters", [])
@@ -1112,6 +1327,28 @@ def chart_artifact_config(profile: dict[str, Any]) -> dict[str, Any]:
     return config
 
 
+VIDEO_OPERATIONS = {
+    "media.video.normalize",
+    "media.video.cut_highlights",
+    "media.video.extract_thumbnail",
+    "ffmpeg.h264_aac_portrait",
+    "ffmpeg.h264_aac_landscape",
+}
+
+
+def reviewed_video_operations(profile: dict[str, Any]) -> list[str]:
+    steps = profile.get("steps", [])
+    if not isinstance(steps, list):
+        return []
+    return sorted(
+        {
+            str(step.get("operation"))
+            for step in steps
+            if isinstance(step, dict) and step.get("operation") in VIDEO_OPERATIONS
+        }
+    )
+
+
 def validate_generator_capabilities(profile: dict[str, Any]) -> None:
     adapters = profile.get("input_adapters", [])
     if not isinstance(adapters, list) or any(not isinstance(item, str) for item in adapters):
@@ -1166,13 +1403,18 @@ def modal_app_template(profile: dict[str, Any]) -> str:
     app_name = f"cognition-{slug}"
     version = profile["version"]
     title = profile["name"].replace('"', '\\"')
+    selected = _selected_capability_names(profile)
+    has_video = "video_processing" in selected
+    has_domain_state = "domain_state" in selected
+    apt_packages = [str(item) for item in profile.get("apt_packages", [])]
+    if has_video and "ffmpeg" not in apt_packages:
+        apt_packages.append("ffmpeg")
     apt_chain = ""
-    if profile.get("apt_packages"):
-        packages = ", ".join(repr(item) for item in profile["apt_packages"])
+    if apt_packages:
+        packages = ", ".join(repr(item) for item in apt_packages)
         apt_chain = f"\n    .apt_install({packages})"
     ready = bool(profile["readiness"]["can_submit"])
     live = profile.get("live") if ready else None
-    selected = _selected_capability_names(profile)
     whatsapp_config = (
         input_adapter_config(profile, "whatsapp_zip")
         if "whatsapp_zip_adapter" in selected
@@ -1217,6 +1459,591 @@ WHATSAPP_OUTPUT_SCHEMA = {adapter_schema!r}
     artifact_volume_definition = ""
     artifact_run_volume = ""
     artifact_api_volume = ""
+    video_constants = ""
+    video_runtime = ""
+    video_image_add = ""
+    media_volume_definition = ""
+    media_run_volume = ""
+    media_api_volume = ""
+    domain_state_runtime = ""
+    if has_video:
+        extra_imports += "import hashlib\nimport math\nimport subprocess\nfrom collections.abc import Mapping, Sequence\n"
+        video_constants = f'''
+REVIEWED_MEDIA_OPERATIONS = {reviewed_video_operations(profile)!r}
+FFMPEG_RUNTIME_VERSION = "8.1.2"
+MEDIA_ARTIFACT_ROOT = Path(os.environ.get("OMO_MEDIA_ARTIFACT_ROOT", "/media-artifacts"))
+'''
+        video_image_add = '''.add_local_file(RENDER_ROOT / "video.py", str(IMAGE_ROOT / "omo_video_renderer.py"), copy=True)'''
+        media_volume_definition = f'''\nmedia_artifact_volume = modal.Volume.from_name({('omo-' + slug + '-media-artifacts')!r}, create_if_missing=True)'''
+        media_run_volume = ',\n    volumes={str(MEDIA_ARTIFACT_ROOT): media_artifact_volume}'
+        media_api_volume = ',\n    volumes={str(MEDIA_ARTIFACT_ROOT): media_artifact_volume}'
+        video_runtime = '''
+
+def _video_tools() -> dict[str, Any]:
+    try:
+        from tools.render.video import (
+            MediaRenderError,
+            cut_highlights,
+            extract_thumbnail,
+            normalize,
+            probe,
+        )
+    except ImportError:
+        from omo_video_renderer import (
+            MediaRenderError,
+            cut_highlights,
+            extract_thumbnail,
+            normalize,
+            probe,
+        )
+    return {
+        "error": MediaRenderError,
+        "probe": probe,
+        "normalize": normalize,
+        "cut_highlights": cut_highlights,
+        "extract_thumbnail": extract_thumbnail,
+    }
+
+
+def _media_binary_version(executable: str) -> str:
+    try:
+        result = subprocess.run(
+            [executable, "-version"],
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=False,
+            timeout=20,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        error = _video_tools()["error"]
+        raise error("TOOL_UNAVAILABLE", f"the pinned {executable} runtime is unavailable") from exc
+    first_line = result.stdout.splitlines()[0] if result.stdout else ""
+    matched = re.match(rf"^{re.escape(executable)} version ([^ ]+)", first_line)
+    actual = matched.group(1) if matched else "unknown"
+    if actual != FFMPEG_RUNTIME_VERSION:
+        error = _video_tools()["error"]
+        raise error(
+            "FFMPEG_VERSION_MISMATCH",
+            f"expected {executable} {FFMPEG_RUNTIME_VERSION}, received {actual}",
+        )
+    return actual
+
+
+def ffmpeg_runtime_version() -> str:
+    ffmpeg_version = _media_binary_version("ffmpeg")
+    _media_binary_version("ffprobe")
+    return ffmpeg_version
+
+
+def probe_media(src: str | os.PathLike[str]) -> dict[str, Any]:
+    ffmpeg_runtime_version()
+    return _video_tools()["probe"](src)
+
+
+def _validated_media_clips(clips: Any, duration: float) -> list[dict[str, Any]]:
+    error = _video_tools()["error"]
+    if isinstance(clips, (str, bytes)) or not isinstance(clips, Sequence):
+        raise error("INVALID_CLIPS", "clips must be an array")
+    if not 1 <= len(clips) <= 20:
+        raise error("INVALID_CLIPS", "clips must contain 1 to 20 items")
+    validated: list[dict[str, Any]] = []
+    previous_end = -1.0
+    total = 0.0
+    for index, clip in enumerate(clips):
+        if not isinstance(clip, Mapping) or set(clip) != {
+            "start_seconds", "end_seconds", "title"
+        }:
+            raise error("INVALID_CLIP", f"clips[{index}] has invalid fields")
+        start = clip["start_seconds"]
+        end = clip["end_seconds"]
+        title = clip["title"]
+        if (
+            isinstance(start, bool)
+            or isinstance(end, bool)
+            or not isinstance(start, (int, float))
+            or not isinstance(end, (int, float))
+        ):
+            raise error("INVALID_TIMECODE", f"clips[{index}] timecodes must be numbers")
+        start_value = float(start)
+        end_value = float(end)
+        if (
+            not math.isfinite(start_value)
+            or not math.isfinite(end_value)
+            or start_value < 0
+            or end_value <= start_value
+            or end_value > duration + 0.001
+        ):
+            raise error("TIMECODE_OUT_OF_RANGE", f"clips[{index}] is outside the source duration")
+        if start_value < previous_end - 0.000001:
+            raise error("CLIPS_OVERLAP", f"clips[{index}] overlaps or is out of order")
+        if not isinstance(title, str) or len(title) > 200:
+            raise error("INVALID_CLIP", f"clips[{index}].title is invalid")
+        total += end_value - start_value
+        if total > 600.000001:
+            raise error("HIGHLIGHTS_TOO_LONG", "highlight duration exceeds 10 minutes")
+        validated.append({
+            "start_seconds": start_value,
+            "end_seconds": end_value,
+            "title": title,
+        })
+        previous_end = end_value
+    return validated
+
+
+def _sha256_media(path: Path) -> str:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as exc:
+        error = _video_tools()["error"]
+        raise error("OUTPUT_VALIDATION_FAILED", "media output cannot be read") from exc
+    return digest.hexdigest()
+
+
+def describe_media_artifact(
+    path: str | os.PathLike[str],
+    *,
+    role: str,
+    media_info: Mapping[str, Any],
+) -> dict[str, Any]:
+    output = Path(path)
+    suffix = output.suffix.lower()
+    if suffix not in {".mp4", ".png"}:
+        error = _video_tools()["error"]
+        raise error("OUTPUT_VALIDATION_FAILED", "generated media must be MP4 or PNG")
+    try:
+        byte_count = output.stat().st_size
+    except OSError as exc:
+        error = _video_tools()["error"]
+        raise error("OUTPUT_VALIDATION_FAILED", "generated media is unavailable") from exc
+    if byte_count <= 0 or byte_count != int(media_info.get("size") or 0):
+        error = _video_tools()["error"]
+        raise error("OUTPUT_VALIDATION_FAILED", "generated media byte count is invalid")
+    descriptor: dict[str, Any] = {
+        "kind": "video" if suffix == ".mp4" else "thumbnail",
+        "role": role,
+        "filename": output.name,
+        "content_type": "video/mp4" if suffix == ".mp4" else "image/png",
+        "bytes": byte_count,
+        "sha256": _sha256_media(output),
+        "width": int(media_info["width"]),
+        "height": int(media_info["height"]),
+        "renderer": "tools.render.video",
+        "ffmpeg_version": FFMPEG_RUNTIME_VERSION,
+    }
+    if suffix == ".mp4":
+        codecs = media_info.get("codecs")
+        duration = media_info.get("duration")
+        if not isinstance(codecs, Mapping) or codecs.get("video") != "h264" or codecs.get("audio") != "aac":
+            error = _video_tools()["error"]
+            raise error("OUTPUT_VALIDATION_FAILED", "generated video must be H.264/AAC")
+        descriptor["duration"] = float(duration)
+        descriptor["codecs"] = dict(codecs)
+    else:
+        try:
+            signature = output.read_bytes()[:8]
+        except OSError as exc:
+            error = _video_tools()["error"]
+            raise error("OUTPUT_VALIDATION_FAILED", "thumbnail cannot be read") from exc
+        if signature != b"\\x89PNG\\r\\n\\x1a\\n":
+            error = _video_tools()["error"]
+            raise error("OUTPUT_VALIDATION_FAILED", "thumbnail is not a PNG")
+    return descriptor
+
+
+def run_media_step(
+    operation: str,
+    src: str | os.PathLike[str],
+    dest: str | os.PathLike[str],
+    *,
+    opts: Mapping[str, Any] | None = None,
+    clips: Sequence[Mapping[str, Any]] | None = None,
+    at_seconds: float | None = None,
+) -> dict[str, Any]:
+    tools = _video_tools()
+    if operation not in REVIEWED_MEDIA_OPERATIONS:
+        raise tools["error"](
+            "OPERATION_NOT_REVIEWED",
+            "the requested media operation is absent from the reviewed contract",
+        )
+    ffmpeg_runtime_version()
+    source_info = probe_media(src)
+    if operation in {
+        "media.video.normalize",
+        "ffmpeg.h264_aac_portrait",
+        "ffmpeg.h264_aac_landscape",
+    }:
+        options = dict(opts or {})
+        forced_orientation = {
+            "ffmpeg.h264_aac_portrait": "portrait",
+            "ffmpeg.h264_aac_landscape": "landscape",
+        }.get(operation)
+        if forced_orientation is not None:
+            supplied = options.get("orientation")
+            if supplied is not None and supplied != forced_orientation:
+                raise tools["error"](
+                    "INVALID_OPTIONS", "orientation conflicts with the reviewed operation"
+                )
+            options["orientation"] = forced_orientation
+        media_info = tools["normalize"](src, dest, options)
+        role = "normalized_video"
+    elif operation == "media.video.cut_highlights":
+        selected = _validated_media_clips(clips, float(source_info["duration"]))
+        media_info = tools["cut_highlights"](src, dest, selected)
+        role = "highlights"
+    else:
+        if isinstance(at_seconds, bool) or not isinstance(at_seconds, (int, float)):
+            raise tools["error"]("INVALID_TIMECODE", "at_seconds must be a number")
+        timestamp = float(at_seconds)
+        if not math.isfinite(timestamp) or timestamp < 0 or timestamp >= float(source_info["duration"]):
+            raise tools["error"](
+                "TIMECODE_OUT_OF_RANGE", "at_seconds must be within the source duration"
+            )
+        media_info = tools["extract_thumbnail"](src, dest, timestamp)
+        role = "thumbnail"
+    return {
+        "artifact": describe_media_artifact(dest, role=role, media_info=media_info),
+        "output_path": str(Path(dest)),
+    }
+
+
+def materialize_media_artifact(
+    run_id: str,
+    operation: str,
+    src: str | os.PathLike[str],
+    *,
+    opts: Mapping[str, Any] | None = None,
+    clips: Sequence[Mapping[str, Any]] | None = None,
+    at_seconds: float | None = None,
+    output_root: Path | None = None,
+    commit: bool = False,
+) -> dict[str, Any]:
+    if not re.fullmatch(r"run-[A-Za-z0-9_-]{4,120}", run_id):
+        error = _video_tools()["error"]
+        raise error("ARTIFACT_RUN_ID_INVALID", "run_id is invalid")
+    root = output_root or MEDIA_ARTIFACT_ROOT
+    is_thumbnail = operation == "media.video.extract_thumbnail"
+    filename = "thumbnail.png" if is_thumbnail else "video.mp4"
+    scratch = root / "scratch" / run_id / str(uuid.uuid4()) / filename
+    rendered = run_media_step(
+        operation,
+        src,
+        scratch,
+        opts=opts,
+        clips=clips,
+        at_seconds=at_seconds,
+    )
+    descriptor = rendered["artifact"]
+    relative = Path("runs") / run_id / str(descriptor["sha256"]) / filename
+    destination = root / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if destination.exists():
+            if _sha256_media(destination) != descriptor["sha256"]:
+                error = _video_tools()["error"]
+                raise error("ARTIFACT_IMMUTABLE_COLLISION", "media artifact collision")
+        else:
+            os.link(scratch, destination)
+    finally:
+        try:
+            scratch.unlink(missing_ok=True)
+        except OSError:
+            pass
+    if commit:
+        media_artifact_volume.commit()
+    return {**descriptor, "object_key": relative.as_posix()}
+'''
+    if has_domain_state:
+        extra_imports += "import threading\nimport time\nfrom collections.abc import Mapping\n"
+        domain_state_runtime = '''
+
+class DomainStateError(RuntimeError):
+    """Typed owner, transition, version, progress, or expiry failure."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class InMemoryDomainState:
+    """Single-process state adapter for generated tests and one-run workers."""
+
+    _PUBLIC_FIELDS = (
+        "run_id",
+        "owner_id",
+        "status",
+        "phase",
+        "progress_pct",
+        "artifacts",
+        "created_at",
+        "updated_at",
+        "expires_at",
+        "version",
+    )
+    _TRANSITIONS = {
+        "queued": {"processing"},
+        "processing": {"done", "blocked"},
+        "done": set(),
+        "blocked": set(),
+    }
+    _ARTIFACT_FIELDS = {
+        "kind",
+        "role",
+        "object_key",
+        "filename",
+        "content_type",
+        "bytes",
+        "sha256",
+        "width",
+        "height",
+        "duration",
+        "codecs",
+        "page_count",
+    }
+
+    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+        self._clock = clock
+        self._records: dict[str, dict[str, Any]] = {}
+        self._lock = threading.RLock()
+
+    @staticmethod
+    def _owner(owner_id: str) -> str:
+        if not isinstance(owner_id, str) or not owner_id.strip() or len(owner_id) > 200:
+            raise DomainStateError("STATE_OWNER_INVALID")
+        return owner_id.strip()
+
+    @staticmethod
+    def _public(record: dict[str, Any]) -> dict[str, Any]:
+        return {
+            field: json.loads(json.dumps(record[field]))
+            for field in InMemoryDomainState._PUBLIC_FIELDS
+        }
+
+    @staticmethod
+    def _artifact_refs(artifacts: Any) -> list[dict[str, Any]]:
+        if artifacts is None:
+            return []
+        if not isinstance(artifacts, list) or any(not isinstance(item, dict) for item in artifacts):
+            raise DomainStateError("STATE_ARTIFACTS_INVALID")
+        refs: list[dict[str, Any]] = []
+        for item in artifacts:
+            reference = {
+                key: json.loads(json.dumps(value))
+                for key, value in item.items()
+                if key in InMemoryDomainState._ARTIFACT_FIELDS
+            }
+            if not isinstance(reference.get("object_key"), str) or not isinstance(reference.get("sha256"), str):
+                raise DomainStateError("STATE_ARTIFACTS_INVALID")
+            refs.append(reference)
+        return refs
+
+    def _owned(self, owner_id: str, run_id: str, now: float) -> dict[str, Any]:
+        record = self._records.get(run_id)
+        if record is None or record["owner_id"] != owner_id:
+            raise DomainStateError("STATE_NOT_FOUND")
+        if now >= record["expires_at"]:
+            raise DomainStateError("STATE_EXPIRED")
+        return record
+
+    def create(
+        self,
+        owner_id: str,
+        *,
+        run_id: str | None = None,
+        phase: str = "queued",
+        ttl_seconds: int = 3600,
+    ) -> dict[str, Any]:
+        owner = self._owner(owner_id)
+        if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or not 60 <= ttl_seconds <= 604800:
+            raise DomainStateError("STATE_EXPIRY_INVALID")
+        if not isinstance(phase, str) or not phase.strip() or len(phase) > 80:
+            raise DomainStateError("STATE_PHASE_INVALID")
+        identifier = run_id or "run-" + str(uuid.uuid4())
+        if not isinstance(identifier, str) or not re.fullmatch(r"run-[A-Za-z0-9_-]{4,120}", identifier):
+            raise DomainStateError("STATE_RUN_ID_INVALID")
+        now = float(self._clock())
+        with self._lock:
+            if identifier in self._records:
+                raise DomainStateError("STATE_RUN_EXISTS")
+            record = {
+                "run_id": identifier,
+                "owner_id": owner,
+                "status": "queued",
+                "phase": phase.strip(),
+                "progress_pct": 0,
+                "artifacts": [],
+                "created_at": now,
+                "updated_at": now,
+                "expires_at": now + ttl_seconds,
+                "version": 1,
+                "_last_transition": None,
+            }
+            self._records[identifier] = record
+            return self._public(record)
+
+    def transition(
+        self,
+        owner_id: str,
+        run_id: str,
+        *,
+        expected_version: int,
+        status: str,
+        phase: str,
+        progress_pct: int,
+        artifacts: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        owner = self._owner(owner_id)
+        if status not in self._TRANSITIONS:
+            raise DomainStateError("STATE_STATUS_INVALID")
+        if not isinstance(phase, str) or not phase.strip() or len(phase) > 80:
+            raise DomainStateError("STATE_PHASE_INVALID")
+        if isinstance(progress_pct, bool) or not isinstance(progress_pct, int) or not 0 <= progress_pct <= 100:
+            raise DomainStateError("STATE_PROGRESS_INVALID")
+        if status == "done" and progress_pct != 100:
+            raise DomainStateError("STATE_PROGRESS_INVALID")
+        artifact_refs = self._artifact_refs(artifacts)
+        signature = {
+            "expected_version": expected_version,
+            "status": status,
+            "phase": phase.strip(),
+            "progress_pct": progress_pct,
+            "artifacts": artifact_refs,
+        }
+        now = float(self._clock())
+        with self._lock:
+            record = self._owned(owner, run_id, now)
+            if expected_version != record["version"]:
+                if record["_last_transition"] == signature:
+                    return self._public(record)
+                raise DomainStateError("STATE_VERSION_CONFLICT")
+            if status not in self._TRANSITIONS[record["status"]]:
+                raise DomainStateError("STATE_TRANSITION_INVALID")
+            if progress_pct < record["progress_pct"]:
+                raise DomainStateError("STATE_PROGRESS_BACKWARD")
+            record.update(
+                status=status,
+                phase=phase.strip(),
+                progress_pct=progress_pct,
+                artifacts=artifact_refs,
+                updated_at=now,
+                version=record["version"] + 1,
+                _last_transition=signature,
+            )
+            return self._public(record)
+
+    def read_owned(self, owner_id: str, run_id: str) -> dict[str, Any]:
+        owner = self._owner(owner_id)
+        now = float(self._clock())
+        with self._lock:
+            return self._public(self._owned(owner, run_id, now))
+
+    def expire(self, owner_id: str, run_id: str) -> dict[str, Any]:
+        owner = self._owner(owner_id)
+        now = float(self._clock())
+        with self._lock:
+            record = self._records.get(run_id)
+            if record is None or record["owner_id"] != owner:
+                raise DomainStateError("STATE_NOT_FOUND")
+            if now < record["expires_at"]:
+                raise DomainStateError("STATE_NOT_EXPIRED")
+            public = self._public(record)
+            del self._records[run_id]
+            return public
+
+
+domain_state = InMemoryDomainState()
+
+
+def domain_submit_response(record: Mapping[str, Any]) -> dict[str, Any]:
+    if record.get("status") != "queued":
+        raise DomainStateError("STATE_SUBMIT_RESPONSE_INVALID")
+    run_id = str(record["run_id"])
+    return {
+        "run_id": run_id,
+        "status": "queued",
+        "phase": str(record["phase"]),
+        "progress_pct": int(record["progress_pct"]),
+        "version": int(record["version"]),
+        "expires_at": float(record["expires_at"]),
+        "result_url": f"/v1/runs/{run_id}",
+    }
+
+
+def domain_status_response(
+    owner_id: str,
+    run_id: str,
+    *,
+    state_store: InMemoryDomainState | None = None,
+) -> dict[str, Any]:
+    record = (state_store or domain_state).read_owned(owner_id, run_id)
+    return {
+        field: record[field]
+        for field in (
+            "run_id",
+            "status",
+            "phase",
+            "progress_pct",
+            "artifacts",
+            "created_at",
+            "updated_at",
+            "expires_at",
+            "version",
+        )
+    }
+
+
+def run_long_running_job(
+    owner_id: str,
+    work: Callable[[str], Any],
+    *,
+    phase: str = "processing",
+    ttl_seconds: int = 3600,
+    state_store: InMemoryDomainState | None = None,
+) -> dict[str, Any]:
+    store = state_store or domain_state
+    queued = store.create(owner_id, ttl_seconds=ttl_seconds)
+    processing = store.transition(
+        owner_id,
+        queued["run_id"],
+        expected_version=queued["version"],
+        status="processing",
+        phase=phase,
+        progress_pct=1,
+    )
+    try:
+        result = work(queued["run_id"])
+    except Exception:
+        store.transition(
+            owner_id,
+            queued["run_id"],
+            expected_version=processing["version"],
+            status="blocked",
+            phase="blocked",
+            progress_pct=processing["progress_pct"],
+        )
+        raise
+    artifact_refs: list[dict[str, Any]] = []
+    if isinstance(result, dict):
+        if isinstance(result.get("artifact"), dict):
+            artifact_refs.append(result["artifact"])
+        if isinstance(result.get("artifacts"), list):
+            artifact_refs.extend(
+                item for item in result["artifacts"] if isinstance(item, dict)
+            )
+    done = store.transition(
+        owner_id,
+        queued["run_id"],
+        expected_version=processing["version"],
+        status="done",
+        phase="done",
+        progress_pct=100,
+        artifacts=artifact_refs,
+    )
+    return {"run": done, "result": result}
+'''
     if book_artifact is not None:
         extra_imports += "import hashlib\nimport hmac\nimport time\n"
         artifact_constants = f'''
@@ -2729,6 +3556,16 @@ def _provider_completion(
             },
         )
 '''
+    volume_mounts: list[str] = []
+    if book_artifact is not None or chart_artifact is not None:
+        volume_mounts.append("str(ARTIFACT_ROOT): artifact_volume")
+    if has_video:
+        volume_mounts.append("str(MEDIA_ARTIFACT_ROOT): media_artifact_volume")
+    volume_argument = (
+        ",\n    volumes={" + ", ".join(volume_mounts) + "}"
+        if volume_mounts
+        else ""
+    )
     return f'''"""Generated Modal contract runtime for {title}.
 
 Generated by {COMPILER_VERSION}; change the profile/compiler, not this file.
@@ -2762,6 +3599,7 @@ RENDER_ROOT = LOCAL_ROOT.parents[1] / "tools" / "render"
 {live_constants}
 {adapter_constants}
 {artifact_constants}
+{video_constants}
 
 
 class WorkflowNotReady(RuntimeError):
@@ -2806,6 +3644,8 @@ def readiness() -> dict[str, Any]:
 {adapter_runtime}
 {live_executor}
 {artifact_runtime}
+{video_runtime}
+{domain_state_runtime}
 
 
 Executor = Callable[[dict[str, Any]], dict[str, Any]]
@@ -2854,9 +3694,10 @@ runtime_image = (
     .add_local_file(LOCAL_ROOT / "manifest.json", str(IMAGE_ROOT / "manifest.json"), copy=True)
     .add_local_file(LOCAL_ROOT / "capability-manifest.json", str(IMAGE_ROOT / "capability-manifest.json"), copy=True)
     {artifact_image_add}
+    {video_image_add}
 )
 
-app = modal.App(APP_NAME){artifact_volume_definition}
+app = modal.App(APP_NAME){artifact_volume_definition}{media_volume_definition}
 
 
 @app.function(
@@ -2866,7 +3707,7 @@ app = modal.App(APP_NAME){artifact_volume_definition}
     timeout={runtime_timeout_seconds(profile)},
     min_containers=0,
     max_containers={profile['resources']['max_containers']},
-    scaledown_window=5{secret_arg}{artifact_run_volume},
+    scaledown_window=5{secret_arg}{volume_argument},
 )
 def run_workflow(payload: dict[str, Any]) -> dict[str, Any]:
     return execute_workflow(payload)
@@ -2950,7 +3791,7 @@ def create_fastapi_app(
     image=runtime_image,
     min_containers=0,
     max_containers=20,
-    scaledown_window=2{artifact_api_volume},
+    scaledown_window=2{volume_argument},
 )
 @modal.concurrent(max_inputs=20)
 @modal.asgi_app(requires_proxy_auth=True)
@@ -3218,6 +4059,7 @@ def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
     blockers = profile["readiness"]["blockers"]
     steps = profile["steps"]
     ready = bool(profile["readiness"]["can_submit"])
+    selected = _selected_capability_names(profile)
     lines = [
         "spec_version: cognition.container/v1",
         f"name: {yaml_quote(profile['name'])}",
@@ -3239,13 +4081,16 @@ def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
         "    - fastapi==0.109.0",
         "    - jsonschema==4.26.0",
     ]
-    if "book_pdf_renderer" in _selected_capability_names(profile):
+    if "book_pdf_renderer" in selected:
         lines.extend(["    - pypdf==5.7.0", "    - reportlab==4.4.3"])
-    elif "chart_generation" in _selected_capability_names(profile):
+    elif "chart_generation" in selected:
         lines.append("    - pillow==11.3.0")
-    if profile.get("apt_packages"):
+    apt_packages = [str(item) for item in profile.get("apt_packages", [])]
+    if "video_processing" in selected and "ffmpeg" not in apt_packages:
+        apt_packages.append("ffmpeg")
+    if apt_packages:
         lines.append("  apt_packages:")
-        lines.extend(f"    - {item}" for item in profile["apt_packages"])
+        lines.extend(f"    - {item}" for item in apt_packages)
     lines.extend(
         [
             "resources:",

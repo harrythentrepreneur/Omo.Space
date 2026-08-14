@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -185,6 +187,203 @@ description: A deliberately unrelated contract fixture.
     assert chart_resolution["generated"]["tool_bindings"] == [
         "tools.render.charts.render_chart_png"
     ]
+
+
+def _video_contract_profile() -> dict:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["steps"].append(
+        {
+            "id": "normalize-video",
+            "type": "native",
+            "provider": "local",
+            "operation": "media.video.normalize",
+            "execution_mode": "long_running",
+            "readiness": "ready",
+        }
+    )
+    profile["artifacts"].append(
+        {"type": "video/mp4", "required": True}
+    )
+    profile["outputs"] = [{"kind": "run_status"}]
+    profile["runtime"] = {"ownership_scope": "per_run"}
+    return profile
+
+
+def test_video_contract_resolves_video_and_domain_state_and_emits_runtime_pieces() -> None:
+    profile = _video_contract_profile()
+    files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
+    capabilities = json.loads(files["capability-manifest.json"])
+
+    assert [item["name"] for item in capabilities["selected"]] == [
+        "domain_state",
+        "video_processing",
+    ]
+    assert capabilities["approved"] == [
+        "domain_state@1.0.0",
+        "video_processing@1.0.0",
+    ]
+    assert {item["name"] for item in capabilities["generated"]["dependencies"]} == {
+        "artifact_store",
+        "ffmpeg_runtime",
+    }
+    assert {
+        "tools.render.video.probe",
+        "tools.render.video.normalize",
+        "runner.domain_state.create",
+        "runner.domain_state.transition",
+    } <= set(capabilities["generated"]["tool_bindings"])
+    modal_app = files["modal_app.py"]
+    assert "REVIEWED_MEDIA_OPERATIONS = ['media.video.normalize']" in modal_app
+    assert "def probe_media(" in modal_app
+    assert "def run_media_step(" in modal_app
+    assert "def materialize_media_artifact(" in modal_app
+    assert "class InMemoryDomainState:" in modal_app
+    assert "def domain_submit_response(" in modal_app
+    assert "def domain_status_response(" in modal_app
+    assert "def run_long_running_job(" in modal_app
+    assert ".apt_install('ffmpeg')" in modal_app
+    assert "video.py" in modal_app
+    compile(modal_app, "generated-video-modal-app", "exec")
+
+
+def test_plain_llm_contract_resolves_neither_video_nor_domain_state() -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    resolution = compiler.resolve_capabilities(profile, "d" * 64)
+
+    selected = {item["name"] for item in resolution["selected"]}
+    assert selected.isdisjoint({"video_processing", "domain_state"})
+    assert "tools.render.video.normalize" not in resolution["generated"]["tool_bindings"]
+    assert "runner.domain_state.create" not in resolution["generated"]["tool_bindings"]
+
+    unsupported = _video_contract_profile()
+    unsupported["steps"][-1]["operation"] = "media.video.generative_vfx"
+    blocked = compiler.resolve_capabilities(unsupported, "e" * 64)
+    blocker = next(
+        item for item in blocked["blockers"] if item["contract_pointer"].startswith("/steps/")
+    )
+    assert blocker["code"] == "CAPABILITY_UNAVAILABLE"
+    assert blocker["missing_capability"] == "media.process:media.video.generative_vfx"
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="FFmpeg/ffprobe are required for the generated media binding smoke",
+)
+def test_generated_video_binding_smoke_and_typed_domain_transitions(tmp_path: Path) -> None:
+    profile = _video_contract_profile()
+    files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
+    output = tmp_path / "video-contract"
+    assert compiler.write_or_check(files, output, check=False) == 0
+    spec = importlib.util.spec_from_file_location(
+        "generated_video_contract", output / "modal_app.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    source = tmp_path / "fixture.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=0.5:size=96x54:rate=12",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=0.5:sample_rate=48000",
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-threads",
+            "1",
+            "-c:a",
+            "aac",
+            "-shortest",
+            source,
+        ],
+        check=True,
+    )
+    media_root = tmp_path / "media-artifacts"
+    artifact = runtime.materialize_media_artifact(
+        "run-video-smoke",
+        "media.video.normalize",
+        source,
+        opts={"orientation": "portrait", "max_dimension": 160},
+        output_root=media_root,
+    )
+    destination = media_root / artifact["object_key"]
+    assert destination.is_file()
+    assert artifact["content_type"] == "video/mp4"
+    assert artifact["codecs"] == {"video": "h264", "audio": "aac"}
+    assert artifact["width"] == 90
+    assert artifact["height"] == 160
+    assert len(artifact["sha256"]) == 64
+
+    now = [1_000.0]
+    state = runtime.InMemoryDomainState(clock=lambda: now[0])
+    queued = state.create("owner-a", run_id="run-video-smoke", ttl_seconds=60)
+    assert queued["status"] == "queued"
+    assert runtime.domain_submit_response(queued)["result_url"] == "/v1/runs/run-video-smoke"
+    processing = state.transition(
+        "owner-a",
+        queued["run_id"],
+        expected_version=queued["version"],
+        status="processing",
+        phase="normalize",
+        progress_pct=25,
+    )
+    assert processing["status"] == "processing"
+    assert state.transition(
+        "owner-a",
+        queued["run_id"],
+        expected_version=queued["version"],
+        status="processing",
+        phase="normalize",
+        progress_pct=25,
+    ) == processing
+    done = state.transition(
+        "owner-a",
+        queued["run_id"],
+        expected_version=processing["version"],
+        status="done",
+        phase="done",
+        progress_pct=100,
+        artifacts=[artifact],
+    )
+    assert done["status"] == "done"
+    assert done["artifacts"][0]["sha256"] == artifact["sha256"]
+    status_response = runtime.domain_status_response(
+        "owner-a", queued["run_id"], state_store=state
+    )
+    assert status_response["status"] == "done"
+    assert "owner_id" not in status_response
+    with pytest.raises(runtime.DomainStateError, match="STATE_TRANSITION_INVALID"):
+        state.transition(
+            "owner-a",
+            queued["run_id"],
+            expected_version=done["version"],
+            status="processing",
+            phase="backward",
+            progress_pct=100,
+        )
+    with pytest.raises(runtime.DomainStateError, match="STATE_NOT_FOUND"):
+        state.read_owned("owner-b", queued["run_id"])
+    now[0] += 61
+    with pytest.raises(runtime.DomainStateError, match="STATE_EXPIRED"):
+        state.read_owned("owner-a", queued["run_id"])
+    assert state.expire("owner-a", queued["run_id"])["status"] == "done"
 
 
 def test_live_metering_rates_come_from_canonical_cost_model() -> None:
