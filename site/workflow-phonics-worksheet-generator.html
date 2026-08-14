@@ -39,6 +39,56 @@
       ]
     }
   </script>
+  <!-- SEO-X:FAQ-JSON-LD:START -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Can I buy Phonics Worksheet Generator now?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. It is not yet available and remains in review. $2.50 is a planning projection, not a sale price."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need an account to inspect this page?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. You can read the inputs, example, limitations, and price without an account. The runner may require sign-in before a run or purchase."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is the example a verified customer run?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. It is an example output from a contract fixture or catalog preview unless the page explicitly supplies a dated real-run test note."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What should I do if the output is wrong?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Review it against the learner’s taught code, dialect, and classroom context. Do not treat it as an assessment or diagnosis."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What grade is this for?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use the grade or difficulty controls when the workflow provides them; otherwise a teacher must decide whether the output fits the learner."
+          }
+        }
+      ]
+    }
+  </script>
+  <!-- SEO-X:FAQ-JSON-LD:END -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
@@ -167,6 +217,41 @@
           <li>Reviewed correctness and decodability fixtures do not exist.</li>
           <li>Unavailable until all external capabilities and costs are reviewed.</li></ul>
     </section>
+    <!-- SEO-X:PROMPTBASE:START -->
+    <section aria-labelledby="seo-x-examples">
+      <h2 id="seo-x-examples">Examples</h2>
+      <p class="note">Example output — fixture or catalog preview, not tested proof. The complete source example remains above for later replacement by verified run evidence.</p>
+      <h3>Example input, in readable form</h3>
+      <dl><dt><strong>grade</strong></dt><dd><span>1</span></dd><dt><strong>focus type</strong></dt><dd><span>grapheme</span></dd><dt><strong>focus patterns</strong></dt><dd><ul><li><span>ch</span></li></ul></dd><dt><strong>activity</strong></dt><dd><span>sort</span></dd><dt><strong>page count</strong></dt><dd><span>2</span></dd><dt><strong>difficulty</strong></dt><dd><span>practice</span></dd><dt><strong>dialect</strong></dt><dd><span>en-US</span></dd><dt><strong>print mode</strong></dt><dd><span>blackline</span></dd><dt><strong>theme</strong></dt><dd><span>neutral</span></dd><dt><strong>include answer key</strong></dt><dd><span>true</span></dd><dt><strong>teacher notes</strong></dt><dd><span>Use common classroom vocabulary.</span></dd></dl>
+      <h3>Example output, in readable form</h3>
+      <dl><dt><strong>run id</strong></dt><dd><span>run-fixture-worksheet</span></dd><dt><strong>status</strong></dt><dd><span>completed</span></dd><dt><strong>workflow version</strong></dt><dd><span>phonics-worksheet-generator@0.1.0</span></dd><dt><strong>artifacts</strong></dt><dd><ul><li><dl><dt><strong>kind</strong></dt><dd><span>pdf</span></dd><dt><strong>role</strong></dt><dd><span>worksheet</span></dd><dt><strong>object key</strong></dt><dd><span>fixtures/results/worksheet.pdf</span></dd><dt><strong>filename</strong></dt><dd><span>ch-sort.pdf</span></dd><dt><strong>content type</strong></dt><dd><span>application/pdf</span></dd><dt><strong>bytes</strong></dt><dd><span>42000</span></dd><dt><strong>sha256</strong></dt><dd><span>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</span></dd><dt><strong>page count</strong></dt><dd><span>2</span></dd></dl></li></ul></dd><dt><strong>content report</strong></dt><dd><dl><dt><strong>focus patterns</strong></dt><dd><ul><li><span>ch</span></li></ul></dd><dt><strong>dialect</strong></dt><dd><span>en-US</span></dd><dt><strong>item count</strong></dt><dd><span>12</span></dd><dt><strong>declared irregular words</strong></dt><dd><span>None</span></dd><dt><strong>checks run</strong></dt><dd><ul><li><span>answers</span></li><li><span>duplicates</span></li><li><span>page-render</span></li></ul></dd><dt><strong>unresolved warnings</strong></dt><dd><span>None</span></dd></dl></dd><dt><strong>usage</strong></dt><dd><dl><dt><strong>provider cost usd</strong></dt><dd><span>Not recorded</span></dd></dl></dd></dl>
+    </section>
+    <section aria-labelledby="seo-x-inputs">
+      <h2 id="seo-x-inputs">What you give it</h2>
+      <ul><li><strong>activity</strong> — Type: choice (choices: map-write, sort, sentence, passage, game, classroom-check; required). <strong>Example:</strong> &quot;sort&quot;. <strong>What you give it:</strong> grade.</li><li><strong>dialect</strong> — Type: choice (choices: en-US, en-GB, en-AU; required). <strong>Example:</strong> &quot;en-US&quot;. <strong>What you give it:</strong> focus_type.</li><li><strong>difficulty</strong> — Type: choice (choices: introduce, practice, review, mixed; required). <strong>Example:</strong> &quot;practice&quot;. <strong>What you give it:</strong> focus_patterns.</li><li><strong>focus_patterns</strong> — Type: array (1–6 items; required). <strong>Example:</strong> [&quot;ch&quot;]. <strong>What you give it:</strong> activity.</li><li><strong>focus_type</strong> — Type: choice (choices: sound, grapheme, word_family; required). <strong>Example:</strong> &quot;grapheme&quot;. <strong>What you give it:</strong> page_count.</li><li><strong>grade</strong> — Type: choice (choices: prek, k, 1, 2, 3; required). <strong>Example:</strong> &quot;1&quot;. <strong>What you give it:</strong> difficulty.</li><li><strong>include_answer_key</strong> — Type: boolean (required). <strong>Example:</strong> true. <strong>What you give it:</strong> dialect.</li><li><strong>page_count</strong> — Type: integer (minimum 1; maximum 12; required). <strong>Example:</strong> 2. <strong>What you give it:</strong> print_mode.</li><li><strong>print_mode</strong> — Type: choice (choices: blackline, color; required). <strong>Example:</strong> &quot;blackline&quot;. <strong>What you give it:</strong> theme.</li><li><strong>teacher_notes</strong> — Type: string (required). <strong>Example:</strong> &quot;Use common classroom vocabulary.&quot;. <strong>What you give it:</strong> include_answer_key.</li><li><strong>theme</strong> — Type: string (required). <strong>Example:</strong> &quot;neutral&quot;. <strong>What you give it:</strong> teacher_notes.</li></ul>
+    </section>
+    <section aria-labelledby="seo-x-runtime">
+      <h2 id="seo-x-runtime">Model and runtime</h2>
+      <p>Artifact runtime · not yet available — in review. The $2.50 figure is a projection, not an offer.</p>
+    </section>
+    <section aria-labelledby="seo-x-creator">
+      <h2 id="seo-x-creator">Creator proof</h2>
+      <p><strong>Built by Omo&#39;s team</strong> · reviewed status: in review; no independent educator approval recorded.</p>
+    </section>
+    <section aria-labelledby="seo-x-faq">
+      <h2 id="seo-x-faq">Frequently asked questions</h2>
+      <h3>Can I buy Phonics Worksheet Generator now?</h3>
+      <p>No. It is not yet available and remains in review. $2.50 is a planning projection, not a sale price.</p>
+      <h3>Do I need an account to inspect this page?</h3>
+      <p>No. You can read the inputs, example, limitations, and price without an account. The runner may require sign-in before a run or purchase.</p>
+      <h3>Is the example a verified customer run?</h3>
+      <p>No. It is an example output from a contract fixture or catalog preview unless the page explicitly supplies a dated real-run test note.</p>
+      <h3>What should I do if the output is wrong?</h3>
+      <p>Review it against the learner’s taught code, dialect, and classroom context. Do not treat it as an assessment or diagnosis.</p>
+      <h3>What grade is this for?</h3>
+      <p>Use the grade or difficulty controls when the workflow provides them; otherwise a teacher must decide whether the output fits the learner.</p>
+    </section>
+    <!-- SEO-X:PROMPTBASE:END -->
     <section>
       <h2>Next action</h2>
       <p>This workflow is not ready for a paid run. Browse the currently available Omo workflows instead.</p>

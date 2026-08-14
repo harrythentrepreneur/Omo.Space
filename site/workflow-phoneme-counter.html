@@ -47,6 +47,56 @@
       }
     }
   </script>
+  <!-- SEO-X:FAQ-JSON-LD:START -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is Phoneme Counter really $0.10?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The reviewed target is $0.10 per run, but the chargeable hosted workflow is still in review and is not yet proven live."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need an account to inspect this page?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. You can read the inputs, example, limitations, and price without an account. The runner may require sign-in before a run or purchase."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is the example a verified customer run?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. It is an example output from a contract fixture or catalog preview unless the page explicitly supplies a dated real-run test note."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What should I do if the output is wrong?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Review it against the learner’s taught code, dialect, and classroom context. Do not treat it as an assessment or diagnosis."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What grade is this for?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use the grade or difficulty controls when the workflow provides them; otherwise a teacher must decide whether the output fits the learner."
+          }
+        }
+      ]
+    }
+  </script>
+  <!-- SEO-X:FAQ-JSON-LD:END -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
@@ -148,6 +198,41 @@
       <ul><li>Generated phonics material requires teacher review for the learner’s taught code, dialect, and classroom context.</li>
           <li>This workflow is instructional support, not an assessment or diagnosis.</li></ul>
     </section>
+    <!-- SEO-X:PROMPTBASE:START -->
+    <section aria-labelledby="seo-x-examples">
+      <h2 id="seo-x-examples">Examples</h2>
+      <p class="note">Example output — fixture or catalog preview, not tested proof. The complete source example remains above for later replacement by verified run evidence.</p>
+      <h3>Example input, in readable form</h3>
+      <dl><dt><strong>word</strong></dt><dd><span>ship</span></dd><dt><strong>dialect</strong></dt><dd><span>en-US</span></dd><dt><strong>show transcription</strong></dt><dd><span>true</span></dd></dl>
+      <h3>Example output, in readable form</h3>
+      <dl><dt><strong>run id</strong></dt><dd><span>run-fixture-phoneme-counter</span></dd><dt><strong>status</strong></dt><dd><span>completed</span></dd><dt><strong>workflow version</strong></dt><dd><span>phoneme-counter@0.1.0</span></dd><dt><strong>word</strong></dt><dd><span>ship</span></dd><dt><strong>dialect</strong></dt><dd><span>en-US</span></dd><dt><strong>phonemes</strong></dt><dd><ul><li><span>/ʃ/</span></li><li><span>/ɪ/</span></li><li><span>/p/</span></li></ul></dd><dt><strong>phoneme count</strong></dt><dd><span>3</span></dd><dt><strong>ipa</strong></dt><dd><span>/ʃɪp/</span></dd><dt><strong>uncertainty</strong></dt><dd><span>This reflects a common en-US pronunciation.</span></dd><dt><strong>usage</strong></dt><dd><dl><dt><strong>provider</strong></dt><dd><span>opencode-go</span></dd><dt><strong>model</strong></dt><dd><span>deepseek-v4-flash</span></dd><dt><strong>llm calls</strong></dt><dd><span>1</span></dd><dt><strong>prompt tokens</strong></dt><dd><span>360</span></dd><dt><strong>completion tokens</strong></dt><dd><span>260</span></dd><dt><strong>estimated cost usd</strong></dt><dd><span>0.00016</span></dd></dl></dd></dl>
+    </section>
+    <section aria-labelledby="seo-x-inputs">
+      <h2 id="seo-x-inputs">What you give it</h2>
+      <ul><li><strong>dialect</strong> — Type: choice (choices: en-US, en-GB, en-AU; required). <strong>Example:</strong> &quot;en-US&quot;. <strong>What you give it:</strong> reviewed bounded input.</li><li><strong>show_transcription</strong> — Type: boolean (required). <strong>Example:</strong> true. <strong>What you give it:</strong> reviewed bounded input.</li><li><strong>word</strong> — Type: string (required). <strong>Example:</strong> &quot;ship&quot;. <strong>What you give it:</strong> reviewed bounded input.</li></ul>
+    </section>
+    <section aria-labelledby="seo-x-runtime">
+      <h2 id="seo-x-runtime">Model and runtime</h2>
+      <p>deepseek-v4-flash via opencode-go · in review — live soon. The listed $0.10 is the reviewed target price; a chargeable hosted run is not yet proven.</p>
+    </section>
+    <section aria-labelledby="seo-x-creator">
+      <h2 id="seo-x-creator">Creator proof</h2>
+      <p><strong>Built by Omo&#39;s team</strong> · reviewed status: contract reviewed; hosted run and named educator review pending.</p>
+    </section>
+    <section aria-labelledby="seo-x-faq">
+      <h2 id="seo-x-faq">Frequently asked questions</h2>
+      <h3>Is Phoneme Counter really $0.10?</h3>
+      <p>The reviewed target is $0.10 per run, but the chargeable hosted workflow is still in review and is not yet proven live.</p>
+      <h3>Do I need an account to inspect this page?</h3>
+      <p>No. You can read the inputs, example, limitations, and price without an account. The runner may require sign-in before a run or purchase.</p>
+      <h3>Is the example a verified customer run?</h3>
+      <p>No. It is an example output from a contract fixture or catalog preview unless the page explicitly supplies a dated real-run test note.</p>
+      <h3>What should I do if the output is wrong?</h3>
+      <p>Review it against the learner’s taught code, dialect, and classroom context. Do not treat it as an assessment or diagnosis.</p>
+      <h3>What grade is this for?</h3>
+      <p>Use the grade or difficulty controls when the workflow provides them; otherwise a teacher must decide whether the output fits the learner.</p>
+    </section>
+    <!-- SEO-X:PROMPTBASE:END -->
     <section>
       <h2>Next action</h2>
       <p>Review the facts and example above, then open the workflow when you are ready.</p>
