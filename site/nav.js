@@ -214,7 +214,7 @@
     amount.className = 'omo-nav-credit-amount';
     amount.textContent = hasBalance ? '$' + formatted : (state === 'unavailable' ? '\u2014' : '$\u2026');
     link.appendChild(amount);
-    link.href = 'billing.html';
+    link.href = '/billing.html';
     link.hidden = false;
     link.classList.remove('omo-nav-auth-pending');
     link.classList.add('omo-nav-credit');
@@ -248,7 +248,7 @@
   }
 
   function renderSignedOutLink(link) {
-    link.href = 'signup.html';
+    link.href = '/signup.html';
     link.hidden = false;
     link.classList.remove('omo-nav-auth-pending');
     link.classList.remove('omo-nav-credit');
@@ -274,7 +274,7 @@
     authLinksPrimed = true;
     for (var i = 0; i < links.length; i += 1) {
       if (hint) {
-        links[i].href = 'billing.html';
+        links[i].href = '/billing.html';
         links[i].hidden = false;
         renderCreditLink(links[i], cached && cached.balanceCents, 'loading');
         links[i].removeAttribute('aria-haspopup');
@@ -491,7 +491,7 @@
     var links = document.querySelectorAll('[data-omo-login]');
     for (var i = 0; i < links.length; i += 1) {
       if (signedIn) {
-        links[i].href = 'billing.html';
+        links[i].href = '/billing.html';
         links[i].hidden = false;
         renderCreditLink(links[i], cached ? cached.balanceCents : (fresh ? SIGNUP_GRANT_CENTS : null), 'loading');
         links[i].removeAttribute('aria-haspopup');
@@ -783,7 +783,7 @@
 
     var identity = document.createElement('a');
     identity.className = 'omo-nav-workflow-identity';
-    identity.href = 'workflow.html?slug=' + encodeURIComponent(context.slug);
+    identity.href = '/workflow.html?slug=' + encodeURIComponent(context.slug);
     identity.setAttribute('aria-label', name + ' workflow listing');
     identity.title = name;
 
