@@ -26,14 +26,17 @@ def load_process_submissions():
 
 
 def write_profile(tmp_path: Path, runtime_preference: str) -> Path:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
     profile["runtime_preference"] = runtime_preference
+    if runtime_preference == "modal-hosted":
+        profile["marketplace"]["deployment"]["default_endpoint"] = "https://omo-space--cognition-facebook-ads-copywriter-api.modal.run"
     profile_path = tmp_path / f"profile-{runtime_preference}.json"
     profile_path.write_text(json.dumps(profile, sort_keys=True), encoding="utf-8")
     return profile_path
 
 
-def test_worker_reviewed_selection_registers_worker_without_modal(monkeypatch, tmp_path: Path) -> None:
+def test_prepare_release_registers_worker_without_modal_or_wrangler(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     commands: list[list[str]] = []
     canaries: list[tuple[str, Path]] = []
@@ -42,10 +45,11 @@ def test_worker_reviewed_selection_registers_worker_without_modal(monkeypatch, t
     monkeypatch.setattr(process, "direct_modal_canary", lambda slug, profile_path, timeout_seconds=240: canaries.append((slug, profile_path)))
 
     profile_path = write_profile(tmp_path, "worker-native")
-    process.deploy_reviewed_submission(SKILL_PATH, "facebook-ads-copywriter", profile_path, "worker-native")
+    process.prepare_reviewed_release(SKILL_PATH, "facebook-ads-copywriter", profile_path, "worker-native")
 
     flattened = [" ".join(command) for command in commands]
     assert not any("modal deploy" in command for command in flattened)
+    assert not any("wrangler deploy" in command for command in flattened)
     assert canaries == []
     register_commands = [command for command in commands if "--register" in command]
     assert len(register_commands) == 2
@@ -53,7 +57,7 @@ def test_worker_reviewed_selection_registers_worker_without_modal(monkeypatch, t
     assert all("-m modal" not in " ".join(command) for command in commands)
 
 
-def test_modal_reviewed_selection_uses_modal_gates_and_modal_registration(monkeypatch, tmp_path: Path) -> None:
+def test_prepare_release_for_modal_does_not_deploy_or_canary_before_merge(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     commands: list[list[str]] = []
     canaries: list[tuple[str, Path]] = []
@@ -62,14 +66,145 @@ def test_modal_reviewed_selection_uses_modal_gates_and_modal_registration(monkey
     monkeypatch.setattr(process, "direct_modal_canary", lambda slug, profile_path, timeout_seconds=240: canaries.append((slug, profile_path)))
 
     profile_path = write_profile(tmp_path, "modal-hosted")
-    process.deploy_reviewed_submission(SKILL_PATH, "facebook-ads-copywriter", profile_path, "modal-hosted")
+    process.prepare_reviewed_release(SKILL_PATH, "facebook-ads-copywriter", profile_path, "modal-hosted")
 
     flattened = [" ".join(command) for command in commands]
-    assert any("modal deploy" in command for command in flattened)
-    assert canaries == [("facebook-ads-copywriter", profile_path)]
+    assert not any("modal deploy" in command for command in flattened)
+    assert canaries == []
     register_commands = [command for command in commands if "--register" in command]
     assert len(register_commands) == 2
     assert all(str(profile_path) in command for command in register_commands)
+
+
+def test_deploy_merged_release_fails_closed_without_verified_origin_main_merge(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[list[str]] = []
+    monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append(list(command)))
+    profile_path = write_profile(tmp_path, "modal-hosted")
+    release = {
+        "submission_id": "sub_verifieddeploy000000000001",
+        "slug": "facebook-ads-copywriter",
+        "selected_runtime": "modal-hosted",
+        "source_sha256": "a" * 64,
+        "artifact_hash": "b" * 64,
+        "head_sha": "c" * 40,
+        "merge_sha": "d" * 40,
+        "verified_merge_sha": "e" * 40,
+        "release_phase": "merged_verified",
+    }
+
+    class Adapter:
+        def verify_merged_release(self, release_metadata):
+            return {**release_metadata, "release_phase": "merge_mismatch"}
+
+    try:
+        process.deploy_merged_release(SKILL_PATH, "facebook-ads-copywriter", profile_path, release, Adapter())
+    except RuntimeError as error:
+        assert "verified_merge_required" in str(error)
+    else:
+        raise AssertionError("deploy must fail closed without a verified merge")
+    assert commands == []
+
+
+def test_deploy_merged_release_fails_closed_when_verified_artifact_hash_differs(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[list[str]] = []
+    monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append(list(command)))
+    profile_path = write_profile(tmp_path, "worker-native")
+    release = {
+        "submission_id": "sub_verifieddeploy000000000003",
+        "slug": "facebook-ads-copywriter",
+        "selected_runtime": "worker-native",
+        "source_sha256": "a" * 64,
+        "artifact_hash": "b" * 64,
+        "head_sha": "c" * 40,
+        "merge_sha": "d" * 40,
+        "verified_merge_sha": "d" * 40,
+        "release_phase": "merged_verified",
+    }
+
+    class Adapter:
+        def verify_merged_release(self, release_metadata):
+            return {**release_metadata, "artifact_hash": "e" * 64}
+
+    try:
+        process.deploy_merged_release(SKILL_PATH, "facebook-ads-copywriter", profile_path, release, Adapter())
+    except RuntimeError as error:
+        assert "verified_merge_required" in str(error)
+    else:
+        raise AssertionError("deploy must fail closed on artifact mismatch")
+    assert commands == []
+
+
+def test_deploy_merged_release_runs_deploy_only_after_verified_merge(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[list[str]] = []
+    canaries: list[tuple[str, Path]] = []
+    monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append(list(command)))
+    monkeypatch.setattr(process, "direct_modal_canary", lambda slug, profile_path, timeout_seconds=240: canaries.append((slug, profile_path)))
+    profile_path = write_profile(tmp_path, "modal-hosted")
+    release = {
+        "submission_id": "sub_verifieddeploy000000000002",
+        "slug": "facebook-ads-copywriter",
+        "selected_runtime": "modal-hosted",
+        "source_sha256": "a" * 64,
+        "artifact_hash": "b" * 64,
+        "head_sha": "c" * 40,
+        "merge_sha": "d" * 40,
+        "verified_merge_sha": "d" * 40,
+        "release_phase": "merged_verified",
+    }
+
+    class Adapter:
+        def verify_merged_release(self, release_metadata):
+            return release_metadata
+
+    result = process.deploy_merged_release(SKILL_PATH, "facebook-ads-copywriter", profile_path, release, Adapter())
+
+    flattened = [" ".join(command) for command in commands]
+    assert result["release_phase"] == "promoted"
+    assert any("modal deploy" in command for command in flattened)
+    assert any("wrangler deploy" in command for command in flattened)
+    assert canaries == [("facebook-ads-copywriter", profile_path)]
+
+
+def test_deploy_merged_release_uses_verified_checkout_when_adapter_provides_one(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[tuple[list[str], Path]] = []
+    canaries: list[tuple[str, Path]] = []
+    release_root = tmp_path / "verified"
+    clean_profile = write_profile(release_root / "profiles", "worker-native")
+    expected_profile = release_root / "packages" / "skill-to-modal" / "profiles" / "facebook-ads-copywriter.json"
+    expected_profile.parent.mkdir(parents=True, exist_ok=True)
+    expected_profile.write_text(clean_profile.read_text(encoding="utf-8"), encoding="utf-8")
+    (release_root / "containers" / "facebook-ads-copywriter").mkdir(parents=True)
+    (release_root / "containers" / "facebook-ads-copywriter" / "modal_app.py").write_text("# clean\n", encoding="utf-8")
+    (release_root / "site" / "deploy").mkdir(parents=True)
+
+    monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append((list(command), cwd)))
+    monkeypatch.setattr(process, "direct_modal_canary", lambda slug, profile_path, timeout_seconds=240: canaries.append((slug, profile_path)))
+    dirty_profile = write_profile(tmp_path, "worker-native")
+    release = {
+        "selected_runtime": "worker-native",
+        "source_sha256": "a" * 64,
+        "artifact_hash": "b" * 64,
+        "head_sha": "c" * 40,
+        "merge_sha": "d" * 40,
+        "verified_merge_sha": "d" * 40,
+        "release_phase": "merged_verified",
+    }
+
+    class Adapter:
+        def verify_merged_release(self, release_metadata):
+            return release_metadata
+        def checkout_verified_release(self, release_metadata):
+            return release_root
+
+    result = process.deploy_merged_release(SKILL_PATH, "facebook-ads-copywriter", dirty_profile, release, Adapter())
+
+    assert result["release_phase"] == "promoted"
+    assert commands == [(["npx", "wrangler", "deploy"], release_root / "site" / "deploy")]
+    assert canaries == []
 
 
 class FakeRepository:
@@ -88,6 +223,9 @@ class FakeRepository:
         self, submission_id: str, status: str, published_slug: str, workflow_version: str, build_evidence: dict
     ) -> None:
         self.deployments.append((submission_id, status, published_slug, workflow_version, build_evidence))
+
+    def set_release_metadata(self, submission_id: str, release_metadata: dict) -> None:
+        self.release_metadata = (submission_id, release_metadata)
 
 
 def test_process_row_fails_closed_when_generated_source_hash_differs(monkeypatch, tmp_path: Path) -> None:
@@ -116,6 +254,212 @@ def test_process_row_fails_closed_when_generated_source_hash_differs(monkeypatch
         "failure_code": "generated_source_hash_mismatch",
     }
     assert repo.statuses[-1] == ("sub_sourcehashmismatch", "failed", "generated_source_hash_mismatch")
+
+
+def test_process_row_with_deploy_prepares_git_release_without_production_side_effects(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source = SKILL_PATH.read_text(encoding="utf-8")
+    validated = process.validate_submission("Facebook Ads Copywriter", source)
+    repo = FakeRepository()
+    commands: list[list[str]] = []
+    monkeypatch.setattr(process, "evaluate_review_gate", lambda validated, allow_matching_container=False: ("ready_for_build", None))
+    monkeypatch.setattr(process, "reviewed_profile_artifact", lambda slug, requested_runtime, temp_dir, source_sha256=None: (write_profile(tmp_path, "worker-native"), {"effective": "worker-native"}))
+    monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append(list(command)))
+    monkeypatch.setattr(process, "generated_runtime_metadata", lambda slug, profile_path, expected_source_sha256: {
+        "decision": {"effective": "worker-native", "requested": "worker-native", "recommended": "worker-native", "compatible": True, "reason": "creator_selected_worker"},
+        "published_slug": "facebook-ads-copywriter",
+        "workflow_version": "facebook-ads-copywriter@1.0.0",
+        "build_evidence": {"checks": ["compile"], "source_sha256": expected_source_sha256},
+    })
+
+    class Adapter:
+        def prepare_release(self, release_request):
+            assert release_request["submission_id"] == "sub_gitrelease00000000000001"
+            assert release_request["branch"] == "omo-release/sub_gitrelease00000000000001-facebook-ads-copywriter"
+            assert release_request["slug"] == "facebook-ads-copywriter"
+            assert release_request["source_sha256"] == validated.source_sha256
+            assert "client_branch" not in release_request
+            return {
+                "release_phase": "pr_open",
+                "issue_url": "https://github.com/owner/repo/issues/31",
+                "pr_url": "https://github.com/owner/repo/pull/42",
+                "pr_number": 42,
+                "branch": release_request["branch"],
+                "head_sha": "a" * 40,
+                "source_sha256": release_request["source_sha256"],
+                "artifact_hash": release_request["artifact_hash"],
+            }
+
+    result = process.process_row({
+        "id": "sub_gitrelease00000000000001",
+        "name": "Facebook Ads Copywriter",
+        "content": source,
+        "source_sha256": validated.source_sha256,
+        "slug": validated.slug,
+        "requested_runtime": "worker-native",
+    }, repo, deploy=True, release_adapter=Adapter())
+
+    flattened = [" ".join(command) for command in commands]
+    assert result["status"] == "ready_for_merge"
+    assert repo.release_metadata[0] == "sub_gitrelease00000000000001"
+    assert repo.release_metadata[1]["release_phase"] == "pr_open"
+    assert not any("modal deploy" in command or "wrangler deploy" in command for command in flattened)
+
+
+def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[tuple[tuple[str, ...], Path | None]] = []
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        commands.append((tuple(command), cwd))
+        if command[:4] == ["gh", "issue", "list", "--repo"]:
+            return "[]"
+        if command[:4] == ["gh", "issue", "create", "--repo"]:
+            return "https://github.com/harrythentrepreneur/Omo.Space/issues/31\n"
+        if command[:4] == ["gh", "pr", "list", "--repo"]:
+            return "[]"
+        if command[:4] == ["gh", "pr", "create", "--repo"]:
+            return "https://github.com/harrythentrepreneur/Omo.Space/pull/42\n"
+        if command[:4] == ["gh", "pr", "view", "--repo"]:
+            return json.dumps({"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40})
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return "a" * 40 + "\n"
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
+    request = {
+        "submission_id": "sub_adapter000000000000000001",
+        "slug": "facebook-ads-copywriter",
+        "published_slug": "facebook-ads-copywriter",
+        "workflow_version": "facebook-ads-copywriter@1.0.0",
+        "selected_runtime": "worker-native",
+        "source_sha256": "b" * 64,
+        "artifact_hash": "c" * 64,
+        "branch": "evil/client-branch",
+    }
+
+    result = adapter.prepare_release(request)
+
+    assert result["release_phase"] == "pr_open"
+    assert result["branch"] == "omo-release/sub_adapter000000000000000001-facebook-ads-copywriter"
+    assert result["issue_url"] == "https://github.com/harrythentrepreneur/Omo.Space/issues/31"
+    assert result["pr_url"] == "https://github.com/harrythentrepreneur/Omo.Space/pull/42"
+    flattened = [" ".join(command) for command, _cwd in commands]
+    assert all("harrythentrepreneur/Omo.Space" in command or command.startswith("git ") for command in flattened)
+    assert any(command.startswith("git worktree add --detach") and command.endswith("origin/main") for command in flattened)
+    assert any(command == "git switch -C omo-release/sub_adapter000000000000000001-facebook-ads-copywriter" for command in flattened)
+    assert any(command == "git push -u origin omo-release/sub_adapter000000000000000001-facebook-ads-copywriter" for command in flattened)
+    add_commands = [command for command in flattened if command.startswith("git add ")]
+    assert add_commands
+    assert not any(command == "git add ." for command in add_commands)
+    assert not any("/tmp/" in command and "SKILL.md" in command for command in flattened)
+
+
+def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    create_commands: list[list[str]] = []
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        if command[:4] in (["gh", "issue", "create", "--repo"], ["gh", "pr", "create", "--repo"]):
+            create_commands.append(command)
+        if command[:4] == ["gh", "issue", "list", "--repo"]:
+            return json.dumps([{"number": 31, "url": "https://github.com/harrythentrepreneur/Omo.Space/issues/31"}])
+        if command[:4] == ["gh", "pr", "list", "--repo"]:
+            return json.dumps([{"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40}])
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return "a" * 40 + "\n"
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
+    result = adapter.prepare_release({
+        "submission_id": "sub_reuse0000000000000000001",
+        "slug": "facebook-ads-copywriter",
+        "published_slug": "facebook-ads-copywriter",
+        "workflow_version": "facebook-ads-copywriter@1.0.0",
+        "selected_runtime": "worker-native",
+        "source_sha256": "b" * 64,
+        "artifact_hash": "c" * 64,
+    })
+
+    assert create_commands == []
+    assert result["issue_url"].endswith("/issues/31")
+    assert result["pr_number"] == 42
+
+
+def test_verify_merged_release_reads_hashes_from_merge_tree_not_current_tree() -> None:
+    process = load_process_submissions()
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        calls.append(command)
+        if command[:4] == ["gh", "pr", "view", "--repo"]:
+            return json.dumps({
+                "state": "MERGED",
+                "baseRefName": "main",
+                "headRefOid": "a" * 40,
+                "mergeCommit": {"oid": "d" * 40},
+                "statusCheckRollup": [{"name": "contracts", "conclusion": "SUCCESS"}],
+            })
+        if command[:2] == ["git", "ls-tree"]:
+            return "containers/facebook-ads-copywriter/manifest.json\0"
+        if command[:2] == ["git", "show"]:
+            spec = command[2]
+            if spec.endswith(":containers/facebook-ads-copywriter/source/SKILL.md"):
+                return b"reviewed source"
+            if spec.endswith(":containers/facebook-ads-copywriter/manifest.json"):
+                return b'{"slug":"facebook-ads-copywriter"}'
+        return ""
+
+    expected_source = process.sha256_bytes(b"reviewed source")
+    expected_artifact = process.hash_release_artifact_entries({
+        "containers/facebook-ads-copywriter/manifest.json": b'{"slug":"facebook-ads-copywriter"}',
+    })
+    adapter = process.GitHubReleaseAdapter(command_runner=runner)
+    release = {
+        "release_phase": "pr_open",
+        "branch": "omo-release/sub_verifytree000000000001-facebook-ads-copywriter",
+        "pr_number": 42,
+        "head_sha": "a" * 40,
+        "source_sha256": expected_source,
+        "artifact_hash": expected_artifact,
+    }
+
+    verified = adapter.verify_merged_release(release)
+
+    assert verified["release_phase"] == "merged_verified"
+    assert verified["verified_merge_sha"] == "d" * 40
+    assert ["git", "fetch", "origin", "main"] in calls
+    assert ["git", "merge-base", "--is-ancestor", "d" * 40, "origin/main"] in calls
+
+
+def test_verify_merged_release_fails_when_required_check_is_not_success() -> None:
+    process = load_process_submissions()
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        if command[:4] == ["gh", "pr", "view", "--repo"]:
+            return json.dumps({
+                "state": "OPEN",
+                "baseRefName": "main",
+                "headRefOid": "a" * 40,
+                "mergeCommit": None,
+                "statusCheckRollup": [{"name": "contracts", "conclusion": "FAILURE"}],
+            })
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner)
+    try:
+        adapter.merge_after_required_checks({
+            "release_phase": "pr_open",
+            "branch": "omo-release/sub_checkfail00000000001-facebook-ads-copywriter",
+            "pr_number": 42,
+            "head_sha": "a" * 40,
+            "source_sha256": "b" * 64,
+            "artifact_hash": "c" * 64,
+        })
+    except RuntimeError as error:
+        assert "required_checks_not_successful" in str(error)
+    else:
+        raise AssertionError("merge must fail closed when required checks fail")
 
 
 def test_reviewed_profile_auto_inherits_exact_match_runtime_from_hosted_metadata(tmp_path: Path) -> None:

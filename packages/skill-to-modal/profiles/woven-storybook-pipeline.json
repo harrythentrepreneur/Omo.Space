@@ -135,7 +135,7 @@
     "cover": "covers/woven-relationship-book-maker.svg",
     "demo_cap": "Hosted run: narrative draft + PDF-ready page plan",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-woven-storybook-pipeline-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-woven-storybook-pipeline-api.modal.run",
       "endpoint_env": "WOVEN_MODAL_URL"
     },
     "description": "Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted run delivers a Markdown book draft and PDF-ready page plan for $0.40; the full private chat-archive-to-PDF pipeline remains a separate production milestone.",

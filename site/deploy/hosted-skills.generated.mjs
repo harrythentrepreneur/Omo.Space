@@ -271,7 +271,7 @@ export const HOSTED_MODAL_SKILL_ROWS = [
     "woven-relationship-book-maker",
     {
       "container_slug": "woven-storybook-pipeline",
-      "default_endpoint": "https://harrythentrepreneur--cognition-woven-storybook-pipeline-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-woven-storybook-pipeline-api.modal.run",
       "endpoint_env": "WOVEN_MODAL_URL",
       "input_schema": {
         "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",

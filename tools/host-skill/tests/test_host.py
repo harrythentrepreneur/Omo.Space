@@ -96,6 +96,18 @@ def test_non_modal_endpoint_is_rejected() -> None:
         host.build_hosted_profile(profile, manifest, pricing)
 
 
+def test_modal_endpoint_must_match_expected_omo_workspace() -> None:
+    stale = "https://harrythentrepreneur--cognition-woven-storybook-pipeline-api.modal.run"
+    with pytest.raises(ValueError, match="workspace"):
+        host.validate_https_modal_endpoint(stale, expected_workspace="omo-space")
+
+    endpoint = host.validate_https_modal_endpoint(
+        "https://omo-space--cognition-woven-storybook-pipeline-api.modal.run",
+        expected_workspace="omo-space",
+    )
+    assert endpoint.startswith("https://omo-space--")
+
+
 def test_lightweight_single_llm_defaults_to_worker_native() -> None:
     profile, manifest, pricing = compiled_inputs()
     profile["runtime_preference"] = "auto"

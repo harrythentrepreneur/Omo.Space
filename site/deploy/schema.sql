@@ -218,6 +218,17 @@ CREATE TABLE IF NOT EXISTS submissions (
   build_claimed_at  TEXT,
   build_attempts    INTEGER NOT NULL DEFAULT 0,
   deployment_metadata TEXT,
+  release_phase     TEXT,
+  release_issue_url TEXT,
+  release_pr_url    TEXT,
+  release_pr_number INTEGER,
+  release_branch    TEXT,
+  release_head_sha  TEXT,
+  release_merge_sha TEXT,
+  release_artifact_hash TEXT,
+  modal_app         TEXT,
+  modal_url         TEXT,
+  canary_evidence   TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
   created_at    TEXT NOT NULL,
@@ -236,6 +247,17 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_evidence TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_claimed_at TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_attempts INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS deployment_metadata TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_phase TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_issue_url TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_pr_url TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_pr_number INTEGER;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_branch TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_head_sha TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_merge_sha TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_artifact_hash TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS modal_app TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS modal_url TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS canary_evidence TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_submissions_status_created
   ON submissions (status, created_at);

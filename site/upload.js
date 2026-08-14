@@ -129,6 +129,8 @@
         failure.textContent = failureReason;
         item.appendChild(failure);
       }
+      var releaseLinks = renderReleaseLinks(submission);
+      if (releaseLinks) item.appendChild(releaseLinks);
       var approvalPanel = renderApprovalPanel(submission);
       if (approvalPanel) item.appendChild(approvalPanel);
       var retryPanel = renderRetryPanel(submission);
@@ -142,6 +144,44 @@
       }
       hostedList.appendChild(item);
     });
+  }
+
+  function renderReleaseLinks(submission) {
+    if (!submission || !submission.release) return null;
+    var release = submission.release;
+    var panel = document.createElement('div');
+    panel.className = 'hosted-release';
+    var phase = document.createElement('p');
+    phase.className = 'hosted-runtime';
+    var phaseText = String(release.phase || '').replace(/[_:-]+/g, ' ');
+    phase.textContent = phaseText ? 'Release: ' + phaseText : 'Release pending';
+    panel.appendChild(phase);
+    var links = document.createElement('div');
+    links.className = 'hosted-meta';
+    if (submission.release.issue_url) {
+      links.appendChild(releaseAnchor(submission.release.issue_url, 'Issue'));
+    }
+    if (submission.release.pr_url) {
+      links.appendChild(releaseAnchor(submission.release.pr_url, 'PR'));
+    }
+    if (submission.release.merge_sha) {
+      var merge = document.createElement('span');
+      merge.className = 'visibility-badge';
+      merge.textContent = 'main ' + String(submission.release.merge_sha).slice(0, 7);
+      links.appendChild(merge);
+    }
+    if (links.childNodes.length) panel.appendChild(links);
+    return panel;
+  }
+
+  function releaseAnchor(href, label) {
+    var anchor = document.createElement('a');
+    anchor.className = 'visibility-badge';
+    anchor.href = href;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.textContent = label;
+    return anchor;
   }
 
   function friendlyName(rawName) {

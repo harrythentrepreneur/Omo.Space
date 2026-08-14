@@ -1,0 +1,38 @@
+name: generated-workflow-contracts
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Python test dependencies
+        run: python -m pip install pytest jsonschema pyyaml pillow reportlab pypdf numpy
+      - name: Python host/compiler/render contracts
+        run: PYTHONPATH=. pytest -q tools/host-skill/tests tools/skill-to-modal/tests tools/render/tests
+      - name: Worker and API contracts
+        run: |
+          node site/deploy/test-workers.mjs
+          node site/deploy/test-router.mjs
+          node site/deploy/test-balance.mjs
+          node site/deploy/test-cost.mjs
+          node api/tests/run-handler.test.mjs
+          node api/tests/reconcile-handler.test.mjs
+      - name: Syntax and diff checks
+        run: |
+          find tools packages containers research -name '*.py' -print0 | xargs -0 python -m py_compile
+          node --check site/deploy/worker.js
+          node --check site/upload.js
+          node --check site/deploy/hosted-skills.generated.mjs
+          git diff --check

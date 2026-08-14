@@ -12,10 +12,12 @@ commit and the final Omo billing canary remain explicit agent actions; use
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -52,6 +54,20 @@ SAFE_RUNTIMES = {"auto", "worker-native", "modal-hosted"}
 SAFE_SELECTED_RUNTIMES = {"worker-native", "modal-hosted"}
 SAFE_PRIOR_STATUSES = {"queued", "needs_review", "ready_for_deploy"}
 HOSTED_PROFILE_GLOB = "*/hosted-profile.json"
+RELEASE_PHASES = {
+    "compiled",
+    "pr_open",
+    "ci_passed",
+    "merged_verified",
+    "promoted",
+    "failed",
+}
+SAFE_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+SAFE_GITHUB_URL_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(?:issues|pull)/[1-9][0-9]{0,9}$")
+EXPECTED_MODAL_WORKSPACE = "omo-space"
+GITHUB_RELEASE_REPO = "harrythentrepreneur/Omo.Space"
+GITHUB_RELEASE_BASE = "main"
+REQUIRED_RELEASE_CHECKS = ("contracts",)
 
 
 def _load_host_module() -> Any:
@@ -241,6 +257,14 @@ class HttpSubmissionRepository:
         if response_status != 200 or not body or body.get("ok") is not True:
             raise RuntimeError("submission deployment transition was rejected")
 
+    def set_release_metadata(self, submission_id: str, release_metadata: dict[str, Any]) -> None:
+        response_status, body = self._post(
+            f"/api/internal/submissions/{validate_submission_id(submission_id)}/release",
+            normalize_release_metadata(release_metadata),
+        )
+        if response_status != 200 or not body or body.get("ok") is not True:
+            raise RuntimeError("submission release metadata transition was rejected")
+
     def get(self, submission_id: str) -> dict[str, Any] | None:
         raise RuntimeError("export review requires the direct Neon adapter")
 
@@ -384,10 +408,57 @@ class SubmissionRepository:
                 if cursor.rowcount != 1:
                     raise RuntimeError("submission disappeared while deployment metadata was being updated")
 
+    def set_release_metadata(self, submission_id: str, release_metadata: dict[str, Any]) -> None:
+        metadata = normalize_release_metadata(release_metadata)
+        with self.connection:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE submissions
+                    SET release_phase = %s,
+                        release_issue_url = %s,
+                        release_pr_url = %s,
+                        release_pr_number = %s,
+                        release_branch = %s,
+                        release_head_sha = %s,
+                        release_merge_sha = %s,
+                        release_artifact_hash = %s,
+                        modal_app = %s,
+                        modal_url = %s,
+                        canary_evidence = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                      AND status IN ('ready_for_deploy', 'ready_for_publish', 'deployed')
+                    """,
+                    (
+                        metadata.get("release_phase"),
+                        metadata.get("issue_url"),
+                        metadata.get("pr_url"),
+                        metadata.get("pr_number"),
+                        metadata.get("branch"),
+                        metadata.get("head_sha"),
+                        metadata.get("merge_sha"),
+                        metadata.get("artifact_hash"),
+                        metadata.get("modal_app"),
+                        metadata.get("modal_url"),
+                        json.dumps(metadata.get("canary") or {}, sort_keys=True),
+                        submission_id,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("submission disappeared while release metadata was being updated")
+
     def get(self, submission_id: str) -> dict[str, Any] | None:
         with self.connection.cursor(cursor_factory=self._extras.RealDictCursor) as cursor:
             cursor.execute(
-                "SELECT id,user_id,name,slug,content,source_sha256,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,workflow_version,published_slug,build_evidence,status,created_at,updated_at,deployed_at FROM submissions WHERE id = %s",
+                """
+                SELECT id,user_id,name,slug,content,source_sha256,requested_runtime,selected_runtime,
+                       runtime_policy,runtime_compatibility,workflow_version,published_slug,build_evidence,
+                       status,release_phase,release_issue_url,release_pr_url,release_pr_number,
+                       release_branch,release_head_sha,release_merge_sha,release_artifact_hash,
+                       modal_app,modal_url,canary_evidence,created_at,updated_at,deployed_at
+                FROM submissions WHERE id = %s
+                """,
                 (submission_id,),
             )
             row = cursor.fetchone()
@@ -417,6 +488,17 @@ class SubmissionRepository:
 
 def run_checked(command: list[str], cwd: Path = ROOT) -> None:
     subprocess.run(command, cwd=cwd, check=True)
+
+
+def run_capture(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+    completed = subprocess.run(
+        command,
+        cwd=cwd or ROOT,
+        check=True,
+        capture_output=True,
+        text=text,
+    )
+    return completed.stdout
 
 
 def host_command(
@@ -577,27 +659,452 @@ def generated_runtime_metadata(slug: str, profile_path: Path, expected_source_sh
     }
 
 
+def release_branch_for_submission(submission_id: str, slug: str) -> str:
+    return f"omo-release/{validate_submission_id(submission_id)}-{slug}"
+
+
+def sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def hash_release_artifact_entries(entries: dict[str, bytes]) -> str:
+    digest = hashlib.sha256()
+    for rel, content in sorted(entries.items()):
+        if "/__pycache__/" in rel or rel.endswith(".pyc"):
+            continue
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(content).hexdigest().encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def hash_release_artifacts(slug: str, root: Path = ROOT) -> str:
+    container = root / "containers" / slug
+    if not container.is_dir():
+        raise RuntimeError("generated artifact directory is missing")
+    entries: dict[str, bytes] = {}
+    for path in sorted(candidate for candidate in container.rglob("*") if candidate.is_file()):
+        rel = path.relative_to(root).as_posix()
+        entries[rel] = path.read_bytes()
+    return hash_release_artifact_entries(entries)
+
+
+def release_allowlisted_paths(slug: str, root: Path = ROOT) -> list[str]:
+    if not SAFE_SLUG_RE.fullmatch(slug):
+        raise ValueError("invalid release slug")
+    candidates = [
+        f"containers/{slug}",
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"site/run-manifests/{slug}.json",
+        "site/catalog.js",
+        "site/deploy/hosted-skills.generated.mjs",
+        "site/deploy/schema.sql",
+        "site/deploy/test-balance.mjs",
+        "site/deploy/test-cost.mjs",
+        "site/deploy/test-router.mjs",
+        "site/deploy/test-workers.mjs",
+        "site/deploy/worker.js",
+        "site/upload.js",
+        ".github/workflows/generated-workflow-contracts.yml",
+    ]
+    return [path for path in candidates if (root / path).exists()]
+
+
+def copy_allowlisted_release_paths(slug: str, destination_root: Path, source_root: Path = ROOT) -> list[str]:
+    copied: list[str] = []
+    for rel in release_allowlisted_paths(slug, source_root):
+        source = source_root / rel
+        destination = destination_root / rel
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if source.is_dir():
+            if destination.exists():
+                shutil.rmtree(destination)
+            shutil.copytree(source, destination, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        else:
+            shutil.copy2(source, destination)
+        copied.append(rel)
+    return copied
+
+
+def slug_from_release_branch(branch: str) -> str:
+    prefix = "omo-release/sub_"
+    if not branch.startswith(prefix):
+        raise ValueError("invalid release branch")
+    tail = branch[len(prefix):]
+    parts = tail.split("-")
+    for index in range(1, len(parts)):
+        candidate = "-".join(parts[index:])
+        if SAFE_SLUG_RE.fullmatch(candidate) and (ROOT / "containers" / candidate).is_dir():
+            return candidate
+    match = re.fullmatch(r"[A-Za-z0-9_-]{8,100}-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)", tail)
+    if match:
+        return match.group("slug")
+    raise ValueError("invalid release branch")
+
+
+def normalize_release_metadata(value: dict[str, Any]) -> dict[str, Any]:
+    phase = str(value.get("release_phase") or value.get("phase") or "").strip()
+    if phase not in RELEASE_PHASES:
+        raise ValueError("invalid release phase")
+    metadata: dict[str, Any] = {"release_phase": phase}
+    for key in ("source_sha256", "artifact_hash"):
+        text = str(value.get(key) or "").strip().lower()
+        if text:
+            if not SAFE_SHA256_RE.fullmatch(text):
+                raise ValueError(f"invalid release {key}")
+            metadata[key] = text
+    for key in ("head_sha", "merge_sha", "verified_merge_sha"):
+        text = str(value.get(key) or "").strip().lower()
+        if text:
+            if not SAFE_GIT_SHA_RE.fullmatch(text):
+                raise ValueError(f"invalid release {key}")
+            metadata[key] = text
+    branch = str(value.get("branch") or "").strip()
+    if branch:
+        if not re.fullmatch(r"omo-release/sub_[A-Za-z0-9_-]{8,100}-[a-z0-9]+(?:-[a-z0-9]+)*", branch):
+            raise ValueError("invalid release branch")
+        metadata["branch"] = branch
+    slug = str(value.get("slug") or "").strip()
+    if slug:
+        if not SAFE_SLUG_RE.fullmatch(slug):
+            raise ValueError("invalid release slug")
+        metadata["slug"] = slug
+    for key in ("issue_url", "pr_url"):
+        text = str(value.get(key) or "").strip()
+        if text:
+            if not SAFE_GITHUB_URL_RE.fullmatch(text):
+                raise ValueError(f"invalid release {key}")
+            metadata[key] = text
+    if value.get("pr_number") is not None:
+        pr_number = int(value["pr_number"])
+        if pr_number < 1:
+            raise ValueError("invalid release pr_number")
+        metadata["pr_number"] = pr_number
+    modal_app = str(value.get("modal_app") or "").strip()
+    if modal_app:
+        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", modal_app):
+            raise ValueError("invalid Modal app name")
+        metadata["modal_app"] = modal_app
+    modal_url = str(value.get("modal_url") or "").strip()
+    if modal_url:
+        metadata["modal_url"] = HOST_MODULE.validate_https_modal_endpoint(
+            modal_url,
+            expected_workspace=EXPECTED_MODAL_WORKSPACE,
+        )
+    canary = value.get("canary") or value.get("canary_evidence")
+    if isinstance(canary, dict):
+        safe_canary: dict[str, Any] = {}
+        if str(canary.get("status") or "") in {"passed", "failed"}:
+            safe_canary["status"] = str(canary["status"])
+        checked_at = str(canary.get("checked_at") or canary.get("timestamp") or "").strip()
+        if checked_at and len(checked_at) <= 64:
+            safe_canary["checked_at"] = checked_at
+        if safe_canary:
+            metadata["canary"] = safe_canary
+    return metadata
+
+
+class GitHubReleaseAdapter:
+    """GitHub release adapter with server-derived branch and PR identity.
+
+    The controller is responsible for running this script in an approved context.
+    Client-provided repo/branch/SHA values are never accepted by this adapter.
+    """
+
+    def __init__(
+        self,
+        command_runner: Any | None = None,
+        scratch_root: Path | None = None,
+        repo: str = GITHUB_RELEASE_REPO,
+        base: str = GITHUB_RELEASE_BASE,
+        required_checks: tuple[str, ...] = REQUIRED_RELEASE_CHECKS,
+    ):
+        if repo != GITHUB_RELEASE_REPO or base != GITHUB_RELEASE_BASE:
+            raise ValueError("release adapter repo/base are fixed server-side")
+        self.command_runner = command_runner or run_capture
+        self.scratch_root = scratch_root
+        self.repo = repo
+        self.base = base
+        self.required_checks = required_checks
+
+    def _run(self, command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        return self.command_runner(command, cwd=cwd, text=text)
+
+    def _json(self, command: list[str], cwd: Path | None = None) -> Any:
+        raw = self._run(command, cwd=cwd)
+        try:
+            return json.loads(str(raw or ""))
+        except json.JSONDecodeError as error:
+            raise RuntimeError("release command returned invalid JSON") from error
+
+    def _issue_for_submission(self, submission_id: str, slug: str) -> dict[str, Any]:
+        title = f"Omo release: {submission_id} {slug}"
+        existing = self._json([
+            "gh", "issue", "list",
+            "--repo", self.repo,
+            "--state", "open",
+            "--search", f"{submission_id} in:title",
+            "--json", "number,url",
+        ])
+        if isinstance(existing, list) and existing:
+            issue = existing[0]
+            return {"number": int(issue["number"]), "url": str(issue["url"])}
+        url = str(self._run([
+            "gh", "issue", "create",
+            "--repo", self.repo,
+            "--title", title,
+            "--body", f"Server-prepared release for submission `{submission_id}` / `{slug}`.",
+        ])).strip()
+        if not SAFE_GITHUB_URL_RE.fullmatch(url):
+            raise RuntimeError("invalid release issue URL")
+        return {"url": url, "number": int(url.rsplit("/", 1)[1])}
+
+    def _pr_for_branch(self, branch: str, issue_number: int, release_request: dict[str, Any]) -> dict[str, Any]:
+        existing = self._json([
+            "gh", "pr", "list",
+            "--repo", self.repo,
+            "--state", "open",
+            "--head", branch,
+            "--json", "number,url,headRefOid",
+        ])
+        if isinstance(existing, list) and existing:
+            pr = existing[0]
+            return {"number": int(pr["number"]), "url": str(pr["url"]), "headRefOid": str(pr.get("headRefOid") or "")}
+        body = (
+            f"Closes #{issue_number}\n\n"
+            f"submission: `{release_request['submission_id']}`\n"
+            f"slug: `{release_request['slug']}`\n"
+            f"source_sha256: `{release_request['source_sha256']}`\n"
+            f"artifact_hash: `{release_request['artifact_hash']}`\n"
+        )
+        pr_url = str(self._run([
+            "gh", "pr", "create",
+            "--repo", self.repo,
+            "--base", self.base,
+            "--head", branch,
+            "--title", f"Release {release_request['slug']} submission {release_request['submission_id']}",
+            "--body", body,
+        ])).strip()
+        if not SAFE_GITHUB_URL_RE.fullmatch(pr_url):
+            raise RuntimeError("invalid release PR URL")
+        viewed = self._json([
+            "gh", "pr", "view",
+            "--repo", self.repo,
+            pr_url,
+            "--json", "number,url,headRefOid",
+        ])
+        if not isinstance(viewed, dict):
+            raise RuntimeError("invalid release PR metadata")
+        return {"number": int(viewed["number"]), "url": str(viewed["url"]), "headRefOid": str(viewed.get("headRefOid") or "")}
+
+    def _prepare_worktree(self, branch: str, slug: str) -> tuple[Path, str]:
+        scratch_parent = self.scratch_root or Path(tempfile.mkdtemp(prefix="omo-release-parent-"))
+        scratch_parent.mkdir(parents=True, exist_ok=True)
+        worktree = Path(tempfile.mkdtemp(prefix="omo-release-worktree-", dir=scratch_parent))
+        self._run(["git", "fetch", "origin", self.base])
+        self._run(["git", "worktree", "add", "--detach", str(worktree), f"origin/{self.base}"])
+        self._run(["git", "switch", "-C", branch], cwd=worktree)
+        copied = copy_allowlisted_release_paths(slug, worktree)
+        if not copied:
+            raise RuntimeError("release allowlist matched no files")
+        self._run(["git", "add", *copied], cwd=worktree)
+        self._run(["git", "commit", "-m", f"Release {slug}"], cwd=worktree)
+        head_sha = str(self._run(["git", "rev-parse", "HEAD"], cwd=worktree)).strip().lower()
+        if not SAFE_GIT_SHA_RE.fullmatch(head_sha):
+            raise RuntimeError("invalid release head SHA")
+        return worktree, head_sha
+
+    def prepare_release(self, release_request: dict[str, Any]) -> dict[str, Any]:
+        submission_id = validate_submission_id(str(release_request.get("submission_id") or ""))
+        slug = str(release_request.get("slug") or "").strip()
+        if not SAFE_SLUG_RE.fullmatch(slug):
+            raise ValueError("invalid release slug")
+        source_sha256 = str(release_request.get("source_sha256") or "").strip().lower()
+        artifact_hash = str(release_request.get("artifact_hash") or "").strip().lower()
+        if not SAFE_SHA256_RE.fullmatch(source_sha256) or not SAFE_SHA256_RE.fullmatch(artifact_hash):
+            raise ValueError("release source/artifact hashes are required")
+        branch = release_branch_for_submission(submission_id, slug)
+        request = {**release_request, "submission_id": submission_id, "slug": slug, "branch": branch}
+        issue = self._issue_for_submission(submission_id, slug)
+        _worktree, head_sha = self._prepare_worktree(branch, slug)
+        self._run(["git", "push", "-u", "origin", branch], cwd=_worktree)
+        pr = self._pr_for_branch(branch, int(issue["number"]), request)
+        return normalize_release_metadata({
+            "release_phase": "pr_open",
+            "issue_url": issue["url"],
+            "pr_url": pr["url"],
+            "pr_number": pr["number"],
+            "branch": branch,
+            "head_sha": pr.get("headRefOid") or head_sha,
+            "source_sha256": source_sha256,
+            "artifact_hash": artifact_hash,
+        })
+
+    def _pr_view(self, pr_number: int) -> dict[str, Any]:
+        value = self._json([
+            "gh", "pr", "view",
+            "--repo", self.repo,
+            str(pr_number),
+            "--json", "number,url,state,baseRefName,headRefOid,mergeCommit,statusCheckRollup",
+        ])
+        if not isinstance(value, dict):
+            raise RuntimeError("invalid release PR metadata")
+        return value
+
+    def _assert_required_checks_success(self, pr: dict[str, Any]) -> None:
+        checks = pr.get("statusCheckRollup")
+        if not isinstance(checks, list):
+            raise RuntimeError("required_checks_not_successful")
+        successful: set[str] = set()
+        for check in checks:
+            if not isinstance(check, dict):
+                continue
+            name = str(check.get("name") or check.get("context") or "").strip()
+            conclusion = str(check.get("conclusion") or check.get("status") or "").upper()
+            if name and conclusion in {"SUCCESS", "COMPLETED"}:
+                successful.add(name)
+        missing = [name for name in self.required_checks if name not in successful]
+        if missing:
+            raise RuntimeError("required_checks_not_successful")
+
+    def merge_after_required_checks(self, release_metadata: dict[str, Any]) -> dict[str, Any]:
+        metadata = normalize_release_metadata(release_metadata)
+        pr_number = int(metadata.get("pr_number") or 0)
+        if not pr_number:
+            raise RuntimeError("release PR number is required")
+        pr = self._pr_view(pr_number)
+        if pr.get("baseRefName") != self.base or str(pr.get("headRefOid") or "").lower() != metadata.get("head_sha"):
+            raise RuntimeError("release PR identity mismatch")
+        self._assert_required_checks_success(pr)
+        if pr.get("state") != "MERGED":
+            self._run(["gh", "pr", "merge", "--repo", self.repo, str(pr_number), "--merge"])
+        return self.verify_merged_release(metadata)
+
+    def _tree_file(self, commit: str, path: str) -> bytes:
+        raw = self._run(["git", "show", f"{commit}:{path}"], text=False)
+        if isinstance(raw, str):
+            return raw.encode("utf-8")
+        return raw
+
+    def _tree_artifact_hash(self, commit: str, slug: str) -> str:
+        raw = self._run(["git", "ls-tree", "-r", "-z", "--name-only", commit, "--", f"containers/{slug}"])
+        paths = [path for path in str(raw).split("\0") if path]
+        entries = {path: self._tree_file(commit, path) for path in paths}
+        if not entries:
+            raise RuntimeError("verified merge artifact tree is empty")
+        return hash_release_artifact_entries(entries)
+
+    def verify_merged_release(self, release_metadata: dict[str, Any]) -> dict[str, Any]:
+        metadata = normalize_release_metadata(release_metadata)
+        pr_number = int(metadata.get("pr_number") or 0)
+        branch = str(metadata.get("branch") or "")
+        if not pr_number or not branch:
+            raise RuntimeError("release PR metadata is required")
+        slug = slug_from_release_branch(branch)
+        pr = self._pr_view(pr_number)
+        if pr.get("state") != "MERGED" or pr.get("baseRefName") != self.base:
+            raise RuntimeError("verified_merge_required")
+        if str(pr.get("headRefOid") or "").lower() != metadata.get("head_sha"):
+            raise RuntimeError("release head SHA mismatch")
+        merge = pr.get("mergeCommit")
+        merge_sha = str(merge.get("oid") if isinstance(merge, dict) else "").strip().lower()
+        if not SAFE_GIT_SHA_RE.fullmatch(merge_sha):
+            raise RuntimeError("verified_merge_required")
+        self._run(["git", "fetch", "origin", self.base])
+        self._run(["git", "cat-file", "-e", f"{merge_sha}^{{commit}}"])
+        self._run(["git", "merge-base", "--is-ancestor", merge_sha, f"origin/{self.base}"])
+        source = self._tree_file(merge_sha, f"containers/{slug}/source/SKILL.md")
+        source_sha256 = sha256_bytes(source)
+        artifact_hash = self._tree_artifact_hash(merge_sha, slug)
+        if source_sha256 != metadata.get("source_sha256") or artifact_hash != metadata.get("artifact_hash"):
+            raise RuntimeError("verified merge source/artifact hash mismatch")
+        return normalize_release_metadata({
+            **metadata,
+            "release_phase": "merged_verified",
+            "merge_sha": merge_sha,
+            "verified_merge_sha": merge_sha,
+            "source_sha256": source_sha256,
+            "artifact_hash": artifact_hash,
+        })
+
+    def checkout_verified_release(self, release_metadata: dict[str, Any]) -> Path:
+        metadata = normalize_release_metadata(release_metadata)
+        merge_sha = str(metadata.get("verified_merge_sha") or metadata.get("merge_sha") or "").strip()
+        if not SAFE_GIT_SHA_RE.fullmatch(merge_sha) or metadata.get("release_phase") != "merged_verified":
+            raise RuntimeError("verified_merge_required")
+        scratch_parent = self.scratch_root or Path(tempfile.mkdtemp(prefix="omo-promote-parent-"))
+        scratch_parent.mkdir(parents=True, exist_ok=True)
+        worktree = Path(tempfile.mkdtemp(prefix="omo-promote-worktree-", dir=scratch_parent))
+        self._run(["git", "worktree", "add", "--detach", str(worktree), merge_sha])
+        return worktree
+
+
 def assert_reviewed_runtime(profile_path: Path, selected_runtime: str) -> None:
     decision = HOST_MODULE.decide_runtime_placement(json.loads(profile_path.read_text(encoding="utf-8")))
     if decision["effective"] != selected_runtime:
         raise RuntimeError("reviewed runtime decision diverged from selected_runtime")
 
 
-def deploy_reviewed_submission(skill_path: Path, slug: str, profile_path: Path, selected_runtime: str) -> None:
+def assert_modal_workspace(profile_path: Path, selected_runtime: str) -> None:
+    if selected_runtime != "modal-hosted":
+        return
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    endpoint = profile.get("marketplace", {}).get("deployment", {}).get("default_endpoint")
+    HOST_MODULE.validate_https_modal_endpoint(endpoint, expected_workspace=EXPECTED_MODAL_WORKSPACE)
+
+
+def prepare_reviewed_release(skill_path: Path, slug: str, profile_path: Path, selected_runtime: str) -> None:
     assert_reviewed_runtime(profile_path, selected_runtime)
-    if selected_runtime == "modal-hosted":
-        run_checked([sys.executable, "-m", "modal", "deploy", str(ROOT / "containers" / slug / "modal_app.py")])
-        direct_modal_canary(slug, profile_path)
-    elif selected_runtime != "worker-native":
+    assert_modal_workspace(profile_path, selected_runtime)
+    if selected_runtime not in SAFE_SELECTED_RUNTIMES:
         raise RuntimeError("selected runtime must be worker-native or modal-hosted")
     run_checked(host_command(skill_path, slug, profile_path=profile_path, register=True))
     run_checked(host_command(skill_path, slug, profile_path=profile_path, register=True, check=True))
     for script in ("test-workers.mjs", "test-router.mjs", "test-balance.mjs", "test-cost.mjs"):
         run_checked(["node", script], WORKER_ROOT)
-    run_checked(["npx", "wrangler", "deploy"], WORKER_ROOT)
 
 
-def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: bool) -> dict[str, Any]:
+def deploy_merged_release(
+    skill_path: Path,
+    slug: str,
+    profile_path: Path,
+    release_metadata: dict[str, Any],
+    release_adapter: Any,
+) -> dict[str, Any]:
+    try:
+        verified = normalize_release_metadata(release_adapter.verify_merged_release(release_metadata))
+    except ValueError as error:
+        raise RuntimeError("verified_merge_required") from error
+    if (
+        verified.get("release_phase") != "merged_verified"
+        or not verified.get("merge_sha")
+        or verified.get("verified_merge_sha") != verified.get("merge_sha")
+        or verified.get("source_sha256") != str(release_metadata.get("source_sha256") or "").strip().lower()
+        or verified.get("artifact_hash") != str(release_metadata.get("artifact_hash") or "").strip().lower()
+    ):
+        raise RuntimeError("verified_merge_required")
+    selected_runtime = str(release_metadata.get("selected_runtime") or "").strip()
+    release_root = ROOT
+    used_verified_checkout = False
+    if hasattr(release_adapter, "checkout_verified_release"):
+        release_root = release_adapter.checkout_verified_release(verified)
+        used_verified_checkout = True
+    release_profile_path = release_root / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    if not used_verified_checkout or not release_profile_path.exists():
+        release_profile_path = profile_path
+    assert_reviewed_runtime(release_profile_path, selected_runtime)
+    assert_modal_workspace(release_profile_path, selected_runtime)
+    if selected_runtime == "modal-hosted":
+        run_checked([sys.executable, "-m", "modal", "deploy", str(release_root / "containers" / slug / "modal_app.py")])
+        direct_modal_canary(slug, release_profile_path)
+    elif selected_runtime != "worker-native":
+        raise RuntimeError("selected runtime must be worker-native or modal-hosted")
+    run_checked(["npx", "wrangler", "deploy"], release_root / "site" / "deploy")
+    return {**verified, "release_phase": "promoted"}
+
+
+def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: bool, release_adapter: Any | None = None) -> dict[str, Any]:
     submission_id = validate_submission_id(row.get("id", ""))
     try:
         validated = validate_submission(row.get("name"), row.get("content"))
@@ -634,14 +1141,27 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
             decision = metadata["decision"]
             repository.set_runtime_decision(submission_id, decision)
             if deploy:
-                deploy_reviewed_submission(skill_path, validated.slug, profile_path, decision["effective"])
+                prepare_reviewed_release(skill_path, validated.slug, profile_path, decision["effective"])
+                release_request = {
+                    "submission_id": submission_id,
+                    "slug": validated.slug,
+                    "published_slug": metadata["published_slug"],
+                    "workflow_version": metadata["workflow_version"],
+                    "selected_runtime": decision["effective"],
+                    "source_sha256": validated.source_sha256,
+                    "artifact_hash": hash_release_artifacts(validated.slug),
+                    "branch": release_branch_for_submission(submission_id, validated.slug),
+                }
+                adapter = release_adapter or GitHubReleaseAdapter()
+                release_metadata = normalize_release_metadata(adapter.prepare_release(release_request))
                 repository.set_deployment_metadata(
                     submission_id,
-                    "ready_for_publish",
+                    "ready_for_deploy",
                     metadata["published_slug"],
                     metadata["workflow_version"],
                     metadata["build_evidence"],
                 )
+                repository.set_release_metadata(submission_id, release_metadata)
             else:
                 repository.set_deployment_metadata(
                     submission_id,
@@ -679,7 +1199,7 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
     return {
         "id": submission_id,
         "slug": validated.slug,
-        "status": "ready_for_publish" if deploy else "ready_for_deploy",
+        "status": "ready_for_merge" if deploy else "ready_for_deploy",
     }
 
 
@@ -715,6 +1235,28 @@ def export_for_review(repository: SubmissionRepository, submission_id: str, revi
     }
 
 
+def release_metadata_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    metadata = {
+        "release_phase": row.get("release_phase"),
+        "issue_url": row.get("release_issue_url"),
+        "pr_url": row.get("release_pr_url"),
+        "pr_number": row.get("release_pr_number"),
+        "branch": row.get("release_branch"),
+        "head_sha": row.get("release_head_sha"),
+        "merge_sha": row.get("release_merge_sha"),
+        "source_sha256": row.get("source_sha256"),
+        "artifact_hash": row.get("release_artifact_hash"),
+        "modal_app": row.get("modal_app"),
+        "modal_url": row.get("modal_url"),
+        "canary": row.get("canary_evidence"),
+        "selected_runtime": row.get("selected_runtime"),
+    }
+    normalized = normalize_release_metadata(metadata)
+    if metadata.get("selected_runtime"):
+        normalized["selected_runtime"] = str(metadata["selected_runtime"])
+    return normalized
+
+
 def repository_from_env(environ: dict[str, str]) -> Any:
     worker_base_url = str(environ.get("BUILD_WORKER_BASE_URL", "")).strip()
     worker_token = str(environ.get("BUILD_WORKER_TOKEN", "")).strip()
@@ -730,6 +1272,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--id", help="Claim a specific queued/needs_review submission")
     parser.add_argument("--deploy", action="store_true", help="Run external Modal/Worker deployment gates")
+    parser.add_argument("--prepare-release", action="store_true", help="Prepare/reuse the GitHub issue, release branch, and PR for a reviewed submission")
+    parser.add_argument("--merge-verified-release", help="Merge one prepared release PR after required checks pass")
+    parser.add_argument("--deploy-merged-release", help="Deploy one server-verified merged release from its merge tree")
     parser.add_argument("--dry-run", type=Path, metavar="SAMPLE_JSON", help="Validate a sample without DB writes")
     parser.add_argument("--export-review", help="Export one submission to a mode-0600 review file")
     parser.add_argument("--review-dir", type=Path, help="Destination directory used with --export-review")
@@ -741,8 +1286,9 @@ def main() -> int:
     args = parse_args()
     if args.dry_run:
         return dry_run_sample(args.dry_run)
-    if args.deploy and not args.id:
-        raise ValueError("--deploy requires a reviewed submission --id")
+    prepare_release = bool(args.deploy or args.prepare_release)
+    if prepare_release and not args.id:
+        raise ValueError("--prepare-release requires a reviewed submission --id")
 
     repository = repository_from_env(os.environ)
     try:
@@ -757,16 +1303,51 @@ def main() -> int:
             repository.mark_deployed(submission_id)
             output({"id": submission_id, "status": "deployed"})
             return 0
+        if args.merge_verified_release:
+            submission_id = validate_submission_id(args.merge_verified_release)
+            row = repository.get(submission_id)
+            if not row:
+                raise ValueError("submission not found")
+            adapter = GitHubReleaseAdapter()
+            merged = adapter.merge_after_required_checks(release_metadata_from_row(row))
+            repository.set_release_metadata(submission_id, merged)
+            output({"id": submission_id, **merged})
+            return 0
+        if args.deploy_merged_release:
+            submission_id = validate_submission_id(args.deploy_merged_release)
+            row = repository.get(submission_id)
+            if not row:
+                raise ValueError("submission not found")
+            slug = str(row.get("slug") or "")
+            if not SAFE_SLUG_RE.fullmatch(slug):
+                raise ValueError("invalid release slug")
+            selected_runtime = str(row.get("selected_runtime") or "")
+            profile_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+            skill_path = ROOT / "containers" / slug / "source" / "SKILL.md"
+            release_metadata = release_metadata_from_row(row)
+            release_metadata["selected_runtime"] = selected_runtime
+            adapter = GitHubReleaseAdapter()
+            promoted = deploy_merged_release(skill_path, slug, profile_path, release_metadata, adapter)
+            repository.set_release_metadata(submission_id, promoted)
+            repository.set_deployment_metadata(
+                submission_id,
+                "ready_for_publish",
+                str(row.get("published_slug") or slug),
+                str(row.get("workflow_version") or ""),
+                row.get("build_evidence") if isinstance(row.get("build_evidence"), dict) else {"release_phase": "promoted"},
+            )
+            output({"id": submission_id, **promoted})
+            return 0
         submission_id = validate_submission_id(args.id) if args.id else None
         row = repository.claim(
             submission_id,
             include_review=bool(submission_id),
-            include_ready=args.deploy,
+            include_ready=prepare_release,
         )
         if not row:
             output({"status": "idle", "message": "No queued submission."})
             return 0
-        output(process_row(row, repository, args.deploy))
+        output(process_row(row, repository, prepare_release))
         return 0
     finally:
         repository.close()
