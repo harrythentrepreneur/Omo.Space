@@ -1,4 +1,27 @@
 /* Shared launch navigation and footer for every top-level Omo page. */
+.omo-site-header,
+.omo-footer {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
+.omo-site-header { padding: 0; }
+
+.omo-site-header > .shell,
+.omo-footer > .shell {
+  width: min(1160px, calc(100% - 48px));
+  margin-inline: auto;
+}
+
+.omo-site-header .wordmark,
+.omo-footer .wordmark {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .omo-site-header {
   position: relative;
   z-index: 40;
@@ -158,6 +181,24 @@
   color: var(--moss, #6F7E77);
 }
 
+.omo-footer .wordmark-logo {
+  display: block;
+  width: auto;
+  height: 36px;
+}
+
+.omo-footer .footer-tagline {
+  margin: 8px 0 0;
+  color: var(--moss, #6F7E77);
+  font-size: 14px;
+}
+
+.omo-footer .footer-copyright {
+  margin: 8px 0 0;
+  color: var(--moss, #6F7E77);
+  font-size: 13px;
+}
+
 .omo-footer .footer-row {
   display: flex;
   align-items: flex-start;
@@ -194,6 +235,13 @@
 }
 
 @media (max-width: 760px) {
+  .omo-site-header > .shell,
+  .omo-footer > .shell {
+    width: 100%;
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-left: max(16px, env(safe-area-inset-left));
+  }
+
   .omo-nav-row {
     min-height: 68px;
     align-items: center;
