@@ -854,7 +854,7 @@
         } else if (closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus({ preventScroll: true });
       }
       function openWorkflowPage(slug) {
-        window.open('workflow.html?slug=' + encodeURIComponent(slug), '_blank', 'noopener');
+        window.open('/workflows/' + encodeURIComponent(slug) + '/', '_blank', 'noopener');
       }
       var openedRequestedListing = false;
       function openRequestedListing() {

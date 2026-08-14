@@ -666,7 +666,7 @@
     }
 
     if (typeof window.CLERK_PUBLISHABLE_KEY === 'string') loadClerk();
-    else loadScript('key-config.js', loadClerk);
+    else loadScript('/key-config.js', loadClerk);
   }
 
   function setStaticMenuLabel(link, label) {
@@ -895,10 +895,10 @@
 (function (doc) {
   var style = doc.createElement('link');
   style.rel = 'stylesheet';
-  style.href = 'menu-workflows.css?v=5';
+  style.href = '/menu-workflows.css?v=5';
   doc.head.appendChild(style);
 
   var script = doc.createElement('script');
-  script.src = 'menu-workflows.js?v=4';
+  script.src = '/menu-workflows.js?v=4';
   doc.head.appendChild(script);
 })(document);
