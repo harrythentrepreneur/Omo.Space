@@ -237,6 +237,12 @@ const USER_ID_RE = /^user_[A-Za-z0-9_-]{1,80}$/;
 const SUBMISSION_ID_RE = /^sub_[A-Za-z0-9_-]{8,100}$/;
 const SAFE_FAILURE_RE = /^[a-z][a-z0-9_]{2,63}$/;
 const SAFE_WORKFLOW_VERSION_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*@[0-9A-Za-z][0-9A-Za-z._:-]{0,79}$/;
+const SAFE_GIT_SHA_RE = /^[0-9a-f]{40}$/;
+const SAFE_SHA256_RE = /^[0-9a-f]{64}$/;
+const SAFE_GITHUB_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|pull)\/[1-9][0-9]{0,9}$/;
+const SAFE_RELEASE_BRANCH_RE = /^omo-release\/sub_[A-Za-z0-9_-]{8,100}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const RELEASE_PHASES = new Set(['compiled', 'pr_open', 'ci_passed', 'merged_verified', 'promoted', 'failed']);
+const EXPECTED_MODAL_WORKSPACE = 'omo-space';
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
 const STRIPE_CHECKOUT_API_VERSION = '2025-09-30.clover';
 const OMO_CHECKOUT_LOGO_URL = 'https://omo.space/logo-sweet-pastel.svg';
@@ -322,6 +328,8 @@ function dynamicRoute(pathname) {
   if (internalRuntime) return { handler: handleInternalSubmissionRuntime, methods: ['POST'], params: { submissionId: internalRuntime[1] }, internal: true };
   const internalDeployment = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/deployment$/.exec(pathname);
   if (internalDeployment) return { handler: handleInternalSubmissionDeployment, methods: ['POST'], params: { submissionId: internalDeployment[1] }, internal: true };
+  const internalRelease = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/release$/.exec(pathname);
+  if (internalRelease) return { handler: handleInternalSubmissionRelease, methods: ['POST'], params: { submissionId: internalRelease[1] }, internal: true };
   const internalDeployed = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/deployed$/.exec(pathname);
   if (internalDeployed) return { handler: handleInternalSubmissionDeployed, methods: ['POST'], params: { submissionId: internalDeployed[1] }, internal: true };
   const submissionDetail = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})$/.exec(pathname);
@@ -1891,6 +1899,7 @@ function publicSubmission(row) {
     approved_by: safeUserId(row.approved_by),
     approval_reason: safeApprovalReason(row.approval_reason),
     build_evidence: safeBuildEvidence(row.build_evidence),
+    release: safeReleaseSummary(row),
   };
 }
 
@@ -1906,7 +1915,7 @@ function safeTimestamp(value) {
 
 function safeSha256(value) {
   const text = String(value || '').trim().toLowerCase();
-  return /^[0-9a-f]{64}$/.test(text) ? text : null;
+  return SAFE_SHA256_RE.test(text) ? text : null;
 }
 
 function safeSlug(value) {
@@ -1980,6 +1989,75 @@ function safeBuildEvidence(value) {
   return evidence;
 }
 
+function safeGithubUrl(value, kind) {
+  const text = String(value || '').trim();
+  if (!SAFE_GITHUB_URL_RE.test(text)) return null;
+  return text.includes(`/${kind}/`) ? text : null;
+}
+
+function safeGitSha(value) {
+  const text = String(value || '').trim().toLowerCase();
+  return SAFE_GIT_SHA_RE.test(text) ? text : null;
+}
+
+function safeReleaseBranch(value) {
+  const text = String(value || '').trim();
+  return SAFE_RELEASE_BRANCH_RE.test(text) ? text : null;
+}
+
+function safeModalEndpoint(value) {
+  const text = String(value || '').trim().replace(/\/+$/, '');
+  try {
+    const url = new URL(text);
+    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' ||
+        url.search || url.hash || !url.hostname.endsWith('.modal.run') ||
+        !url.hostname.startsWith(`${EXPECTED_MODAL_WORKSPACE}--`)) {
+      return null;
+    }
+    return text;
+  } catch {
+    return null;
+  }
+}
+
+function safeCanaryEvidence(value) {
+  const parsed = parseJsonObject(value);
+  const status = String(parsed.status || '').trim();
+  const checkedAt = safeTimestamp(parsed.checked_at || parsed.timestamp);
+  const canary = {};
+  if (status === 'passed' || status === 'failed') canary.status = status;
+  if (checkedAt) canary.checked_at = checkedAt;
+  return Object.keys(canary).length ? canary : null;
+}
+
+function safeReleaseSummary(row) {
+  const phase = String(row.release_phase || '').trim();
+  if (!RELEASE_PHASES.has(phase)) return null;
+  const summary = { phase };
+  const issueUrl = safeGithubUrl(row.release_issue_url, 'issues');
+  const prUrl = safeGithubUrl(row.release_pr_url, 'pull');
+  const branch = safeReleaseBranch(row.release_branch);
+  const headSha = safeGitSha(row.release_head_sha);
+  const mergeSha = safeGitSha(row.release_merge_sha);
+  const artifactHash = safeSha256(row.release_artifact_hash);
+  const modalApp = safeSlug(row.modal_app);
+  const modalUrl = safeModalEndpoint(row.modal_url);
+  const canary = safeCanaryEvidence(row.canary_evidence);
+  if (issueUrl) summary.issue_url = issueUrl;
+  if (prUrl) summary.pr_url = prUrl;
+  if (Number.isSafeInteger(Number(row.release_pr_number)) && Number(row.release_pr_number) > 0) {
+    summary.pr_number = Number(row.release_pr_number);
+  }
+  if (branch) summary.branch = branch;
+  if (headSha) summary.head_sha = headSha;
+  if (mergeSha) summary.merge_sha = mergeSha;
+  if (artifactHash) summary.artifact_hash = artifactHash;
+  if (modalApp) summary.modal_app = modalApp;
+  if (modalUrl) summary.modal_url = modalUrl;
+  if (canary) summary.canary = canary;
+  return summary;
+}
+
 // ── Private build-worker bridge ─────────────────────────────────────────
 // These endpoints are intentionally bearer-only and same-zone/private. They
 // never set CORS headers and never return owner ids or source except on claim.
@@ -2001,6 +2079,17 @@ const REQUIRED_SUBMISSIONS_COLUMNS = [
   'build_claimed_at',
   'build_attempts',
   'deployment_metadata',
+  'release_phase',
+  'release_issue_url',
+  'release_pr_url',
+  'release_pr_number',
+  'release_branch',
+  'release_head_sha',
+  'release_merge_sha',
+  'release_artifact_hash',
+  'modal_app',
+  'modal_url',
+  'canary_evidence',
   'status',
   'failure_code',
   'created_at',
@@ -2028,6 +2117,17 @@ const CREATE_SUBMISSIONS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS submissions (
   build_claimed_at  TEXT,
   build_attempts    INTEGER NOT NULL DEFAULT 0,
   deployment_metadata TEXT,
+  release_phase   TEXT,
+  release_issue_url TEXT,
+  release_pr_url  TEXT,
+  release_pr_number INTEGER,
+  release_branch  TEXT,
+  release_head_sha TEXT,
+  release_merge_sha TEXT,
+  release_artifact_hash TEXT,
+  modal_app       TEXT,
+  modal_url       TEXT,
+  canary_evidence TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
   created_at    TEXT NOT NULL,
@@ -2057,6 +2157,17 @@ const SUBMISSIONS_SCHEMA_MIGRATIONS = [
   ['build_claimed_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_claimed_at TEXT'],
   ['build_attempts', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS build_attempts INTEGER NOT NULL DEFAULT 0'],
   ['deployment_metadata', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS deployment_metadata TEXT'],
+  ['release_phase', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_phase TEXT'],
+  ['release_issue_url', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_issue_url TEXT'],
+  ['release_pr_url', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_pr_url TEXT'],
+  ['release_pr_number', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_pr_number INTEGER'],
+  ['release_branch', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_branch TEXT'],
+  ['release_head_sha', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_head_sha TEXT'],
+  ['release_merge_sha', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_merge_sha TEXT'],
+  ['release_artifact_hash', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_artifact_hash TEXT'],
+  ['modal_app', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS modal_app TEXT'],
+  ['modal_url', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS modal_url TEXT'],
+  ['canary_evidence', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS canary_evidence TEXT'],
   ['status', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS status TEXT'],
   ['failure_code', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS failure_code TEXT'],
   ['created_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS created_at TEXT'],
@@ -2206,6 +2317,37 @@ function validateDeploymentBody(body) {
   return { status, publishedSlug, workflowVersion, evidence };
 }
 
+function validateReleaseBody(body) {
+  const phase = String(body.release_phase || body.phase || '').trim();
+  const sourceSha256 = safeSha256(body.source_sha256);
+  const artifactHash = safeSha256(body.artifact_hash);
+  const issueUrl = safeGithubUrl(body.issue_url, 'issues');
+  const prUrl = safeGithubUrl(body.pr_url, 'pull');
+  const branch = safeReleaseBranch(body.branch);
+  const headSha = safeGitSha(body.head_sha);
+  if (!RELEASE_PHASES.has(phase) || !sourceSha256 || !artifactHash || !issueUrl || !prUrl || !branch || !headSha) {
+    return null;
+  }
+  const release = {
+    phase,
+    sourceSha256,
+    artifactHash,
+    issueUrl,
+    prUrl,
+    branch,
+    headSha,
+    prNumber: Number(body.pr_number),
+    mergeSha: safeGitSha(body.merge_sha),
+    modalApp: safeSlug(body.modal_app),
+    modalUrl: safeModalEndpoint(body.modal_url),
+    canary: safeCanaryEvidence(body.canary || body.canary_evidence),
+  };
+  if (!Number.isSafeInteger(release.prNumber) || release.prNumber < 1) return null;
+  if ((phase === 'merged_verified' || phase === 'promoted') && !release.mergeSha) return null;
+  if (body.modal_url && !release.modalUrl) return null;
+  return release;
+}
+
 async function handleInternalSubmissionClaim(request, env) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
@@ -2251,6 +2393,16 @@ async function handleInternalSubmissionDeployment(request, env, _url, params) {
   if (!deployment) return internalJson({ error: 'invalid_deployment' }, 400);
   const updated = await internalSetDeployment(env, params.submissionId, deployment);
   return updated ? internalJson({ ok: true, id: params.submissionId, status: deployment.status }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalSubmissionRelease(request, env, _url, params) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const release = validateReleaseBody(parsed.body);
+  if (!release) return internalJson({ error: 'invalid_release' }, 400);
+  const updated = await internalSetRelease(env, params.submissionId, release);
+  return updated ? internalJson({ ok: true, id: params.submissionId, release_phase: release.phase }, 200)
     : internalJson({ error: 'invalid_transition' }, 409);
 }
 
@@ -2944,6 +3096,66 @@ async function internalSetDeployment(env, submissionId, deployment) {
   return false;
 }
 
+async function internalSetRelease(env, submissionId, release) {
+  const now = new Date().toISOString();
+  const canary = release.canary ? JSON.stringify(release.canary, null, 0) : null;
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-submission-release-v1',
+      `UPDATE submissions
+       SET release_phase = $1,
+           release_issue_url = $2,
+           release_pr_url = $3,
+           release_pr_number = $4,
+           release_branch = $5,
+           release_head_sha = $6,
+           release_merge_sha = $7,
+           release_artifact_hash = $8,
+           modal_app = $9,
+           modal_url = $10,
+           canary_evidence = $11,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $12
+         AND status IN ('ready_for_deploy', 'ready_for_publish', 'deployed')
+       RETURNING id`,
+      [
+        release.phase, release.issueUrl, release.prUrl, release.prNumber, release.branch,
+        release.headSha, release.mergeSha, release.artifactHash, release.modalApp,
+        release.modalUrl, canary, submissionId,
+      ]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB
+      .prepare("UPDATE submissions SET release_phase = ?, release_issue_url = ?, release_pr_url = ?, release_pr_number = ?, release_branch = ?, release_head_sha = ?, release_merge_sha = ?, release_artifact_hash = ?, modal_app = ?, modal_url = ?, canary_evidence = ?, updated_at = ? WHERE id = ? AND status IN ('ready_for_deploy', 'ready_for_publish', 'deployed')")
+      .bind(
+        release.phase, release.issueUrl, release.prUrl, release.prNumber, release.branch,
+        release.headSha, release.mergeSha, release.artifactHash, release.modalApp,
+        release.modalUrl, canary, now, submissionId,
+      ).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.id === submissionId && ['ready_for_deploy', 'ready_for_publish', 'deployed'].includes(record.status)) {
+      record.release_phase = release.phase;
+      record.release_issue_url = release.issueUrl;
+      record.release_pr_url = release.prUrl;
+      record.release_pr_number = release.prNumber;
+      record.release_branch = release.branch;
+      record.release_head_sha = release.headSha;
+      record.release_merge_sha = release.mergeSha || null;
+      record.release_artifact_hash = release.artifactHash;
+      record.modal_app = release.modalApp || null;
+      record.modal_url = release.modalUrl || null;
+      record.canary_evidence = canary;
+      record.updated_at = now;
+      return true;
+    }
+  }
+  return false;
+}
+
 async function internalMarkDeployed(env, submissionId, metadata) {
   const deployedAt = new Date().toISOString();
   const deploymentMeta = JSON.stringify(metadata, null, 0);
@@ -3320,7 +3532,7 @@ async function retryApprovedExactMatchBuildFailure(env, userId, submissionId) {
 }
 
 async function getSubmissionApprovalState(env, userId, submissionId) {
-  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence';
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-submission-approval-state-v1',
@@ -3336,7 +3548,7 @@ async function getSubmissionApprovalState(env, userId, submissionId) {
 }
 
 async function listSubmissions(env, userId, limit) {
-  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence';
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-submissions-list-v1',
@@ -3358,7 +3570,7 @@ async function listSubmissions(env, userId, limit) {
 }
 
 async function getSubmissionForOwner(env, userId, submissionId) {
-  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence';
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-submission-detail-v1',

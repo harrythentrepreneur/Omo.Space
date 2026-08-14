@@ -378,6 +378,13 @@ check('creator upload: failed approved exact-match build retry is visible, confi
   uploadSource.includes('aria-live') &&
   uploadSource.includes('refreshSubmissions(submission.id)') &&
   uploadSource.includes('fetchSubmissionDetail(submission.id)'));
+check('creator upload: Git-backed release progress renders issue/PR/merge links without client repo controls',
+  uploadSource.includes('renderReleaseLinks(submission)') &&
+  uploadSource.includes('submission.release.issue_url') &&
+  uploadSource.includes('submission.release.pr_url') &&
+  uploadSource.includes('submission.release.merge_sha') &&
+  !uploadSource.includes('client_branch') &&
+  !uploadSource.includes('client_repo'));
 
 let browserCheckoutCall = null;
 const stripeClientSandbox = {
@@ -549,6 +556,21 @@ for (const record of workerTest.mockSubmissions.values()) {
         provider_config: { token: 'hidden' },
         log: 'internal failure text hidden',
       }),
+      release_phase: 'promoted',
+      release_issue_url: 'https://github.com/omo-space/marketplace/issues/31',
+      release_pr_url: 'https://github.com/omo-space/marketplace/pull/42',
+      release_pr_number: 42,
+      release_branch: 'omo-release/sub_sample000000000000000001-sample-workflow',
+      release_head_sha: 'a'.repeat(40),
+      release_merge_sha: 'b'.repeat(40),
+      release_artifact_hash: 'c'.repeat(64),
+      modal_app: 'cognition-sample-workflow',
+      modal_url: 'https://omo-space--cognition-sample-workflow-api.modal.run',
+      canary_evidence: JSON.stringify({
+        checked_at: '2026-08-14T00:09:00.000Z',
+        status: 'passed',
+        secret: 'must-not-leak',
+      }),
       created_at: '2026-08-13T00:10:00.000Z',
       updated_at: '2026-08-13T00:10:00.000Z',
       deployed_at: '2026-08-13T00:10:00.000Z',
@@ -598,6 +620,18 @@ check('submissions detail: owner response includes lifecycle fields and redacts 
   /^[0-9a-f]{64}$/.test(submissionDetail.submission.source_sha256) &&
   submissionDetail.submission.workflow_version === 'sample-workflow@1.0.0' &&
   submissionDetail.submission.status === 'deployed' &&
+  submissionDetail.submission.release.phase === 'promoted' &&
+  submissionDetail.submission.release.issue_url === 'https://github.com/omo-space/marketplace/issues/31' &&
+  submissionDetail.submission.release.pr_url === 'https://github.com/omo-space/marketplace/pull/42' &&
+  submissionDetail.submission.release.pr_number === 42 &&
+  submissionDetail.submission.release.branch === 'omo-release/sub_sample000000000000000001-sample-workflow' &&
+  submissionDetail.submission.release.head_sha === 'a'.repeat(40) &&
+  submissionDetail.submission.release.merge_sha === 'b'.repeat(40) &&
+  submissionDetail.submission.release.artifact_hash === 'c'.repeat(64) &&
+  submissionDetail.submission.release.modal_app === 'cognition-sample-workflow' &&
+  submissionDetail.submission.release.modal_url === 'https://omo-space--cognition-sample-workflow-api.modal.run' &&
+  submissionDetail.submission.release.canary.checked_at === '2026-08-14T00:09:00.000Z' &&
+  submissionDetail.submission.release.canary.status === 'passed' &&
   submissionDetail.submission.deployed_at === '2026-08-13T00:10:00.000Z' &&
   submissionDetail.submission.compatibility.requested === 'modal-hosted' &&
   submissionDetail.submission.compatibility.recommended === 'worker-native' &&
@@ -605,6 +639,7 @@ check('submissions detail: owner response includes lifecycle fields and redacts 
   !detailText.includes('SKILL.md') &&
   !detailText.includes('provider_config') &&
   !detailText.includes('secret') &&
+  !detailText.includes('must-not-leak') &&
   !detailText.includes('stack trace') &&
   !detailText.includes('internal failure'));
 
@@ -1082,6 +1117,28 @@ const internalDeployment = await worker.fetch(mkReq('POST', `/api/internal/submi
     secret: 'must-not-store',
   },
 }, internalHeaders), buildEnv);
+const internalRelease = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/release`, {
+  release_phase: 'pr_open',
+  issue_url: 'https://github.com/omo-space/marketplace/issues/31',
+  pr_url: 'https://github.com/omo-space/marketplace/pull/42',
+  pr_number: 42,
+  branch: 'omo-release/' + internalClaimBody.submission.id + '-auto-workflow',
+  head_sha: 'a'.repeat(40),
+  source_sha256: internalClaimBody.submission.source_sha256,
+  artifact_hash: 'b'.repeat(64),
+  client_branch: 'attacker-branch',
+  secret: 'must-not-store',
+}, internalHeaders), buildEnv);
+const badInternalRelease = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/release`, {
+  release_phase: 'merged_verified',
+  issue_url: 'https://github.com/omo-space/marketplace/issues/31',
+  pr_url: 'https://github.com/omo-space/marketplace/pull/42',
+  pr_number: 42,
+  branch: 'main',
+  head_sha: 'a'.repeat(40),
+  source_sha256: internalClaimBody.submission.source_sha256,
+  artifact_hash: 'b'.repeat(64),
+}, internalHeaders), buildEnv);
 const internalDeployed = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/deployed`, {
   deployed_by: 'build-worker',
   deployment_url: 'https://omo.space/workflow.html?slug=auto-workflow',
@@ -1089,10 +1146,16 @@ const internalDeployed = await worker.fetch(mkReq('POST', `/api/internal/submiss
 const deployedRecord = Array.from(workerTest.mockSubmissions.values()).find((record) => record.id === internalClaimBody.submission.id);
 check('internal deployment: metadata is allowlisted and deployed is gated from ready_for_publish',
   internalDeployment.status === 200 &&
+  internalRelease.status === 200 &&
+  badInternalRelease.status === 400 &&
   internalDeployed.status === 200 &&
   deployedRecord.status === 'deployed' &&
   deployedRecord.published_slug === 'auto-workflow' &&
-  !String(deployedRecord.build_evidence).includes('must-not-store'));
+  deployedRecord.release_phase === 'pr_open' &&
+  deployedRecord.release_branch === 'omo-release/' + internalClaimBody.submission.id + '-auto-workflow' &&
+  deployedRecord.release_pr_number === 42 &&
+  !String(deployedRecord.build_evidence).includes('must-not-store') &&
+  !JSON.stringify(deployedRecord).includes('attacker-branch'));
 
 const internalBadStatus = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/status`, {
   status: 'queued',

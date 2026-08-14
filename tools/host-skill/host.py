@@ -109,11 +109,12 @@ def require_text(value: Any, field: str) -> str:
     return text
 
 
-def validate_https_modal_endpoint(value: Any) -> str:
+def validate_https_modal_endpoint(value: Any, expected_workspace: str | None = None) -> str:
     from urllib.parse import urlsplit
 
     endpoint = require_text(value, "deployment.default_endpoint").rstrip("/")
     parsed = urlsplit(endpoint)
+    hostname = parsed.hostname or ""
     if (
         parsed.scheme != "https"
         or parsed.username
@@ -121,9 +122,13 @@ def validate_https_modal_endpoint(value: Any) -> str:
         or parsed.query
         or parsed.fragment
         or parsed.path not in {"", "/"}
-        or not (parsed.hostname or "").endswith(".modal.run")
+        or not hostname.endswith(".modal.run")
     ):
         raise ValueError("marketplace deployment endpoint must be a bare HTTPS *.modal.run URL")
+    if expected_workspace:
+        prefix = f"{expected_workspace}--"
+        if not hostname.startswith(prefix):
+            raise ValueError("marketplace deployment endpoint workspace does not match the reviewed target")
     return endpoint
 
 
