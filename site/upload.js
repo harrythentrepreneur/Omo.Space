@@ -331,14 +331,13 @@
       /^sub_[A-Za-z0-9_-]{8,100}$/.test(String(submission.id || '')));
   }
 
-  function isRetryableExactMatchReleaseFailure(submission) {
+  function isRetryableReviewedBuildFailure(submission) {
     return !!(submission &&
       submission.status === 'failed' &&
       (submission.failure_code === 'build_or_deploy_failed' ||
         submission.failure_code === 'canary_or_internal_failed') &&
-      submission.approval_reason === 'exact_source_slug_collision' &&
-      submission.approved_at &&
-      submission.approved_by &&
+      (submission.selected_runtime === 'worker-native' || submission.selected_runtime === 'modal-hosted') &&
+      /^[a-f0-9]{64}$/.test(String(submission.source_sha256 || '')) &&
       /^sub_[A-Za-z0-9_-]{8,100}$/.test(String(submission.id || '')));
   }
 
@@ -387,16 +386,16 @@
   }
 
   function renderRetryPanel(submission) {
-    if (!isRetryableExactMatchReleaseFailure(submission)) return null;
+    if (!isRetryableReviewedBuildFailure(submission)) return null;
     var panel = document.createElement('section');
     panel.className = 'approval-panel';
-    panel.setAttribute('aria-label', 'Retry approved exact-match build');
+    panel.setAttribute('aria-label', 'Retry reviewed gated build');
     var title = document.createElement('p');
     title.className = 'approval-title';
-    title.textContent = 'Gated release failed after owner approval';
+    title.textContent = 'Reviewed gated build needs another attempt';
     var copy = document.createElement('p');
     copy.className = 'approval-copy';
-    copy.textContent = 'Retry sends the same approved exact source back through gated build checks. It does not publish or change the selected runtime.';
+    copy.textContent = 'Retry sends the same reviewed source back through gated build checks. It does not publish or change the selected runtime.';
     var error = document.createElement('p');
     error.className = 'approval-error';
     error.setAttribute('aria-live', 'polite');
@@ -408,7 +407,7 @@
     button.addEventListener('click', function () {
       error.hidden = true;
       error.textContent = '';
-      var confirmed = window.confirm('Retry this approved exact-match build? This does not publish or change the selected runtime.');
+      var confirmed = window.confirm('Retry this reviewed gated build? This does not publish or change the selected runtime.');
       if (!confirmed) return;
       button.disabled = true;
       button.textContent = 'Retrying...';

@@ -266,15 +266,15 @@ const sandbox = {
         values,
         name: text.includes('WITH updated AS') && text.includes("failure_code = 'slug_collision'")
           ? 'omo-submission-approve-v1'
-          : text.includes('WITH updated AS') && text.includes('failure_code IN')
-            ? 'omo-submission-retry-v1'
+          : text.includes('UPDATE submissions') && text.includes('failure_code IN') && text.includes("status = 'queued'")
+            ? 'omo-submission-retry-v2'
             : text.includes('SELECT id,slug,source_sha256,selected_runtime') && text.includes('WHERE id = $1')
               ? 'omo-internal-submission-detail-v1'
               : null,
         connectionString,
       };
       neonSqlCalls.push(entry);
-      if (entry.name === 'omo-submission-approve-v1' || entry.name === 'omo-submission-retry-v1') {
+      if (entry.name === 'omo-submission-approve-v1' || entry.name === 'omo-submission-retry-v2') {
         return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-internal-submission-detail-v1') {
@@ -380,14 +380,15 @@ check('creator upload: exact-match slug collision approval is visible, confirmed
   uploadSource.includes('aria-live') &&
   uploadSource.includes('refreshSubmissions(submission.id)') &&
   uploadSource.includes('fetchSubmissionDetail(submission.id)'));
-check('creator upload: failed approved exact-match release retry is visible, confirmed, disabled while pending, refreshed, and error-rendered',
+check('creator upload: reviewed failed submissions expose the generalized gated-build retry',
   uploadSource.includes('Retry gated build') &&
-  uploadSource.includes('Gated release failed after owner approval') &&
+  uploadSource.includes('Reviewed gated build needs another attempt') &&
   uploadSource.includes("submission.status === 'failed'") &&
-  uploadSource.includes("isRetryableExactMatchReleaseFailure(submission)") &&
+  uploadSource.includes("isRetryableReviewedBuildFailure(submission)") &&
   uploadSource.includes("submission.failure_code === 'build_or_deploy_failed'") &&
   uploadSource.includes("submission.failure_code === 'canary_or_internal_failed'") &&
-  uploadSource.includes("submission.approval_reason === 'exact_source_slug_collision'") &&
+  uploadSource.includes('submission.selected_runtime') &&
+  !uploadSource.includes("submission.approval_reason === 'exact_source_slug_collision'") &&
   uploadSource.includes("fetch(apiBase() + '/api/submissions/' + encodeURIComponent(submission.id) + '/retry'") &&
   uploadSource.includes("Authorization: 'Bearer ' + token") &&
   uploadSource.includes('button.disabled = true') &&
@@ -823,7 +824,7 @@ check('submission retry: Clerk owner can retry only a failed approved exact-matc
   retryBody.ok === true &&
   retryBody.retried === true &&
   retryBody.submission.id === retryRecord.id &&
-  retryBody.submission.status === 'ready_for_deploy' &&
+  retryBody.submission.status === 'queued' &&
   retryBody.submission.failure_code === null &&
   retryBody.submission.approved_by === 'user_creator' &&
   retryBody.submission.approval_reason === 'exact_source_slug_collision' &&
@@ -832,13 +833,8 @@ check('submission retry: Clerk owner can retry only a failed approved exact-matc
   !retryText.includes('retry-anyway') &&
   !retryText.includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'));
 
-const retryReplay = await (await worker.fetch(mkReq('POST', `/api/submissions/${retryRecord.id}/retry`, {}, creatorHeaders), realEnv)).json();
-check('submission retry: idempotent owner replay returns current ready_for_deploy state',
-  retryReplay.ok === true &&
-  retryReplay.retried === true &&
-  retryReplay.submission.id === retryRecord.id &&
-  retryReplay.submission.status === 'ready_for_deploy' &&
-  retryReplay.submission.failure_code === null);
+const retryReplayResponse = await worker.fetch(mkReq('POST', `/api/submissions/${retryRecord.id}/retry`, {}, creatorHeaders), realEnv);
+check('submission retry: replay rejects because only failed rows are retryable', retryReplayResponse.status === 409);
 
 const retryCanaryRecord = {
   ...retryRecord,
@@ -855,20 +851,51 @@ check('submission retry: owner can retry approved exact-match canary/internal fa
   retryCanaryBody.ok === true &&
   retryCanaryBody.retried === true &&
   retryCanaryBody.submission.id === retryCanaryRecord.id &&
-  retryCanaryBody.submission.status === 'ready_for_deploy' &&
+  retryCanaryBody.submission.status === 'queued' &&
   retryCanaryBody.submission.failure_code === null &&
   retryCanaryBody.submission.approved_by === 'user_creator' &&
   retryCanaryBody.submission.approval_reason === 'exact_source_slug_collision');
 
+const retryReviewedNewRecord = {
+  ...retryRecord,
+  id: 'sub_retryreviewednew00000000000001',
+  slug: 'brand-new-reviewed-workflow',
+  sourceSha256: 'a'.repeat(64),
+  source_sha256: 'a'.repeat(64),
+  status: 'failed',
+  failure_code: 'canary_or_internal_failed',
+  approved_at: null,
+  approved_by: null,
+  approval_reason: null,
+  release_phase: 'canary_failed',
+  release_issue_url: 'https://example.invalid/issue/1',
+  release_pr_url: 'https://example.invalid/pr/1',
+  canary_evidence: '{"failed":true}',
+  build_evidence: '{"old":true}',
+};
+workerTest.mockSubmissions.set(`user_creator\u0000${retryReviewedNewRecord.id}`, retryReviewedNewRecord);
+const retryReviewedNewResponse = await worker.fetch(mkReq('POST', `/api/submissions/${retryReviewedNewRecord.id}/retry`, {}, creatorHeaders), realEnv);
+const retryReviewedNewBody = await retryReviewedNewResponse.json();
+check('submission retry: reviewed new submission is requeued without publishing or changing identity/runtime',
+  retryReviewedNewResponse.status === 200 &&
+  retryReviewedNewBody.submission.status === 'queued' &&
+  retryReviewedNewBody.submission.failure_code === null &&
+  retryReviewedNewBody.submission.selected_runtime === 'worker-native' &&
+  retryReviewedNewBody.submission.source_sha256 === 'a'.repeat(64) &&
+  retryReviewedNewRecord.release_phase === null &&
+  retryReviewedNewRecord.release_issue_url === null &&
+  retryReviewedNewRecord.canary_evidence === null &&
+  retryReviewedNewRecord.build_evidence === null &&
+  !retryReviewedNewBody.submission.published_slug);
+
 const retryFailClosedRecords = [
-  ['sub_retryhash00000000000000000001', 'failed', 'build_or_deploy_failed', '2026-08-14T00:01:00.000Z', 'user_creator', 'exact_source_slug_collision', 'f'.repeat(64)],
-  ['sub_retrystatus000000000000000001', 'needs_review', 'build_or_deploy_failed', '2026-08-14T00:01:00.000Z', 'user_creator', 'exact_source_slug_collision', reviewedWovenSourceSha],
-  ['sub_retrycode00000000000000000001', 'failed', 'generated_source_hash_mismatch', '2026-08-14T00:01:00.000Z', 'user_creator', 'exact_source_slug_collision', reviewedWovenSourceSha],
-  ['sub_retryapprover0000000000000001', 'failed', 'build_or_deploy_failed', '2026-08-14T00:01:00.000Z', 'user_other_creator', 'exact_source_slug_collision', reviewedWovenSourceSha],
-  ['sub_retryreason000000000000000001', 'failed', 'build_or_deploy_failed', '2026-08-14T00:01:00.000Z', 'user_creator', 'manual_approval', reviewedWovenSourceSha],
-  ['sub_retryapprovedat000000000001', 'failed', 'build_or_deploy_failed', null, 'user_creator', 'exact_source_slug_collision', reviewedWovenSourceSha],
+  ['sub_retryhash00000000000000000001', 'failed', 'build_or_deploy_failed', 'g'.repeat(64), 'worker-native', 'reviewed_policy'],
+  ['sub_retrystatus000000000000000001', 'needs_review', 'build_or_deploy_failed', reviewedWovenSourceSha, 'worker-native', 'reviewed_policy'],
+  ['sub_retrycode00000000000000000001', 'failed', 'generated_source_hash_mismatch', reviewedWovenSourceSha, 'worker-native', 'reviewed_policy'],
+  ['sub_retryruntime00000000000000001', 'failed', 'build_or_deploy_failed', reviewedWovenSourceSha, 'client-invented', 'reviewed_policy'],
+  ['sub_retryunreviewed00000000000001', 'failed', 'build_or_deploy_failed', reviewedWovenSourceSha, 'worker-native', null],
 ];
-for (const [id, status, failureCode, approvedAt, approvedBy, approvalReason, sourceSha256] of retryFailClosedRecords) {
+for (const [id, status, failureCode, sourceSha256, selectedRuntime, runtimePolicy] of retryFailClosedRecords) {
   workerTest.mockSubmissions.set(`user_creator\u0000${id}`, {
     id,
     userId: 'user_creator',
@@ -879,11 +906,10 @@ for (const [id, status, failureCode, approvedAt, approvedBy, approvalReason, sou
     sourceSha256,
     source_sha256: sourceSha256,
     requested_runtime: 'auto',
+    selected_runtime: selectedRuntime,
+    runtime_policy: runtimePolicy,
     status,
     failure_code: failureCode,
-    approved_at: approvedAt,
-    approved_by: approvedBy,
-    approval_reason: approvalReason,
     created_at: '2026-08-14T00:00:00.000Z',
     updated_at: '2026-08-14T00:02:00.000Z',
   });
@@ -891,16 +917,14 @@ for (const [id, status, failureCode, approvedAt, approvedBy, approvalReason, sou
 const retryMismatch = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryhash00000000000000000001/retry', {}, creatorHeaders), realEnv);
 const retryWrongStatus = await worker.fetch(mkReq('POST', '/api/submissions/sub_retrystatus000000000000000001/retry', {}, creatorHeaders), realEnv);
 const retryWrongCode = await worker.fetch(mkReq('POST', '/api/submissions/sub_retrycode00000000000000000001/retry', {}, creatorHeaders), realEnv);
-const retryWrongApprover = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryapprover0000000000000001/retry', {}, creatorHeaders), realEnv);
-const retryWrongReason = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryreason000000000000000001/retry', {}, creatorHeaders), realEnv);
-const retryMissingApprovedAt = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryapprovedat000000000001/retry', {}, creatorHeaders), realEnv);
-check('submission retry: arbitrary failed records cannot bypass exact-match approval gates',
+const retryWrongRuntime = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryruntime00000000000000001/retry', {}, creatorHeaders), realEnv);
+const retryUnreviewed = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryunreviewed00000000000001/retry', {}, creatorHeaders), realEnv);
+check('submission retry: invalid identity, state, failure, runtime, and unreviewed rows fail closed',
   retryMismatch.status === 409 &&
   retryWrongStatus.status === 409 &&
   retryWrongCode.status === 409 &&
-  retryWrongApprover.status === 409 &&
-  retryWrongReason.status === 409 &&
-  retryMissingApprovedAt.status === 409);
+  retryWrongRuntime.status === 409 &&
+  retryUnreviewed.status === 409);
 
 const d1RetryCalls = [];
 const d1RetryRows = new Map([
@@ -928,18 +952,17 @@ const d1Env = {
           call.values = values;
           return {
             async run() {
-              const [, id, userId, sourceSha256, approvedBy, approvalReason] = values;
+              const [, id, userId] = values;
               const row = d1RetryRows.get(id);
               const retryableCode = row && (row.failure_code === 'build_or_deploy_failed' || row.failure_code === 'canary_or_internal_failed');
               const allowed = row && row.user_id === userId &&
-                row.source_sha256 === sourceSha256 &&
+                /^[a-f0-9]{64}$/.test(row.source_sha256) &&
                 row.status === 'failed' &&
                 retryableCode &&
-                row.approved_by === approvedBy &&
-                row.approval_reason === approvalReason &&
-                row.approved_at;
+                (row.selected_runtime === 'worker-native' || row.selected_runtime === 'modal-hosted') &&
+                row.runtime_policy;
               if (!allowed) return { meta: { changes: 0 } };
-              row.status = 'ready_for_deploy';
+              row.status = 'queued';
               row.failure_code = null;
               row.updated_at = values[0];
               return { meta: { changes: 1 } };
@@ -961,15 +984,15 @@ const retryD1CanaryResponse = await worker.fetch(mkReq('POST', '/api/submissions
 const retryD1CanaryBody = await retryD1CanaryResponse.json();
 const retryD1WrongCode = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryd1wrongcode000000000001/retry', {}, creatorHeaders), d1Env);
 const retryD1UpdateCalls = d1RetryCalls.filter((call) => call.text.includes('UPDATE submissions'));
-check('submission retry: D1 permits only the two approved exact-match release failure codes',
+check('submission retry: D1 permits only reviewed rows with the two gated failure codes',
   retryD1CanaryResponse.status === 200 &&
-  retryD1CanaryBody.submission.status === 'ready_for_deploy' &&
+  retryD1CanaryBody.submission.status === 'queued' &&
   retryD1CanaryBody.submission.failure_code === null &&
   retryD1WrongCode.status === 409 &&
   retryD1UpdateCalls.length >= 2 &&
   retryD1UpdateCalls.every((call) => call.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')")) &&
+  retryD1UpdateCalls.every((call) => call.text.includes("selected_runtime IN ('worker-native', 'modal-hosted')")) &&
   retryD1UpdateCalls.every((call) => !call.text.includes('generated_source_hash_mismatch')) &&
-  JSON.stringify(d1RetryCalls).includes('worker-native') === false &&
   JSON.stringify(d1RetryCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
 
 neonSqlCalls.length = 0;
@@ -977,7 +1000,7 @@ neonApprovalRow = {
   ...retryRecord,
   user_id: 'user_creator',
   source_sha256: reviewedWovenSourceSha,
-  status: 'ready_for_deploy',
+  status: 'queued',
   failure_code: null,
   approved_at: '2026-08-14T00:01:00.000Z',
   approved_by: 'user_creator',
@@ -988,26 +1011,23 @@ const retryNeonResponse = await worker.fetch(mkReq('POST', `/api/submissions/${r
   source_sha256: 'f'.repeat(64), selected_runtime: 'worker-native', decision: 'retry-anyway',
 }, creatorHeaders), { ...realEnv, NEON_DATABASE_URL: 'postgres://approval-user:secret@db.invalid/omo' });
 const retryNeonBody = await retryNeonResponse.json();
-const retryNeonCall = neonSqlCalls.find((call) => call.name === 'omo-submission-retry-v1');
+const retryNeonCall = neonSqlCalls.find((call) => call.name === 'omo-submission-retry-v2');
 neonApprovalRow = null;
 check('submission retry: Neon uses one atomic guarded UPDATE and ignores client hash/runtime/decision',
   retryNeonResponse.status === 200 &&
-  retryNeonBody.submission.status === 'ready_for_deploy' &&
+  retryNeonBody.submission.status === 'queued' &&
   retryNeonCall &&
   retryNeonCall.text.includes('UPDATE submissions') &&
   retryNeonCall.text.includes("status = 'failed'") &&
   retryNeonCall.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')") &&
   !retryNeonCall.text.includes('generated_source_hash_mismatch') &&
-  retryNeonCall.text.includes('source_sha256 = ANY($3::text[])') &&
-  retryNeonCall.text.includes('approved_by = $2') &&
-  retryNeonCall.text.includes("approval_reason = 'exact_source_slug_collision'") &&
-  retryNeonCall.text.includes("SET status = 'ready_for_deploy'") &&
+  retryNeonCall.text.includes("source_sha256 ~ '^[a-f0-9]{64}$'") &&
+  retryNeonCall.text.includes("selected_runtime IN ('worker-native', 'modal-hosted')") &&
+  retryNeonCall.text.includes("SET status = 'queued'") &&
   retryNeonCall.values[0] === retryRecord.id &&
   retryNeonCall.values[1] === 'user_creator' &&
-  Array.isArray(retryNeonCall.values[2]) &&
-  retryNeonCall.values[2].includes(reviewedWovenSourceSha) &&
+  retryNeonCall.values.length === 2 &&
   JSON.stringify(neonSqlCalls).includes('retry-anyway') === false &&
-  JSON.stringify(neonSqlCalls).includes('worker-native') === false &&
   JSON.stringify(neonSqlCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
 
 // Private build-worker bridge: bearer-only, no CORS, bounded strict payloads.

@@ -643,6 +643,31 @@ def test_process_row_retries_exact_match_with_inherited_modal_runtime(monkeypatc
     assert repo.deployments[-1][2] == "woven-relationship-book-maker"
 
 
+def test_process_row_allows_matching_container_for_review_and_ready_resumes(monkeypatch) -> None:
+    process = load_process_submissions()
+    source = (ROOT / "tools" / "host-skill" / "tests" / "fixtures" / "sample-workflow.md").read_text(encoding="utf-8")
+    validated = process.validate_submission("sample-creator-workflow", source)
+    seen: list[bool] = []
+
+    def gate(_validated, allow_matching_container=False):
+        seen.append(allow_matching_container)
+        return "needs_review", "slug_collision"
+
+    monkeypatch.setattr(process, "evaluate_review_gate", gate)
+    for prior_status in ("needs_review", "ready_for_deploy"):
+        process.process_row({
+            "id": f"sub_resume{prior_status.replace('_', '')}00000001",
+            "name": validated.name,
+            "content": source,
+            "source_sha256": validated.source_sha256,
+            "slug": validated.slug,
+            "requested_runtime": "auto",
+            "prior_status": prior_status,
+        }, FakeRepository(), deploy=False)
+
+    assert seen == [True, True]
+
+
 def test_deployed_gate_requires_publish_slug_version_and_evidence() -> None:
     process = load_process_submissions()
 

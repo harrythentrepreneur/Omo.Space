@@ -117,13 +117,20 @@ def evaluate_review_gate(
     container_path = root / "containers" / validated.slug
     package_path = root / "packages" / validated.slug / "SKILL.md"
 
+    expected_source = validated.content.encode("utf-8")
     matching_generated_source = container_path / "source" / "SKILL.md"
-    container_is_owned_resume = (
-        allow_matching_container
-        and matching_generated_source.is_file()
-        and matching_generated_source.read_text(encoding="utf-8") == validated.content
-    )
-    if package_path.exists() or (container_path.exists() and not container_is_owned_resume):
+    container_is_owned_resume = allow_matching_container and matching_generated_source.is_file()
+    package_is_owned_resume = False
+    if container_is_owned_resume:
+        try:
+            container_is_owned_resume = matching_generated_source.read_bytes() == expected_source
+            package_is_owned_resume = not package_path.exists() or (
+                package_path.is_file() and package_path.read_bytes() == expected_source
+            )
+        except OSError:
+            container_is_owned_resume = False
+            package_is_owned_resume = False
+    if (package_path.exists() and not package_is_owned_resume) or (container_path.exists() and not container_is_owned_resume):
         return "needs_review", "slug_collision"
     if not profile_path.is_file():
         return "needs_review", "reviewed_profile_required"

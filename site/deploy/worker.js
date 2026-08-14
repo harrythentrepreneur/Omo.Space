@@ -1866,7 +1866,7 @@ async function handleSubmissionApproval(request, env, _url, params) {
 async function handleSubmissionRetry(request, env, _url, params) {
   const auth = await authenticateAccount(request, env, false);
   if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
-  const retried = await retryApprovedExactMatchReleaseFailure(env, auth.userId, params.submissionId);
+  const retried = await retryReviewedGatedBuildFailure(env, auth.userId, params.submissionId);
   if (retried.status === 'not_found') return json({ ok: false, error: 'submission_not_found' }, 404, cors(request, env));
   if (retried.status === 'not_retryable') {
     return json({ ok: false, error: 'submission_not_retryable' }, 409, cors(request, env));
@@ -3518,103 +3518,64 @@ async function approveExactMatchSlugCollision(env, userId, submissionId) {
   return foundOwnerRecord ? { status: 'not_approvable' } : { status: 'not_found' };
 }
 
-async function retryApprovedExactMatchReleaseFailure(env, userId, submissionId) {
-  const allowedSourceHashes = reviewedSourceApprovalAllowlist();
-  if (!allowedSourceHashes.size) return { status: 'not_retryable' };
+async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
   const retryableFailureCodes = [...RETRYABLE_EXACT_MATCH_RELEASE_FAILURE_CODES];
   const now = new Date().toISOString();
+  const transientAssignments = `failure_code = NULL, workflow_version = NULL, published_slug = NULL,
+    deployed_at = NULL, build_evidence = NULL, release_phase = NULL, release_issue_url = NULL,
+    release_pr_url = NULL, release_pr_number = NULL, release_branch = NULL, release_head_sha = NULL,
+    release_merge_sha = NULL, release_artifact_hash = NULL, modal_app = NULL, modal_url = NULL,
+    canary_evidence = NULL`;
+  const returnedColumns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
-      'omo-submission-retry-v1',
-      `WITH updated AS (
-         UPDATE submissions
-         SET status = 'ready_for_deploy',
-             failure_code = NULL,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1
-           AND user_id = $2
-           AND source_sha256 = ANY($3::text[])
-           AND status = 'failed'
-           AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
-           AND approved_by = $2
-           AND approval_reason = '${APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION}'
-           AND approved_at IS NOT NULL
-         RETURNING id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence
-       ),
-       current AS (
-         SELECT id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence
-         FROM submissions
-         WHERE id = $1
-           AND user_id = $2
-           AND source_sha256 = ANY($3::text[])
-           AND status = 'ready_for_deploy'
-           AND failure_code IS NULL
-           AND approved_by = $2
-           AND approval_reason = '${APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION}'
-           AND approved_at IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM updated)
-       )
-       SELECT * FROM updated
-       UNION ALL
-       SELECT * FROM current
-       LIMIT 1`,
-      [submissionId, userId, [...allowedSourceHashes.keys()]]
+      'omo-submission-retry-v2',
+      `UPDATE submissions
+       SET status = 'queued', ${transientAssignments}, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND user_id = $2
+         AND status = 'failed'
+         AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
+         AND source_sha256 ~ '^[a-f0-9]{64}$'
+         AND selected_runtime IN ('worker-native', 'modal-hosted')
+         AND runtime_policy IS NOT NULL AND runtime_policy <> ''
+       RETURNING ${returnedColumns}`,
+      [submissionId, userId]
     ));
     const row = approvalSafeRow(result.rows[0]);
     if (row) return { status: 'retried', row };
-    const existing = await getSubmissionApprovalState(env, userId, submissionId);
-    if (!existing) return { status: 'not_found' };
-    return { status: 'not_retryable' };
+    return (await getSubmissionApprovalState(env, userId, submissionId))
+      ? { status: 'not_retryable' } : { status: 'not_found' };
   }
   if (databaseKind(env) === 'd1') {
-    for (const sourceSha256 of allowedSourceHashes.keys()) {
-      const updated = await env.BALANCE_DB
-        .prepare(`UPDATE submissions
-          SET status = 'ready_for_deploy', failure_code = NULL, updated_at = ?
-          WHERE id = ? AND user_id = ? AND source_sha256 = ? AND status = 'failed' AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed') AND approved_by = ? AND approval_reason = ? AND approved_at IS NOT NULL`)
-        .bind(now, submissionId, userId, sourceSha256, userId, APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION).run();
-      if (updated.meta && updated.meta.changes) {
-        const row = await getSubmissionForOwner(env, userId, submissionId);
-        return { status: 'retried', row };
-      }
+    const updated = await env.BALANCE_DB.prepare(`UPDATE submissions
+      SET status = 'queued', ${transientAssignments}, updated_at = ?
+      WHERE id = ? AND user_id = ? AND status = 'failed'
+        AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
+        AND length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^a-f0-9]*'
+        AND selected_runtime IN ('worker-native', 'modal-hosted')
+        AND runtime_policy IS NOT NULL AND runtime_policy <> ''`)
+      .bind(now, submissionId, userId).run();
+    if (updated.meta && updated.meta.changes) {
+      return { status: 'retried', row: await getSubmissionForOwner(env, userId, submissionId) };
     }
-    const existing = await getSubmissionApprovalState(env, userId, submissionId);
-    if (!existing) return { status: 'not_found' };
-    if (existing.status === 'ready_for_deploy' && !existing.failure_code &&
-        safeSha256(existing.source_sha256) && allowedSourceHashes.has(safeSha256(existing.source_sha256)) &&
-        existing.approved_by === userId &&
-        existing.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
-        existing.approved_at) {
-      return { status: 'retried', row: existing };
-    }
-    return { status: 'not_retryable' };
+    return (await getSubmissionApprovalState(env, userId, submissionId))
+      ? { status: 'not_retryable' } : { status: 'not_found' };
   }
-  let foundOwnerRecord = false;
   for (const record of mockSubmissions.values()) {
     if (record.id !== submissionId || (record.userId !== userId && record.user_id !== userId)) continue;
-    foundOwnerRecord = true;
-    const sourceSha256 = safeSha256(record.source_sha256 || record.sourceSha256);
-    if (record.status === 'ready_for_deploy' && !record.failure_code &&
-        sourceSha256 && allowedSourceHashes.has(sourceSha256) &&
-        record.approved_by === userId &&
-        record.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
-        record.approved_at) {
-      return { status: 'retried', row: record };
+    if (record.status !== 'failed' || !retryableFailureCodes.includes(record.failure_code) ||
+        !safeSha256(record.source_sha256 || record.sourceSha256) || !safeRuntime(record.selected_runtime) ||
+        !safeRuntimePolicy(record.runtime_policy)) return { status: 'not_retryable' };
+    record.status = 'queued';
+    for (const field of ['failure_code', 'workflow_version', 'published_slug', 'deployed_at', 'build_evidence',
+      'release_phase', 'release_issue_url', 'release_pr_url', 'release_pr_number', 'release_branch',
+      'release_head_sha', 'release_merge_sha', 'release_artifact_hash', 'modal_app', 'modal_url', 'canary_evidence']) {
+      record[field] = null;
     }
-    if (record.status === 'failed' &&
-        retryableFailureCodes.includes(record.failure_code) &&
-        sourceSha256 && allowedSourceHashes.has(sourceSha256) &&
-        record.approved_by === userId &&
-        record.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
-        record.approved_at) {
-      record.status = 'ready_for_deploy';
-      record.failure_code = null;
-      record.updated_at = now;
-      return { status: 'retried', row: record };
-    }
-    return { status: 'not_retryable' };
+    record.updated_at = now;
+    return { status: 'retried', row: record };
   }
-  return foundOwnerRecord ? { status: 'not_retryable' } : { status: 'not_found' };
+  return { status: 'not_found' };
 }
 
 async function getSubmissionApprovalState(env, userId, submissionId) {
