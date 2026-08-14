@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import sys
+import stat
 from pathlib import Path
 from urllib.error import HTTPError
 
@@ -231,6 +232,94 @@ class FakeRepository:
 
     def set_release_metadata(self, submission_id: str, release_metadata: dict) -> None:
         self.release_metadata = (submission_id, release_metadata)
+
+
+def _unknown_review_row(process, source: str) -> dict:
+    validated = process.validate_submission("Sample Creator Workflow", source)
+    return {
+        "id": "sub_reviewartifact000000000001",
+        "name": "Sample Creator Workflow",
+        "content": source,
+        "source_sha256": validated.source_sha256,
+        "slug": validated.slug,
+        "requested_runtime": "auto",
+        "prior_status": "queued",
+    }
+
+
+def test_process_row_persists_exact_private_review_source(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source = (ROOT / "tools" / "host-skill" / "tests" / "fixtures" / "sample-workflow.md").read_text(encoding="utf-8")
+    review_root = tmp_path / "review"
+    review_root.mkdir(mode=0o700)
+    monkeypatch.setenv("OMO_BUILD_REVIEW_ROOT", str(review_root))
+    repo = FakeRepository()
+
+    result = process.process_row(_unknown_review_row(process, source), repo, deploy=False)
+
+    review_path = Path(result["review_path"])
+    assert result == {
+        "id": "sub_reviewartifact000000000001",
+        "slug": "sample-creator-workflow",
+        "source_sha256": process.sha256_bytes(source.encode("utf-8")),
+        "status": "needs_review",
+        "failure_code": "reviewed_profile_required",
+        "review_path": str(review_path),
+    }
+    assert review_path.is_absolute()
+    assert review_path.read_bytes() == source.encode("utf-8")
+    assert stat.S_IMODE(review_path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(review_path.stat().st_mode) == 0o600
+
+
+def test_process_row_review_persistence_fails_closed_for_unsafe_root(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source = (ROOT / "tools" / "host-skill" / "tests" / "fixtures" / "sample-workflow.md").read_text(encoding="utf-8")
+    relative = "relative-review"
+    monkeypatch.setenv("OMO_BUILD_REVIEW_ROOT", relative)
+
+    try:
+        process.process_row(_unknown_review_row(process, source), FakeRepository(), deploy=False)
+    except RuntimeError as error:
+        assert str(error) == "unsafe_review_root"
+    else:
+        raise AssertionError("relative review roots must fail closed")
+    assert not (tmp_path / relative).exists()
+
+
+def test_process_row_never_persists_for_other_review_gates_or_hash_errors(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source = (ROOT / "tools" / "host-skill" / "tests" / "fixtures" / "sample-workflow.md").read_text(encoding="utf-8")
+    review_root = tmp_path / "review"
+    review_root.mkdir(mode=0o700)
+    monkeypatch.setenv("OMO_BUILD_REVIEW_ROOT", str(review_root))
+
+    collision_row = _unknown_review_row(process, source)
+    monkeypatch.setattr(process, "evaluate_review_gate", lambda validated, allow_matching_container=False: ("needs_review", "slug_collision"))
+    collision = process.process_row(collision_row, FakeRepository(), deploy=False)
+    assert collision["failure_code"] == "slug_collision"
+    assert list(review_root.iterdir()) == []
+
+    bad_hash = _unknown_review_row(process, source)
+    bad_hash["source_sha256"] = "0" * 64
+    mismatch = process.process_row(bad_hash, FakeRepository(), deploy=False)
+    assert mismatch["failure_code"] == "source_identity_mismatch"
+    assert list(review_root.iterdir()) == []
+
+
+def test_process_row_keeps_existing_review_result_when_review_root_unset(monkeypatch) -> None:
+    process = load_process_submissions()
+    source = (ROOT / "tools" / "host-skill" / "tests" / "fixtures" / "sample-workflow.md").read_text(encoding="utf-8")
+    monkeypatch.delenv("OMO_BUILD_REVIEW_ROOT", raising=False)
+
+    result = process.process_row(_unknown_review_row(process, source), FakeRepository(), deploy=False)
+
+    assert result == {
+        "id": "sub_reviewartifact000000000001",
+        "slug": "sample-creator-workflow",
+        "status": "needs_review",
+        "failure_code": "reviewed_profile_required",
+    }
 
 
 def test_process_row_fails_closed_when_generated_source_hash_differs(monkeypatch, tmp_path: Path) -> None:

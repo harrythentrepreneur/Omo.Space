@@ -63,6 +63,7 @@ RELEASE_PHASES = {
     "failed",
 }
 SAFE_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+REVIEW_ROOT_ENV = "OMO_BUILD_REVIEW_ROOT"
 SAFE_GITHUB_URL_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(?:issues|pull)/[1-9][0-9]{0,9}$")
 EXPECTED_MODAL_WORKSPACE = "omo-space"
 GITHUB_RELEASE_REPO = "harrythentrepreneur/Omo.Space"
@@ -84,6 +85,49 @@ HOST_MODULE = _load_host_module()
 
 def output(value: dict[str, Any]) -> None:
     print(json.dumps(value, ensure_ascii=False, sort_keys=True))
+
+
+def persist_review_source(validated: Any, submission_id: str, environ: dict[str, str] | None = None) -> Path | None:
+    """Persist validated untrusted source only when a private review root is configured."""
+    configured = str((environ or os.environ).get(REVIEW_ROOT_ENV, "")).strip()
+    if not configured:
+        return None
+    root = Path(configured)
+    try:
+        root_stat = root.lstat()
+    except OSError as error:
+        raise RuntimeError("unsafe_review_root") from error
+    if (
+        not root.is_absolute()
+        or root.is_symlink()
+        or not root.is_dir()
+        or root_stat.st_uid != os.geteuid()
+        or (root_stat.st_mode & 0o777) != 0o700
+    ):
+        raise RuntimeError("unsafe_review_root")
+
+    content = validated.content.encode("utf-8")
+    if sha256_bytes(content) != validated.source_sha256:
+        raise RuntimeError("source_identity_mismatch")
+    target_dir = root / validate_submission_id(submission_id)
+    try:
+        os.mkdir(target_dir, 0o700)
+        os.chmod(target_dir, 0o700)
+        target = target_dir / "SKILL.md"
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(target, flags, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(target, 0o600)
+    except OSError as error:
+        raise RuntimeError("review_persistence_failed") from error
+    if sha256_bytes(target.read_bytes()) != validated.source_sha256:
+        raise RuntimeError("review_persistence_failed")
+    return target.resolve(strict=True)
 
 
 def allowed_worker_origins(environ: dict[str, str]) -> set[str]:
@@ -1224,8 +1268,14 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
         validated, allow_matching_container=row.get("prior_status") == "ready_for_deploy"
     )
     if state != "ready_for_build":
+        review_path = None
+        if state == "needs_review" and reason == "reviewed_profile_required" and row.get("prior_status") != "needs_review":
+            review_path = persist_review_source(validated, submission_id)
         repository.set_status(submission_id, state, reason)
-        return {"id": submission_id, "slug": validated.slug, "status": state, "failure_code": reason}
+        result = {"id": submission_id, "slug": validated.slug, "status": state, "failure_code": reason}
+        if review_path is not None:
+            result.update({"source_sha256": validated.source_sha256, "review_path": str(review_path)})
+        return result
 
     try:
         with tempfile.TemporaryDirectory(prefix="omo-submission-") as temp_dir:
