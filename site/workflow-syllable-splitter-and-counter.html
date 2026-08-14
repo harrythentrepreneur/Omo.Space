@@ -50,9 +50,27 @@
   <style>
     :root{color-scheme:light;--ink:#27212d;--muted:#665d6d;--paper:#fffdf8;--card:#fff;--accent:#e8653b;--rule:#ded7cf;--green:#264c3b}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.58 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--green)}header,main,footer{width:min(900px,calc(100% - 32px));margin-inline:auto}header{padding:24px 0 12px}.brand{font-weight:800;text-decoration:none;font-size:20px}.eyebrow{color:var(--accent);font-weight:750;letter-spacing:.05em;text-transform:uppercase;font-size:13px}h1{font-size:clamp(2rem,6vw,3.5rem);line-height:1.08;letter-spacing:-.035em;margin:.35em 0}h2{font-size:1.35rem;margin:0 0 .6rem}main{padding-bottom:56px}.answer{font-size:1.08rem;max-width:76ch}.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:28px 0}.fact,section{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:20px}.fact strong{display:block;font-size:.83rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.fact span{display:block;margin-top:5px;font-weight:700}section{margin:16px 0}ul{padding-left:1.2rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f1eb;border-radius:10px;padding:16px;font-size:.86rem}.note{color:var(--muted)}.cta{display:inline-block;background:var(--green);color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:750}footer{border-top:1px solid var(--rule);padding:24px 0 40px;color:var(--muted);font-size:.9rem}@media(max-width:560px){section,.fact{padding:16px}}
   </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <link rel="stylesheet" href="mobile-polish.css">
+  <script defer src="nav.js"></script>
+  <!-- nav.js loads menu-workflows.js so personalized workflow rows match the storefront. -->
 </head>
 <body>
-  <header><a class="brand" href="index.html" aria-label="Omo home">Omo.</a></header>
+  <header class="site-header omo-site-header">
+    <div class="shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo"></a>
+        <div class="omo-nav-menu">
+          <button class="omo-nav-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true"><span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell Workflow</a>
+          </nav>
+        </div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
+    </div>
+  </header>
   <main>
     <p class="eyebrow">AI workflow facts</p>
     <h1>Syllable Splitter and Counter: Turn a word list into cautious syllable breaks and counts.</h1>
@@ -136,6 +154,20 @@
       <a class="cta" href="run.html?slug=syllable-splitter-and-counter">Open the workflow runner</a>
     </section>
   </main>
-  <footer>Omo workflow facts · Canonical URL: https://omo.space/workflow-syllable-splitter-and-counter.html</footer>
+  <footer class="site-footer omo-footer">
+    <div class="shell footer-row">
+      <div class="footer-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <p class="footer-tagline">The store for AI helpers. Browse the catalog, then download or run live tools by API.</p>
+        <p class="footer-copyright">© 2026 Omo</p>
+      </div>
+      <nav class="footer-links omo-footer-links" aria-label="Footer">
+        <a href="terms.html">Terms</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+        <a href="blog.html">Blog</a>
+      </nav>
+    </div>
+  </footer>
 </body>
 </html>
