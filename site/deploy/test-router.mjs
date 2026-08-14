@@ -357,6 +357,11 @@ check('creator upload: reload waits for Clerk auth readiness and never renders a
   uploadSource.includes("setSubmissionMessage('Loading your submissions…')") &&
   uploadSource.includes("setSubmissionMessage('Sign in to see your submissions.')") &&
   !uploadSource.includes('restoreSubmissionsAfterReload(attempt)'));
+check('creator upload: reload restores the latest browser submission progress from server state',
+  uploadSource.includes('var savedIds = readSubmissionIds();') &&
+  uploadSource.includes('var focusId = savedIds.length ? savedIds[savedIds.length - 1] : null;') &&
+  uploadSource.includes('return refreshSubmissions(focusId);') &&
+  !uploadSource.includes('localStorage.setItem(STORAGE_KEY, JSON.stringify(submissions)'));
 check('creator upload: lifecycle UI is honest and opens workflow only after deployment',
   uploadSource.includes('runtimeDecisionText') &&
   uploadSource.includes('Open workflow') &&

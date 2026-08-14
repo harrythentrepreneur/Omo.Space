@@ -487,7 +487,9 @@
         setSubmissionMessage('Sign in to see your submissions.');
         return [];
       }
-      return refreshSubmissions();
+      var savedIds = readSubmissionIds();
+      var focusId = savedIds.length ? savedIds[savedIds.length - 1] : null;
+      return refreshSubmissions(focusId);
     }).catch(function () {
       setSubmissionMessage('Could not load your submissions. Please refresh or try again shortly.');
       return [];
