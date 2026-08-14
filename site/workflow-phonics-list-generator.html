@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="index,follow">
+  <meta name="description" content="Generate a dialect-aware, teacher-reviewable phonics word list with target coverage and pronunciation cautions. Pay $0.10 per run on Omo.">
+  <link rel="canonical" href="https://omo.space/workflow-phonics-list-generator.html">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>Phonics Word List Generator — Price, Inputs and Output | Omo</title>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": "Phonics Word List Generator",
+      "description": "Generate a dialect-aware, teacher-reviewable phonics word list with target coverage and pronunciation cautions.",
+      "url": "https://omo.space/workflow-phonics-list-generator.html",
+      "brand": {
+        "@type": "Brand",
+        "name": "Omo"
+      },
+      "category": "Education workflow",
+      "additionalProperty": [
+        {
+          "@type": "PropertyValue",
+          "name": "Input",
+          "value": "phonemes: reviewed bounded input; topic: reviewed bounded input; difficulty_level: reviewed bounded input; dialect: reviewed bounded input; word_count: reviewed bounded input"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Output",
+          "value": "words: schema-validated result; coverage: schema-validated result; warnings: schema-validated result"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Availability note",
+          "value": "Available as a pay-per-use workflow"
+        }
+      ],
+      "offers": {
+        "@type": "Offer",
+        "name": "Pay per run",
+        "price": "0.10",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock",
+        "url": "https://omo.space/workflow-phonics-list-generator.html"
+      }
+    }
+  </script>
+  <style>
+    :root{color-scheme:light;--ink:#27212d;--muted:#665d6d;--paper:#fffdf8;--card:#fff;--accent:#e8653b;--rule:#ded7cf;--green:#264c3b}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.58 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--green)}header,main,footer{width:min(900px,calc(100% - 32px));margin-inline:auto}header{padding:24px 0 12px}.brand{font-weight:800;text-decoration:none;font-size:20px}.eyebrow{color:var(--accent);font-weight:750;letter-spacing:.05em;text-transform:uppercase;font-size:13px}h1{font-size:clamp(2rem,6vw,3.5rem);line-height:1.08;letter-spacing:-.035em;margin:.35em 0}h2{font-size:1.35rem;margin:0 0 .6rem}main{padding-bottom:56px}.answer{font-size:1.08rem;max-width:76ch}.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:28px 0}.fact,section{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:20px}.fact strong{display:block;font-size:.83rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.fact span{display:block;margin-top:5px;font-weight:700}section{margin:16px 0}ul{padding-left:1.2rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f1eb;border-radius:10px;padding:16px;font-size:.86rem}.note{color:var(--muted)}.cta{display:inline-block;background:var(--green);color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:750}footer{border-top:1px solid var(--rule);padding:24px 0 40px;color:var(--muted);font-size:.9rem}@media(max-width:560px){section,.fact{padding:16px}}
+  </style>
+</head>
+<body>
+  <header><a class="brand" href="index.html" aria-label="Omo home">Omo.</a></header>
+  <main>
+    <p class="eyebrow">AI workflow facts</p>
+    <h1>Phonics Word List Generator: Turn target phonemes into a clean, reviewed word list.</h1>
+    <p class="answer">Turn target phonemes into a clean, reviewed word list. It is for people who need the listed result without assembling the workflow themselves. The current pay-per-use price is exactly $0.10 per run. Provide the inputs below, review the result, and apply the checks in the limitations section before using it.</p>
+    <section>
+      <h2>What it does</h2>
+      <p>Generate a dialect-aware, teacher-reviewable phonics word list with target coverage and pronunciation cautions.</p>
+    </section>
+    <div class="facts" aria-label="Workflow facts">
+      <div class="fact"><strong>Price</strong><span>$0.10 per run</span></div>
+      <div class="fact"><strong>Input</strong><span>phonemes: reviewed bounded input; topic: reviewed bounded input; difficulty_level: reviewed bounded input; dialect: reviewed bounded input; word_count: reviewed bounded input</span></div>
+      <div class="fact"><strong>Output</strong><span>words: schema-validated result; coverage: schema-validated result; warnings: schema-validated result</span></div>
+      <div class="fact"><strong>Version</strong><span>0.1.0</span></div>
+    </div>
+    <section>
+      <h2>What you provide</h2>
+      <ul><li>phonemes: reviewed bounded input</li>
+          <li>topic: reviewed bounded input</li>
+          <li>difficulty_level: reviewed bounded input</li>
+          <li>dialect: reviewed bounded input</li>
+          <li>word_count: reviewed bounded input</li></ul>
+    </section>
+    <section>
+      <h2>What you receive</h2>
+      <ul><li>words: schema-validated result</li>
+          <li>coverage: schema-validated result</li>
+          <li>warnings: schema-validated result</li></ul>
+    </section>
+    <section>
+      <h2>Worked example</h2>
+      <p class="note">Reviewed contract fixture (not evidence of a live customer run)</p>
+      <h3>Example input</h3>
+      <pre>{
+  &quot;phonemes&quot;: [
+    &quot;ch&quot;,
+    &quot;sh&quot;
+  ],
+  &quot;topic&quot;: &quot;farm animals&quot;,
+  &quot;difficulty_level&quot;: &quot;beginner&quot;,
+  &quot;dialect&quot;: &quot;en-US&quot;,
+  &quot;word_count&quot;: 8
+}</pre>
+      <h3>Representative output</h3>
+      <pre>{
+  &quot;run_id&quot;: &quot;run-fixture-phonics-list-generator&quot;,
+  &quot;status&quot;: &quot;completed&quot;,
+  &quot;workflow_version&quot;: &quot;phonics-list-generator@0.1.0&quot;,
+  &quot;words&quot;: [
+    {
+      &quot;word&quot;: &quot;chick&quot;,
+      &quot;matched_phonemes&quot;: [
+        &quot;ch&quot;
+      ],
+      &quot;target_position&quot;: &quot;initial&quot;,
+      &quot;pronunciation_note&quot;: &quot;Initial ch as in chick.&quot;
+    },
+    {
+      &quot;word&quot;: &quot;shed&quot;,
+      &quot;matched_phonemes&quot;: [
+        &quot;sh&quot;
+      ],
+      &quot;target_position&quot;: &quot;initial&quot;,
+      &quot;pronunciation_note&quot;: &quot;Initial sh as in shed.&quot;
+    },
+    {
+      &quot;word&quot;: &quot;lunch&quot;,
+      &quot;matched_phonemes&quot;: [
+        &quot;ch&quot;
+      ],
+      &quot;target_position&quot;: &quot;final&quot;,
+      &quot;pronunciation_note&quot;: &quot;Final ch as in lunch.&quot;
+    },
+    {
+      &quot;word&quot;: &quot;fish&quot;,
+      &quot;matched_phonemes&quot;: [
+        &quot;sh&quot;
+      ],
+      &quot;target_position&quot;: &quot;final&quot;,
+      &quot;pronunciation_note&quot;: &quot;Final sh as in fish.&quot;
+    },
+    {
+      &quot;word&quot;: &quot;chest&quot;,
+      &quot;matched_phonemes&quot;: [
+        &quot;ch&quot;
+      ],
+      &quot;target_position&quot;: &quot;initial&quot;,
+      &quot;pronunciation_note&quot;: &quot;Initial ch as in chest.&quot;
+    },
+    {
+      &quot;word&quot;: &quot;shell&quot;,
+      &quot;matched_phonemes&quot;: [
+        &quot;sh&quot;
+      ],
+      &quot;target_position&quot;: &quot;initial&quot;,
+      &quot;pronunciation_note&quot;: &quot;Initial sh as in shell.&quot;
+    },
+    {
+      &quot;word&quot;: &quot;bench&quot;,
+      &quot;matched_phonemes&quot;: [
+        &quot;ch&quot;
+      ],
+      &quot;target_position&quot;: &quot;final&quot;,
+      &quot;pronunciation_note&quot;: &quot;Final ch as in bench.&quot;
+    },
+    {
+      &quot;word&quot;: &quot;brush&quot;,
+      &quot;matched_phonemes&quot;: [
+        &quot;sh&quot;
+      ],
+      &quot;target_position&quot;: &quot;final&quot;,
+      &quot;pronunciation_note&quot;: &quot;Final sh as in brush.&quot;
+    }
+  ],
+  &quot;coverage&quot;: [
+    &quot;ch&quot;,
+    &quot;sh&quot;
+  ],
+  &quot;warnings&quot;: [],
+  &quot;usage&quot;: {
+    &quot;provider&quot;: &quot;opencode-go&quot;,
+    &quot;model&quot;: &quot;deepseek-v4-flash&quot;,
+    &quot;llm_calls&quot;: 1,
+    &quot;prompt_tokens&quot;: 360,
+    &quot;completion_tokens&quot;: 260,
+    &quot;estimated_cost_usd&quot;: 0.00016
+  }
+}</pre>
+    </section>
+    <section>
+      <h2>Test and source note</h2>
+      <p>The reviewed profile supplies a contract fixture using deepseek-v4-flash, not a live customer run. It does not identify an independent reviewer or record elapsed time, revision count, or a published evaluation rubric.</p>
+      <p class="note">Source: packages/phonicsmaker/phonics-list-generator/SKILL.md and packages/skill-to-modal/profiles/phonics-list-generator.json, with pricing status from containers/phonics-list-generator/pricing-report.json.</p>
+    </section>
+    <section>
+      <h2>Limitations and review</h2>
+      <ul><li>Generated phonics material requires teacher review for the learner’s taught code, dialect, and classroom context.</li>
+          <li>This workflow is instructional support, not an assessment or diagnosis.</li></ul>
+    </section>
+    <section>
+      <h2>Next action</h2>
+      <p>Review the facts and example above, then open the workflow when you are ready.</p>
+      <a class="cta" href="run.html?slug=phonics-list-generator">Open the workflow runner</a>
+    </section>
+  </main>
+  <footer>Omo workflow facts · Canonical URL: https://omo.space/workflow-phonics-list-generator.html</footer>
+</body>
+</html>
