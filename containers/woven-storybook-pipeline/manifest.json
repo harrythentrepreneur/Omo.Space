@@ -119,5 +119,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "woven-storybook-pipeline",
+  "source_sha256": "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf",
   "version": "0.2.0"
 }

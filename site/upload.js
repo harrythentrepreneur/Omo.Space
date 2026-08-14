@@ -109,6 +109,8 @@
       runtime.textContent = runtimeDecisionText(submission);
       item.append(title, meta);
       item.appendChild(runtime);
+      var approvalPanel = renderApprovalPanel(submission);
+      if (approvalPanel) item.appendChild(approvalPanel);
       if (submission.status === 'deployed' && submission.published_slug) {
         var open = document.createElement('a');
         open.className = 'button button-accent hosted-open';
@@ -230,6 +232,71 @@
     return fetchJsonWithAuth('/api/submissions/' + encodeURIComponent(id)).then(function (body) {
       return body.submission || null;
     });
+  }
+
+  function postApproval(submission) {
+    return sessionToken().then(function (token) {
+      return fetch(apiBase() + '/api/submissions/' + encodeURIComponent(submission.id) + '/approve', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
+      });
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (body) {
+        if (!response.ok) throw new Error(body.message || body.error || 'Could not approve this submission.');
+        return body.submission || null;
+      });
+    });
+  }
+
+  function isApprovableCollision(submission) {
+    return !!(submission &&
+      submission.status === 'needs_review' &&
+      submission.failure_code === 'slug_collision' &&
+      /^sub_[A-Za-z0-9_-]{8,100}$/.test(String(submission.id || '')));
+  }
+
+  function renderApprovalPanel(submission) {
+    if (!isApprovableCollision(submission)) return null;
+    var panel = document.createElement('section');
+    panel.className = 'approval-panel';
+    panel.setAttribute('aria-label', 'Exact-match slug collision approval');
+    var title = document.createElement('p');
+    title.className = 'approval-title';
+    title.textContent = 'Exact source match found';
+    var copy = document.createElement('p');
+    copy.className = 'approval-copy';
+    copy.textContent = 'This upload matches a reviewed hosted source with the same slug collision; approval sends it back through build/test/deploy gates and does not instantly publish.';
+    var error = document.createElement('p');
+    error.className = 'approval-error';
+    error.setAttribute('aria-live', 'polite');
+    error.hidden = true;
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button button-accent approval-button';
+    button.textContent = 'Approve exact-match update';
+    button.addEventListener('click', function () {
+      error.hidden = true;
+      error.textContent = '';
+      var confirmed = window.confirm('Approval sends it back through build/test/deploy gates and does not instantly publish. Continue?');
+      if (!confirmed) return;
+      button.disabled = true;
+      button.textContent = 'Approving...';
+      postApproval(submission).then(function (detail) {
+        if (detail) updateProgress(detail, 'queued');
+        return fetchSubmissionDetail(submission.id).then(function (fresh) {
+          if (fresh) updateProgress(fresh, 'queued');
+          return refreshSubmissions(submission.id);
+        });
+      }).catch(function (approvalError) {
+        error.textContent = approvalError && approvalError.message || 'Could not approve this submission.';
+        error.hidden = false;
+      }).finally(function () {
+        button.disabled = false;
+        button.textContent = 'Approve exact-match update';
+      });
+    });
+    panel.append(title, copy, button, error);
+    return panel;
   }
 
   function setSubmissionMessage(message) {
