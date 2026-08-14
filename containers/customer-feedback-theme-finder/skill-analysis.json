@@ -1,0 +1,70 @@
+{
+  "compiler": "skill-to-modal/0.1.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash analysis call with a 2,400-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Turn supplied customer feedback into evidence-backed themes, representative verbatim quotes, priorities, and practical next actions without inventing customer claims.",
+  "detected_provider_needs": [],
+  "name": "customer-feedback-theme-finder",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate-the-evidence",
+      "number": "1",
+      "title": "Validate the evidence"
+    },
+    {
+      "id": "find-recurring-themes",
+      "number": "2",
+      "title": "Find recurring themes"
+    },
+    {
+      "id": "measure-support",
+      "number": "3",
+      "title": "Measure support"
+    },
+    {
+      "id": "select-evidence",
+      "number": "4",
+      "title": "Select evidence"
+    },
+    {
+      "id": "prioritize",
+      "number": "5",
+      "title": "Prioritize"
+    },
+    {
+      "id": "recommend-actions",
+      "number": "6",
+      "title": "Recommend actions"
+    },
+    {
+      "id": "check-fidelity",
+      "number": "7",
+      "title": "Check fidelity"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "analyze-feedback",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "customer-feedback-theme-finder",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "3503deb0509f31462dba7fd771cfa11f7cfade7c325a9d7b53df0d8e7e5f7e27"
+  },
+  "unresolved": []
+}
