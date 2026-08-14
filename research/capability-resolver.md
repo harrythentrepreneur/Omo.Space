@@ -311,3 +311,116 @@ honest_limits:
   - local PNG bytes do not prove hosted storage, authorization, retention, or delivery
   - missing artifact_store keeps the overall build blocked even when local rendering passes
 ```
+
+### 2.4 `video_processing`
+
+```yaml
+name: video_processing
+version: 1.0.0
+status: experimental
+triggers:
+  any:
+    - steps[*].operation in [media.video.normalize, media.video.cut_highlights, media.video.extract_thumbnail, ffmpeg.h264_aac_portrait, ffmpeg.h264_aac_landscape]
+    - steps[*].tool in [ffmpeg, ffprobe]
+    - artifacts[*].content_media_type in [video/mp4, video/quicktime]
+    - inputs[*].content_media_type matches video/*
+requires:
+  - artifact_store
+  - ffmpeg_runtime                  # pinned ffmpeg and ffprobe in the runtime image
+generated_pieces:
+  files:
+    - generated bounded media-step invocation module
+    - video and thumbnail artifact declarations in the workflow manifest
+  runtime_steps:
+    - resolve one authorized run-scoped local source artifact
+    - probe duration, dimensions, codecs, and byte size before render
+    - invoke tools.render.video normalize, cut_highlights, or extract_thumbnail for the exact reviewed operation
+    - validate H.264/AAC output, PNG thumbnails, declared dimensions, duration, byte count, and checksum
+    - persist only validated outputs through the resolved artifact store
+  tool_bindings:
+    - tools.render.video.probe
+    - tools.render.video.normalize
+    - tools.render.video.cut_highlights
+    - tools.render.video.extract_thumbnail
+  packages: []
+  resources:
+    cpu: true
+    gpu: false
+    network: artifact_plane_only
+    writable_scratch: bounded_run_private
+  policy:
+    - install pinned ffmpeg and ffprobe binaries in the runtime image
+    - pass paths and generated numeric filters only through argv lists; media metadata, filenames, and clip titles remain inert data
+    - allow at most 20 highlight clips and 10 minutes of selected output from a source no longer than 2 hours
+    - cap normalized output at 1280px, validate timecodes against ffprobe duration, and reject overlap or reordering
+    - record media type, dimensions, duration, codecs, byte length, SHA-256, and renderer/FFmpeg versions
+tests:
+  - a generated two-second lavfi fixture normalizes to bounded H.264/AAC and probes successfully
+  - repeated normalization is byte-identical within the pinned FFmpeg/libx264 image
+  - exact highlight intervals concatenate to the expected bounded duration; overlap, invalid order, excess count, excess total, and out-of-range timecodes fail with MediaRenderError
+  - exact timestamp extraction produces a PNG with the source dimensions and correct signature
+  - unreadable, non-video, oversized, overlong, and over-dimension media fail closed before artifact publication
+  - artifact ownership, immutable checksum, authorized download, scratch cleanup, and full-decode validation pass at integration time
+honest_limits:
+  - the shared primitive performs CPU-only normalization, exact re-encoded cuts, concatenation, and thumbnail extraction; it does not provide GPU effects, generative VFX, motion graphics, title-card layout, speech recognition, or image generation
+  - generated-frame-sequence plus source-audio assembly and full visual-contract QA remain specialized executor work; selecting this capability alone does not materialize the de Mello media engine
+  - normalization and cuts use H.264/AAC at a bounded resolution; arbitrary codec preservation and lossless editing are not promised
+  - bytes are deterministic where possible only within the same pinned FFmpeg, libx264, architecture, and invocation; encoder or container-library upgrades may change bytes despite fixed metadata and single-threaded encoding
+  - highlight jobs are limited to 20 clips and 10 minutes total, normalized sources to 2 hours and 8192px input dimensions, and normalized output to 1280px
+  - local media bytes do not prove hosted storage, authorization, retention, delivery, progress reporting, or full workflow readiness
+  - missing artifact_store or ffmpeg_runtime keeps the overall build blocked even when local rendering passes
+```
+
+### 2.5 `domain_state`
+
+```yaml
+name: domain_state
+version: 1.0.0
+status: experimental
+triggers:
+  any:
+    - steps[*].execution_mode in [async, long_running]
+    - outputs[*].kind in [run_status, progress]
+    - runtime.ownership_scope == per_run
+requires: []
+generated_pieces:
+  files:
+    - generated per-run state schema and transition adapter
+    - generated submit/status response bindings
+  runtime_steps:
+    - create one owner-scoped record with run_id, owner_id, status, phase, progress_pct, timestamps, version, and expires_at
+    - apply typed compare-and-set transitions queued -> processing -> done or blocked
+    - reject unknown, stale, backward, cross-owner, and post-terminal transitions
+    - expose only owner-authorized status fields and artifact references
+    - expire records and associated runner state according to the reviewed retention contract
+  tool_bindings:
+    - runner.domain_state.create
+    - runner.domain_state.transition
+    - runner.domain_state.read_owned
+    - runner.domain_state.expire
+  packages: []
+  resources:
+    cpu: true
+    gpu: false
+    network: runner_state_plane_only
+    writable_scratch: none_or_runner_managed
+  policy:
+    - run_id is opaque, unique, and never accepted as proof of ownership
+    - status is exactly queued, processing, done, or blocked; terminal states are immutable
+    - progress_pct is an integer from 0 to 100 and monotonic, with phase and updated_at recorded on every transition
+    - every mutation is owner/run scoped, typed, version checked, idempotent where replayed, and auditable without payload or credential logging
+    - expires_at is mandatory and cleanup cannot cross the owning run or tenant
+tests:
+  - queued -> processing -> done and queued -> processing -> blocked are accepted with monotonic progress
+  - skipped, backward, post-terminal, stale-version, invalid-progress, and unknown-run transitions fail with typed state errors
+  - idempotent replay returns the same state while conflicting replay fails closed
+  - concurrent compare-and-set leaves one valid transition and no torn record
+  - cross-owner read/write denial, expiry behavior, status-field redaction, and run isolation pass for in-memory and DB-backed adapters
+  - a long-running media fixture can submit, poll monotonic progress, reach a terminal state, and retrieve only its own validated artifacts
+honest_limits:
+  - the runner may implement the record in memory for single-process tests or in a reviewed database for durable hosted work; in-memory state does not survive restart or coordinate replicas
+  - this capability models run lifecycle and progress, not queues, worker leasing, billing, refunds, artifact storage, authentication, or provider retries
+  - progress reports reviewed checkpoints rather than continuous completion estimates
+  - expiry is retention enforcement, not proof that external provider or artifact copies were deleted
+  - records contain identifiers and status only; credentials and reusable cross-run secrets are never stored in domain state
+```
