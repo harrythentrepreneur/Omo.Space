@@ -139,6 +139,98 @@ def validate_claim_response(value: Any) -> dict[str, Any]:
     }
 
 
+def _safe_detail_object(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) and not isinstance(value, list) else {}
+
+
+def validate_detail_response(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise RuntimeError("invalid internal detail response")
+    row = value.get("submission")
+    if not isinstance(row, dict):
+        raise RuntimeError("invalid internal detail response")
+    forbidden = {"content", "source_content", "user_id", "userId", "approved_by", "approvedBy", "name"}
+    if forbidden.intersection(row):
+        raise RuntimeError("invalid internal detail response")
+    required = ("id", "slug", "source_sha256", "selected_runtime", "status")
+    if any(key not in row for key in required):
+        raise RuntimeError("invalid internal detail response")
+    if not SUBMISSION_ID_RE.fullmatch(str(row["id"])):
+        raise RuntimeError("invalid internal detail response")
+    if not SAFE_SLUG_RE.fullmatch(str(row["slug"])) or len(str(row["slug"])) > 100:
+        raise RuntimeError("invalid internal detail response")
+    if not SAFE_SHA256_RE.fullmatch(str(row["source_sha256"])):
+        raise RuntimeError("invalid internal detail response")
+    selected_runtime = str(row["selected_runtime"] or "")
+    if selected_runtime not in SAFE_SELECTED_RUNTIMES:
+        raise RuntimeError("invalid internal detail response")
+    status = str(row["status"] or "")
+    if status not in SAFE_PRIOR_STATUSES | {"ready_for_publish", "deployed", "processing", "failed"}:
+        raise RuntimeError("invalid internal detail response")
+
+    detail: dict[str, Any] = {
+        "id": str(row["id"]),
+        "slug": str(row["slug"]),
+        "status": status,
+        "source_sha256": str(row["source_sha256"]),
+        "selected_runtime": selected_runtime,
+    }
+    for key in ("workflow_version", "published_slug"):
+        text = str(row.get(key) or "").strip()
+        if text:
+            if key == "workflow_version" and not SAFE_VERSION_RE.fullmatch(text):
+                raise RuntimeError("invalid internal detail response")
+            if key == "published_slug" and not SAFE_SLUG_RE.fullmatch(text):
+                raise RuntimeError("invalid internal detail response")
+            detail[key] = text
+
+    build_evidence = _safe_detail_object(row.get("build_evidence"))
+    checks = [
+        str(item).strip()
+        for item in build_evidence.get("checks", [])
+        if isinstance(item, str) and SAFE_POLICY_RE.fullmatch(str(item).strip())
+    ][:20] if isinstance(build_evidence.get("checks"), list) else []
+    if checks:
+        detail["build_evidence"] = {"checks": checks}
+        if SAFE_SHA256_RE.fullmatch(str(build_evidence.get("source_sha256") or "")):
+            detail["build_evidence"]["source_sha256"] = str(build_evidence["source_sha256"])
+        generated_at = str(build_evidence.get("generated_at") or "").strip()
+        if generated_at and len(generated_at) <= 64:
+            detail["build_evidence"]["generated_at"] = generated_at
+
+    release = {
+        "release_phase": row.get("release_phase"),
+        "issue_url": row.get("release_issue_url"),
+        "pr_url": row.get("release_pr_url"),
+        "pr_number": row.get("release_pr_number"),
+        "branch": row.get("release_branch"),
+        "head_sha": row.get("release_head_sha"),
+        "merge_sha": row.get("release_merge_sha"),
+        "source_sha256": row.get("source_sha256"),
+        "artifact_hash": row.get("release_artifact_hash"),
+        "modal_app": row.get("modal_app"),
+        "modal_url": row.get("modal_url"),
+        "canary": row.get("canary_evidence"),
+    }
+    if row.get("release_phase"):
+        normalized = normalize_release_metadata(release)
+        detail.update({
+            "release_phase": normalized.get("release_phase"),
+            "release_issue_url": normalized.get("issue_url"),
+            "release_pr_url": normalized.get("pr_url"),
+            "release_pr_number": normalized.get("pr_number"),
+            "release_branch": normalized.get("branch"),
+            "release_head_sha": normalized.get("head_sha"),
+            "release_merge_sha": normalized.get("merge_sha"),
+            "release_artifact_hash": normalized.get("artifact_hash"),
+            "modal_app": normalized.get("modal_app"),
+            "modal_url": normalized.get("modal_url"),
+        })
+        if normalized.get("canary"):
+            detail["canary_evidence"] = normalized["canary"]
+    return {key: value for key, value in detail.items() if value is not None}
+
+
 class HttpSubmissionRepository:
     """Private Worker queue adapter selected by BUILD_WORKER_* environment."""
 
@@ -179,6 +271,8 @@ class HttpSubmissionRepository:
         except urllib.error.HTTPError as error:
             if error.code == 204:
                 return 204, None
+            if error.code == 404:
+                return 404, None
             raise RuntimeError(f"build worker request failed with HTTP {error.code}") from error
         except urllib.error.URLError as error:
             raise RuntimeError("build worker request failed") from error
@@ -266,7 +360,12 @@ class HttpSubmissionRepository:
             raise RuntimeError("submission release metadata transition was rejected")
 
     def get(self, submission_id: str) -> dict[str, Any] | None:
-        raise RuntimeError("export review requires the direct Neon adapter")
+        response_status, body = self._post(f"/api/internal/submissions/{validate_submission_id(submission_id)}/detail", {})
+        if response_status == 404:
+            return None
+        if response_status != 200 or not body or body.get("ok") is not True:
+            raise RuntimeError("invalid internal detail response")
+        return validate_detail_response(body)
 
     def mark_deployed(self, submission_id: str) -> None:
         response_status, body = self._post(

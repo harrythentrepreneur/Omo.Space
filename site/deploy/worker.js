@@ -322,6 +322,8 @@ function dynamicRoute(pathname) {
   if (internalMigration) return { handler: handleInternalSubmissionMigration, methods: ['POST'], internal: true };
   const internalClaim = /^\/api\/internal\/submissions\/claim$/.exec(pathname);
   if (internalClaim) return { handler: handleInternalSubmissionClaim, methods: ['POST'], internal: true };
+  const internalDetail = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/detail$/.exec(pathname);
+  if (internalDetail) return { handler: handleInternalSubmissionDetail, methods: ['POST'], params: { submissionId: internalDetail[1] }, internal: true };
   const internalStatus = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/status$/.exec(pathname);
   if (internalStatus) return { handler: handleInternalSubmissionStatus, methods: ['POST'], params: { submissionId: internalStatus[1] }, internal: true };
   const internalRuntime = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/runtime$/.exec(pathname);
@@ -2289,6 +2291,43 @@ function internalClaimRow(row) {
   };
 }
 
+function internalDetailRow(row) {
+  if (!row) return null;
+  const sourceSha256 = safeSha256(row.source_sha256 || row.sourceSha256);
+  const selectedRuntime = safeRuntime(row.selected_runtime || row.selectedRuntime);
+  const slug = safeSlug(row.slug);
+  const status = safeSubmissionStatus(row.status);
+  if (!safeSubmissionId(row.id) || !slug || !sourceSha256 || !selectedRuntime) return null;
+  const detail = {
+    id: String(row.id),
+    slug,
+    status,
+    source_sha256: sourceSha256,
+    selected_runtime: selectedRuntime,
+  };
+  const workflowVersion = safeText(row.workflow_version, 160);
+  const publishedSlug = safeSlug(row.published_slug);
+  const buildEvidence = safeBuildEvidence(row.build_evidence);
+  if (workflowVersion && SAFE_WORKFLOW_VERSION_RE.test(workflowVersion)) detail.workflow_version = workflowVersion;
+  if (publishedSlug) detail.published_slug = publishedSlug;
+  if (buildEvidence.checks.length) detail.build_evidence = buildEvidence;
+  const release = safeReleaseSummary(row);
+  if (release) {
+    detail.release_phase = release.phase;
+    if (release.issue_url) detail.release_issue_url = release.issue_url;
+    if (release.pr_url) detail.release_pr_url = release.pr_url;
+    if (release.pr_number) detail.release_pr_number = release.pr_number;
+    if (release.branch) detail.release_branch = release.branch;
+    if (release.head_sha) detail.release_head_sha = release.head_sha;
+    if (release.merge_sha) detail.release_merge_sha = release.merge_sha;
+    if (release.artifact_hash) detail.release_artifact_hash = release.artifact_hash;
+    if (release.modal_app) detail.modal_app = release.modal_app;
+    if (release.modal_url) detail.modal_url = release.modal_url;
+    if (release.canary) detail.canary_evidence = release.canary;
+  }
+  return detail;
+}
+
 function validateRuntimeDecision(body) {
   const effective = safeRuntime(body.effective || body.selected_runtime);
   const reason = safeRuntimePolicy(body.reason || body.runtime_policy);
@@ -2361,6 +2400,16 @@ async function handleInternalSubmissionClaim(request, env) {
   if (!row) return new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
   const submission = internalClaimRow(row);
   if (!submission) return internalJson({ error: 'invalid_claim_row' }, 500);
+  return internalJson({ ok: true, submission }, 200);
+}
+
+async function handleInternalSubmissionDetail(request, env, _url, params) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const row = await internalGetSubmissionDetail(env, params.submissionId);
+  if (!row) return internalJson({ error: 'not_found' }, 404);
+  const submission = internalDetailRow(row);
+  if (!submission) return internalJson({ error: 'invalid_detail_row' }, 500);
   return internalJson({ ok: true, submission }, 200);
 }
 
@@ -2984,6 +3033,38 @@ async function internalClaimSubmission(env, options) {
     requested_runtime: record.requested_runtime || record.requestedRuntime,
     prior_status: priorStatus,
   };
+}
+
+async function internalGetSubmissionDetail(env, submissionId) {
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-submission-detail-v1',
+      `SELECT id,slug,source_sha256,selected_runtime,workflow_version,published_slug,build_evidence,
+              status,release_phase,release_issue_url,release_pr_url,release_pr_number,
+              release_branch,release_head_sha,release_merge_sha,release_artifact_hash,
+              modal_app,modal_url,canary_evidence
+       FROM submissions
+       WHERE id = $1
+       LIMIT 1`,
+      [submissionId]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return await env.BALANCE_DB
+      .prepare(`SELECT id,slug,source_sha256,selected_runtime,workflow_version,published_slug,build_evidence,
+                       status,release_phase,release_issue_url,release_pr_url,release_pr_number,
+                       release_branch,release_head_sha,release_merge_sha,release_artifact_hash,
+                       modal_app,modal_url,canary_evidence
+                FROM submissions
+                WHERE id = ?
+                LIMIT 1`)
+      .bind(submissionId).first();
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.id === submissionId) return record;
+  }
+  return null;
 }
 
 function allowedInternalPriorStates(status) {

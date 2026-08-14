@@ -110,6 +110,7 @@ let neonPoolShouldThrow = false;
 let neonInfoSchemaTableExists = false;
 let neonInfoSchemaColumns = [];
 let neonApprovalRow = null;
+let neonInternalDetailRow = null;
 
 class MockPool {
   constructor(options) {
@@ -135,6 +136,9 @@ class MockPool {
         }
         if (entry.name === 'omo-submission-approve-v1') {
           return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        if (entry.name === 'omo-internal-submission-detail-v1') {
+          return neonInternalDetailRow ? { rows: [neonInternalDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -264,12 +268,17 @@ const sandbox = {
           ? 'omo-submission-approve-v1'
           : text.includes('WITH updated AS') && text.includes('failure_code IN')
             ? 'omo-submission-retry-v1'
-            : null,
+            : text.includes('SELECT id,slug,source_sha256,selected_runtime') && text.includes('WHERE id = $1')
+              ? 'omo-internal-submission-detail-v1'
+              : null,
         connectionString,
       };
       neonSqlCalls.push(entry);
       if (entry.name === 'omo-submission-approve-v1' || entry.name === 'omo-submission-retry-v1') {
         return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (entry.name === 'omo-internal-submission-detail-v1') {
+        return neonInternalDetailRow ? { rows: [neonInternalDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       return { rows: [], rowCount: 0 };
     },
@@ -1249,6 +1258,89 @@ check('internal deployment: metadata is allowlisted and deployed is gated from r
   deployedRecord.release_pr_number === 42 &&
   !String(deployedRecord.build_evidence).includes('must-not-store') &&
   !JSON.stringify(deployedRecord).includes('attacker-branch'));
+
+const internalDetail = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/detail`, {}, internalHeaders), buildEnv);
+const internalDetailBody = await internalDetail.json();
+const internalDetailBadToken = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/detail`, {}, {
+  Authorization: 'Bearer wrong-token',
+  Origin: 'https://omo.space',
+}), buildEnv);
+const internalDetailUnsafe = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_bad/detail', {}, internalHeaders), buildEnv);
+const internalDetailGet = await worker.fetch(mkReq('GET', `/api/internal/submissions/${internalClaimBody.submission.id}/detail`, {}, internalHeaders), buildEnv);
+const internalDetailNonempty = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/detail`, { include_content: true }, internalHeaders), buildEnv);
+const internalDetailMissing = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_zzzzzzzz/detail', {}, internalHeaders), buildEnv);
+check('internal detail mock: bearer-only POST detail returns release/deploy fields without source or private owner data',
+  internalDetail.status === 200 &&
+  internalDetail.headers.get('Access-Control-Allow-Origin') === null &&
+  internalDetailBody.ok === true &&
+  internalDetailBody.submission.id === internalClaimBody.submission.id &&
+  internalDetailBody.submission.slug === 'auto-workflow' &&
+  internalDetailBody.submission.selected_runtime === 'worker-native' &&
+  internalDetailBody.submission.workflow_version === 'auto-workflow@1.0.0' &&
+  internalDetailBody.submission.published_slug === 'auto-workflow' &&
+  internalDetailBody.submission.source_sha256 === internalClaimBody.submission.source_sha256 &&
+  internalDetailBody.submission.release_phase === 'pr_open' &&
+  internalDetailBody.submission.release_pr_number === 42 &&
+  internalDetailBody.submission.release_branch === 'omo-release/' + internalClaimBody.submission.id + '-auto-workflow' &&
+  internalDetailBody.submission.release_head_sha === 'a'.repeat(40) &&
+  internalDetailBody.submission.release_artifact_hash === 'b'.repeat(64) &&
+  !('content' in internalDetailBody.submission) &&
+  !('user_id' in internalDetailBody.submission) &&
+  !('approved_by' in internalDetailBody.submission) &&
+  !JSON.stringify(internalDetailBody).includes('must-not-store') &&
+  internalDetailBadToken.status === 401 &&
+  internalDetailBadToken.headers.get('Access-Control-Allow-Origin') === null &&
+  internalDetailUnsafe.status === 404 &&
+  internalDetailGet.status === 405 &&
+  internalDetailNonempty.status === 400 &&
+  internalDetailMissing.status === 404);
+
+neonSqlCalls.length = 0;
+neonInternalDetailRow = {
+  id: 'sub_neondetail01',
+  user_id: 'user_must_not_leak',
+  name: 'must not leak',
+  slug: 'neon-workflow',
+  content: 'secret markdown must not leak',
+  source_sha256: 'e'.repeat(64),
+  selected_runtime: 'modal-hosted',
+  workflow_version: 'neon-workflow@1.0.0',
+  published_slug: 'neon-workflow',
+  build_evidence: JSON.stringify({ checks: ['compile'], secret: 'must-not-leak' }),
+  status: 'ready_for_publish',
+  release_phase: 'merged_verified',
+  release_issue_url: 'https://github.com/omo-space/marketplace/issues/37',
+  release_pr_url: 'https://github.com/omo-space/marketplace/pull/38',
+  release_pr_number: 38,
+  release_branch: 'omo-release/sub_neondetail01-neon-workflow',
+  release_head_sha: '1'.repeat(40),
+  release_merge_sha: '2'.repeat(40),
+  release_artifact_hash: 'f'.repeat(64),
+  modal_app: 'neon-workflow',
+  modal_url: 'https://omo-space--neon-workflow-api.modal.run',
+  canary_evidence: JSON.stringify({ status: 'passed', checked_at: '2026-08-14T00:00:00Z', secret: 'must-not-leak' }),
+};
+const neonDetail = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neondetail01/detail', {}, internalHeaders), migrationEnv);
+const neonDetailBody = await neonDetail.json();
+const neonDetailCall = neonSqlCalls.find((call) => call.name === 'omo-internal-submission-detail-v1');
+neonInternalDetailRow = null;
+const neonDetailMissing = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neondetail01/detail', {}, internalHeaders), migrationEnv);
+check('internal detail Neon: parameterized narrow select excludes content/user/private data and maps missing to 404',
+  neonDetail.status === 200 &&
+  neonDetailBody.submission.id === 'sub_neondetail01' &&
+  neonDetailBody.submission.slug === 'neon-workflow' &&
+  neonDetailBody.submission.selected_runtime === 'modal-hosted' &&
+  neonDetailBody.submission.release_merge_sha === '2'.repeat(40) &&
+  neonDetailBody.submission.canary_evidence.status === 'passed' &&
+  !JSON.stringify(neonDetailBody).includes('secret') &&
+  !('content' in neonDetailBody.submission) &&
+  !('user_id' in neonDetailBody.submission) &&
+  neonDetailCall &&
+  neonDetailCall.text.includes('SELECT id,slug,source_sha256,selected_runtime') &&
+  !neonDetailCall.text.includes('content') &&
+  !neonDetailCall.text.includes('user_id') &&
+  neonDetailCall.values[0] === 'sub_neondetail01' &&
+  neonDetailMissing.status === 404);
 
 const internalBadStatus = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/status`, {
   status: 'queued',

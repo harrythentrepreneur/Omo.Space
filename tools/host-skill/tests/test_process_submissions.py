@@ -719,6 +719,108 @@ def test_http_repository_maps_204_claim_to_idle(monkeypatch) -> None:
     assert repo.claim() is None
 
 
+def test_http_repository_get_posts_bearer_and_normalizes_safe_detail(monkeypatch) -> None:
+    process = load_process_submissions()
+    calls: list[dict] = []
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def read(self):
+            return json.dumps({
+                "ok": True,
+                "submission": {
+                    "id": "sub_12345678",
+                    "slug": "sample-workflow",
+                    "status": "ready_for_publish",
+                    "source_sha256": "a" * 64,
+                    "selected_runtime": "worker-native",
+                    "workflow_version": "sample-workflow@1.0.0",
+                    "published_slug": "sample-workflow",
+                    "build_evidence": {"checks": ["compile"], "secret": "must-not-leak"},
+                    "release_phase": "merged_verified",
+                    "release_issue_url": "https://github.com/omo-space/marketplace/issues/37",
+                    "release_pr_url": "https://github.com/omo-space/marketplace/pull/38",
+                    "release_pr_number": 38,
+                    "release_branch": "omo-release/sub_12345678-sample-workflow",
+                    "release_head_sha": "b" * 40,
+                    "release_merge_sha": "c" * 40,
+                    "release_artifact_hash": "d" * 64,
+                    "modal_app": "sample-workflow",
+                    "modal_url": "https://omo-space--sample-workflow-api.modal.run",
+                    "canary_evidence": {"status": "passed", "checked_at": "2026-08-14T00:00:00Z"},
+                },
+            }).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        calls.append({
+            "url": request.full_url,
+            "method": request.get_method(),
+            "headers": dict(request.header_items()),
+            "body": request.data.decode("utf-8"),
+            "timeout": timeout,
+        })
+        return Response()
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", fake_urlopen)
+    repo = process.HttpSubmissionRepository("https://omo.space", "secret-token")
+
+    row = repo.get("sub_12345678")
+
+    assert row["id"] == "sub_12345678"
+    assert row["slug"] == "sample-workflow"
+    assert row["selected_runtime"] == "worker-native"
+    assert row["release_phase"] == "merged_verified"
+    assert row["canary_evidence"] == {"status": "passed", "checked_at": "2026-08-14T00:00:00Z"}
+    assert row["build_evidence"] == {"checks": ["compile"]}
+    assert "content" not in row
+    assert "user_id" not in row
+    assert "must-not-leak" not in json.dumps(row)
+    assert calls[0]["url"] == "https://omo.space/api/internal/submissions/sub_12345678/detail"
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["headers"]["Authorization"] == "Bearer secret-token"
+    assert json.loads(calls[0]["body"]) == {}
+    assert calls[0]["timeout"] == process.HTTP_TIMEOUT_SECONDS
+
+
+def test_http_repository_get_maps_404_to_none_and_rejects_leaky_detail(monkeypatch) -> None:
+    process = load_process_submissions()
+
+    def not_found(request, timeout):
+        raise HTTPError(request.full_url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", not_found)
+    repo = process.HttpSubmissionRepository("https://omo.space", "secret-token")
+    assert repo.get("sub_12345678") is None
+
+    class LeakyResponse:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def read(self):
+            return json.dumps({
+                "ok": True,
+                "submission": {
+                    "id": "sub_12345678",
+                    "slug": "bad",
+                    "source_sha256": "a" * 64,
+                    "selected_runtime": "worker-native",
+                    "release_phase": "compiled",
+                    "content": "secret markdown",
+                },
+            }).encode("utf-8")
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", lambda request, timeout: LeakyResponse())
+    try:
+        repo.get("sub_12345678")
+    except RuntimeError as error:
+        assert "invalid internal detail response" in str(error)
+        assert "secret markdown" not in str(error)
+    else:
+        raise AssertionError("leaky detail schema should fail closed")
+
+
 def test_claim_sql_is_atomic_and_returns_only_processor_fields() -> None:
     process = load_process_submissions()
 
