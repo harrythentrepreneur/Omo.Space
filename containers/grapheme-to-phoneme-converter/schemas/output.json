@@ -65,7 +65,9 @@
           "type": "number"
         },
         "llm_calls": {
-          "const": 1
+          "maximum": 2,
+          "minimum": 1,
+          "type": "integer"
         },
         "model": {
           "minLength": 1,

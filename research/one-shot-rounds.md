@@ -117,3 +117,92 @@ the generated repair layer but does not prove how a fresh provider call behaves.
 | syllable-splitter-and-counter | 0/3 | 0/3 |
 
 - Fresh-provider threshold: FAIL (0/27 schema-valid; every tool semantic >=1: no).
+
+## 2026-08-15 — Gate 1R response-format compatibility probe
+
+- Mode: two fresh, intentionally tiny OpenCode Go calls using
+  `deepseek-v4-flash`; the same complete one-field JSON Schema was embedded in
+  each system prompt. Credential values and response content were neither
+  printed nor written.
+- `response_format: {"type":"json_object"}`: HTTP 200, usable JSON object,
+  exact schema match, 80 prompt tokens + 5 completion tokens, estimated cost
+  USD 0.00001330.
+- No `response_format` field: HTTP 200, usable JSON object, exact schema match,
+  59 prompt tokens + 5 completion tokens, estimated cost USD 0.00001036.
+- Probe total: 2 calls, estimated provider cost USD 0.00002366.
+- Decision: generated runtimes will use the proven `json_object` format while
+  retaining the full reduced schema in the prompt, local schema repair,
+  validation diffs, and one bounded corrective retry.
+
+## 2026-08-15 — Gate 1R fresh provider acceptance gate
+
+- Mode: fresh provider-backed execution of regenerated 0.2.1 runtimes using
+  the provider-compatible `json_object` response format and full reduced schema
+  in the prompt.
+- Inputs: the exact 27 teacher cases preserved by Brief V in
+  `/tmp/run_bread_butter_parta.py`; no case was added, removed, or changed.
+- Hosted proxy preflight: authenticated `GET /openapi.json` returned HTTP 200
+  for both deployed Omo apps (`cognition-woven-storybook-pipeline` and
+  `cognition-customer-feedback-theme-finder`). The proxy pair was loaded only
+  into the child process environment and was not printed or written.
+- Result: 27/27 schema-valid; 18/27 passed the documented lightweight semantic
+  checks.
+- Successful-run provider cost from wrappers: USD 0.00478016.
+
+| Tool / case | Input | Schema | Semantic | Detail | Calls | Cost USD |
+|---|---|---:|---:|---|---:|---:|
+| decodable-sentence-creator #1 | {"dialect":"en-US","include_sight_words":true,"num_sentences":3,"phonics_patterns":["cvc","sh_digraph"],"sentence_length":"short"} | PASS | PASS | sane for requested input | 1 | 0.00012180 |
+| decodable-sentence-creator #2 | {"dialect":"en-GB","include_sight_words":true,"num_sentences":2,"phonics_patterns":["long_a","ai_vowel_team"],"sentence_length":"medium"} | PASS | PASS | sane for requested input | 1 | 0.00011550 |
+| decodable-sentence-creator #3 | {"dialect":"en-AU","include_sight_words":false,"num_sentences":4,"phonics_patterns":["ccvc","cvcc","ch_digraph","th_digraph"],"sentence_length":"short"} | PASS | FAIL | sight words returned when disabled; target word misses requested patterns | 1 | 0.00015932 |
+| digraph-spotter #1 | {"dialect":"en-US","digraph_type":"consonant","include_explanations":true,"text":"The chick and the sheep sat by the shed."} | PASS | FAIL | span mismatch | 1 | 0.00016198 |
+| digraph-spotter #2 | {"dialect":"en-GB","digraph_type":"vowel","include_explanations":false,"text":"A green boat sailed in the rain."} | PASS | FAIL | span mismatch | 1 | 0.00011004 |
+| digraph-spotter #3 | {"dialect":"en-AU","digraph_type":"all","include_explanations":true,"text":"Which whale swam through the white foam?"} | PASS | FAIL | span mismatch; too few real digraphs | 2 | 0.00071988 |
+| grapheme-to-phoneme-converter #1 | {"dialect":"en-US","include_example_words":true,"include_rules_explanation":true,"text":"ship"} | PASS | PASS | sane for requested input | 1 | 0.00009366 |
+| grapheme-to-phoneme-converter #2 | {"dialect":"en-GB","include_example_words":true,"include_rules_explanation":true,"text":"thought"} | PASS | PASS | sane for requested input | 1 | 0.00010556 |
+| grapheme-to-phoneme-converter #3 | {"dialect":"en-AU","include_example_words":false,"include_rules_explanation":false,"text":"choir"} | PASS | PASS | sane for requested input | 1 | 0.00009184 |
+| phoneme-counter #1 | {"dialect":"en-US","show_transcription":true,"word":"ship"} | PASS | PASS | sane for requested input | 1 | 0.00007238 |
+| phoneme-counter #2 | {"dialect":"en-GB","show_transcription":true,"word":"elephant"} | PASS | PASS | sane for requested input | 1 | 0.00009786 |
+| phoneme-counter #3 | {"dialect":"en-AU","show_transcription":false,"word":"thought"} | PASS | FAIL | IPA returned when disabled | 1 | 0.00008764 |
+| phonics-list-generator #1 | {"dialect":"en-US","difficulty_level":"beginner","phonemes":["ch","sh"],"topic":"farm animals","word_count":8} | PASS | PASS | sane for requested input | 1 | 0.00019810 |
+| phonics-list-generator #2 | {"dialect":"en-GB","difficulty_level":"intermediate","phonemes":["ai","ay"],"topic":"outdoor play","word_count":10} | PASS | FAIL | matched phoneme absent from word | 2 | 0.00053200 |
+| phonics-list-generator #3 | {"dialect":"en-AU","difficulty_level":"beginner","phonemes":["th","ee"],"topic":"animals and nature","word_count":6} | PASS | FAIL | matched phoneme absent from word; preserved-evidence weak or off-topic word | 1 | 0.00018340 |
+| phonics-reading-error-coach #1 | {"detail":"teacher","dialect":"en-US","include_practice":true,"learner_stage":"developing","misread_word":"lap","target_word":"lamp"} | PASS | PASS | sane for requested input | 1 | 0.00014350 |
+| phonics-reading-error-coach #2 | {"detail":"brief","dialect":"en-GB","include_practice":true,"learner_stage":"early","misread_word":"sip","target_word":"ship"} | PASS | PASS | sane for requested input | 1 | 0.00012502 |
+| phonics-reading-error-coach #3 | {"detail":"teacher","dialect":"en-AU","include_practice":false,"learner_stage":"consolidating","misread_word":"got","target_word":"goat"} | PASS | PASS | sane for requested input | 1 | 0.00011858 |
+| phonics-rule-explainer #1 | {"dialect":"en-US","num_examples":3,"phonics_rule":"silent_e","target_audience":"early_reader"} | PASS | PASS | sane for requested input | 1 | 0.00014462 |
+| phonics-rule-explainer #2 | {"dialect":"en-GB","num_examples":5,"phonics_rule":"c_rules","target_audience":"teacher_parent"} | PASS | PASS | sane for requested input | 1 | 0.00020678 |
+| phonics-rule-explainer #3 | {"dialect":"en-AU","num_examples":4,"phonics_rule":"r_controlled_vowels","target_audience":"elementary"} | PASS | PASS | sane for requested input | 1 | 0.00017766 |
+| story-idea-generator #1 | {"age_band":"8-10","genre":"gentle mystery","num_characters":2,"num_ideas":3,"setting_keywords":"school garden"} | PASS | PASS | sane for requested input | 1 | 0.00025802 |
+| story-idea-generator #2 | {"age_band":"5-7","genre":"fantasy adventure","num_characters":3,"num_ideas":2,"setting_keywords":"underwater library"} | PASS | PASS | sane for requested input | 1 | 0.00024472 |
+| story-idea-generator #3 | {"age_band":"11-13","genre":"science fiction","num_characters":1,"num_ideas":2,"setting_keywords":"Moon greenhouse"} | PASS | PASS | sane for requested input | 1 | 0.00017136 |
+| syllable-splitter-and-counter #1 | {"dialect":"en-US","notation":"hyphen","words":["elephant","paper","cat"]} | PASS | PASS | sane for requested input | 1 | 0.00009548 |
+| syllable-splitter-and-counter #2 | {"dialect":"en-GB","notation":"dots","words":["family","chocolate","camera"]} | PASS | FAIL | wrong notation | 1 | 0.00012628 |
+| syllable-splitter-and-counter #3 | {"dialect":"en-AU","notation":"hyphen","words":["fire","poem","comfortable"]} | PASS | FAIL | spelling not preserved | 1 | 0.00011718 |
+
+### Per-tool score
+
+| Tool | Schema | Semantic |
+|---|---:|---:|
+| decodable-sentence-creator | 3/3 | 2/3 |
+| digraph-spotter | 3/3 | 0/3 |
+| grapheme-to-phoneme-converter | 3/3 | 3/3 |
+| phoneme-counter | 3/3 | 2/3 |
+| phonics-list-generator | 3/3 | 1/3 |
+| phonics-reading-error-coach | 3/3 | 3/3 |
+| phonics-rule-explainer | 3/3 | 3/3 |
+| story-idea-generator | 3/3 | 3/3 |
+| syllable-splitter-and-counter | 3/3 | 1/3 |
+
+- Fresh-provider threshold: FAIL (27/27 schema-valid; every tool semantic >=1:
+  no, because digraph-spotter scored 0/3).
+- Exact blocking failures: digraph case 1 duplicated `ch` at `[4,6)` and labeled
+  source `[16,18)` as both `ch` and `sh`; case 2 returned mostly word-relative,
+  off-by-one spans instead of absolute source spans; case 3 reused word-relative
+  starts (`[0,2)` for multiple words and `[1,3)` for `foam`) and returned only
+  four occurrences where the gate requires at least five real digraphs.
+- Next hypothesis: add a deterministic digraph occurrence normalizer that scans
+  the original source string for the reviewed consonant/vowel digraph sets,
+  derives absolute spans and containing words, filters by the requested type,
+  deduplicates exact occurrences, and preserves provider prose only as optional
+  explanation. Add the same span/coverage semantic diff before the single retry.
+  Do not deploy until this change clears the unchanged 27-case gate.
