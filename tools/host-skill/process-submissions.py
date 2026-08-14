@@ -145,6 +145,8 @@ class HttpSubmissionRepository:
             headers={
                 "Authorization": f"Bearer {self._token}",
                 "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "OmoBuildWorker/1.0",
             },
             method="POST",
         )

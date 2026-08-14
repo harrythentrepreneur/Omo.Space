@@ -237,6 +237,8 @@ def test_http_repository_claim_posts_bearer_and_validates_schema(monkeypatch) ->
     assert calls[0]["url"] == "https://omo.space/api/internal/submissions/claim"
     assert calls[0]["method"] == "POST"
     assert calls[0]["headers"]["Authorization"] == "Bearer secret-token"
+    assert calls[0]["headers"]["User-agent"] == "OmoBuildWorker/1.0"
+    assert calls[0]["headers"]["Accept"] == "application/json"
     assert json.loads(calls[0]["body"]) == {"id": "sub_12345678"}
     assert calls[0]["timeout"] == process.HTTP_TIMEOUT_SECONDS
 
