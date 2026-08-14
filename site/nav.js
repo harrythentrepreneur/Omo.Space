@@ -660,7 +660,7 @@
     }
 
     function loadClerk() {
-      loadScript('clerk.js', function () {
+      loadScript('/clerk.js', function () {
         beginAuthResolution();
       });
     }
