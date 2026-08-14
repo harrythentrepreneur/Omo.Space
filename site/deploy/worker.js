@@ -1864,7 +1864,7 @@ async function handleSubmissionApproval(request, env, _url, params) {
 async function handleSubmissionRetry(request, env, _url, params) {
   const auth = await authenticateAccount(request, env, false);
   if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
-  const retried = await retryApprovedExactMatchBuildFailure(env, auth.userId, params.submissionId);
+  const retried = await retryApprovedExactMatchReleaseFailure(env, auth.userId, params.submissionId);
   if (retried.status === 'not_found') return json({ ok: false, error: 'submission_not_found' }, 404, cors(request, env));
   if (retried.status === 'not_retryable') {
     return json({ ok: false, error: 'submission_not_retryable' }, 409, cors(request, env));
@@ -3331,6 +3331,10 @@ function reviewedSourceApprovalAllowlist() {
 }
 
 const APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION = 'exact_source_slug_collision';
+const RETRYABLE_EXACT_MATCH_RELEASE_FAILURE_CODES = new Set([
+  'build_or_deploy_failed',
+  'canary_or_internal_failed',
+]);
 
 function approvalSafeRow(row) {
   return row && safeSubmissionId(row.id) ? row : null;
@@ -3433,9 +3437,10 @@ async function approveExactMatchSlugCollision(env, userId, submissionId) {
   return foundOwnerRecord ? { status: 'not_approvable' } : { status: 'not_found' };
 }
 
-async function retryApprovedExactMatchBuildFailure(env, userId, submissionId) {
+async function retryApprovedExactMatchReleaseFailure(env, userId, submissionId) {
   const allowedSourceHashes = reviewedSourceApprovalAllowlist();
   if (!allowedSourceHashes.size) return { status: 'not_retryable' };
+  const retryableFailureCodes = [...RETRYABLE_EXACT_MATCH_RELEASE_FAILURE_CODES];
   const now = new Date().toISOString();
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
@@ -3449,7 +3454,7 @@ async function retryApprovedExactMatchBuildFailure(env, userId, submissionId) {
            AND user_id = $2
            AND source_sha256 = ANY($3::text[])
            AND status = 'failed'
-           AND failure_code = 'build_or_deploy_failed'
+           AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
            AND approved_by = $2
            AND approval_reason = '${APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION}'
            AND approved_at IS NOT NULL
@@ -3485,7 +3490,7 @@ async function retryApprovedExactMatchBuildFailure(env, userId, submissionId) {
       const updated = await env.BALANCE_DB
         .prepare(`UPDATE submissions
           SET status = 'ready_for_deploy', failure_code = NULL, updated_at = ?
-          WHERE id = ? AND user_id = ? AND source_sha256 = ? AND status = 'failed' AND failure_code = 'build_or_deploy_failed' AND approved_by = ? AND approval_reason = ? AND approved_at IS NOT NULL`)
+          WHERE id = ? AND user_id = ? AND source_sha256 = ? AND status = 'failed' AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed') AND approved_by = ? AND approval_reason = ? AND approved_at IS NOT NULL`)
         .bind(now, submissionId, userId, sourceSha256, userId, APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION).run();
       if (updated.meta && updated.meta.changes) {
         const row = await getSubmissionForOwner(env, userId, submissionId);
@@ -3516,7 +3521,7 @@ async function retryApprovedExactMatchBuildFailure(env, userId, submissionId) {
       return { status: 'retried', row: record };
     }
     if (record.status === 'failed' &&
-        record.failure_code === 'build_or_deploy_failed' &&
+        retryableFailureCodes.includes(record.failure_code) &&
         sourceSha256 && allowedSourceHashes.has(sourceSha256) &&
         record.approved_by === userId &&
         record.approval_reason === APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION &&
