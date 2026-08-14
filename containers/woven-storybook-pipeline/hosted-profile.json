@@ -355,6 +355,7 @@
       "title": "Woven keepsake drafting preview",
       "type": "object"
     },
+    "kind": "modal-hosted",
     "output_schema": {
       "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/output.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -452,6 +453,13 @@
     "run_price_cents": 40,
     "slug": "woven-relationship-book-maker"
   },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "creator_selected_modal",
+    "recommended": "worker-native",
+    "requested": "modal-hosted"
+  },
   "schema_version": "omo.hosted-profile/v1",
   "server_catalog": {
     "license_price_usd": 29.0,
@@ -460,6 +468,6 @@
     "name": "Woven Relationship Book Maker",
     "run_price_usd": 0.4,
     "slug": "woven-relationship-book-maker",
-    "system_prompt": "Executed by the schema-validated hosted Modal deployment, not by the Worker LLM fallback."
+    "system_prompt": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, or quotations. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object."
   }
 }

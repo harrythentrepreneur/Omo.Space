@@ -341,6 +341,7 @@ export const HOSTED_MODAL_SKILL_ROWS = [
         "title": "Woven keepsake drafting preview",
         "type": "object"
       },
+      "kind": "modal-hosted",
       "output_schema": {
         "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/output.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -458,6 +459,6 @@ export const HOSTED_SERVER_CATALOG_ROWS = [
     0.4,
     "deepseek-v4-flash",
     2200,
-    "Executed by the schema-validated hosted Modal deployment, not by the Worker LLM fallback."
+    "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, or quotations. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4\u201314 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object."
   ]
 ];
