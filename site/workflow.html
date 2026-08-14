@@ -3,12 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <meta name="theme-color" content="#F8F7F5">
   <meta name="description" content="See what is inside this Omo workflow. Download the workflow + prompts to run on your computer, or have Omo run it in the cloud per run.">
-  <meta name="robots" content="index,follow">
+  <meta name="robots" content="noindex,follow">
+  <link id="workflow-canonical" rel="canonical" href="https://omo.space/workflow.html">
+  <script>
+    (function () {
+      try {
+        var slug = (new URLSearchParams(window.location.search || '').get('slug') || '').trim();
+        if (/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+          document.getElementById('workflow-canonical').href =
+            'https://omo.space/workflows/' + encodeURIComponent(slug) + '/';
+        }
+      } catch (error) {}
+    }());
+  </script>
   <title>Workflow details | Omo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -789,7 +802,7 @@
       }
 
       var products = {};
-      var catalog = window.OMO_VISIBLE_CATALOG || [];
+      var catalog = window.OMO_CATALOG || [];
       for (var itemIndex = 0; itemIndex < catalog.length; itemIndex++) {
         var item = catalog[itemIndex];
         if (item && item.slug && !products[item.slug]) products[item.slug] = item;
