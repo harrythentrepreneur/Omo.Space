@@ -4,7 +4,7 @@ slug: digraph-spotter
 version: "0.1.0"
 status: ready
 generated:
-  compiler: skill-to-modal/0.2.2
+  compiler: skill-to-modal/0.2.3
   hand_edit_allowed: false
 source:
   kind: vendored-skill-md

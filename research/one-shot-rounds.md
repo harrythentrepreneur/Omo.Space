@@ -285,3 +285,61 @@ the generated repair layer but does not prove how a fresh provider call behaves.
   deterministic separator rewrite only when spelling is already preserved.
   Re-run the unchanged 27 cases; do not deploy until the semantic total is at
   least 24/27 and every tool retains a pass.
+
+## 2026-08-15 — Gate 1R3 final semantic-normalizer rerun (Brief AN)
+
+- Mode: fresh provider-backed execution of regenerated 0.2.3 runtimes.
+- Inputs: exact 27 teacher cases preserved by Brief V in /tmp/run_bread_butter_parta.py; no case was added, removed, or changed.
+- Result: 25/27 schema-valid; 25/27 passed the documented lightweight semantic checks.
+- Successful-run provider cost available from wrappers: USD 0.00348992. Failed runtimes record cost as unavailable.
+
+| Tool / case | Input | Schema | Semantic | Detail | Calls | Cost USD |
+|---|---|---:|---:|---|---:|---:|
+| decodable-sentence-creator #1 | {"dialect":"en-US","include_sight_words":true,"num_sentences":3,"phonics_patterns":["cvc","sh_digraph"],"sentence_length":"short"} | PASS | PASS | sane for requested input | 1 | 0.00012180 |
+| decodable-sentence-creator #2 | {"dialect":"en-GB","include_sight_words":true,"num_sentences":2,"phonics_patterns":["long_a","ai_vowel_team"],"sentence_length":"medium"} | PASS | PASS | sane for requested input | 1 | 0.00012264 |
+| decodable-sentence-creator #3 | {"dialect":"en-AU","include_sight_words":false,"num_sentences":4,"phonics_patterns":["ccvc","cvcc","ch_digraph","th_digraph"],"sentence_length":"short"} | PASS | PASS | sane for requested input | 1 | 0.00012236 |
+| digraph-spotter #1 | {"dialect":"en-US","digraph_type":"consonant","include_explanations":true,"text":"The chick and the sheep sat by the shed."} | PASS | PASS | sane for requested input | 1 | 0.00014938 |
+| digraph-spotter #2 | {"dialect":"en-GB","digraph_type":"vowel","include_explanations":false,"text":"A green boat sailed in the rain."} | PASS | PASS | sane for requested input | 1 | 0.00010248 |
+| digraph-spotter #3 | {"dialect":"en-AU","digraph_type":"all","include_explanations":true,"text":"Which whale swam through the white foam?"} | PASS | PASS | sane for requested input | 1 | 0.00015232 |
+| grapheme-to-phoneme-converter #1 | {"dialect":"en-US","include_example_words":true,"include_rules_explanation":true,"text":"ship"} | PASS | PASS | sane for requested input | 1 | 0.00008540 |
+| grapheme-to-phoneme-converter #2 | {"dialect":"en-GB","include_example_words":true,"include_rules_explanation":true,"text":"thought"} | PASS | PASS | sane for requested input | 1 | 0.00008806 |
+| grapheme-to-phoneme-converter #3 | {"dialect":"en-AU","include_example_words":false,"include_rules_explanation":false,"text":"choir"} | PASS | PASS | sane for requested input | 1 | 0.00007770 |
+| phoneme-counter #1 | {"dialect":"en-US","show_transcription":true,"word":"ship"} | PASS | PASS | sane for requested input | 1 | 0.00006832 |
+| phoneme-counter #2 | {"dialect":"en-GB","show_transcription":true,"word":"elephant"} | PASS | PASS | sane for requested input | 1 | 0.00009296 |
+| phoneme-counter #3 | {"dialect":"en-AU","show_transcription":false,"word":"thought"} | PASS | PASS | sane for requested input | 1 | 0.00007896 |
+| phonics-list-generator #1 | {"dialect":"en-US","difficulty_level":"beginner","phonemes":["ch","sh"],"topic":"farm animals","word_count":8} | PASS | PASS | sane for requested input | 1 | 0.00019656 |
+| phonics-list-generator #2 | {"dialect":"en-GB","difficulty_level":"intermediate","phonemes":["ai","ay"],"topic":"outdoor play","word_count":10} | FAIL | FAIL | no schema-valid output | unavailable | unavailable |
+| phonics-list-generator #3 | {"dialect":"en-AU","difficulty_level":"beginner","phonemes":["th","ee"],"topic":"animals and nature","word_count":6} | PASS | PASS | sane for requested input | 1 | 0.00020916 |
+| phonics-reading-error-coach #1 | {"detail":"teacher","dialect":"en-US","include_practice":true,"learner_stage":"developing","misread_word":"lap","target_word":"lamp"} | PASS | PASS | sane for requested input | 1 | 0.00012628 |
+| phonics-reading-error-coach #2 | {"detail":"brief","dialect":"en-GB","include_practice":true,"learner_stage":"early","misread_word":"sip","target_word":"ship"} | PASS | PASS | sane for requested input | 1 | 0.00013594 |
+| phonics-reading-error-coach #3 | {"detail":"teacher","dialect":"en-AU","include_practice":false,"learner_stage":"consolidating","misread_word":"got","target_word":"goat"} | PASS | PASS | sane for requested input | 1 | 0.00013034 |
+| phonics-rule-explainer #1 | {"dialect":"en-US","num_examples":3,"phonics_rule":"silent_e","target_audience":"early_reader"} | PASS | PASS | sane for requested input | 1 | 0.00015260 |
+| phonics-rule-explainer #2 | {"dialect":"en-GB","num_examples":5,"phonics_rule":"c_rules","target_audience":"teacher_parent"} | PASS | PASS | sane for requested input | 1 | 0.00016730 |
+| phonics-rule-explainer #3 | {"dialect":"en-AU","num_examples":4,"phonics_rule":"r_controlled_vowels","target_audience":"elementary"} | PASS | PASS | sane for requested input | 1 | 0.00020622 |
+| story-idea-generator #1 | {"age_band":"8-10","genre":"gentle mystery","num_characters":2,"num_ideas":3,"setting_keywords":"school garden"} | PASS | PASS | sane for requested input | 1 | 0.00029372 |
+| story-idea-generator #2 | {"age_band":"5-7","genre":"fantasy adventure","num_characters":3,"num_ideas":2,"setting_keywords":"underwater library"} | PASS | PASS | sane for requested input | 1 | 0.00024472 |
+| story-idea-generator #3 | {"age_band":"11-13","genre":"science fiction","num_characters":1,"num_ideas":2,"setting_keywords":"Moon greenhouse"} | PASS | PASS | sane for requested input | 1 | 0.00015708 |
+| syllable-splitter-and-counter #1 | {"dialect":"en-US","notation":"hyphen","words":["elephant","paper","cat"]} | PASS | PASS | sane for requested input | 1 | 0.00009912 |
+| syllable-splitter-and-counter #2 | {"dialect":"en-GB","notation":"dots","words":["family","chocolate","camera"]} | PASS | PASS | sane for requested input | 1 | 0.00010850 |
+| syllable-splitter-and-counter #3 | {"dialect":"en-AU","notation":"hyphen","words":["fire","poem","comfortable"]} | FAIL | FAIL | no schema-valid output | unavailable | unavailable |
+
+### Per-tool score
+
+| Tool | Schema | Semantic |
+|---|---:|---:|
+| decodable-sentence-creator | 3/3 | 3/3 |
+| digraph-spotter | 3/3 | 3/3 |
+| grapheme-to-phoneme-converter | 3/3 | 3/3 |
+| phoneme-counter | 3/3 | 3/3 |
+| phonics-list-generator | 2/3 | 2/3 |
+| phonics-reading-error-coach | 3/3 | 3/3 |
+| phonics-rule-explainer | 3/3 | 3/3 |
+| story-idea-generator | 3/3 | 3/3 |
+| syllable-splitter-and-counter | 2/3 | 2/3 |
+
+- Gate 1R3 threshold: FAIL (25/27 schema-valid; 25/27 semantic; every tool semantic >=1: yes).
+- Proxy preflight: NOT RERUN. The execution boundary rejected access to the separate Modal proxy credential file because Brief AN explicitly authorized only `OPENCODE_GO_API_KEY`; no proxy credential was read or used. AL's prior 2/2 HTTP 200 result remains historical evidence, not a fresh R3 result.
+- Offline verification before this run: compiler 20/20, the current full host suite 82/82, generated-container contracts 99/99, all nine compiler drift checks, and `git diff --check` passed.
+- Exact retry failures: phonics-list #2 ended with only 1 of 10 reviewed `ai`/`ay` words after normalization and missing requested coverage; syllable #3 again returned spelling-altering transcriptions for all three items. Both failed closed after the one bounded retry.
+- Next hypothesis: make the profile-driven retry instruction describe the violated evidence class more concretely without including provider text or user values—request a complete replacement word list whose every item survives the reviewed grapheme and denylist checks, and require orthographic syllable parts whose concatenation exactly recreates each input word. Preserve the single retry and never transliterate IPA deterministically.
+- Gates 2-6 were not entered; no Modal app was deployed, no listing or visibility state was activated, no hosted run was submitted, and nothing was pushed.

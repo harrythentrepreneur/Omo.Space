@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 
-COMPILER_VERSION = "skill-to-modal/0.2.2"
+COMPILER_VERSION = "skill-to-modal/0.2.3"
 COST_MODEL_PATH = Path(__file__).resolve().parents[2] / "site" / "deploy" / "cost-model.mjs"
 ALLOWED_EXECUTION_KINDS = {"single_llm"}
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -771,6 +771,97 @@ def _matching_requested_phonemes(
     return matched, spans
 
 
+def _matches_reviewed_word_shape(word: str, shape: str) -> bool:
+    clean_word = re.sub(r"[^a-z]", "", word.lower())
+    reviewed_shape = shape.upper()
+    if len(clean_word) != len(reviewed_shape):
+        return False
+    vowels = set("aeiou")
+    return all(
+        (symbol == "V" and letter in vowels)
+        or (symbol == "C" and letter not in vowels)
+        for letter, symbol in zip(clean_word, reviewed_shape)
+    )
+
+
+def _matches_reviewed_pattern(
+    word: str, pattern: str, config: dict[str, Any]
+) -> bool:
+    shapes = config.get("pattern_to_word_shape", {})
+    if isinstance(shapes, dict):
+        shape = shapes.get(pattern)
+        if isinstance(shape, str) and _matches_reviewed_word_shape(word, shape):
+            return True
+    graphemes = config.get("pattern_to_graphemes", {})
+    if not isinstance(graphemes, dict):
+        return False
+    variants = graphemes.get(pattern, [])
+    if not isinstance(variants, list):
+        variants = [variants]
+    clean_word = re.sub(r"[^a-z]", "", word.lower())
+    for raw_variant in variants:
+        variant = str(raw_variant).lower()
+        if "_" not in variant and _variant_index(word, variant) is not None:
+            return True
+        pieces = [re.sub(r"[^a-z]", "", piece) for piece in variant.split("_")]
+        if len(pieces) == 2 and all(pieces):
+            pattern_re = re.escape(pieces[0]) + r"[^aeiou]*" + re.escape(pieces[1]) + "$"
+            if re.search(pattern_re, clean_word):
+                return True
+    return False
+
+
+def _target_in_sentence(sentence: str, target: str) -> bool:
+    return bool(
+        re.search(
+            r"(?<![A-Za-z])" + re.escape(target) + r"(?![A-Za-z])",
+            sentence,
+            flags=re.I,
+        )
+    )
+
+
+def _normalize_target_word_containment(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> None:
+    config = SEMANTIC_NORMALIZERS.get("target_word_containment")
+    if not isinstance(config, dict):
+        return
+    request_field = str(config.get("request_field") or "phonics_patterns")
+    items_field = str(config.get("items_field") or "sentences")
+    target_field = str(config.get("target_field") or "target_words")
+    requested = [str(item) for item in payload.get(request_field, [])]
+    removed = 0
+    covered: set[str] = set()
+    for item in generated.get(items_field, []):
+        if not isinstance(item, dict):
+            continue
+        sentence = str(item.get("text") or "")
+        kept: list[str] = []
+        seen: set[str] = set()
+        for raw_word in item.get(target_field, []):
+            word = str(raw_word)
+            matched = [
+                pattern
+                for pattern in requested
+                if _matches_reviewed_pattern(word, pattern, config)
+            ]
+            marker = word.casefold()
+            if matched and _target_in_sentence(sentence, word) and marker not in seen:
+                kept.append(word)
+                seen.add(marker)
+                covered.update(matched)
+            else:
+                removed += 1
+        item[target_field] = kept
+    generated["coverage"] = [pattern for pattern in requested if pattern in covered]
+    if removed:
+        _append_bounded_warning(
+            generated,
+            f"Removed {removed} target word{'s' if removed != 1 else ''} without a reviewed spelling for the requested patterns.",
+        )
+
+
 def _phoneme_target_position(word: str, spans: list[tuple[int, int]]) -> str:
     clean_length = len(re.sub(r"[^a-z]", "", word.lower()))
     if len(spans) != 1:
@@ -805,13 +896,23 @@ def _normalize_phoneme_containment(
     phoneme_map = config.get("phoneme_to_graphemes", {})
     if not isinstance(phoneme_map, dict):
         phoneme_map = {}
+    denylist = {
+        re.sub(r"[^a-z]", "", str(item).lower())
+        for item in config.get("weak_evidence_denylist", [])
+        if str(item).strip()
+    }
     kept: list[dict[str, Any]] = []
+    seen_words: set[str] = set()
     removed = 0
     for item in generated.get("words", []):
         if not isinstance(item, dict):
             removed += 1
             continue
         word = str(item.get("word") or "")
+        marker = re.sub(r"[^a-z]", "", word.lower())
+        if marker in denylist or marker in seen_words:
+            removed += 1
+            continue
         matched, spans = _matching_requested_phonemes(word, requested, phoneme_map)
         if not matched:
             removed += 1
@@ -819,6 +920,7 @@ def _normalize_phoneme_containment(
         item["matched_phonemes"] = matched
         item["target_position"] = _phoneme_target_position(word, spans)
         kept.append(item)
+        seen_words.add(marker)
     generated["words"] = kept
     generated["coverage"] = [
         phoneme
@@ -828,8 +930,68 @@ def _normalize_phoneme_containment(
     if removed:
         _append_bounded_warning(
             generated,
-            f"Removed {removed} word{'s' if removed != 1 else ''} without a reviewed grapheme for the requested phonemes.",
+            f"Removed {removed} word{'s' if removed != 1 else ''} without reviewed target evidence for the requested phonemes.",
         )
+
+
+def _syllable_parts_for_spelling(
+    syllabified: str, word: str, separator_chars: set[str]
+) -> tuple[list[str], list[str]] | None:
+    if not syllabified or not word:
+        return None
+    parts = [""]
+    boundaries: list[str] = []
+    word_index = 0
+    for character in syllabified:
+        if word_index < len(word) and character == word[word_index]:
+            parts[-1] += character
+            word_index += 1
+        elif character in separator_chars and parts[-1] and word_index < len(word):
+            boundaries.append(character)
+            parts.append("")
+        else:
+            return None
+    if word_index != len(word) or any(not part for part in parts):
+        return None
+    return parts, boundaries
+
+
+def _normalize_syllable_separators(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> None:
+    config = SEMANTIC_NORMALIZERS.get("syllable_validation")
+    if not isinstance(config, dict):
+        return
+    input_words_field = str(config.get("input_words_field") or "words")
+    input_notation_field = str(config.get("input_notation_field") or "notation")
+    output_items_field = str(config.get("output_items_field") or "items")
+    word_field = str(config.get("word_field") or "word")
+    syllabified_field = str(config.get("syllabified_field") or "syllabified")
+    notation_separators = config.get("notation_separators", {})
+    if not isinstance(notation_separators, dict):
+        return
+    desired = notation_separators.get(payload.get(input_notation_field))
+    if not isinstance(desired, str) or len(desired) != 1:
+        return
+    separator_chars = {
+        str(item)
+        for item in config.get("accepted_separator_chars", notation_separators.values())
+        if isinstance(item, str) and len(item) == 1
+    }
+    expected_words = [str(item) for item in payload.get(input_words_field, [])]
+    items = generated.get(output_items_field, [])
+    if not isinstance(items, list) or len(items) != len(expected_words):
+        return
+    for expected_word, item in zip(expected_words, items):
+        if not isinstance(item, dict) or item.get(word_field) != expected_word:
+            continue
+        parsed = _syllable_parts_for_spelling(
+            str(item.get(syllabified_field) or ""), expected_word, separator_chars
+        )
+        if parsed is None:
+            continue
+        parts, _boundaries = parsed
+        item[syllabified_field] = desired.join(parts)
 
 
 def _semantic_normalize(
@@ -840,7 +1002,9 @@ def _semantic_normalize(
         generated["summary"] = list(
             dict.fromkeys(item["text"].lower() for item in generated["occurrences"])
         )
+    _normalize_target_word_containment(generated, payload)
     _normalize_phoneme_containment(generated, payload)
+    _normalize_syllable_separators(generated, payload)
     for rule in SEMANTIC_NORMALIZERS.get("flag_fields", []):
         if isinstance(rule, dict) and payload.get(rule.get("flag")) is False:
             _strip_output_path(generated, rule.get("path", []))
@@ -896,6 +1060,90 @@ def _semantic_validation_diff(
             covered.update(matched)
         if any(phoneme not in covered for phoneme in requested):
             details.append("$.coverage:semantic_requested_phonemes")
+
+    config = SEMANTIC_NORMALIZERS.get("target_word_containment")
+    if isinstance(config, dict):
+        request_field = str(config.get("request_field") or "phonics_patterns")
+        items_field = str(config.get("items_field") or "sentences")
+        target_field = str(config.get("target_field") or "target_words")
+        requested = [str(item) for item in payload.get(request_field, [])]
+        covered: set[str] = set()
+        for index, item in enumerate(generated.get(items_field, [])):
+            targets = item.get(target_field, []) if isinstance(item, dict) else []
+            if not targets or any(
+                not _target_in_sentence(str(item.get("text") or ""), str(word))
+                or not any(_matches_reviewed_pattern(str(word), pattern, config) for pattern in requested)
+                for word in targets
+            ):
+                details.append(
+                    f"$.{items_field}[{index}].{target_field}:semantic_target_containment"
+                )
+            for word in targets:
+                covered.update(
+                    pattern
+                    for pattern in requested
+                    if _matches_reviewed_pattern(str(word), pattern, config)
+                )
+        if len(generated.get(items_field, [])) != payload.get("num_sentences"):
+            details.append(
+                "$.sentences:semantic_sentence_count(expected="
+                + str(payload.get("num_sentences"))
+                + ",actual="
+                + str(len(generated.get(items_field, [])))
+                + ")"
+            )
+        expected_coverage = [pattern for pattern in requested if pattern in covered]
+        if generated.get("coverage") != expected_coverage or len(covered) != len(requested):
+            details.append("$.coverage:semantic_requested_patterns")
+
+    config = SEMANTIC_NORMALIZERS.get("syllable_validation")
+    if isinstance(config, dict):
+        input_words_field = str(config.get("input_words_field") or "words")
+        input_notation_field = str(config.get("input_notation_field") or "notation")
+        output_items_field = str(config.get("output_items_field") or "items")
+        word_field = str(config.get("word_field") or "word")
+        syllabified_field = str(config.get("syllabified_field") or "syllabified")
+        count_field = str(config.get("count_field") or "syllable_count")
+        notation_separators = config.get("notation_separators", {})
+        desired = (
+            notation_separators.get(payload.get(input_notation_field))
+            if isinstance(notation_separators, dict)
+            else None
+        )
+        separator_chars = {
+            str(item)
+            for item in config.get("accepted_separator_chars", [])
+            if isinstance(item, str) and len(item) == 1
+        }
+        expected_words = [str(item) for item in payload.get(input_words_field, [])]
+        items = generated.get(output_items_field, [])
+        actual_words = [
+            str(item.get(word_field) or "") if isinstance(item, dict) else ""
+            for item in items
+        ] if isinstance(items, list) else []
+        if actual_words != expected_words:
+            details.append(
+                f"$.{output_items_field}:semantic_word_order(expected_count={len(expected_words)},actual_count={len(actual_words)})"
+            )
+        for index, (expected_word, item) in enumerate(zip(expected_words, items)):
+            if not isinstance(item, dict) or item.get(word_field) != expected_word:
+                continue
+            parsed = _syllable_parts_for_spelling(
+                str(item.get(syllabified_field) or ""), expected_word, separator_chars
+            )
+            path = f"$.{output_items_field}[{index}].{syllabified_field}"
+            if parsed is None:
+                details.append(path + ":semantic_spelling_preservation")
+                continue
+            parts, boundaries = parsed
+            count = item.get(count_field)
+            if not isinstance(count, int) or len(parts) != count:
+                details.append(path + ":semantic_syllable_count")
+            if len(parts) > 1 and (
+                not isinstance(desired, str)
+                or any(boundary != desired for boundary in boundaries)
+            ):
+                details.append(path + ":semantic_separator")
 
     for rule in SEMANTIC_NORMALIZERS.get("flag_fields", []):
         if not isinstance(rule, dict) or payload.get(rule.get("flag")) is not False:
@@ -1022,7 +1270,7 @@ def _provider_completion(payload: dict[str, Any]) -> dict[str, Any]:
     if validation_diff:
         corrective = (
             "CORRECTIVE RETRY (final attempt): the previous JSON failed validation. "
-            "Fix exactly these schema violations: " + validation_diff + ". "
+            "Fix exactly these schema or semantic violations: " + validation_diff + ". "
             "Return the complete corrected JSON object only; use the exact schema in "
             "the system instruction and invent no fields. Do not repeat or quote "
             "input values, credentials, prior response text, or undeclared field names."

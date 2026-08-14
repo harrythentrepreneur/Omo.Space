@@ -322,6 +322,132 @@ def test_phoneme_containment_drops_invalid_words_and_reports_safe_semantic_count
     assert "swing" not in semantic_diff
     assert "slide" not in semantic_diff
 
+    denied_value = {
+        "words": [
+            item("thee", "th"),
+            item("these", "th"),
+            item("three", "th"),
+            item("teeth", "ee"),
+            item("tree", "ee"),
+            item("beetle", "ee"),
+            item("sheep", "ee"),
+            item("thrush", "th"),
+        ],
+        "coverage": ["th", "ee"],
+        "warnings": [],
+    }
+    denied_payload = {
+        "phonemes": ["th", "ee"],
+        "topic": "animals and nature",
+        "difficulty_level": "beginner",
+        "dialect": "en-AU",
+        "word_count": 6,
+    }
+    filtered, denied_diff = runtime._candidate(json.dumps(denied_value), denied_payload)
+    assert denied_diff == ""
+    assert filtered is not None
+    assert [entry["word"] for entry in filtered["words"]] == [
+        "three",
+        "teeth",
+        "tree",
+        "beetle",
+        "sheep",
+        "thrush",
+    ]
+
+    underflow_value = {**denied_value, "words": denied_value["words"][:-1]}
+    _underflow, underflow_diff = runtime._candidate(
+        json.dumps(underflow_value), denied_payload
+    )
+    assert "semantic_word_count(expected=6,actual=5)" in underflow_diff
+    assert "thee" not in underflow_diff
+    assert "these" not in underflow_diff
+
+    decodable, _profile = _generated_runtime_for(
+        tmp_path, "decodable-sentence-creator"
+    )
+    decodable_payload = {
+        "phonics_patterns": ["long_a", "ai_vowel_team"],
+        "num_sentences": 1,
+        "sentence_length": "medium",
+        "include_sight_words": True,
+        "dialect": "en-GB",
+    }
+    decodable_value = {
+        "sentences": [
+            {
+                "text": "She waits for the train at the station.",
+                "target_words": ["waits", "train", "station"],
+                "sight_or_irregular_words": ["she", "for", "the", "at"],
+            }
+        ],
+        "coverage": ["long_a", "ai_vowel_team"],
+        "warnings": [],
+    }
+    filtered_targets, target_diff = decodable._candidate(
+        json.dumps(decodable_value), decodable_payload
+    )
+    assert target_diff == ""
+    assert filtered_targets is not None
+    assert filtered_targets["sentences"][0]["target_words"] == ["waits", "train"]
+    assert filtered_targets["coverage"] == ["long_a", "ai_vowel_team"]
+
+    all_invalid = json.loads(json.dumps(decodable_value))
+    all_invalid["sentences"][0]["target_words"] = ["station"]
+    _empty_targets, empty_target_diff = decodable._candidate(
+        json.dumps(all_invalid), decodable_payload
+    )
+    assert "semantic_target_containment" in empty_target_diff
+    assert "station" not in empty_target_diff
+
+    syllable, _profile = _generated_runtime_for(
+        tmp_path, "syllable-splitter-and-counter"
+    )
+    dots_payload = {
+        "words": ["family", "chocolate", "camera"],
+        "dialect": "en-GB",
+        "notation": "dots",
+    }
+    dots_value = {
+        "items": [
+            {"word": "family", "syllabified": "fam-i-ly", "syllable_count": 3, "ambiguity_note": ""},
+            {"word": "chocolate", "syllabified": "choc-o-late", "syllable_count": 3, "ambiguity_note": ""},
+            {"word": "camera", "syllabified": "cam-er-a", "syllable_count": 3, "ambiguity_note": ""},
+        ],
+        "warnings": [],
+    }
+    normalized_dots, dots_diff = syllable._candidate(json.dumps(dots_value), dots_payload)
+    assert dots_diff == ""
+    assert normalized_dots is not None
+    assert [item["syllabified"] for item in normalized_dots["items"]] == [
+        "fam.i.ly",
+        "choc.o.late",
+        "cam.er.a",
+    ]
+
+    ipa_payload = {
+        "words": ["fire", "poem", "comfortable"],
+        "dialect": "en-AU",
+        "notation": "hyphen",
+    }
+    ipa_value = {
+        "items": [
+            {"word": "fire", "syllabified": "fai·ə", "syllable_count": 2, "ambiguity_note": ""},
+            {"word": "poem", "syllabified": "pəʊ·əm", "syllable_count": 2, "ambiguity_note": ""},
+            {"word": "comfortable", "syllabified": "ˈkʌmf·tə·bəl", "syllable_count": 3, "ambiguity_note": ""},
+        ],
+        "warnings": [],
+    }
+    preserved_ipa, ipa_diff = syllable._candidate(json.dumps(ipa_value), ipa_payload)
+    assert preserved_ipa is not None
+    assert preserved_ipa["items"][0]["syllabified"] == "fai·ə"
+    assert "semantic_spelling_preservation" in ipa_diff
+
+    swapped = json.loads(json.dumps(dots_value))
+    swapped["items"][0], swapped["items"][1] = swapped["items"][1], swapped["items"][0]
+    _swapped, swapped_diff = syllable._candidate(json.dumps(swapped), dots_payload)
+    assert "semantic_word_order" in swapped_diff
+
 
 def test_generated_runtime_retries_once_with_diff_and_aggregates_usage(
     monkeypatch, tmp_path: Path
