@@ -89,6 +89,24 @@ def test_ready_submission_can_resume_only_its_matching_generated_container(tmp_p
     assert queue.evaluate_review_gate(validated, tmp_path, allow_matching_container=True) == ("ready_for_build", None)
 
 
+def test_collision_resume_requires_matching_package_and_container_sources(tmp_path: Path) -> None:
+    validated = queue.validate_submission("sample-workflow", sample())
+    container_source = tmp_path / "containers" / validated.slug / "source" / "SKILL.md"
+    package_source = tmp_path / "packages" / validated.slug / "SKILL.md"
+    profile_path = tmp_path / "packages" / "skill-to-modal" / "profiles" / "sample-workflow.json"
+    container_source.parent.mkdir(parents=True)
+    package_source.parent.mkdir(parents=True)
+    profile_path.parent.mkdir(parents=True)
+    container_source.write_bytes(validated.content.encode("utf-8"))
+    package_source.write_bytes(b"different reviewed package bytes")
+    profile_path.write_text(json.dumps({"name": validated.name, "slug": validated.slug}), encoding="utf-8")
+
+    assert queue.evaluate_review_gate(validated, tmp_path, allow_matching_container=True) == ("needs_review", "slug_collision")
+
+    package_source.write_bytes(validated.content.encode("utf-8"))
+    assert queue.evaluate_review_gate(validated, tmp_path, allow_matching_container=True) == ("ready_for_build", None)
+
+
 def test_matching_reviewed_profile_can_build(tmp_path: Path) -> None:
     validated = queue.validate_submission("sample-workflow", sample())
     profile_path = tmp_path / "packages" / "skill-to-modal" / "profiles" / "sample-workflow.json"

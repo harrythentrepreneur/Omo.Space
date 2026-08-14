@@ -1265,7 +1265,7 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
         }
 
     state, reason = evaluate_review_gate(
-        validated, allow_matching_container=row.get("prior_status") == "ready_for_deploy"
+        validated, allow_matching_container=row.get("prior_status") in {"needs_review", "ready_for_deploy"}
     )
     if state != "ready_for_build":
         review_path = None
