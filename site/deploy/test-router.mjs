@@ -320,6 +320,12 @@ check('creator upload: browser persists only server submission ids and restores 
   uploadSource.includes('writeSubmissionIds') &&
   uploadSource.includes('readSubmissionIds') &&
   !uploadSource.includes('localStorage.setItem(STORAGE_KEY, JSON.stringify(submissions)'));
+check('creator upload: reload waits for Clerk auth readiness and never renders auth startup as an empty queue',
+  uploadSource.includes('ClerkAuth.ensureLoaded') &&
+  uploadSource.includes('ClerkAuth.onAuthChange') &&
+  uploadSource.includes("setSubmissionMessage('Loading your submissions…')") &&
+  uploadSource.includes("setSubmissionMessage('Sign in to see your submissions.')") &&
+  !uploadSource.includes('restoreSubmissionsAfterReload(attempt)'));
 check('creator upload: lifecycle UI is honest and opens workflow only after deployment',
   uploadSource.includes('runtimeDecisionText') &&
   uploadSource.includes('Open workflow') &&

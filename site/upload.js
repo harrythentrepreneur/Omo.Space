@@ -232,14 +232,26 @@
     });
   }
 
+  function setSubmissionMessage(message) {
+    if (!hostedEmpty) return;
+    hostedEmpty.textContent = message;
+    hostedEmpty.hidden = false;
+  }
+
   function refreshSubmissions(focusId) {
+    setSubmissionMessage('Loading your submissions…');
     return fetchSubmissions().then(function (submissions) {
       renderSubmissions(submissions);
+      if (!submissions.length) setSubmissionMessage('Nothing on the bench yet. Your first upload will show up here.');
       var focused = submissions.find(function (submission) { return submission.id === focusId; });
       if (focused) updateProgress(focused, 'queued');
       return submissions;
     }).catch(function () {
-      renderSubmissions([]);
+      if (window.ClerkAuth && typeof window.ClerkAuth.isSignedIn === 'function' && !window.ClerkAuth.isSignedIn()) {
+        setSubmissionMessage('Sign in to see your submissions.');
+      } else {
+        setSubmissionMessage('Could not load your submissions. Please refresh or try again shortly.');
+      }
       return [];
     });
   }
@@ -262,16 +274,26 @@
     }, 5000);
   }
 
-  function restoreSubmissionsAfterReload(attempt) {
+  function restoreSubmissionsAfterReload() {
     if (isFilePreview()) {
       renderSubmissions([]);
-      return;
+      return Promise.resolve([]);
     }
-    refreshSubmissions();
-    if (attempt >= 2) return;
-    window.setTimeout(function () {
-      restoreSubmissionsAfterReload(attempt + 1);
-    }, attempt === 0 ? 500 : 1500);
+    setSubmissionMessage('Loading your submissions…');
+    if (!window.ClerkAuth || typeof window.ClerkAuth.ensureLoaded !== 'function') {
+      setSubmissionMessage('Could not load your submissions. Please refresh or try again shortly.');
+      return Promise.resolve([]);
+    }
+    return Promise.resolve(window.ClerkAuth.ensureLoaded()).then(function () {
+      if (!window.ClerkAuth.isSignedIn()) {
+        setSubmissionMessage('Sign in to see your submissions.');
+        return [];
+      }
+      return refreshSubmissions();
+    }).catch(function () {
+      setSubmissionMessage('Could not load your submissions. Please refresh or try again shortly.');
+      return [];
+    });
   }
 
   function sessionToken() {
@@ -403,5 +425,10 @@
   });
 
   submitButton.textContent = 'Submit for hosting →';
-  restoreSubmissionsAfterReload(0);
+  if (window.ClerkAuth && typeof window.ClerkAuth.onAuthChange === 'function') {
+    window.ClerkAuth.onAuthChange(function () {
+      restoreSubmissionsAfterReload();
+    });
+  }
+  restoreSubmissionsAfterReload();
 })();
