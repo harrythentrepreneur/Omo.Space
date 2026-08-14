@@ -424,3 +424,107 @@ honest_limits:
   - expiry is retention enforcement, not proof that external provider or artifact copies were deleted
   - records contain identifiers and status only; credentials and reusable cross-run secrets are never stored in domain state
 ```
+
+### 2.6 `research.collect:public_search_fetch`
+
+```yaml
+name: research.collect:public_search_fetch
+version: 1.0.0
+status: experimental
+scope: PARTIAL  # v1 is direct-URL fetch only; public query search is unavailable
+triggers:
+  all:
+    - steps[*].operation == research.web.collect
+  any:
+    - inputs[*].semantic_type == public_url
+    - steps[*].operation == research.fetch.public_url
+  excludes:
+    - inputs[*].trust_class in [private, credentialed]
+    - steps[*].requires_authenticated_session == true
+requires:
+  - reviewed_network_egress_policy
+generated_pieces:
+  files:
+    - tools/research/public_fetch.py
+  runtime_steps:
+    - validate an HTTPS URL against the optional host allowlist and secret-host denylist
+    - fetch and enforce robots.txt for the requested path
+    - follow at most three policy-valid redirects with a ten-second timeout per GET
+    - read at most 256 KiB and return URL/status/final URL/content type/preview/SHA-256 evidence
+  tool_bindings:
+    - tools.research.public_fetch.fetch_public_url
+  packages:
+    - python_standard_library
+  resources:
+    network: bounded_public_https
+    credentials: false
+    shell: false
+  policy:
+    - HTTPS by default; HTTP is an explicit local-fixture/testing override
+    - no URL userinfo, credentials, provider calls, or shell execution
+    - redirects are revalidated against scheme, denylist, and optional allowlist
+tests:
+  - local http.server fixture proves response contract, preview, and SHA-256
+  - robots denial, HTTP failure, timeout, oversize body, and redirect limit return typed errors
+  - HTTPS default and unavailable search mode fail closed
+honest_limits:
+  - PARTIAL: v1 does not turn a free-form query into search results
+  - no stable general-purpose search endpoint requiring neither a key nor provider agreement is configured; search_snippets returns SEARCH_UNAVAILABLE
+  - robots unavailability follows RFC 9309-style behavior; a 4xx robots response does not invent a deny rule
+  - this fetch primitive does not establish source authority, truth, citation quality, or permission beyond robots policy
+```
+
+Implementation tests: `tools/research/tests/test_public_fetch.py` (seven tests,
+local fixture server only; no real network).
+
+### 2.7 `tabular.statistics`
+
+```yaml
+name: tabular.statistics
+version: 1.0.0
+status: experimental
+triggers:
+  all:
+    - inputs[*].semantic_type == tabular_dataset
+  any:
+    - steps[*].operation == tabular.parse
+    - steps[*].operation == statistics.compute
+  excludes:
+    - inputs[*].content_media_type not_in [text/csv, text/tab-separated-values, text/plain]
+requires: []
+generated_pieces:
+  files:
+    - tools/render/tabular.py
+  runtime_steps:
+    - detect comma, semicolon, or tab delimiter and parse standard CSV quoting
+    - conservatively type finite integers/floats while preserving leading-zero identifiers as strings
+    - compute numeric count/sum/mean/median/min/max/sample stdev and linear-interpolated percentiles
+    - compute deterministic categorical mode and emit notes for missing or mixed values
+  tool_bindings:
+    - tools.render.tabular.parse_csv
+    - tools.render.tabular.statistics
+    - tools.render.tabular.analyze_csv
+  packages:
+    - python_standard_library
+  resources:
+    network: false
+    credentials: false
+    llm: false
+  policy:
+    - malformed/empty tables and inconsistent row shapes fail closed
+    - explicitly numeric mixed columns fail with NON_NUMERIC_COLUMN
+    - sample stdev with fewer than two numeric observations fails with INSUFFICIENT_DATA
+tests:
+  - comma, semicolon, and tab fixtures plus quoted commas and escaped quotes
+  - integer/float typing, leading-zero preservation, mixed-type fallback, and empty values
+  - exact descriptive statistics, sample stdev, deterministic mode, and linear percentiles
+  - EMPTY_TABLE, NON_NUMERIC_COLUMN, and INSUFFICIENT_DATA typed failures
+honest_limits:
+  - input is in-memory delimited text, not XLSX, a database, or an unbounded streaming dataset
+  - dialect detection is limited to comma, semicolon, and tab; ambiguous input falls back deterministically to comma
+  - mixed numeric/text columns are categorical unless the caller explicitly requires numeric data
+  - percentiles use the documented inclusive-endpoint linear interpolation method; no inferential statistics are implied
+```
+
+Implementation tests: `tools/render/tests/test_tabular.py` (nine tests covering
+the requested fixtures and typed failures).

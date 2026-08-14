@@ -343,3 +343,115 @@ the generated repair layer but does not prove how a fresh provider call behaves.
 - Exact retry failures: phonics-list #2 ended with only 1 of 10 reviewed `ai`/`ay` words after normalization and missing requested coverage; syllable #3 again returned spelling-altering transcriptions for all three items. Both failed closed after the one bounded retry.
 - Next hypothesis: make the profile-driven retry instruction describe the violated evidence class more concretely without including provider text or user values—request a complete replacement word list whose every item survives the reviewed grapheme and denylist checks, and require orthographic syllable parts whose concatenation exactly recreates each input word. Preserve the single retry and never transliterate IPA deterministically.
 - Gates 2-6 were not entered; no Modal app was deployed, no listing or visibility state was activated, no hosted run was submitted, and nothing was pushed.
+
+## 2026-08-15 — Batch Proof 2 real provider gate (Brief BD)
+
+- Mode: fresh OpenCode Go `deepseek-v4-flash` execution of the 14 staged cases
+  across seven resolver-approved generated runtimes; the three resolver-blocked
+  skills were re-confirmed by typed-contract preflight and made zero provider
+  calls.
+- Fresh staging verification: 10/10 source packet hashes match the build
+  summary, 10/10 bundles pass compiler drift checks, and generated contract
+  tests pass 100/100.
+- Authorization boundary: at most 28 calls and USD 0.10. Actual: 17 successful
+  provider calls, zero transport/HTTP rejections, and USD 0.00684320. Each call
+  is recorded with skill, case, cost, schema result, and semantic result in the
+  `call_log` of `/tmp/batch-proof-2/real-runs.json`; the incremental mode-0600
+  journal is `/tmp/batch-proof-2/provider-call-log.json`.
+- Result: **BATCH-RATE-2/10**. All 14 provider-backed cases were schema-valid,
+  but only copywriting and budget-planning passed both semantic cases. The five
+  other resolver-approved skills fail closed on profile-specific semantic
+  evidence, while the three original capability blockers remain typed.
+
+| Slug | Verdict | Schema | Semantic | Cost USD |
+|---|---|---:|---:|---:|
+| copy-editing | TYPED-BLOCKER | 2/2 | 0/2 | 0.00242900 |
+| copywriting | HOSTED | 2/2 | 2/2 | 0.00068712 |
+| internal-comms | TYPED-BLOCKER | 2/2 | 0/2 | 0.00028168 |
+| verdict-sweep | TYPED-BLOCKER | not-run | not-run | 0.00000000 |
+| debugging | TYPED-BLOCKER | not-run | not-run | 0.00000000 |
+| data-analysis | TYPED-BLOCKER | not-run | not-run | 0.00000000 |
+| contract-review | TYPED-BLOCKER | 2/2 | 0/2 | 0.00122290 |
+| budget-planning | HOSTED | 2/2 | 2/2 | 0.00060578 |
+| note-taking | TYPED-BLOCKER | 2/2 | 0/2 | 0.00067368 |
+| invoice-processing | TYPED-BLOCKER | 2/2 | 1/2 | 0.00094304 |
+
+### Provider call ledger
+
+Schema and semantic columns are the deterministic case verdict associated with
+each real call, including corrective retries.
+
+| Call | Skill | Case | Cost USD | Schema | Semantic |
+|---:|---|---|---:|---:|---:|
+| 1 | copy-editing | reviewed-happy-path | 0.00064526 | PASS | FAIL |
+| 2 | copy-editing | reviewed-happy-path | 0.00059094 | PASS | FAIL |
+| 3 | copy-editing | pricing-page | 0.00056728 | PASS | FAIL |
+| 4 | copy-editing | pricing-page | 0.00062552 | PASS | FAIL |
+| 5 | copywriting | reviewed-happy-path | 0.00034286 | PASS | PASS |
+| 6 | copywriting | feature-page | 0.00034426 | PASS | PASS |
+| 7 | internal-comms | reviewed-happy-path | 0.00013594 | PASS | FAIL |
+| 8 | internal-comms | incident-update | 0.00014574 | PASS | FAIL |
+| 9 | contract-review | reviewed-happy-path | 0.00062090 | PASS | FAIL |
+| 10 | contract-review | freelancer | 0.00060200 | PASS | FAIL |
+| 11 | budget-planning | reviewed-happy-path | 0.00030758 | PASS | PASS |
+| 12 | budget-planning | two-month-variance | 0.00029820 | PASS | PASS |
+| 13 | note-taking | reviewed-happy-path | 0.00034034 | PASS | FAIL |
+| 14 | note-taking | project-note | 0.00033334 | PASS | FAIL |
+| 15 | invoice-processing | reviewed-happy-path | 0.00040082 | PASS | PASS |
+| 16 | invoice-processing | reviewed-happy-path | 0.00030870 | PASS | PASS |
+| 17 | invoice-processing | invoice-no-po | 0.00023352 | PASS | FAIL |
+
+### Exact fail-closed evidence
+
+- `copy-editing`: both cases failed `BEFORE_NOT_SOURCE_SUBSTRING` after one
+  corrective retry each.
+- `internal-comms`: both cases failed `INVENTED_NUMERIC_TOKEN`.
+- `contract-review`: both cases failed `DISCLAIMER_MISSING`.
+- `note-taking`: both cases failed `ACTION_DATE_NOT_SOURCE` and
+  `INVENTED_NUMERIC_TOKEN`.
+- `invoice-processing`: the second case failed `HEADER_OR_MATCH_MISMATCH`; the
+  reviewed happy path passed after one corrective retry.
+
+### Ranked registry growth
+
+1. `research.collect:public_search_fetch` — unlock `verdict-sweep`. Its reviewed
+   contract requires the `research.web.collect` primary-evidence step; the
+   compiler expresses the unresolved boundary as
+   `input.adapt:browser_research` plus primary-source collection.
+2. `workspace.execute_code` — unlock `debugging`. Its reviewed contract requires
+   an `executable_code_workspace` and the inspect, reproduce, edit, shell, and
+   test sequence; the compiler currently reports
+   `input.adapt:code_workspace` at `/input_adapters/0`.
+3. `tabular.statistics` — unlock `data-analysis`. Its reviewed contract requires
+   `tabular.parse` and `statistics.compute`; the compiler currently reports
+   `input.adapt:tabular_dataset` at `/input_adapters/0`. `chart_generation` is
+   already resolver-approved, so chart rendering is not the remaining gap.
+
+- Evidence: `/tmp/batch-proof-2/real-runs.json` (mode 0600). No deployment,
+  registration, activation, catalog change, push, commit, external message, or
+  production mutation occurred.
+
+## 2026-08-15 — Capability growth: public fetch + tabular statistics (Brief BF)
+
+- Added the standard-library-only `tools/research/public_fetch.py` primitive:
+  HTTPS by default, optional exact-host allowlist, robots enforcement, ten-second
+  timeout ceiling, three-redirect ceiling, 256 KiB ceiling, bounded preview and
+  SHA-256 evidence, and typed `FETCH_TIMEOUT`, `ROBOTS_DENIED`, `TOO_LARGE`, and
+  `HTTP_ERROR` failures. Search is honestly **PARTIAL**: v1 supports direct URLs
+  only and `search_snippets` fails closed with `SEARCH_UNAVAILABLE` because no
+  stable credential-free general public-search endpoint is configured.
+- Added deterministic `tools/render/tabular.py`: comma/semicolon/tab CSV parsing,
+  standard quote handling, conservative int/float typing, categorical fallback,
+  numeric count/sum/mean/median/min/max/sample stdev/linear percentiles, stable
+  categorical mode, notes, and typed `EMPTY_TABLE`, `NON_NUMERIC_COLUMN`, and
+  `INSUFFICIENT_DATA` failures.
+- Appended registry entries `research.collect:public_search_fetch` and
+  `tabular.statistics` with typed triggers, generated pieces, dependencies,
+  tests, policy, and honest limits. Both remain `experimental` pending the
+  sibling-owned compiler integration; `public_search_fetch` is explicitly
+  marked `PARTIAL` for search.
+- Verification: 19/19 focused tests passed against a loopback-only
+  `http.server` fixture; syntax compilation and scoped `git diff --check`
+  passed. `packages/skill-to-modal/compiler.py` was untouched. Full evidence is
+  `/tmp/capability-growth/`. No real network, provider call, credential access,
+  commit, push, deploy, external message, or production mutation occurred.
