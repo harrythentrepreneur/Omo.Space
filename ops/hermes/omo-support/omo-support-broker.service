@@ -1,0 +1,42 @@
+[Unit]
+Description=Omo Support Hermes diagnosis-only broker
+After=network-online.target hermes-gateway.service
+Wants=network-online.target
+Requires=hermes-gateway.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/opt/omo-support-broker
+EnvironmentFile=/etc/omo-support-broker/env
+Environment=OMO_SUPPORT_HOST=127.0.0.1
+Environment=OMO_SUPPORT_PORT=8765
+Environment=OMO_SUPPORT_STATE_DB=/var/lib/omo-support-broker/state.db
+Environment=HERMES_API_BASE=http://127.0.0.1:8642
+ExecStart=/usr/bin/python3 /opt/omo-support-broker/app.py
+StateDirectory=omo-support-broker
+RuntimeDirectory=omo-support-broker
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+IPAddressDeny=any
+IPAddressAllow=localhost
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

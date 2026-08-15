@@ -9,6 +9,7 @@
 //   POST /api/checkout                 → guest Stripe Checkout {slug, email?}
 //   POST /api/waitlist                 → public waitlist signup {email, source?}
 //   POST /api/submit                   → authenticated creator Markdown intake
+//   POST /api/support/chat             → authenticated, profile-pinned Omo Support Hermes
 //   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
@@ -309,11 +310,70 @@ const ROUTES = {
   '/api/checkout': { handler: handleCheckout }, // Guest Stripe Checkout: {slug, email?}; client price is ignored
   '/api/waitlist': { handler: handleWaitlist }, // Public waitlist signup: {email, source?}
   '/api/submit': { handler: handleSubmission }, // Creator queue: {name, content, visibility:'public'}
+  '/api/support/chat': { handler: handleSupportChat }, // Clerk-authenticated private support broker
   '/api/submissions': { handler: handleSubmissions, methods: ['GET'] }, // Owner creator lifecycle list
   '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
   '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
   '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $5 grant
 };
+
+async function handleSupportChat(request, env) {
+  const auth = await authenticateAccount(request, env, false);
+  if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
+  const brokerUrl = String(env.OMO_SUPPORT_BROKER_URL || '').trim();
+  const sharedSecret = String(env.OMO_SUPPORT_SHARED_SECRET || '').trim();
+  if (!/^https:\/\//.test(brokerUrl) || !sharedSecret) {
+    return json({ ok: false, error: 'support_not_configured' }, 503, cors(request, env));
+  }
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const sessionId = String(body.session_id || '').trim();
+  const message = String(body.message || '').trim();
+  if (!/^[A-Za-z0-9_-]{8,100}$/.test(sessionId) || !message || message.length > 8000) {
+    return json({ ok: false, error: 'invalid_support_message' }, 400, cors(request, env));
+  }
+  const payload = JSON.stringify({ user_id: auth.userId, session_id: sessionId, message });
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = crypto.randomUUID().replace(/-/g, '');
+  const signature = bytesToHex(await hmacSha256(
+    new TextEncoder().encode(sharedSecret),
+    `${timestamp}\n${nonce}\n${payload}`,
+  ));
+  let response;
+  try {
+    response = await fetch(brokerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Omo-Timestamp': timestamp,
+        'X-Omo-Nonce': nonce,
+        'X-Omo-Signature': signature,
+      },
+      body: payload,
+    });
+  } catch {
+    return json({ ok: false, error: 'support_unavailable' }, 502, cors(request, env));
+  }
+  const declaredLength = Number(response.headers.get('Content-Length') || 0);
+  if (declaredLength > 16384) {
+    return json({ ok: false, error: 'invalid_support_response' }, 502, cors(request, env));
+  }
+  let rawResponse = '';
+  let result;
+  try {
+    rawResponse = await response.text();
+    if (new TextEncoder().encode(rawResponse).length > 16384) throw new Error('oversized');
+    result = JSON.parse(rawResponse);
+  } catch { result = {}; }
+  if (!response.ok) {
+    return json({ ok: false, error: 'support_unavailable' }, response.status === 429 ? 429 : 502, cors(request, env));
+  }
+  if (result.profile !== 'omo-support' || result.mode !== 'support' || result.session_id !== sessionId
+      || typeof result.message !== 'string' || result.message.length > 12000) {
+    return json({ ok: false, error: 'invalid_support_response' }, 502, cors(request, env));
+  }
+  return json({ ok: true, message: result.message, session_id: sessionId, profile: 'omo-support', mode: 'support' }, 200, cors(request, env));
+}
 
 function dynamicRoute(pathname) {
   const internalSchema = /^\/api\/internal\/submissions\/schema$/.exec(pathname);

@@ -97,6 +97,7 @@ const canned = {
 const stripeCalls = [];
 const llmCalls = [];
 const modalCalls = [];
+const supportCalls = [];
 const modalStatuses = new Map();
 let modalDispatchStatus = 202;
 const wovenCalls = [];
@@ -168,6 +169,13 @@ function llmResponse(status, envelope) {
 
 const sandbox = {
   fetch: async (url, opts) => {
+    if (String(url) === 'https://support-broker.invalid/v1/chat') {
+      const payload = JSON.parse(opts.body);
+      supportCalls.push({ url: String(url), opts, payload });
+      return new Response(JSON.stringify({
+        ok: true, profile: 'omo-support', mode: 'support', session_id: payload.session_id, message: 'Support reply',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     if (String(url).startsWith('https://woven.modal.invalid')) {
       const target = new URL(String(url));
       wovenCalls.push({ url: String(url), method: opts && opts.method || 'GET', headers: opts && opts.headers, body: opts && opts.body });
@@ -460,7 +468,7 @@ check('router: GET returns 405', get.status === 405);
 // Unknown route → 404
 const nf = await worker.fetch(mkReq('POST', '/api/nope', {}), env);
 const nfBody = await nf.json();
-check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 11);
+check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 12 && nfBody.routes.includes('/api/support/chat'));
 
 // Public waitlist signup: normalized insert, validation, and duplicate replay.
 const waitlistAddedResponse = await worker.fetch(mkReq('POST', '/api/waitlist', {
@@ -490,6 +498,30 @@ check('submit: real mode requires a Clerk session', submitMissingAuth.status ===
 
 const creatorToken = await clerkToken('user_creator');
 const creatorHeaders = { Authorization: `Bearer ${creatorToken}`, Origin: 'https://omo.space' };
+const supportEnv = {
+  ...realEnv,
+  OMO_SUPPORT_BROKER_URL: 'https://support-broker.invalid/v1/chat',
+  OMO_SUPPORT_SHARED_SECRET: 'support-shared-secret-for-tests',
+
+};
+const supportMissingAuth = await worker.fetch(mkReq('POST', '/api/support/chat', {
+  session_id: 'support_abcdefgh', message: 'help',
+}), supportEnv);
+check('support: Clerk authentication is required before broker dispatch', supportMissingAuth.status === 401 && supportCalls.length === 0);
+const supportResponse = await worker.fetch(mkReq('POST', '/api/support/chat', {
+  session_id: 'support_abcdefgh', message: 'My upload is stuck', maintainer: false, profile: 'omo-dev',
+}, creatorHeaders), supportEnv);
+const supportBody = await supportResponse.json();
+const supportCall = supportCalls[0];
+check('support: browser privilege fields are dropped and response is pinned to diagnosis-only omo-support',
+  supportResponse.status === 200 && supportBody.profile === 'omo-support' && supportBody.mode === 'support'
+  && supportCall.payload.maintainer === undefined && supportCall.payload.user_id === 'user_creator'
+  && supportCall.payload.profile === undefined);
+check('support: Worker signs timestamp, nonce, and body without exposing its secret',
+  /^[0-9]+$/.test(supportCall.opts.headers['X-Omo-Timestamp'])
+  && /^[0-9a-f]{32}$/.test(supportCall.opts.headers['X-Omo-Nonce'])
+  && /^[0-9a-f]{64}$/.test(supportCall.opts.headers['X-Omo-Signature'])
+  && !supportCall.opts.body.includes('support-shared-secret-for-tests'));
 const submitAddedResponse = await worker.fetch(mkReq('POST', '/api/submit', {
   name: 'Sample workflow', content: submissionContent, visibility: 'public', runtime_preference: 'worker-native',
 }, creatorHeaders), realEnv);
