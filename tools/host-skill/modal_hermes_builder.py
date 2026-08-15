@@ -24,6 +24,7 @@ DEFAULT_MODEL = "minimax-m2.7"
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"
 MAX_SOURCE_BYTES = 200 * 1024
+MAX_PROFILE_BYTES = 256 * 1024
 DISPATCH_LEASE_SECONDS = 7200
 SAFE_FAILURE_STAGES = {
     "checkout", "processor_import", "claim", "source_validation",
@@ -116,6 +117,52 @@ def load_processor_module(processor_path: Path) -> Any:
             except ValueError:
                 pass
     return module
+
+
+def copy_reviewed_profile(source_checkout: Path, trusted_checkout: Path, slug: str) -> Path:
+    """Copy the sole artifact allowed to cross from Hermes into trusted execution."""
+    relative = Path("packages") / "skill-to-modal" / "profiles" / f"{slug}.json"
+    source = source_checkout / relative
+    try:
+        source_stat = source.lstat()
+    except OSError as error:
+        raise RuntimeError("reviewed profile is missing") from error
+    if not stat.S_ISREG(source_stat.st_mode) or source.is_symlink() or source_stat.st_size > MAX_PROFILE_BYTES:
+        raise RuntimeError("reviewed profile is unsafe")
+    raw = source.read_bytes()
+    try:
+        profile = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("reviewed profile is invalid") from error
+    if not isinstance(profile, dict):
+        raise RuntimeError("reviewed profile is invalid")
+    destination = trusted_checkout / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(raw)
+    return destination
+
+
+def prepare_trusted_checkout(root: Path, source_checkout: Path, base_revision: str, slug: str, token: str) -> Path:
+    """Create a fresh pinned checkout after Hermes exits and import one profile."""
+    checkout = root / "trusted-repo"
+    checkout.mkdir()
+    authenticated_origin = f"https://x-access-token:{token}@github.com/harrythentrepreneur/Omo.Space.git"
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+    subprocess.run(["git", "remote", "add", "origin", authenticated_origin], cwd=checkout, check=True)
+    subprocess.run(
+        ["git", "fetch", "--depth", "1", "origin", base_revision], cwd=checkout,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180, check=True,
+    )
+    subprocess.run(["git", "checkout", "-q", "--detach", "FETCH_HEAD"], cwd=checkout, check=True)
+    resolved = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=checkout, text=True, capture_output=True, check=True
+    ).stdout.strip()
+    if resolved != base_revision:
+        raise RuntimeError("trusted checkout verification failed")
+    copy_reviewed_profile(source_checkout, checkout, slug)
+    return checkout
 
 
 def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]:
@@ -305,24 +352,19 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 # Harry's token, and GitHub writes are server-derived by the
                 # fixed-repo/base/branch allowlisting release adapter.
                 token = str(os.environ["GH_TOKEN"])
-                authenticated_origin = f"https://x-access-token:{token}@github.com/harrythentrepreneur/Omo.Space.git"
-                subprocess.run(
-                    ["git", "remote", "set-url", "origin", authenticated_origin],
-                    cwd=checkout,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=30,
-                    check=True,
+                trusted_checkout = prepare_trusted_checkout(root, checkout, base_revision, slug, token)
+                trusted_processor = load_processor_module(
+                    trusted_checkout / "tools" / "host-skill" / "process-submissions.py"
                 )
 
                 def release_runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
-                    return processor.run_capture(command, cwd=cwd or checkout, text=text)
+                    return trusted_processor.run_capture(command, cwd=cwd or trusted_checkout, text=text)
 
-                adapter = processor.GitHubReleaseAdapter(
+                adapter = trusted_processor.GitHubReleaseAdapter(
                     command_runner=release_runner,
                     scratch_root=root / "release",
                 )
-                processed = processor.process_row(row, repository, deploy=True, release_adapter=adapter)
+                processed = trusted_processor.process_row(row, repository, deploy=True, release_adapter=adapter)
                 if processed.get("status") != "ready_for_merge":
                     result = _safe_result(
                         "failed", dispatch_id, submission_id, returncode=0,

@@ -146,9 +146,29 @@ def test_untrusted_hermes_phase_has_no_terminal_or_github_release_authority() ->
     source = SCRIPT.read_text(encoding="utf-8")
     assert '"--toolsets", "file,skills"' in source
     assert '"--toolsets", "terminal,file,skills"' not in source
-    assert 'processor.process_row(row, repository, deploy=True' in source
-    assert '"git", "remote", "set-url", "origin"' in source
-    assert source.index('processor.process_row(row, repository, deploy=True') < source.index('verified_completion(detail')
+    assert 'trusted_processor.process_row(row, repository, deploy=True' in source
+    assert 'prepare_trusted_checkout(root, checkout, base_revision, slug, token)' in source
+    assert source.index('trusted_processor.process_row(row, repository, deploy=True') < source.index('verified_completion(detail')
+
+
+def test_only_regular_bounded_json_profile_crosses_trust_boundary(tmp_path: Path) -> None:
+    builder = load_builder()
+    source = tmp_path / "source"
+    trusted = tmp_path / "trusted"
+    profile = source / "packages" / "skill-to-modal" / "profiles" / "safe-skill.json"
+    profile.parent.mkdir(parents=True)
+    profile.write_text('{"runtime": {"kind": "worker-native"}}', encoding="utf-8")
+    copied = builder.copy_reviewed_profile(source, trusted, "safe-skill")
+    assert copied.read_bytes() == profile.read_bytes()
+    copied.unlink()
+    profile.unlink()
+    profile.symlink_to(source / "outside.json")
+    try:
+        builder.copy_reviewed_profile(source, trusted, "safe-skill")
+    except RuntimeError as error:
+        assert str(error) == "reviewed profile is unsafe"
+    else:
+        raise AssertionError("symlinked profile crossed the trust boundary")
 
 
 def test_dispatch_reservation_lease_recovers_stale_jobs() -> None:
