@@ -3724,8 +3724,13 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
          AND status = 'failed'
          AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
          AND source_sha256 ~ '^[a-f0-9]{64}$'
-         AND selected_runtime IN ('worker-native', 'modal-hosted')
-         AND runtime_policy IS NOT NULL AND runtime_policy <> ''
+         AND (
+           (failure_code = 'canary_or_internal_failed' AND selected_runtime IS NULL
+             AND (runtime_policy IS NULL OR runtime_policy = ''))
+           OR
+           (selected_runtime IN ('worker-native', 'modal-hosted')
+             AND runtime_policy IS NOT NULL AND runtime_policy <> '')
+         )
        RETURNING ${returnedColumns}`,
       [submissionId, userId]
     ));
@@ -3740,8 +3745,13 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
       WHERE id = ? AND user_id = ? AND status = 'failed'
         AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
         AND length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^a-f0-9]*'
-        AND selected_runtime IN ('worker-native', 'modal-hosted')
-        AND runtime_policy IS NOT NULL AND runtime_policy <> ''`)
+        AND (
+          (failure_code = 'canary_or_internal_failed' AND selected_runtime IS NULL
+            AND (runtime_policy IS NULL OR runtime_policy = ''))
+          OR
+          (selected_runtime IN ('worker-native', 'modal-hosted')
+            AND runtime_policy IS NOT NULL AND runtime_policy <> '')
+        )`)
       .bind(now, submissionId, userId).run();
     if (updated.meta && updated.meta.changes) {
       return { status: 'retried', row: await getSubmissionForOwner(env, userId, submissionId) };
@@ -3751,9 +3761,12 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
   }
   for (const record of mockSubmissions.values()) {
     if (record.id !== submissionId || (record.userId !== userId && record.user_id !== userId)) continue;
+    const preRuntimeCanary = record.failure_code === 'canary_or_internal_failed' &&
+      !record.selected_runtime && !record.runtime_policy;
+    const reviewedRuntimeFailure = !!safeRuntime(record.selected_runtime) && !!safeRuntimePolicy(record.runtime_policy);
     if (record.status !== 'failed' || !retryableFailureCodes.includes(record.failure_code) ||
-        !safeSha256(record.source_sha256 || record.sourceSha256) || !safeRuntime(record.selected_runtime) ||
-        !safeRuntimePolicy(record.runtime_policy)) return { status: 'not_retryable' };
+        !safeSha256(record.source_sha256 || record.sourceSha256) ||
+        (!preRuntimeCanary && !reviewedRuntimeFailure)) return { status: 'not_retryable' };
     record.status = 'queued';
     for (const field of ['failure_code', 'workflow_version', 'published_slug', 'deployed_at', 'build_evidence',
       'release_phase', 'release_issue_url', 'release_pr_url', 'release_pr_number', 'release_branch',
