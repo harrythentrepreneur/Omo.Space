@@ -3725,7 +3725,7 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
          AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
          AND source_sha256 ~ '^[a-f0-9]{64}$'
          AND (
-           (failure_code = 'canary_or_internal_failed' AND selected_runtime IS NULL
+           (failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed') AND selected_runtime IS NULL
              AND (runtime_policy IS NULL OR runtime_policy = ''))
            OR
            (selected_runtime IN ('worker-native', 'modal-hosted')
@@ -3746,7 +3746,7 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
         AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
         AND length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^a-f0-9]*'
         AND (
-          (failure_code = 'canary_or_internal_failed' AND selected_runtime IS NULL
+          (failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed') AND selected_runtime IS NULL
             AND (runtime_policy IS NULL OR runtime_policy = ''))
           OR
           (selected_runtime IN ('worker-native', 'modal-hosted')
@@ -3761,7 +3761,7 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
   }
   for (const record of mockSubmissions.values()) {
     if (record.id !== submissionId || (record.userId !== userId && record.user_id !== userId)) continue;
-    const preRuntimeCanary = record.failure_code === 'canary_or_internal_failed' &&
+    const preRuntimeCanary = retryableFailureCodes.includes(record.failure_code) &&
       !record.selected_runtime && !record.runtime_policy;
     const reviewedRuntimeFailure = !!safeRuntime(record.selected_runtime) && !!safeRuntimePolicy(record.runtime_policy);
     if (record.status !== 'failed' || !retryableFailureCodes.includes(record.failure_code) ||
