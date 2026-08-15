@@ -21,13 +21,13 @@ from pathlib import Path
 from typing import Any
 
 
-COMPILER_VERSION = "skill-to-modal/0.5.0"
+COMPILER_VERSION = "skill-to-modal/0.6.0"
 CAPABILITY_RESOLVER_VERSION = "1.0.0"
 CAPABILITY_REGISTRY_VERSION = "1.4.0"
 COST_MODEL_PATH = Path(__file__).resolve().parents[2] / "site" / "deploy" / "cost-model.mjs"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SKILL_OWNED_TEMPLATE_ROOT = Path(__file__).resolve().parent / "skill_owned_resources"
-ALLOWED_EXECUTION_KINDS = {"single_llm", "sample_media_pipeline"}
+ALLOWED_EXECUTION_KINDS = {"single_llm", "sample_media_pipeline", "skill_builder"}
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
@@ -36,6 +36,22 @@ SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # names, prose, tags, or coincidental operations. The compiler verifies every
 # reviewed source digest before vendoring it into the generated container.
 SKILL_OWNED_RESOURCE_TEMPLATES: dict[str, dict[str, Any]] = {
+    "deterministic_skill_loader_v1": {
+        "slug": "skill-md-to-hosted-workflow",
+        "execution_kind": "skill_builder",
+        "version": "1.0.0",
+        "template": "skill-md-to-hosted-workflow",
+        "covers_operations": [
+            "skill_contract.parse",
+            "reviewed_profile.build",
+            "skill_to_modal.compile",
+            "fixture_contract.test",
+            "canonical_cost.price",
+        ],
+        "covers_artifact_kinds": [],
+        "package_init_files": [],
+        "source_files": {},
+    },
     "japanese_procedural_sumi_e_v1": {
         "slug": "japanese-style-story-video",
         "execution_kind": "sample_media_pipeline",
@@ -56,6 +72,7 @@ SKILL_OWNED_RESOURCE_TEMPLATES: dict[str, dict[str, Any]] = {
             "frame_manifest",
             "transcript",
         ],
+        "package_init_files": ["resources/demello_resource/__init__.py"],
         "source_files": {
             "resources/demello_resource/image_gen.py": {
                 "path": "containers/demello-awake/image_gen.py",
@@ -856,7 +873,7 @@ def skill_owned_resource_manifest(profile: dict[str, Any]) -> list[dict[str, Any
                 [
                     *source_digests,
                     "resources/__init__.py",
-                    "resources/demello_resource/__init__.py",
+                    *resource.get("package_init_files", []),
                 ]
             ),
             "covers_operations": sorted(resource["covers_operations"]),
@@ -871,10 +888,9 @@ def skill_owned_resource_files(profile: dict[str, Any]) -> dict[str, str | bytes
         return {}
     files: dict[str, str | bytes] = {
         "resources/__init__.py": '"""Generated skill-owned resources."""\n',
-        "resources/demello_resource/__init__.py": (
-            '"""Japanese Story Video owned procedural sumi-e executor."""\n'
-        ),
     }
+    for target in resource.get("package_init_files", []):
+        files[target] = '"""Generated skill-owned resource package."""\n'
     for target, descriptor in sorted(resource["source_files"].items()):
         source = REPOSITORY_ROOT / descriptor["path"]
         data = source.read_bytes()

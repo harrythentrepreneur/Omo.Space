@@ -91,6 +91,28 @@ def test_host_registration_supports_owned_native_media_executor() -> None:
     )
 
 
+def test_host_registration_supports_owned_native_builder_service() -> None:
+    slug = "skill-md-to-hosted-workflow"
+    skill = ROOT / "containers" / slug / "source" / "SKILL.md"
+    profile_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = host.COMPILER.build_files(skill.read_text(encoding="utf-8"), profile)
+    manifest = json.loads(files["manifest.json"])
+    pricing = json.loads(files["pricing-report.json"])
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+
+    assert hosted["catalog_managed"] is False
+    assert hosted["runtime_placement"]["effective"] == "modal-hosted"
+    assert hosted["runtime"]["protocol"] == "owner-scoped-async-v1"
+    assert hosted["runtime"]["run_price_cents"] == 500
+    assert hosted["runtime"]["default_endpoint"].startswith(
+        "https://omo-space--cognition-skill-md-to-hosted-workflow-api.modal.run"
+    )
+    assert hosted["server_catalog"]["model"] == "native-builder"
+    assert hosted["server_catalog"]["max_tokens"] == 0
+    assert hosted["run_manifest"]["price_usd"] == 5.0
+
+
 def test_catalog_patch_is_idempotent() -> None:
     profile, manifest, pricing = compiled_inputs()
     hosted = host.build_hosted_profile(profile, manifest, pricing)

@@ -207,10 +207,10 @@ function structuredData(listing, canonical, comingSoon) {
       { '@type': 'PropertyValue', name: 'Availability status', value: comingSoon ? 'Coming soon' : 'Available' }
     ]
   };
-  if (!comingSoon && Number.isFinite(Number(listing.priceOwn))) {
+  if (!comingSoon && Number.isFinite(Number(listing.runOnly ? listing.runPrice : listing.priceOwn))) {
     data.offers = {
       '@type': 'Offer',
-      price: Number(listing.priceOwn).toFixed(2),
+      price: Number(listing.runOnly ? listing.runPrice : listing.priceOwn).toFixed(2),
       priceCurrency: 'USD',
       availability: 'https://schema.org/InStock',
       url: canonical
@@ -269,7 +269,7 @@ function renderListing(listing) {
   const runButtonLabel = comingSoon ? 'Coming soon' : `Run it for me — ${runPrice}/run`;
   const offerActions = `
                 <div class="offer-actions"${comingSoon ? ' hidden' : ''}>
-                  <div class="offer-choice offer-choice-buy">
+                  <div class="offer-choice offer-choice-buy"${listing.runOnly ? ' hidden' : ''}>
                     <button class="button button-buy" id="buy-button" type="button" aria-label="${html(buyButtonLabel)}. Workflow + prompts. Run them on your computer.">${html(buyButtonLabel)}</button>
                     <button class="offer-info" id="buy-info" type="button" aria-label="About Download Skill.md: Workflow + prompts. Run them on your computer." aria-controls="buy-tooltip" aria-expanded="false"><span class="offer-info-mark" aria-hidden="true">i</span></button>
                     <span class="offer-tooltip" id="buy-tooltip" role="tooltip">Workflow + prompts. Run them on your computer.</span>
@@ -282,6 +282,8 @@ function renderListing(listing) {
                 </div>`;
   const closingCopy = comingSoon
     ? 'This helper is being prepared for hosting and review. It cannot run or charge yet.'
+    : listing.runOnly
+      ? 'Choose a cloud run when you want Omo to validate, compile, fixture-test, and price one explicit SKILL.md contract. The $5 service fee is separate from the candidate workflow price in the result.'
     : 'Buy it once if you want the workflow and prompts in your own hands. Choose a cloud run when you would rather skip the setup and let Omo handle the service keys.';
 
   return `<!doctype html>

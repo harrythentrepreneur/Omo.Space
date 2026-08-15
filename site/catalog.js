@@ -7312,30 +7312,41 @@ window.OMO_CATALOG = [
       "category": "ops",
       "marketCategory": "creative",
       "subcategory": "developer-tools",
-      "promise": "Send a skill.md. Receive a tested, priced, hosted marketplace listing.",
+      "promise": "Compile a SKILL.md into a fixture-tested, canonically priced hosting candidate.",
       "maker": "Omo",
       "makerName": "Omo Studio",
       "cover": "covers/thumb-skill-md-to-hosted-workflow-v5.webp",
-      "priceLabel": "$5.00 per run · In review",
+      "priceLabel": "$5.00 per run",
       "runPrice": 5,
-      "status": "in-review",
-      "statusLabel": "In review — live soon",
-      "chargeable": false,
-      "active": false,
+      "runManifest": "run-manifests/skill-md-to-hosted-workflow.json",
+      "runOnly": true,
+      "status": "ready",
+      "statusLabel": "Ready",
+      "chargeable": true,
+      "active": true,
       "upvotes": 0,
-      "desc": "Submit the contents of one SKILL.md as hostile data. Omo validates it without executing it, then queues, builds, tests, prices, and prepares one hosted marketplace listing. The provider economics are sub-cent for typical builds; the $5.00 fee covers the bounded build service, validation, testing, hosting work, and a typed result. Omo's stated product bar is about 70% hosted success across a rolling submission set. Skills that require external accounts, unavailable media renderers, credentials, or unsupported infrastructure may return a typed blocker with the exact reason, evidence, and resume point.",
+      "desc": "Submit one bounded SKILL.md plus an explicit machine-readable contract. Omo treats it as hostile text, builds the smallest reviewed profile, compiles it with the canonical compiler, validates one fixture, and prices the candidate from the canonical cost model. V1 makes no provider call, does not deploy the generated candidate, and does not claim semantic proof. Unsupported capabilities and unknown costs return typed blockers.",
       "inputs": [
-        "skill_md: required SKILL.md content, 1–20,000 characters; treated as data and never executed",
-        "display_name: optional listing name",
-        "category: optional marketplace category",
-        "price_guidance_usd: optional non-negative price guidance"
+        "skill_md: required Markdown, 1–20,000 characters, treated as data and never executed",
+        "name: optional display-name hint; source frontmatter remains the identity",
+        "options: strict input/output schemas, one deterministic fixture, and optional bounded token estimates"
       ],
       "outputs": [
-        "status — queued, building, blocked, or live",
-        "listing_url and slug — the prepared listing identity; URL may be null before hosting",
-        "typed_blocker — nullable reason, evidence, and resume point",
-        "build_meta — builder version, provider cost, and tests passed"
+        "status and slug — ready candidate or typed blocker",
+        "price_usd — candidate per-run price, separate from the $5 loader fee",
+        "manifest — canonical compiled workflow manifest",
+        "test_summary — five fixture-level checks with provider_calls: 0",
+        "blockers — exact fail-closed reasons, evidence, and resume points"
       ],
+      "workflow": {
+        "steps": [
+          { "type": "pipeline", "role": "parse-contract", "label": "Parse the explicit contract as hostile data" },
+          { "type": "pipeline", "role": "build-profile", "label": "Build the smallest reviewed profile" },
+          { "type": "pipeline", "role": "compile", "label": "Compile with the canonical skill-to-modal compiler" },
+          { "type": "pipeline", "role": "test-fixture", "label": "Run bounded fixture-level contract checks" },
+          { "type": "pipeline", "role": "price", "label": "Apply canonical 5x pricing with the $0.10 floor" }
+        ]
+      },
       "tags": [
         "skill-md",
         "hosting",
@@ -7362,7 +7373,8 @@ window.OMO_VISIBLE_SLUGS = [
   'phonics-reading-error-coach',
   'phonics-rule-explainer',
   'story-idea-generator',
-  'syllable-splitter-and-counter'
+  'syllable-splitter-and-counter',
+  'skill-md-to-hosted-workflow'
 ];
 window.OMO_VISIBLE_CATALOG = window.OMO_CATALOG.filter(function (listing) {
   return listing && window.OMO_VISIBLE_SLUGS.indexOf(listing.slug) !== -1;

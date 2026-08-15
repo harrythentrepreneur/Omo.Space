@@ -1,8 +1,62 @@
-# Skill.md to Hosted Workflow — V1 run contract
+# Skill.md to Hosted Workflow — live V1 run contract
 
-Status: draft only; not active, chargeable, registered, or deployed.
+Status: ready and chargeable at $5.00 per loader run. The generated candidate's
+`price_usd` is separate from this service fee.
 
-This document defines how one paid marketplace run will map to the existing builder pipeline after the coordinator approves the builder hosting gate. It is a contract, not a runnable container. V1 may use a manual operator path or an intake bridge behind the same observable state machine. No `modal_app.py`, deployment claim, or fabricated automation is included here.
+The live loader is a bounded build/analysis service. It parses one hostile
+SKILL.md document, builds an explicit reviewed single-LLM profile, invokes the
+canonical compiler in memory, runs fixture-level contract checks, and prices
+the candidate from `site/deploy/cost-model.mjs`. It does not call a provider,
+load credentials, deploy the generated candidate, or claim provider-backed
+semantic quality.
+
+## Live V1 request
+
+```json
+{
+  "skill_md": "required Markdown, 1-20,000 characters",
+  "name": "optional display-name hint",
+  "options": {
+    "input_schema": "strict Draft 2020-12 object schema",
+    "output_schema": "strict Draft 2020-12 object schema",
+    "fixture": { "input": {}, "output": {} },
+    "model": "optional canonical model name",
+    "estimated_input_tokens": "optional integer 1-100000",
+    "max_output_tokens": "optional integer 64-8000"
+  }
+}
+```
+
+The machine-readable fields may instead appear as one fenced JSON object under
+`## Omo V1 contract` in the Markdown. V1 refuses to guess schemas or fixtures
+from prose. Likely credentials are rejected before compilation and never
+echoed. Unknown cost, unsupported external capability, invalid contract,
+invalid fixture, or compiler failure returns a typed blocker and is not a
+chargeable candidate.
+
+## Live V1 result
+
+The async result is an `omo.result/v1` envelope. Its `data` contains:
+
+- `status`: `ready` or `blocked`;
+- `slug`: derived from canonical SKILL.md frontmatter, or null before parsing;
+- `price_usd`: the candidate workflow's canonical per-run price, or null when
+  cost is unknown;
+- `chargeable`: whether the compiled candidate is priced and ready;
+- `manifest`: the canonical compiled manifest, or null before a successful
+  compile;
+- `test_summary`: explicit `fixture-only` evidence with `provider_calls: 0`;
+- `blockers`: typed code, stage, detail, non-secret evidence, resume point, and
+  retryability.
+
+The service exposes `POST /v1/runs`, owner-scoped combined polling at
+`GET /v1/runs/{run_id}`, and explicit `/status` and `/result` endpoints. Modal
+Proxy Token authentication and `X-Omo-Owner-Id` are required.
+
+## Archived pre-live draft (non-normative)
+
+The remainder below is retained only as the historical intake/hosting draft.
+It does not describe the live V1 request or result schema.
 
 ## Service boundary
 

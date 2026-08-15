@@ -1096,6 +1096,10 @@
       el('buy-button').setAttribute('aria-label', buyButtonLabel + '. Workflow + prompts. Run them on your computer.');
       el('run-button').textContent = runButtonLabel;
       el('run-button').setAttribute('aria-label', runButtonLabel + '. Per run. Omo handles the setup and sends back the finished result.');
+      if (listing.runOnly) {
+        var buyChoice = document.querySelector('.offer-choice-buy');
+        if (buyChoice) buyChoice.hidden = true;
+      }
 
       if (comingSoon) {
         var offerActions = document.querySelector('.offer-actions');

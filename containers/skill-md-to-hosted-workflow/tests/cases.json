@@ -1,0 +1,118 @@
+{
+  "happy_path": {
+    "input": {
+      "name": "Tiny uppercase helper",
+      "options": {
+        "estimated_input_tokens": 300,
+        "fixture": {
+          "input": {
+            "text": "Hello Omo"
+          },
+          "output": {
+            "uppercase": "HELLO OMO"
+          }
+        },
+        "input_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "max_output_tokens": 128,
+        "model": "deepseek-v4-flash",
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "uppercase": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uppercase"
+          ],
+          "type": "object"
+        }
+      },
+      "skill_md": "---\nname: tiny-uppercase-helper\ndescription: Uppercase one supplied string.\n---\n\n## Workflow\n\n1. **Transform:** Return the supplied text in uppercase.\n"
+    },
+    "output": {
+      "artifacts": [],
+      "data": {
+        "blockers": [],
+        "chargeable": true,
+        "manifest": {
+          "schema_version": "cognition.workflow-manifest/v1",
+          "slug": "tiny-uppercase-helper"
+        },
+        "price_usd": 0.1,
+        "slug": "tiny-uppercase-helper",
+        "status": "ready",
+        "test_summary": {
+          "failed": 0,
+          "limitations": [
+            "V1 validates one declared fixture only.",
+            "No provider call or generated-candidate deployment is performed."
+          ],
+          "mode": "fixture-only",
+          "passed": 5,
+          "provider_calls": 0,
+          "tests": [
+            "generated_schema_meta_validation",
+            "fixture_input_output_validation",
+            "generated_python_syntax",
+            "manifest_source_pricing_consistency",
+            "capability_and_canonical_pricing_gate"
+          ]
+        }
+      },
+      "run_id": "run-0123456789abcdef0123456789abcdef",
+      "spec_version": "omo.result/v1",
+      "status": "completed",
+      "tool_id": "2c2f5f49-95b3-5a33-b80d-603d054c2ae1",
+      "tool_version": 1,
+      "usage": {
+        "adapter": "deterministic-skill-loader@1",
+        "completion_tokens": 0,
+        "estimated_cost_usd": 0,
+        "model": "none",
+        "prompt_tokens": 0,
+        "provider": "none",
+        "provider_calls": 0
+      }
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-skill-md",
+      "input": {},
+      "reason": "skill_md is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "provider_key": "not-accepted",
+        "skill_md": "---\nname: example\ndescription: Example.\n---\n"
+      },
+      "reason": "unknown request fields fail closed"
+    },
+    {
+      "id": "oversized-skill-md",
+      "input": {
+        "skill_md": ""
+      },
+      "reason": "empty Markdown fails closed"
+    }
+  ]
+}

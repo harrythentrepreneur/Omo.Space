@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <base href="/">
-  <meta name="description" content="Send a skill.md. Receive a tested, priced, hosted marketplace listing. This helper is coming soon and cannot run or charge yet.">
+  <meta name="description" content="Compile a SKILL.md into a fixture-tested, canonically priced hosting candidate.">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="https://omo.space/workflows/skill-md-to-hosted-workflow/">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -20,9 +20,9 @@
   <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "Service",
+  "@type": "Product",
   "name": "Skill.md to Hosted Workflow",
-  "description": "Submit the contents of one SKILL.md as hostile data. Omo validates it without executing it, then queues, builds, tests, prices, and prepares one hosted marketplace listing. The provider economics are sub-cent for typical builds; the $5.00 fee covers the bounded build service, validation, testing, hosting work, and a typed result. Omo's stated product bar is about 70% hosted success across a rolling submission set. Skills that require external accounts, unavailable media renderers, credentials, or unsupported infrastructure may return a typed blocker with the exact reason, evidence, and resume point.",
+  "description": "Submit one bounded SKILL.md plus an explicit machine-readable contract. Omo treats it as hostile text, builds the smallest reviewed profile, compiles it with the canonical compiler, validates one fixture, and prices the candidate from the canonical cost model. V1 makes no provider call, does not deploy the generated candidate, and does not claim semantic proof. Unsupported capabilities and unknown costs return typed blockers.",
   "url": "https://omo.space/workflows/skill-md-to-hosted-workflow/",
   "image": "https://omo.space/covers/thumb-skill-md-to-hosted-workflow-v5.webp",
   "brand": {
@@ -34,19 +34,26 @@
     {
       "@type": "PropertyValue",
       "name": "Input",
-      "value": "skill_md: required SKILL.md content, 1–20,000 characters; treated as data and never executed; display_name: optional listing name; category: optional marketplace category; price_guidance_usd: optional non-negative price guidance"
+      "value": "skill_md: required Markdown, 1–20,000 characters, treated as data and never executed; name: optional display-name hint; source frontmatter remains the identity; options: strict input/output schemas, one deterministic fixture, and optional bounded token estimates"
     },
     {
       "@type": "PropertyValue",
       "name": "Output",
-      "value": "status — queued, building, blocked, or live; listing_url and slug — the prepared listing identity; URL may be null before hosting; typed_blocker — nullable reason, evidence, and resume point; build_meta — builder version, provider cost, and tests passed"
+      "value": "status and slug — ready candidate or typed blocker; price_usd — candidate per-run price, separate from the $5 loader fee; manifest — canonical compiled workflow manifest; test_summary — five fixture-level checks with provider_calls: 0; blockers — exact fail-closed reasons, evidence, and resume points"
     },
     {
       "@type": "PropertyValue",
       "name": "Availability status",
-      "value": "Coming soon"
+      "value": "Available"
     }
-  ]
+  ],
+  "offers": {
+    "@type": "Offer",
+    "price": "5.00",
+    "priceCurrency": "USD",
+    "availability": "https://schema.org/InStock",
+    "url": "https://omo.space/workflows/skill-md-to-hosted-workflow/"
+  }
 }
   </script>
   <style>
@@ -690,19 +697,19 @@
     <div class="shell">
       <div class="layout" id="workflow-layout">
         <article class="story sig-cut" aria-labelledby="listing-title">
-          <header class="story-header"><h1 class="listing-title" id="listing-title">Skill.md to Hosted Workflow</h1><p class="listing-promise" id="listing-promise">Send a skill.md. Receive a tested, priced, hosted marketplace listing.</p></header>
+          <header class="story-header"><h1 class="listing-title" id="listing-title">Skill.md to Hosted Workflow</h1><p class="listing-promise" id="listing-promise">Compile a SKILL.md into a fixture-tested, canonically priced hosting candidate.</p></header>
           <div class="media-gallery">
             <div class="media-shell sig-cut" id="hero-media" role="region" aria-roledescription="carousel" aria-label="Skill.md to Hosted Workflow media" tabindex="0"><div class="media-slide is-active" id="media-slide-0" data-slide-index="0" role="group" aria-roledescription="slide" aria-label="1 of 1: Cover" aria-hidden="false"><div class="media-fallback"><img src="/covers/thumb-skill-md-to-hosted-workflow-v5.webp" alt="Skill.md to Hosted Workflow cover"></div></div><span class="sr-only" id="media-status" aria-live="polite">Slide 1 of 1</span></div>
             <div class="media-thumbnails is-single" id="media-thumbnails" role="tablist" aria-label="Choose a slide" style="--thumbnail-count:1"><button class="media-thumbnail is-active" type="button" data-thumbnail-index="0" role="tab" aria-controls="media-slide-0" aria-label="Show cover" aria-selected="true" aria-current="true" tabindex="0"><img src="/covers/thumb-skill-md-to-hosted-workflow-v5.webp" alt=""></button></div>
             <p class="quiet-line" id="quiet-line"><span class="metadata-item">by Omo Studio</span><span class="metadata-item">0 upvotes</span><span class="metadata-item">Ops</span></p>
           </div>
           <div class="story-copy">
-            <p class="intro" id="listing-intro">Submit the contents of one SKILL.md as hostile data. Omo validates it without executing it, then queues, builds, tests, prices, and prepares one hosted marketplace listing. The provider economics are sub-cent for typical builds; the $5.00 fee covers the bounded build service, validation, testing, hosting work, and a typed result. Omo&#39;s stated product bar is about 70% hosted success across a rolling submission set. Skills that require external accounts, unavailable media renderers, credentials, or unsupported infrastructure may return a typed blocker with the exact reason, evidence, and resume point.</p>
-            <section class="copy-section" aria-labelledby="inside-title"><h2 id="inside-title">What’s inside</h2><ol class="plain-list" id="steps-list"><li>Complete hosting, review, and safety checks before activation</li></ol></section>
-            <section class="copy-section" aria-labelledby="inputs-title"><h2 id="inputs-title">What you’ll bring</h2><ul class="plain-list" id="inputs-list"><li>skill_md: required SKILL.md content, 1–20,000 characters; treated as data and never executed</li><li>display_name: optional listing name</li><li>category: optional marketplace category</li><li>price_guidance_usd: optional non-negative price guidance</li></ul></section>
-            <section class="copy-section" aria-labelledby="outputs-title"><h2 id="outputs-title">What you’ll get</h2><ul class="plain-list" id="outputs-list"><li>status — queued, building, blocked, or live</li><li>listing_url and slug — the prepared listing identity; URL may be null before hosting</li><li>typed_blocker — nullable reason, evidence, and resume point</li><li>build_meta — builder version, provider cost, and tests passed</li></ul></section>
-            <section class="copy-section" aria-labelledby="perfect-title"><h2 id="perfect-title">Perfect for</h2><ul class="plain-list" id="perfect-list"><li>Skill Md</li><li>Hosting</li><li>Workflow Builder</li><li>Small teams</li><li>Solo operators</li></ul></section>
-            <p class="closing-copy" id="closing-copy">This helper is being prepared for hosting and review. It cannot run or charge yet.</p>
+            <p class="intro" id="listing-intro">Submit one bounded SKILL.md plus an explicit machine-readable contract. Omo treats it as hostile text, builds the smallest reviewed profile, compiles it with the canonical compiler, validates one fixture, and prices the candidate from the canonical cost model. V1 makes no provider call, does not deploy the generated candidate, and does not claim semantic proof. Unsupported capabilities and unknown costs return typed blockers.</p>
+            <section class="copy-section" aria-labelledby="inside-title"><h2 id="inside-title">What’s inside</h2><ol class="plain-list" id="steps-list"><li>Parse the explicit contract as hostile data</li><li>Build the smallest reviewed profile</li><li>Compile with the canonical skill-to-modal compiler</li><li>Run bounded fixture-level contract checks</li><li>Apply canonical 5x pricing with the $0.10 floor</li></ol></section>
+            <section class="copy-section" aria-labelledby="inputs-title"><h2 id="inputs-title">What you’ll bring</h2><ul class="plain-list" id="inputs-list"><li>skill_md: required Markdown, 1–20,000 characters, treated as data and never executed</li><li>name: optional display-name hint; source frontmatter remains the identity</li><li>options: strict input/output schemas, one deterministic fixture, and optional bounded token estimates</li></ul></section>
+            <section class="copy-section" aria-labelledby="outputs-title"><h2 id="outputs-title">What you’ll get</h2><ul class="plain-list" id="outputs-list"><li>status and slug — ready candidate or typed blocker</li><li>price_usd — candidate per-run price, separate from the $5 loader fee</li><li>manifest — canonical compiled workflow manifest</li><li>test_summary — five fixture-level checks with provider_calls: 0</li><li>blockers — exact fail-closed reasons, evidence, and resume points</li></ul></section>
+            <section class="copy-section" aria-labelledby="perfect-title"><h2 id="perfect-title">Perfect for</h2><ul class="plain-list" id="perfect-list"><li>Skill Md</li><li>Hosting</li><li>Workflow Builder</li><li>Ecommerce creative teams</li><li>Performance marketers</li></ul></section>
+            <p class="closing-copy" id="closing-copy">Choose a cloud run when you want Omo to validate, compile, fixture-test, and price one explicit SKILL.md contract. The $5 service fee is separate from the candidate workflow price in the result.</p>
           </div>
         </article>
         <aside class="sidebar" aria-label="Workflow offer">
@@ -710,15 +717,15 @@
             <div class="offer-cover" id="offer-cover"><img src="/covers/thumb-skill-md-to-hosted-workflow-v5.webp" alt="Skill.md to Hosted Workflow cover"></div>
             <div class="offer-body">
               <h2 class="offer-title" id="offer-title">Skill.md to Hosted Workflow</h2>
-              <p class="offer-desc" id="offer-desc">Send a skill.md. Receive a tested, priced, hosted marketplace listing.</p>
-                <div class="offer-actions" hidden>
-                  <div class="offer-choice offer-choice-buy">
-                    <button class="button button-buy" id="buy-button" type="button" aria-label="Coming soon. Workflow + prompts. Run them on your computer.">Coming soon</button>
+              <p class="offer-desc" id="offer-desc">Compile a SKILL.md into a fixture-tested, canonically priced hosting candidate.</p>
+                <div class="offer-actions">
+                  <div class="offer-choice offer-choice-buy" hidden>
+                    <button class="button button-buy" id="buy-button" type="button" aria-label="Download Skill.md — $0. Workflow + prompts. Run them on your computer.">Download Skill.md — $0</button>
                     <button class="offer-info" id="buy-info" type="button" aria-label="About Download Skill.md: Workflow + prompts. Run them on your computer." aria-controls="buy-tooltip" aria-expanded="false"><span class="offer-info-mark" aria-hidden="true">i</span></button>
                     <span class="offer-tooltip" id="buy-tooltip" role="tooltip">Workflow + prompts. Run them on your computer.</span>
                   </div>
                   <div class="offer-choice offer-choice-run">
-                    <button class="button button-run" id="run-button" type="button" aria-label="Coming soon. Per run. Omo handles the setup and sends back the finished result.">Coming soon</button>
+                    <button class="button button-run" id="run-button" type="button" aria-label="Run it for me — $5.00/run. Per run. Omo handles the setup and sends back the finished result.">Run it for me — $5.00/run</button>
                     <button class="offer-info" id="run-info" type="button" aria-label="About Run it for me: Per run. Omo handles the setup and sends back the finished result." aria-controls="run-tooltip" aria-expanded="false"><span class="offer-info-mark" aria-hidden="true">i</span></button>
                     <span class="offer-tooltip" id="run-tooltip" role="tooltip">Per run. Omo handles the setup and sends back the finished result.</span>
                   </div>
@@ -726,7 +733,7 @@
             </div>
           </div>
           <div class="offer-powered"><span>Powered by</span><img class="offer-logo" src="/logo-sweet-pastel.svg" alt="" width="128" height="40"></div>
-          <p class="offer-note" id="offer-note" role="status" aria-live="polite">Coming soon — this helper cannot run or charge yet.</p>
+          <p class="offer-note" id="offer-note" role="status" aria-live="polite"></p>
         </aside>
       </div>
     </div>
@@ -1089,6 +1096,10 @@
       el('buy-button').setAttribute('aria-label', buyButtonLabel + '. Workflow + prompts. Run them on your computer.');
       el('run-button').textContent = runButtonLabel;
       el('run-button').setAttribute('aria-label', runButtonLabel + '. Per run. Omo handles the setup and sends back the finished result.');
+      if (listing.runOnly) {
+        var buyChoice = document.querySelector('.offer-choice-buy');
+        if (buyChoice) buyChoice.hidden = true;
+      }
 
       if (comingSoon) {
         var offerActions = document.querySelector('.offer-actions');

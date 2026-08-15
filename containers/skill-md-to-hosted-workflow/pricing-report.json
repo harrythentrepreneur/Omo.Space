@@ -1,0 +1,33 @@
+{
+  "chargeable": true,
+  "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
+  "default_tier": "loader_build_analysis",
+  "display_price_usd": 5.0,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 0.1,
+      "detail": [],
+      "guard_cost_usd": 1.0,
+      "guarded_price_floor_usd": 5.0,
+      "modeled_cost_usd": 0.0,
+      "notes": [
+        "The $1.00 service guard covers bounded build analysis, fixture tests, and release handling; canonical 5x markup produces the $5.00 loader price.",
+        "Candidate workflow pricing is calculated separately inside each result."
+      ],
+      "pricing_cost_usd": 1.0,
+      "tier": "loader_build_analysis"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "measured_evidence": [],
+  "notes": [
+    "The loader makes zero provider calls and reports zero provider spend.",
+    "A blocked candidate still returns typed analysis; payment/refund policy remains owned by the marketplace Worker."
+  ],
+  "quote_status": "modeled_service_guard",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model.mjs",
+  "unpriced_costs": []
+}

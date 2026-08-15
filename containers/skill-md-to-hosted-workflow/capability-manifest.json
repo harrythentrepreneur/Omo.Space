@@ -1,0 +1,58 @@
+{
+  "allowlist": [
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:a32a1d8721f23882282053d38d2276822186e4857bdcd45c7f0b89c8e1575f47",
+  "decision": "approved",
+  "execution_kind": "skill_builder",
+  "generated": {
+    "dependencies": [],
+    "files": [],
+    "honest_limits": [],
+    "packages": [],
+    "policy": [],
+    "resources": {},
+    "runtime_steps": [],
+    "tests": [],
+    "tool_bindings": []
+  },
+  "needs": [],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [
+    "hostile-markdown-parse",
+    "reviewed-profile-build",
+    "canonical-skill-compiler",
+    "fixture-contract-tests",
+    "canonical-cost-pricing"
+  ],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [],
+  "skill_owned_resources": [
+    {
+      "covers_artifact_kinds": [],
+      "covers_operations": [
+        "canonical_cost.price",
+        "fixture_contract.test",
+        "reviewed_profile.build",
+        "skill_contract.parse",
+        "skill_to_modal.compile"
+      ],
+      "digest": "sha256:cec6df4cd79bfdf06c6e458370d84bebeda5bd2ad5cfe64b4f1a7f2cbffc3fbd",
+      "generated_files": [
+        "resources/__init__.py"
+      ],
+      "id": "deterministic_skill_loader_v1",
+      "slug": "skill-md-to-hosted-workflow",
+      "version": "1.0.0"
+    }
+  ],
+  "slug": "skill-md-to-hosted-workflow",
+  "source_sha256": "cfc7e2c683709bf40db6140e3b8cee608ed98781327f96b98072bdc96d59b8ae",
+  "workflow_blockers": []
+}

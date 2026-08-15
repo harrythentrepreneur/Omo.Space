@@ -924,6 +924,35 @@ def test_skill_owned_resource_is_slug_locked() -> None:
         compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
 
 
+def test_loader_owned_resource_compiles_to_secret_free_builder_surface(tmp_path: Path) -> None:
+    slug = "skill-md-to-hosted-workflow"
+    skill_path = ROOT / "containers" / slug / "source" / "SKILL.md"
+    profile_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = compiler.build_files(skill_path.read_text(encoding="utf-8"), profile)
+    output = tmp_path / slug
+    assert compiler.write_or_check(files, output, check=False) == 0
+
+    manifest = json.loads(files["manifest.json"])
+    capabilities = json.loads(files["capability-manifest.json"])
+    pricing = json.loads(files["pricing-report.json"])
+    runtime = files["modal_app.py"]
+    assert manifest["readiness"]["can_submit"] is True
+    assert manifest["pricing"]["display_price_usd"] == 5.0
+    assert manifest["pricing"]["chargeable"] is True
+    assert pricing["markup"] == 5.0
+    assert pricing["floor_usd"] == 0.1
+    assert capabilities["approved"] == []
+    assert [item["id"] for item in capabilities["skill_owned_resources"]] == [
+        "deterministic_skill_loader_v1"
+    ]
+    assert "@modal.asgi_app(requires_proxy_auth=True)" in runtime
+    assert "modal.Secret" not in runtime
+    assert "COMPILER.build_files" in runtime
+    assert "provider_calls\": 0" in runtime
+    compile(runtime, "generated-loader-modal-app", "exec")
+
+
 def test_plain_llm_contract_resolves_neither_video_nor_domain_state() -> None:
     profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
     resolution = compiler.resolve_capabilities(profile, "d" * 64)

@@ -1,0 +1,77 @@
+{
+  "$id": "https://omo.space/schemas/skill-md-to-hosted-workflow/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One hostile SKILL.md document plus optional explicit machine-readable V1 contract fields.",
+  "properties": {
+    "name": {
+      "description": "Optional display hint. Source frontmatter remains the candidate identity.",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Display name",
+      "type": "string"
+    },
+    "options": {
+      "additionalProperties": false,
+      "description": "Strict schemas, one deterministic fixture, and optional bounded pricing inputs. This may instead be embedded under an Omo V1 contract heading.",
+      "properties": {
+        "estimated_input_tokens": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "fixture": {
+          "additionalProperties": false,
+          "properties": {
+            "input": {
+              "type": "object"
+            },
+            "output": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "input",
+            "output"
+          ],
+          "type": "object"
+        },
+        "input_schema": {
+          "maxProperties": 64,
+          "type": "object"
+        },
+        "max_output_tokens": {
+          "maximum": 8000,
+          "minimum": 64,
+          "type": "integer"
+        },
+        "model": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "output_schema": {
+          "maxProperties": 64,
+          "type": "object"
+        }
+      },
+      "title": "Explicit V1 contract",
+      "type": "object"
+    },
+    "skill_md": {
+      "description": "Complete Markdown, treated as hostile data and never executed.",
+      "examples": [
+        "---\nname: tiny-uppercase-helper\ndescription: Uppercase one supplied string.\n---\n\n## Workflow\n\n1. **Transform:** Return the supplied text in uppercase."
+      ],
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "SKILL.md",
+      "type": "string"
+    }
+  },
+  "required": [
+    "skill_md"
+  ],
+  "title": "SKILL.md loader request",
+  "type": "object"
+}

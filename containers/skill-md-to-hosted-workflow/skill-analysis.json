@@ -1,0 +1,90 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "Bounded Modal CPU and memory for deterministic parsing and compilation",
+    "Fixture-level schema and generated-source checks",
+    "No provider calls, credentials, network fetch, or generated-candidate deployment"
+  ],
+  "description": "Compile one explicit SKILL.md contract into a fixture-tested, canonically priced hosting candidate without credentials, provider calls, or deployment side effects.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "skill-md-to-hosted-workflow",
+  "parsed_workflow_steps": [
+    {
+      "id": "parse-contract",
+      "number": "1",
+      "title": "Parse contract"
+    },
+    {
+      "id": "build-profile",
+      "number": "2",
+      "title": "Build profile"
+    },
+    {
+      "id": "compile",
+      "number": "3",
+      "title": "Compile"
+    },
+    {
+      "id": "test-fixture",
+      "number": "4",
+      "title": "Test fixture"
+    },
+    {
+      "id": "price-candidate",
+      "number": "5",
+      "title": "Price candidate"
+    },
+    {
+      "id": "return-analysis",
+      "number": "6",
+      "title": "Return analysis"
+    }
+  ],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "parse-contract",
+      "operation": "skill_contract.parse",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    },
+    {
+      "id": "build-profile",
+      "operation": "reviewed_profile.build",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    },
+    {
+      "id": "compile",
+      "operation": "skill_to_modal.compile",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    },
+    {
+      "id": "test-fixture",
+      "operation": "fixture_contract.test",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "quality"
+    },
+    {
+      "id": "price",
+      "operation": "canonical_cost.price",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "skill-md-to-hosted-workflow",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "cfc7e2c683709bf40db6140e3b8cee608ed98781327f96b98072bdc96d59b8ae"
+  },
+  "unresolved": []
+}

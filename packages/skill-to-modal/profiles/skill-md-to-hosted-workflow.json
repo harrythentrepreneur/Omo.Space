@@ -1,0 +1,682 @@
+{
+  "name": "skill-md-to-hosted-workflow",
+  "slug": "skill-md-to-hosted-workflow",
+  "version": "1.0.0",
+  "execution_kind": "skill_builder",
+  "skill_owned_resource": "deterministic_skill_loader_v1",
+  "runtime_preference": "modal-hosted",
+  "capabilities": [
+    "hostile-markdown-parse",
+    "reviewed-profile-build",
+    "canonical-skill-compiler",
+    "fixture-contract-tests",
+    "canonical-cost-pricing"
+  ],
+  "apt_packages": [],
+  "artifacts": [],
+  "inputs": [
+    {
+      "name": "skill_md",
+      "type": "text/markdown",
+      "max_chars": 20000,
+      "trust": "hostile-data"
+    },
+    {
+      "name": "options",
+      "type": "application/json",
+      "trust": "reviewed-contract-hints"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "build_analysis",
+      "type": "application/json",
+      "schema_version": "omo.result/v1"
+    }
+  ],
+  "resources": {
+    "cpu": 1.0,
+    "memory_mb": 1024,
+    "timeout_seconds": 180,
+    "max_containers": 4
+  },
+  "required_env_names": [],
+  "form": [
+    {
+      "field": "skill_md",
+      "widget": "textarea"
+    },
+    {
+      "field": "name",
+      "widget": "text"
+    },
+    {
+      "field": "options",
+      "widget": "textarea"
+    }
+  ],
+  "steps": [
+    {
+      "id": "parse-contract",
+      "type": "native",
+      "operation": "skill_contract.parse",
+      "provider": "local",
+      "readiness": "ready"
+    },
+    {
+      "id": "build-profile",
+      "type": "native",
+      "operation": "reviewed_profile.build",
+      "provider": "local",
+      "readiness": "ready"
+    },
+    {
+      "id": "compile",
+      "type": "native",
+      "operation": "skill_to_modal.compile",
+      "provider": "local",
+      "readiness": "ready"
+    },
+    {
+      "id": "test-fixture",
+      "type": "quality",
+      "operation": "fixture_contract.test",
+      "provider": "local",
+      "readiness": "ready"
+    },
+    {
+      "id": "price",
+      "type": "native",
+      "operation": "canonical_cost.price",
+      "provider": "local",
+      "readiness": "ready"
+    }
+  ],
+  "prompts": {},
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "loader_build_analysis",
+    "estimates": [
+      {
+        "tier": "loader_build_analysis",
+        "guard_cost_usd": 1.0,
+        "workflow": {
+          "steps": []
+        },
+        "notes": [
+          "The $1.00 service guard covers bounded build analysis, fixture tests, and release handling; canonical 5x markup produces the $5.00 loader price.",
+          "Candidate workflow pricing is calculated separately inside each result."
+        ]
+      }
+    ],
+    "quote_status": "modeled_service_guard",
+    "unpriced_costs": [],
+    "notes": [
+      "The loader makes zero provider calls and reports zero provider spend.",
+      "A blocked candidate still returns typed analysis; payment/refund policy remains owned by the marketplace Worker."
+    ]
+  },
+  "readiness": {
+    "can_submit": true,
+    "blockers": []
+  },
+  "cost_drivers": [
+    "Bounded Modal CPU and memory for deterministic parsing and compilation",
+    "Fixture-level schema and generated-source checks",
+    "No provider calls, credentials, network fetch, or generated-candidate deployment"
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/skill-md-to-hosted-workflow/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "SKILL.md loader request",
+    "description": "One hostile SKILL.md document plus optional explicit machine-readable V1 contract fields.",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "skill_md": {
+        "type": "string",
+        "title": "SKILL.md",
+        "description": "Complete Markdown, treated as hostile data and never executed.",
+        "minLength": 1,
+        "maxLength": 20000,
+        "examples": [
+          "---\nname: tiny-uppercase-helper\ndescription: Uppercase one supplied string.\n---\n\n## Workflow\n\n1. **Transform:** Return the supplied text in uppercase."
+        ]
+      },
+      "name": {
+        "type": "string",
+        "title": "Display name",
+        "description": "Optional display hint. Source frontmatter remains the candidate identity.",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "options": {
+        "type": "object",
+        "title": "Explicit V1 contract",
+        "description": "Strict schemas, one deterministic fixture, and optional bounded pricing inputs. This may instead be embedded under an Omo V1 contract heading.",
+        "additionalProperties": false,
+        "properties": {
+          "input_schema": {
+            "type": "object",
+            "maxProperties": 64
+          },
+          "output_schema": {
+            "type": "object",
+            "maxProperties": 64
+          },
+          "fixture": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "input": {
+                "type": "object"
+              },
+              "output": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "input",
+              "output"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "estimated_input_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 8000
+          }
+        }
+      }
+    },
+    "required": [
+      "skill_md"
+    ]
+  },
+  "output_schema": {
+    "$id": "https://omo.space/schemas/skill-md-to-hosted-workflow/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Completed SKILL.md loader analysis",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "spec_version": {
+        "const": "omo.result/v1"
+      },
+      "run_id": {
+        "type": "string",
+        "pattern": "^run-[0-9a-f]{32}$"
+      },
+      "tool_id": {
+        "const": "2c2f5f49-95b3-5a33-b80d-603d054c2ae1"
+      },
+      "tool_version": {
+        "const": 1
+      },
+      "status": {
+        "const": "completed"
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "ready",
+              "blocked"
+            ]
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 120,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "price_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0.1
+          },
+          "chargeable": {
+            "type": "boolean"
+          },
+          "manifest": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "test_summary": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "const": "fixture-only"
+              },
+              "passed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20
+              },
+              "failed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20
+              },
+              "tests": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                }
+              },
+              "provider_calls": {
+                "const": 0
+              },
+              "limitations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                }
+              }
+            },
+            "required": [
+              "mode",
+              "passed",
+              "failed",
+              "tests",
+              "provider_calls",
+              "limitations"
+            ]
+          },
+          "blockers": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{2,79}$"
+                },
+                "stage": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "detail": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "evidence": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "resume_point": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "retryable": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "stage",
+                "detail",
+                "evidence",
+                "resume_point",
+                "retryable"
+              ]
+            }
+          }
+        },
+        "required": [
+          "status",
+          "slug",
+          "price_usd",
+          "chargeable",
+          "manifest",
+          "test_summary",
+          "blockers"
+        ]
+      },
+      "artifacts": {
+        "type": "array",
+        "maxItems": 0
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "adapter": {
+            "const": "deterministic-skill-loader@1"
+          },
+          "provider": {
+            "const": "none"
+          },
+          "model": {
+            "const": "none"
+          },
+          "prompt_tokens": {
+            "const": 0
+          },
+          "completion_tokens": {
+            "const": 0
+          },
+          "provider_calls": {
+            "const": 0
+          },
+          "estimated_cost_usd": {
+            "const": 0
+          }
+        },
+        "required": [
+          "adapter",
+          "provider",
+          "model",
+          "prompt_tokens",
+          "completion_tokens",
+          "provider_calls",
+          "estimated_cost_usd"
+        ]
+      }
+    },
+    "required": [
+      "spec_version",
+      "run_id",
+      "tool_id",
+      "tool_version",
+      "status",
+      "data",
+      "artifacts",
+      "usage"
+    ]
+  },
+  "happy_path": {
+    "input": {
+      "skill_md": "---\nname: tiny-uppercase-helper\ndescription: Uppercase one supplied string.\n---\n\n## Workflow\n\n1. **Transform:** Return the supplied text in uppercase.\n",
+      "name": "Tiny uppercase helper",
+      "options": {
+        "input_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "text"
+          ]
+        },
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "uppercase": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "uppercase"
+          ]
+        },
+        "fixture": {
+          "input": {
+            "text": "Hello Omo"
+          },
+          "output": {
+            "uppercase": "HELLO OMO"
+          }
+        },
+        "model": "deepseek-v4-flash",
+        "estimated_input_tokens": 300,
+        "max_output_tokens": 128
+      }
+    },
+    "output": {
+      "spec_version": "omo.result/v1",
+      "run_id": "run-0123456789abcdef0123456789abcdef",
+      "tool_id": "2c2f5f49-95b3-5a33-b80d-603d054c2ae1",
+      "tool_version": 1,
+      "status": "completed",
+      "data": {
+        "status": "ready",
+        "slug": "tiny-uppercase-helper",
+        "price_usd": 0.1,
+        "chargeable": true,
+        "manifest": {
+          "schema_version": "cognition.workflow-manifest/v1",
+          "slug": "tiny-uppercase-helper"
+        },
+        "test_summary": {
+          "mode": "fixture-only",
+          "passed": 5,
+          "failed": 0,
+          "tests": [
+            "generated_schema_meta_validation",
+            "fixture_input_output_validation",
+            "generated_python_syntax",
+            "manifest_source_pricing_consistency",
+            "capability_and_canonical_pricing_gate"
+          ],
+          "provider_calls": 0,
+          "limitations": [
+            "V1 validates one declared fixture only.",
+            "No provider call or generated-candidate deployment is performed."
+          ]
+        },
+        "blockers": []
+      },
+      "artifacts": [],
+      "usage": {
+        "adapter": "deterministic-skill-loader@1",
+        "provider": "none",
+        "model": "none",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "provider_calls": 0,
+        "estimated_cost_usd": 0
+      }
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-skill-md",
+      "input": {},
+      "reason": "skill_md is required"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "skill_md": "---\nname: example\ndescription: Example.\n---\n",
+        "provider_key": "not-accepted"
+      },
+      "reason": "unknown request fields fail closed"
+    },
+    {
+      "id": "oversized-skill-md",
+      "input": {
+        "skill_md": ""
+      },
+      "reason": "empty Markdown fails closed"
+    }
+  ],
+  "marketplace": {
+    "catalog_managed": false,
+    "runtime_preference": "modal-hosted",
+    "slug": "skill-md-to-hosted-workflow",
+    "title": "Skill.md to Hosted Workflow",
+    "emoji": "🛠️",
+    "category": "ops",
+    "niche": "developer-tools",
+    "tags": [
+      "skill-md",
+      "workflow-builder",
+      "compiler",
+      "developer-tools"
+    ],
+    "free": false,
+    "price_own": 0,
+    "price_maintain": 0,
+    "promise": "Compile a SKILL.md into a fixture-tested, canonically priced hosting candidate.",
+    "maker": "Omo",
+    "maker_name": "Omo Studio",
+    "version": "v1.0.0 · 2026-08-15",
+    "demo_cap": "Fixture-only build analysis; zero provider calls",
+    "description": "Submit one bounded SKILL.md plus an explicit machine-readable contract. Omo treats it as hostile text, builds the smallest reviewed profile, compiles it with the canonical compiler, validates one fixture, and prices the candidate from the canonical cost model. V1 does not call a provider, deploy the generated candidate, or claim semantic proof; unsupported capabilities and unknown costs return typed blockers.",
+    "cover": "covers/thumb-skill-md-to-hosted-workflow-v5.webp",
+    "upvotes": 0,
+    "inputs": [
+      "skill_md: required Markdown, 1–20,000 characters, never executed",
+      "name: optional display-name hint",
+      "options: strict schemas, one fixture, and optional bounded token estimates"
+    ],
+    "outputs": [
+      "status and slug — ready candidate or typed blocker",
+      "price_usd — candidate per-run price, separate from the $5 loader fee",
+      "manifest — canonical compiled workflow manifest",
+      "test_summary — fixture-only checks with provider_calls: 0",
+      "blockers — exact fail-closed reasons and resume points"
+    ],
+    "example_in": "Tiny uppercase helper · strict schemas · one fixture",
+    "example_out": [
+      "Compiled workflow manifest and candidate slug",
+      "Canonical per-run candidate price",
+      "Five fixture-level build checks with zero provider calls"
+    ],
+    "examples": [
+      {
+        "id": "tiny-uppercase-helper",
+        "title": "Tiny uppercase helper",
+        "caption": "One strict text-in/text-out fixture",
+        "input": {
+          "skill_md": "---\nname: tiny-uppercase-helper\ndescription: Uppercase one supplied string.\n---\n\n## Workflow\n\n1. **Transform:** Return the supplied text in uppercase.\n",
+          "name": "Tiny uppercase helper",
+          "options": {
+            "input_schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "text"
+              ]
+            },
+            "output_schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "uppercase": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "uppercase"
+              ]
+            },
+            "fixture": {
+              "input": {
+                "text": "Hello Omo"
+              },
+              "output": {
+                "uppercase": "HELLO OMO"
+              }
+            }
+          }
+        },
+        "output_preview": "A ready tiny-uppercase-helper candidate priced at the canonical $0.10 floor."
+      }
+    ],
+    "phases": [
+      {
+        "id": "parsing",
+        "label": "Parsing the explicit contract"
+      },
+      {
+        "id": "compiling",
+        "label": "Compiling the candidate"
+      },
+      {
+        "id": "testing",
+        "label": "Running fixture-level checks"
+      },
+      {
+        "id": "pricing",
+        "label": "Applying canonical pricing"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "ui": {
+      "order": [
+        "skill_md",
+        "name",
+        "options"
+      ],
+      "fields": {
+        "skill_md": {
+          "widget": "textarea",
+          "rows": 18
+        },
+        "name": {
+          "widget": "text"
+        },
+        "options": {
+          "widget": "textarea",
+          "rows": 18
+        }
+      }
+    },
+    "deployment": {
+      "default_endpoint": "https://omo-space--cognition-skill-md-to-hosted-workflow-api.modal.run",
+      "endpoint_env": "SKILL_MD_TO_HOSTED_WORKFLOW_MODAL_URL"
+    }
+  }
+}

@@ -1,0 +1,72 @@
+spec_version: cognition.container/v1
+name: "skill-md-to-hosted-workflow"
+slug: skill-md-to-hosted-workflow
+version: "1.0.0"
+status: ready
+generated:
+  compiler: skill-to-modal/0.6.0
+  hand_edit_allowed: false
+source:
+  kind: vendored-skill-md
+  path: source/SKILL.md
+  sha256: cfc7e2c683709bf40db6140e3b8cee608ed98781327f96b98072bdc96d59b8ae
+image:
+  base: debian-slim
+  python: "3.12"
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - jsonschema==4.26.0
+resources:
+  cpu: 1.0
+  memory_mb: 1024
+  timeout_seconds: 180
+  min_containers: 0
+  max_containers: 4
+endpoint:
+  mode: async_job
+  submit_path: /v1/runs
+  result_path: /v1/runs/{call_id}
+  auth: modal_proxy_token
+  invalid_input_status: 422
+  not_ready_status: 503
+readiness:
+  can_submit: true
+  execution_kind: skill_builder
+  blockers: []
+required_env_names:
+steps:
+  - id: parse-contract
+    type: native
+    operation: "skill_contract.parse"
+    readiness: ready
+    provider: local
+  - id: build-profile
+    type: native
+    operation: "reviewed_profile.build"
+    readiness: ready
+    provider: local
+  - id: compile
+    type: native
+    operation: "skill_to_modal.compile"
+    readiness: ready
+    provider: local
+  - id: test-fixture
+    type: quality
+    operation: "fixture_contract.test"
+    readiness: ready
+    provider: local
+  - id: price
+    type: native
+    operation: "canonical_cost.price"
+    readiness: ready
+    provider: local
+input_schema: schemas/input.json
+output_schema: schemas/output.json
+frontend_manifest: manifest.json
+capability_manifest: capability-manifest.json
+pricing_report: pricing-report.json
+tests:
+  contract: tests/test_contract.py
+  cases: tests/cases.json
+  network_allowed: false

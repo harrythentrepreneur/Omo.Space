@@ -1960,6 +1960,319 @@ export const HOSTED_MODAL_SKILL_ROWS = [
     }
   ],
   [
+    "skill-md-to-hosted-workflow",
+    {
+      "artifact": null,
+      "container_slug": "skill-md-to-hosted-workflow",
+      "default_endpoint": "https://omo-space--cognition-skill-md-to-hosted-workflow-api.modal.run",
+      "endpoint_env": "SKILL_MD_TO_HOSTED_WORKFLOW_MODAL_URL",
+      "input_adapters": [],
+      "input_schema": {
+        "$id": "https://omo.space/schemas/skill-md-to-hosted-workflow/input.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "One hostile SKILL.md document plus optional explicit machine-readable V1 contract fields.",
+        "properties": {
+          "name": {
+            "description": "Optional display hint. Source frontmatter remains the candidate identity.",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display name",
+            "type": "string"
+          },
+          "options": {
+            "additionalProperties": false,
+            "description": "Strict schemas, one deterministic fixture, and optional bounded pricing inputs. This may instead be embedded under an Omo V1 contract heading.",
+            "properties": {
+              "estimated_input_tokens": {
+                "maximum": 100000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "fixture": {
+                "additionalProperties": false,
+                "properties": {
+                  "input": {
+                    "type": "object"
+                  },
+                  "output": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "input",
+                  "output"
+                ],
+                "type": "object"
+              },
+              "input_schema": {
+                "maxProperties": 64,
+                "type": "object"
+              },
+              "max_output_tokens": {
+                "maximum": 8000,
+                "minimum": 64,
+                "type": "integer"
+              },
+              "model": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              "output_schema": {
+                "maxProperties": 64,
+                "type": "object"
+              }
+            },
+            "title": "Explicit V1 contract",
+            "type": "object"
+          },
+          "skill_md": {
+            "description": "Complete Markdown, treated as hostile data and never executed.",
+            "examples": [
+              "---\nname: tiny-uppercase-helper\ndescription: Uppercase one supplied string.\n---\n\n## Workflow\n\n1. **Transform:** Return the supplied text in uppercase."
+            ],
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "SKILL.md",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill_md"
+        ],
+        "title": "SKILL.md loader request",
+        "type": "object"
+      },
+      "kind": "modal-hosted",
+      "output_schema": {
+        "$id": "https://omo.space/schemas/skill-md-to-hosted-workflow/output.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "data": {
+            "additionalProperties": false,
+            "properties": {
+              "blockers": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "code": {
+                      "pattern": "^[A-Z][A-Z0-9_]{2,79}$",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "maxLength": 500,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "items": {
+                        "maxLength": 500,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "maxItems": 12,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "resume_point": {
+                      "maxLength": 300,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "retryable": {
+                      "type": "boolean"
+                    },
+                    "stage": {
+                      "maxLength": 80,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "stage",
+                    "detail",
+                    "evidence",
+                    "resume_point",
+                    "retryable"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "chargeable": {
+                "type": "boolean"
+              },
+              "manifest": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "price_usd": {
+                "minimum": 0.1,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "slug": {
+                "maxLength": 120,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "ready",
+                  "blocked"
+                ]
+              },
+              "test_summary": {
+                "additionalProperties": false,
+                "properties": {
+                  "failed": {
+                    "maximum": 20,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "limitations": {
+                    "items": {
+                      "maxLength": 300,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 8,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "mode": {
+                    "const": "fixture-only"
+                  },
+                  "passed": {
+                    "maximum": 20,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "provider_calls": {
+                    "const": 0
+                  },
+                  "tests": {
+                    "items": {
+                      "maxLength": 160,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 20,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "mode",
+                  "passed",
+                  "failed",
+                  "tests",
+                  "provider_calls",
+                  "limitations"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "status",
+              "slug",
+              "price_usd",
+              "chargeable",
+              "manifest",
+              "test_summary",
+              "blockers"
+            ],
+            "type": "object"
+          },
+          "run_id": {
+            "pattern": "^run-[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "spec_version": {
+            "const": "omo.result/v1"
+          },
+          "status": {
+            "const": "completed"
+          },
+          "tool_id": {
+            "const": "2c2f5f49-95b3-5a33-b80d-603d054c2ae1"
+          },
+          "tool_version": {
+            "const": 1
+          },
+          "usage": {
+            "additionalProperties": false,
+            "properties": {
+              "adapter": {
+                "const": "deterministic-skill-loader@1"
+              },
+              "completion_tokens": {
+                "const": 0
+              },
+              "estimated_cost_usd": {
+                "const": 0
+              },
+              "model": {
+                "const": "none"
+              },
+              "prompt_tokens": {
+                "const": 0
+              },
+              "provider": {
+                "const": "none"
+              },
+              "provider_calls": {
+                "const": 0
+              }
+            },
+            "required": [
+              "adapter",
+              "provider",
+              "model",
+              "prompt_tokens",
+              "completion_tokens",
+              "provider_calls",
+              "estimated_cost_usd"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "spec_version",
+          "run_id",
+          "tool_id",
+          "tool_version",
+          "status",
+          "data",
+          "artifacts",
+          "usage"
+        ],
+        "title": "Completed SKILL.md loader analysis",
+        "type": "object"
+      },
+      "protocol": "owner-scoped-async-v1",
+      "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+      "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+      "reviewed_source_sha256": "cfc7e2c683709bf40db6140e3b8cee608ed98781327f96b98072bdc96d59b8ae",
+      "run_price_cents": 500,
+      "slug": "skill-md-to-hosted-workflow"
+    }
+  ],
+  [
     "story-idea-generator",
     {
       "container_slug": "story-idea-generator",
@@ -2681,6 +2994,15 @@ export const HOSTED_SERVER_CATALOG_ROWS = [
     "deepseek-v4-flash",
     1200,
     "Explain the selected reviewed phonics pattern for the requested audience and dialect. Provide exactly the requested number of genuine examples plus a clear exceptions or variation note. Return only JSON."
+  ],
+  [
+    "skill-md-to-hosted-workflow",
+    "Skill.md to Hosted Workflow",
+    0.0,
+    5.0,
+    "native-builder",
+    0,
+    "Execute the reviewed deterministic build-analysis pipeline."
   ],
   [
     "story-idea-generator",

@@ -451,17 +451,26 @@ def build_hosted_profile(
         })
     else:
         runtime["executor"] = build_worker_executor(profile)
+    native_runtime_label = (
+        "native-builder"
+        if profile.get("execution_kind") == "skill_builder"
+        else "native-media"
+    )
     server_catalog = {
         "slug": slug,
         "name": catalog["name"],
         "license_price_usd": catalog["priceOwn"],
         "run_price_usd": price_usd,
-        "model": live["default_model"] if live is not None else "native-media",
+        "model": live["default_model"] if live is not None else native_runtime_label,
         "max_tokens": int(live["max_tokens"]) if live is not None else 0,
         "system_prompt": (
             profile["prompts"][prompt_name]
             if live is not None
-            else "Execute the reviewed server-owned native media pipeline."
+            else (
+                "Execute the reviewed deterministic build-analysis pipeline."
+                if native_runtime_label == "native-builder"
+                else "Execute the reviewed server-owned native media pipeline."
+            )
         ),
     }
     return {
