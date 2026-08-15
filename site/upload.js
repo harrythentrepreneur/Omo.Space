@@ -332,14 +332,14 @@
   }
 
   function isRetryableReviewedBuildFailure(submission) {
+    var retryableFailureCodes = ['build_or_deploy_failed', 'canary_or_internal_failed'];
     var preRuntimeCanary = !!(submission &&
-      submission.failure_code === 'canary_or_internal_failed' && !submission.selected_runtime && !submission.runtime_policy);
+      retryableFailureCodes.includes(submission.failure_code) && !submission.selected_runtime && !submission.runtime_policy);
     var reviewedRuntimeFailure = !!(submission &&
       (submission.selected_runtime === 'worker-native' || submission.selected_runtime === 'modal-hosted'));
     return !!(submission &&
       submission.status === 'failed' &&
-      (submission.failure_code === 'build_or_deploy_failed' ||
-        submission.failure_code === 'canary_or_internal_failed') &&
+      retryableFailureCodes.includes(submission.failure_code) &&
       (preRuntimeCanary || reviewedRuntimeFailure) &&
       /^[a-f0-9]{64}$/.test(String(submission.source_sha256 || '')) &&
       /^sub_[A-Za-z0-9_-]{8,100}$/.test(String(submission.id || '')));
