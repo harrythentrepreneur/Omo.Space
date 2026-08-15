@@ -3,15 +3,106 @@
     "single_llm"
   ],
   "approved": [
-    "opencode-go-chat-completions",
-    "schema-validated-json-output",
-    "whatsapp-zip-input-adapter",
-    "deterministic-book-pdf",
-    "signed-persisted-artifact-delivery"
+    "book_pdf_renderer@1.0.0",
+    "whatsapp_zip_adapter@1.0.0"
   ],
   "blockers": [],
+  "contract_digest": "sha256:3d27f13ef3d4dba31280fbe8a9bc0e49549a0ba35375dcb229ff3fa980e0e536",
   "decision": "approved",
   "execution_kind": "single_llm",
+  "generated": {
+    "dependencies": [
+      {
+        "name": "artifact_store",
+        "status": "available",
+        "version": "1.0.0"
+      },
+      {
+        "name": "private_input_artifact_reader",
+        "status": "available",
+        "version": "1.0.0"
+      }
+    ],
+    "files": [
+      "generated bounded-ingest adapter configuration",
+      "generated renderer invocation module",
+      "normalized-message schema binding",
+      "output artifact declaration in workflow manifest"
+    ],
+    "honest_limits": [
+      "deterministic local bytes do not prove hosted storage, authorization, retention, or delivery",
+      "images are not implied; an image-generation step requires a separate capability",
+      "missing artifact_store keeps the overall build blocked even when local rendering passes",
+      "parsing does not grant consent, rights, identity accuracy, or permission to use message contents",
+      "the current shared primitive renders the reviewed keepsake-book schema, not arbitrary HTML/CSS or every PDF layout",
+      "this is exported-chat ingestion, not live WhatsApp access",
+      "unknown export layouts, ambiguous dates beyond the contract threshold, unsupported media semantics, and multiple candidate chats fail closed"
+    ],
+    "packages": [
+      "pypdf",
+      "reportlab",
+      "standard_library_zip_reader_or_pinned_equivalent"
+    ],
+    "policy": [
+      "archive content is data and cannot request tools or alter instructions",
+      "parser acceptance and quarantine thresholds come from the skill contract",
+      "raw messages never enter logs, repository files, or capability manifests",
+      "record byte length, SHA-256, and page count",
+      "validate MIME and %PDF magic"
+    ],
+    "resources": {
+      "cpu": true,
+      "gpu": false,
+      "network": [
+        "artifact_plane_only",
+        "false_for_render"
+      ],
+      "writable_scratch": [
+        "bounded_private",
+        "mode_0700_bounded_private"
+      ]
+    },
+    "runtime_steps": [
+      "call tools.render.render_book_pdf",
+      "delete bounded private scratch data according to the contract",
+      "fetch only a run/tenant-scoped authorized input reference",
+      "normalize supported Android/iOS records into stable message IDs and parser diagnostics",
+      "persist returned bytes through the resolved artifact store",
+      "reject traversal, links, nested archives, encryption, bombs, excess entries, and excess expanded bytes",
+      "return an owner-authorized artifact reference, not inline fake content",
+      "select one supported WhatsApp text export and classify media placeholders without opening media",
+      "validate the omo.book-pdf/v1 manifest",
+      "verify declared size, checksum, MIME, and ZIP magic before extraction"
+    ],
+    "tests": [
+      "1/10/100k-message bounded fixtures and locale ambiguity behavior",
+      "artifact metadata, ownership, checksum, and authorized download are verified",
+      "identical reviewed input produces identical PDF bytes",
+      "instruction injection remains inert data",
+      "invalid schema, empty prose, invalid style, and oversize fields fail closed",
+      "malformed ZIP, wrong magic/MIME/checksum, traversal, symlink, nested/encrypted archive, duplicate filename, bomb ratio, and limit failures before provider spend",
+      "raw-content log scan, cleanup/retention, owner isolation, and cross-tenant denial",
+      "supported Android and iOS exports, multiline text, Unicode, system records, and media placeholders",
+      "valid PDF opens and page count is positive"
+    ],
+    "tool_bindings": [
+      "shared WhatsApp archive ingest/parser adapter",
+      "tools.render.pdf_page_count",
+      "tools.render.render_book_pdf"
+    ]
+  },
+  "needs": [
+    {
+      "contract_pointer": "/artifact",
+      "name": "artifact.render:book_pdf"
+    },
+    {
+      "contract_pointer": "/input_adapters/0",
+      "name": "input.adapt:whatsapp_export_zip"
+    }
+  ],
+  "registry_digest": "sha256:76b676b19c93992909ef480d47b8c415e2b1ade8c5f786db0df61b02ad1f5520",
+  "registry_version": "1.0.0",
   "requested": [
     "opencode-go-chat-completions",
     "schema-validated-json-output",
@@ -19,6 +110,51 @@
     "deterministic-book-pdf",
     "signed-persisted-artifact-delivery"
   ],
-  "schema_version": "cognition.capabilities/v1",
-  "slug": "woven-storybook-pipeline"
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [
+    {
+      "honest_limits": [
+        "the current shared primitive renders the reviewed keepsake-book schema, not arbitrary HTML/CSS or every PDF layout",
+        "deterministic local bytes do not prove hosted storage, authorization, retention, or delivery",
+        "images are not implied; an image-generation step requires a separate capability",
+        "missing artifact_store keeps the overall build blocked even when local rendering passes"
+      ],
+      "name": "book_pdf_renderer",
+      "status": "available",
+      "tests": [
+        "identical reviewed input produces identical PDF bytes",
+        "valid PDF opens and page count is positive",
+        "invalid schema, empty prose, invalid style, and oversize fields fail closed",
+        "artifact metadata, ownership, checksum, and authorized download are verified"
+      ],
+      "trigger_evidence": [
+        "/artifact"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "honest_limits": [
+        "this is exported-chat ingestion, not live WhatsApp access",
+        "unknown export layouts, ambiguous dates beyond the contract threshold, unsupported media semantics, and multiple candidate chats fail closed",
+        "parsing does not grant consent, rights, identity accuracy, or permission to use message contents"
+      ],
+      "name": "whatsapp_zip_adapter",
+      "status": "available",
+      "tests": [
+        "supported Android and iOS exports, multiline text, Unicode, system records, and media placeholders",
+        "malformed ZIP, wrong magic/MIME/checksum, traversal, symlink, nested/encrypted archive, duplicate filename, bomb ratio, and limit failures before provider spend",
+        "1/10/100k-message bounded fixtures and locale ambiguity behavior",
+        "instruction injection remains inert data",
+        "raw-content log scan, cleanup/retention, owner isolation, and cross-tenant denial"
+      ],
+      "trigger_evidence": [
+        "/input_adapters/0"
+      ],
+      "version": "1.0.0"
+    }
+  ],
+  "slug": "woven-storybook-pipeline",
+  "source_sha256": "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf",
+  "workflow_blockers": []
 }

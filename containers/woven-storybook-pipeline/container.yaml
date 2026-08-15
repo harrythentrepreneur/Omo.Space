@@ -56,6 +56,7 @@ steps:
 input_schema: schemas/input.json
 output_schema: schemas/output.json
 frontend_manifest: manifest.json
+capability_manifest: capability-manifest.json
 pricing_report: pricing-report.json
 tests:
   contract: tests/test_contract.py

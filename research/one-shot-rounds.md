@@ -455,3 +455,302 @@ each real call, including corrective retries.
   passed. `packages/skill-to-modal/compiler.py` was untouched. Full evidence is
   `/tmp/capability-growth/`. No real network, provider call, credential access,
   commit, push, deploy, external message, or production mutation occurred.
+
+## 2026-08-15 — Contract-derived semantic adapter (Brief BE)
+
+- Replaced the generated runtime's education-only semantic assumption with a
+  compiler-derived `SEMANTIC_EVIDENCE_SPEC`. Selection uses reviewed contract
+  promises plus input/output schema shape; it never matches a product slug or
+  name. Existing profile-driven phoneme, digraph, target-containment, syllable,
+  and flag normalizers remain additive and unchanged.
+
+| Contract class | Structural selector | Generated evidence needle |
+|---|---|---|
+| Copy revision | source copy + revised copy + edits with after/rationale + unsupported-claims field | final revision differs; unsafe suggested edits are removed; claims surviving in final copy must be empty; edit evidence is nonblank; final numeric facts come from input |
+| Indexed facts | facts input + integer fact indexes + key points | indexes are nonempty, unique, and in range; each key point has paraphrase-tolerant token/number grounding in a selected fact |
+| Quoted risk review | contract text + risks/obligations with source quotes + disclaimer | every risk/obligation quote is a nonempty exact source substring; any nonblank schema-valid disclaimer wording passes |
+| Source-referenced notes | raw notes + action source quotes + summary/decision/question fields | source-quote evidence is nonempty and exact; summaries and key points use paraphrase-tolerant source grounding; normalized dates need not be literal human-date substrings |
+| Invoice arithmetic | invoice text + numeric line items + subtotal/tax/shipping/discount/total/status | parsed line identities and values match; extensions, subtotal, and total recompute; arithmetic status matches; unrelated nullable header normalization is ignored |
+| Grounded copy / budget | page-copy fact shape or budget arrays/totals plus reviewed promises | product name and numeric facts stay input-grounded; budget line, department, company, forecast, and target arithmetic recompute |
+| Education profiles | existing explicit semantic normalizer declarations | existing phoneme/digraph/target/syllable/flag rules remain the evidence contract |
+
+- Recorded-output replay: the five selected wrong-needle fixtures pass 5/5;
+  replaying both historical cases for every blocked skill passes 10/10. Output
+  and reconstructed input digests are checked before replay. Evidence:
+  `/tmp/semantic-adapter/fixtures/` and
+  `/tmp/semantic-adapter/fixture-replay-results.json`.
+- Verification: compiler tests 34/34; regenerated semantic-adapter container
+  contracts 50/50; five compiler drift checks and syntax compilation pass.
+- Fresh provider continuation: blocked before the first request. The execution
+  approval gate rejected loading `/Users/yifan/.omo-hermes/.env` despite the
+  standing call/spend authorization, requiring explicit specific credential
+  loading approval. Actual spend: 0/10 calls and USD 0.00. Per-skill fresh
+  semantic results therefore remain `not-run`; this is recorded without fake
+  outputs in mode-0600 `/tmp/semantic-adapter/real-runs.json`.
+- Exact blocker: `SEMANTIC-ADAPTER-BLOCKED: credential loading from
+  /Users/yifan/.omo-hermes/.env requires Harry's explicit specific approval;
+  0/10 provider calls attempted and USD 0.00 spent.`
+- No commit, push, deploy, catalog change, external message, or production
+  mutation occurred; `tools/render/` and `tools/host-skill/` were untouched.
+
+## 2026-08-15 — Resolver wiring: public search/fetch + tabular statistics (Brief BG)
+
+- Registered available, versioned `research.collect:public_search_fetch` and
+  `tabular.statistics` compiler capabilities. Typed triggers cover the reviewed
+  research operations, primary-source declarations, legacy
+  `input.adapt:browser_research`, `tabular.parse` + `statistics.compute`, legacy
+  `input.adapt:tabular_dataset`, and `metrics_viz`/`tabular_analysis` artifacts.
+- Generated runtimes import and image-copy the shared modules. Public search is
+  bounded to a 500-character query and ten-result response contract, and the v1
+  module's typed `SEARCH_UNAVAILABLE` propagates without provider fallback.
+  Direct URL fetch retains the primitive's robots/HTTPS/redirect/timeout/size
+  policy. Tabular execution caps UTF-8 input at 256 KiB, calls parse then
+  statistics, and returns `omo.tabular-analysis/v1` structured output.
+- Resolver unknown-adapter detection now honors exact `input.adapt:*` coverage
+  from matched registry entries, so the two legacy blockers resolve without a
+  skill-name or profile-specific conditional. `metrics_viz` composes
+  `chart_generation` with `tabular.statistics` deterministically.
+- Verification: compiler 37/37; compiler plus existing public-fetch/tabular
+  primitive tests 56/56 using a loopback-only fixture; all generated-container
+  contracts 360/360; Python syntax compilation and scoped `git diff --check`
+  passed. Evidence: `/tmp/resolver-wiring/`.
+- No provider call, credential access, real network request, commit, push,
+  deploy, catalog change, external message, or production mutation occurred.
+  `tools/` and generated containers were not modified.
+
+## 2026-08-15 — Final semantic + 10-skill rerun (Brief BH)
+
+- Governing provider authorization, quoted verbatim: “I approve opencode you
+  can do as you like for it's fine opencode i have a subscription”. The
+  existing OpenCode Go credential was loaded only into the provider child
+  process; it was never printed or persisted. This authorization had no call
+  or cost cap.
+- Freshness: current canonical compiler SHA-256
+  `9112193c27a7120161ee5977d985af431433ec6340f7ac56c2da385124f0fb29`;
+  manifest-emitted resolver `1.0.0`, registry `1.2.0`, registry digest
+  `sha256:44113a03303d284f1209f24b23057ea6736b9cf8462542dc58ea648914a15195`;
+  cost-model SHA-256
+  `c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428`.
+  Compiler tests pass 37/37; fresh Phase 1 generated contracts pass 50/50;
+  fresh Phase 2 generated contracts pass 100/100; all compiler drift checks
+  passed.
+- Phase 1 semantic rerun: **5/5 HOSTED**, 10/10 schema-valid, 10/10
+  contract-derived semantic passes, exactly ten fresh provider calls, and USD
+  0.00388318. All ten input SHA-256 values exactly match the corresponding
+  Batch Proof 2 cases. The five contract classes were `copy_revision`,
+  `indexed_facts`, `quoted_risk_review`, `source_referenced_notes`, and
+  `invoice_arithmetic`.
+- Phase 2 result: **FINAL-RATE-5/10**. All twenty case rows are fresh runtime
+  invocations. Fourteen provider-backed cases generated seventeen calls after
+  bounded retries, costing USD 0.00616630; the six capability-blocker cases
+  made zero provider calls. The two phases total 27 provider calls and USD
+  0.01004948. Ledger indexes, call/case cost sums, and evidence file modes
+  reconcile in `/tmp/final-rerun/final-audit.json`.
+
+| Slug | Verdict | Schema | Semantic | Provider cost USD | Final price |
+|---|---|---:|---:|---:|---:|
+| copy-editing | TYPED-BLOCKER | 2/2 | 1/2 | 0.00175938 | nonchargeable |
+| copywriting | HOSTED | 2/2 | 2/2 | 0.00063840 | 0.10 |
+| internal-comms | HOSTED | 2/2 | 2/2 | 0.00028588 | 0.10 |
+| verdict-sweep | TYPED-BLOCKER | not-run | not-run | 0.00000000 | nonchargeable |
+| debugging | TYPED-BLOCKER | not-run | not-run | 0.00000000 | nonchargeable |
+| data-analysis | TYPED-BLOCKER | not-run | not-run | 0.00000000 | nonchargeable |
+| contract-review | HOSTED | 2/2 | 2/2 | 0.00116830 | 0.10 |
+| budget-planning | TYPED-BLOCKER | 2/2 | 0/2 | 0.00116928 | nonchargeable |
+| note-taking | HOSTED | 2/2 | 2/2 | 0.00066654 | 0.10 |
+| invoice-processing | HOSTED | 2/2 | 2/2 | 0.00047852 | 0.10 |
+
+### Remaining blockers and exact next capabilities
+
+1. `copy-editing` — `REAL_RUN_SEMANTIC_FAILED`: one schema-valid case
+   exhausted the retry with a nonempty `unsupported_claims` field. Next:
+   `copy_revision_semantic_reconciliation`, implemented in the generated copy
+   revision normalizer without weakening source grounding.
+2. `verdict-sweep` — `SEARCH_UNAVAILABLE`: both real capability probes selected
+   `research.collect:public_search_fetch` and reproduced the v1 typed failure.
+   Next: `public_query_search_backend`; bounded direct-URL fetch alone does not
+   satisfy discovery.
+3. `debugging` — `CAPABILITY_UNAVAILABLE`: both generated runtime preflights
+   stopped before spend at `/input_adapters/0`. Next: `workspace.execute_code`
+   with isolated inspect, reproduce, edit, shell, and test evidence.
+4. `data-analysis` — `CAPABILITY_SCOPE_INSUFFICIENT`: both
+   `tabular.statistics` probes returned real three-row
+   `omo.tabular-analysis/v1` results, but the workflow cannot assemble
+   question-grounded findings, hypothesis results, chart specification, and
+   delivered artifact. Next: `tabular_analysis_orchestrator`.
+5. `budget-planning` — `SEMANTIC_ADAPTER_DERIVATION_GAP`: both schema-valid
+   cases exhausted retry because the generated semantic gate rejects required
+   derived totals/variances as invented numeric tokens. Next:
+   `budget_derived_number_allowlist` in the compiler-derived budget semantic
+   adapter, including line, department, company, forecast, percentage, and
+   target-variance derivations.
+
+- Evidence: `/tmp/final-rerun/containers/`,
+  `/tmp/final-rerun/semantic-rerun.json`,
+  `/tmp/final-rerun/real-runs.json`,
+  `/tmp/final-rerun/provider-call-log.json`, and
+  `/tmp/final-rerun/final-audit.json`, all evidence JSON mode 0600.
+- No deploy, registration, activation, catalog change, external message,
+  commit, push, or production mutation occurred.
+
+## 2026-08-15 — Generator hardening: tabular orchestration + budget/copy reconciliation (Brief BJ)
+
+| Fix | Needle | Verdict |
+|---|---|---|
+| `tabular_analysis_orchestrator` | All-of trigger for parse + statistics + chart plus findings/statistical output; deterministic grouped sums/chart, stats-only prose prompt, numeric grounding gate, verified PNG delivery | `data-analysis` fixture replay **2/2** |
+| `budget_derived_number_allowlist` | Arithmetic recompute for line/department/company/forecast/target values and percentages; numeric canonicalization plus exact derived prose aliases; typed mismatch paths preserved | `budget-planning` fixture replay **2/2** |
+| `copy_revision_semantic_reconciliation` | Pre-schema claim/edit shape reconciliation; unsupported claim survives only when normalized text remains in revised copy; surviving edits require before/after/rationale | `copy-editing` fixture replay **2/2** |
+
+- All six inputs reproduce the exact SHA-256 values in
+  `/tmp/final-rerun/real-runs.json`. Data-analysis deterministically computes
+  North 260 versus South 90, and both cases render valid PNG artifacts while
+  the findings writer receives computed stats but no dataset or raw rows.
+- Copy evidence caveat: final-rerun retained the phase-2 terminal semantic
+  error but not the two rejected bodies. The reconciliation needle is proven
+  against both retained successful final cases plus the closest exact-input
+  failed candidate in `/tmp/batch-proof-2/real-runs.json`; no exact missing
+  shape is claimed.
+- Verification: compiler **41/41**; regenerated final-rerun bundles **10/10**
+  each; repository generated-container suite **386/386**; syntax and scoped
+  diff checks pass. Evidence: `/tmp/hardening/`.
+- Provider calls: 0. No credential access, network request, deploy, commit,
+  push, production mutation, external message, or `tools/` edit occurred.
+  Verdict: **HARDENED-3**.
+
+## 2026-08-15 — BATCH-30 real-provider acceptance (Brief BL)
+
+- Authorization `batch30-sensitive-egress-001` is **AUTHORIZED** by the
+  founder's blanket OpenCode approval and standing BATCH-30 mandate. The
+  process loaded only `OPENCODE_GO_API_KEY` from the approved owner-local env,
+  mapped it to the generated runners, and never printed or persisted the key.
+  Egress contained only the approved synthetic business, invoice, ticket,
+  source-code, policy, and translation cases; no real PII.
+- Fresh gate: 30/30 source hashes, 30/30 compiler drift checks, compiler 41/41,
+  generated contracts 300/300, 30 runtime profiles, 30 reviewed contracts, 30
+  containers, and exactly 60 cases all reconcile.
+- Result: **BATCH30-RATE-7/30**. All 60 local runtime cases ran. The 14
+  submit-ready skills made 28 successful OpenCode Go calls; all 28 had known
+  usage/cost, 28/28 outputs were schema-valid, 17/28 passed the batch semantic
+  gates, and no case needed a retry. Total provider cost was USD 0.00897834.
+  The 16 preflight-blocked skills reproduced typed blockers with zero provider
+  calls. No skill timed out.
+- Preflight incident: an initial restricted-network, non-evidence launch
+  returned only `LLM_UNAVAILABLE` and exposed nested legacy second-case inputs
+  plus accumulating logger wrappers. It received no successful provider
+  response or usage record. The two harness issues were corrected, profiles
+  and containers were rebuilt, all gates above were rerun, and the final
+  ledger contains only the clean approved external run.
+
+| Slug | Verdict | Schema | Semantic | Cost USD | Blocker code |
+|---|---|---:|---:|---:|---|
+| copy-editing | HOSTED | 2/2 | 2/2 | 0.00120456 | — |
+| copywriting | HOSTED | 2/2 | 2/2 | 0.00063126 | — |
+| internal-comms | HOSTED | 2/2 | 2/2 | 0.00029302 | — |
+| verdict-sweep | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `SEARCH_UNAVAILABLE` |
+| debugging | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_UNAVAILABLE` |
+| data-analysis | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `ORCHESTRATOR_EXECUTOR_UNWIRED` |
+| contract-review | HOSTED | 2/2 | 2/2 | 0.00122332 | — |
+| budget-planning | HOSTED | 2/2 | 2/2 | 0.00060284 | — |
+| note-taking | HOSTED | 2/2 | 2/2 | 0.00066990 | — |
+| invoice-processing | HOSTED | 2/2 | 2/2 | 0.00048860 | — |
+| accessibility-testing | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_UNAVAILABLE` |
+| analytics-reporting | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_SCOPE_INSUFFICIENT` |
+| churn-analysis | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_SCOPE_INSUFFICIENT` |
+| code-documentation | TYPED-BLOCKER | 2/2 | 0/2 | 0.00057330 | `REAL_RUN_SEMANTIC_FAILED` |
+| customer-feedback-analysis | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_SCOPE_INSUFFICIENT` |
+| deep-research | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `SEARCH_UNAVAILABLE` |
+| email-drafting | TYPED-BLOCKER | 2/2 | 0/2 | 0.00021910 | `REAL_RUN_SEMANTIC_FAILED` |
+| expense-categorization | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_SCOPE_INSUFFICIENT` |
+| exploratory-data-analysis | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_SCOPE_INSUFFICIENT` |
+| fact-checking | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `SEARCH_UNAVAILABLE` |
+| financial-report-generation | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_SCOPE_INSUFFICIENT` |
+| literature-review | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `SEARCH_UNAVAILABLE` |
+| logo-design | TYPED-BLOCKER | 2/2 | 0/2 | 0.00098882 | `REAL_RUN_SEMANTIC_FAILED` |
+| meeting-transcription | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_UNAVAILABLE` |
+| privacy-policy-drafting | TYPED-BLOCKER | 2/2 | 0/2 | 0.00094668 | `REAL_RUN_SEMANTIC_FAILED` |
+| proposal-generation | TYPED-BLOCKER | 2/2 | 1/2 | 0.00056336 | `REAL_RUN_SEMANTIC_FAILED` |
+| report-generation | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_SCOPE_INSUFFICIENT` |
+| testing | TYPED-BLOCKER | not-run | not-run | 0.00000000 | `CAPABILITY_UNAVAILABLE` |
+| ticket-triage | TYPED-BLOCKER | 2/2 | 1/2 | 0.00033460 | `REAL_RUN_SEMANTIC_FAILED` |
+| translation | TYPED-BLOCKER | 2/2 | 1/2 | 0.00023898 | `REAL_RUN_SEMANTIC_FAILED` |
+
+### Ranked next capabilities — HARD-HOLDS
+
+1. `research.collect:public_query_search_backend` — affects
+   `verdict-sweep`, `deep-research`, and `fact-checking`. Exact requirement:
+   select and approve a query-search provider, supply its credential for
+   process-only loading, and implement bounded retrieval plus a citation/source
+   ledger behind `public_search_fetch`; direct-URL fetch is insufficient.
+2. `workspace.safe_execution` — affects `debugging` and `testing`. Exact
+   requirement: approve an ephemeral isolated runner with language allowlists,
+   bounded filesystem/shell access, CPU-memory-process-time limits, network off
+   by default, and captured inspect/edit/test evidence; expose
+   `workspace.execute_code` and `workspace.execute_tests` only after review.
+3. `research.collect:scholarly_search_and_fulltext_fetch` — affects
+   `literature-review`. Exact requirement: approved scholarly index/full-text
+   sources, credentials or license terms, bounded screening, and provenance.
+4. `browser.accessibility_execute` — affects `accessibility-testing`. Exact
+   requirement: an approved sandboxed browser/DOM scanner that records keyboard
+   and assistive-technology evidence before emitting WCAG claims.
+5. `speech.transcription_and_diarization` — affects `meeting-transcription`.
+   Exact requirement: an approved STT/diarization model or provider, credential
+   handling, media-retention policy, timestamp contract, and bounded executor.
+
+### Ranked next capabilities — BUILDABLE
+
+1. `semantic.contract_evidence_adapters/v1` — affects the seven
+   schema-valid semantic blockers. Add generic registry entries
+   `semantic.grounded_numeric_copy`, `semantic.exact_field_projection`,
+   `semantic.constraint_coverage`, `semantic.policy_requirement_coverage`,
+   `semantic.rule_based_classification`, and
+   `semantic.placeholder_glossary_enforcement`; feed structural diffs into the
+   existing single corrective retry.
+2. `tabular.domain_orchestrators/v1` — affects seven domain workflows. Add
+   `marketing_analytics_orchestrator`, `churn_scoring_orchestrator`,
+   `feedback_analysis_orchestrator`, `expense_categorization_orchestrator`,
+   `advanced_tabular_analysis_orchestrator`,
+   `financial_reporting_orchestrator`, and `structured_report_orchestrator` on
+   top of the existing bounded parse/statistics/chart primitives.
+3. `tabular_analysis_endpoint_routing` — affects `data-analysis`. Route the
+   already generated parse-statistics-findings-chart orchestrator through the
+   hosted `execute_workflow` path and prove full submission behavior.
+
+- Evidence: `/tmp/batch30/real-runs.json`,
+  `/tmp/batch30/provider-call-log.json`, and
+  `/tmp/batch30/final-audit.json`, all mode 0600. The final audit status is
+  `pass`; call/case counts, requested ledger fields, cost sums, source hashes,
+  drift, test counts, blocker codes, and the retry bound reconcile.
+- No deploy, registration, activation, catalog change, external message,
+  commit, push, or production mutation occurred.
+
+## Final hardening BM — generic domain analysis + endpoint routing (2026-08-15)
+
+Verdict: `FINAL-HARDENED-2`.
+
+- Fix 1 PASS: one registry-backed `domain_analysis_orchestrator` now selects
+  structurally from explicit reviewed `DOMAIN`, `tabular.parse`,
+  `statistics.compute`, an LLM findings step, and typed output fields. It
+  projects the findings schema and prompt field list from the contract, sends
+  computed statistics but no dataset/raw rows to the writer, rejects
+  ungrounded numbers, and optionally produces a deterministic chart spec.
+- The seven fixture-profile flips are marketing-analytics (BATCH30 slug
+  `analytics-reporting`), churn-analysis, customer-feedback-analysis,
+  expense-categorization, exploratory-data-analysis,
+  financial-report-generation, and report-generation. All seven resolve the
+  same orchestrator and all seven fixture executions returned the structured
+  output plus a real PNG with `raw_dataset_seen=false`,
+  `raw_rows_seen=false`, and zero provider calls.
+- Fix 2 PASS: data-analysis now routes the generated bounded program through
+  hosted `execute_workflow`. The fixture API submission exercised submit →
+  spawn/execute → result, returned accepted then completed, and satisfied the
+  full signed artifact contract without a provider call.
+- Gates: compiler 46/46, eight regenerated bundles 80/80, drift 8/8, fixture
+  runs 8/8, and `git diff --check` clean. Evidence and the per-fix report are
+  under `/tmp/final-hardening/`. `tools/` was untouched; no commit, push,
+  deploy, external message, credential read, provider call, or spend occurred.
+- Exact founder hard-holds: search backend key — “Approve a bounded
+  public-query search backend and process-only loading of its API key.”;
+  safe-exec design — “Approve the isolated ephemeral safe-execution design
+  with allowlisted runtimes, bounded filesystem/process/CPU/memory/time, and
+  network off by default.”; image-generation provider — “Approve a bounded
+  image-generation provider and process-only loading of its API key.”

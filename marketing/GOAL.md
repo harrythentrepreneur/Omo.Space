@@ -40,6 +40,10 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Artifact runtime: a shared deterministic ReportLab renderer, owner-scoped immutable local artifact store, no-refresh Codex subscription image bridge, exact contract/integration notes, and real-PDF smoke test now exist under `tools/render/` for the worksheet, illustrated-story, and edit-studio workflows; targeted renderer/adapter/compiler/host tests are green, with no registration or deployment.
 - Woven builder-capability release: the shared compiler now materializes default-off `book_pdf` artifacts and bounded `whatsapp_zip` input adapters; Woven 0.3.0 was regenerated from its reviewed profile, registered at $0.40, deployed to `omo-space` with `state=deployed`, and proven with a real two-pass WhatsApp ZIP run producing a visually verified five-page signed keepsake PDF. The clean staged snapshot passes compiler 22/22, Woven 20/20, host 77/77, and renderer 9/9 (128/128); the current worktree including concurrent host/renderer tests passes 158/158. Catalog and listing copy are locally republished, with no push.
 - Japanese media-executor candidate: the compiler now materializes the reviewed de Mello procedural sumi-e modules and bundled 10-second audio as a slug-locked skill-owned resource, generating a ready/chargeable owner-scoped async runtime at $0.10. A real local run produced and full-decoded a 10.000-second 1080x1920 H.264/AAC MP4 with 30 generated frames, 300 output frames, five exact-digest artifacts, zero provider spend, and $0.00061482 measured compute; compiler 28/28, host 88/88, container contracts 361/361, render 34/34, Worker helpers 17/17, cost 11/11, and router 180/180 pass. The live Modal deploy and hosted 202 smoke remain blocked on Harry's explicit specific approval; arbitrary audio remains rejected before work.
+- Capability growth BF: reusable standard-library modules and registry specs now exist for bounded robots-aware direct public URL fetch and deterministic CSV/tabular statistics; focused tests pass 19/19 with a loopback-only fixture. Public query search remains honestly PARTIAL/unavailable in v1, both registry entries remain experimental pending sibling-owned compiler integration, and `compiler.py` was untouched.
+- Generator hardening BJ: compiler-owned `tabular_analysis_orchestrator`, arithmetic-verified budget derived-number allowlisting, and copy-revision semantic reconciliation are fixture-proven against the six exact final-rerun inputs at 2/2 per skill with zero provider calls. Compiler 41/41, regenerated final-rerun bundles 10/10 each, and repository generated containers 386/386 pass; evidence is `/tmp/hardening/`. The machine is ready for the requested 30-skill batch, while the existing public-search and isolated-code capabilities remain separate typed blockers.
+- BATCH-30 provider proof BL: authorization `batch30-sensitive-egress-001` was exercised with process-only OpenCode Go credential loading and synthetic inputs only. The fresh 60-case run is `BATCH30-RATE-7/30`: 28/28 provider-backed outputs were schema-valid, 17/28 passed semantic evidence, seven skills were HOSTED, 23 remained exact typed blockers, and 28 known-cost calls totaled USD 0.00897834 with no retry. Fresh source/drift/compiler/generated gates pass 30/30, 30/30, 41/41, and 300/300; final evidence is mode 0600 under `/tmp/batch30/`.
+- Final hardening BM: one explicit-`DOMAIN`, schema-projected `domain_analysis_orchestrator` now serves the seven tabular domain workflows, and data-analysis routes its bounded program through hosted `execute_workflow`. Fixture-only gates pass compiler 46/46, eight regenerated bundles 80/80, drift 8/8, and eight executions 8/8 with no raw rows in findings prompts and zero provider calls; all seven domain profiles plus data-analysis flip to ready in the regenerated evidence under `/tmp/final-hardening/`. No compiler-side blocker was silently cleared, `tools/` was untouched, and no commit, push, deploy, credential read, or external call occurred.
 - OSS skills library: all 95 publishable workflows in the 96-tool PhonicsMaker inventory now have public twins in `omo-space/skills`; 85 new skill/README pairs were published atomically in `ab02e824`, all 84 prompt-only tools remain honest draft specs and the story editor remains in review, and the pre-existing private illustrated-story skill was not changed. The library has 97 folders including the separate worksheet skill.
 - Strategy artifact: researched and ranked 25 education-SaaS targets in `marketing/edtech-kill-list.md`; first ship queue is Diffit, MagicSchool, Twee, Formative, then Kahoot feature outcomes.
 - Category-expansion artifact: researched Education, E-commerce, real-estate listing media, short-form content repurposing, and recruiting/career documents in `marketing/category-expansion.md`; direct per-product, per-image, and metered-result pricing supports that rank order, with E-commerce as the first post-Education test.
@@ -111,11 +115,46 @@ No Worker/site deploy, push, arbitrary-audio run, provider call, or catalog
 visibility change is included. The attempted deploy was rejected by the safety
 approval gate before Modal was changed.
 
+### RESOLVED — batch-proof-provider-spend-001 (authorized and run in Brief BD)
+
+Harry's explicit authorization in Brief BD covered the existing credential and
+up to 28 OpenCode Go calls capped at USD 0.10. The 14-case real-provider gate
+completed with 17 calls at USD 0.00684320 and no HTTP/transport rejection.
+Result: `BATCH-RATE-2/10`; copywriting and budget-planning are HOSTED, five
+resolver-approved candidates fail closed on deterministic semantic checks, and
+the three original capability-blocked candidates remain typed. Full evidence is
+`/tmp/batch-proof-2/real-runs.json`; no deploy, push, commit, catalog change, or
+production mutation occurred.
+
+### PROPOSAL — semantic-adapter-provider-credential-001 (awaiting Harry)
+
+Approve this exact secret-loading action: internally source
+`/Users/yifan/.omo-hermes/.env`, map its existing `OPENCODE_GO_API_KEY` to the
+generated runners' `LLM_API_KEY`, and run `/tmp/semantic-adapter/run_real_adapter.py`.
+The runner is hard-capped at exactly 10 OpenCode Go calls and USD 0.10, prints
+no prompt, output, environment value, or credential material, and writes only
+mode-0600 evidence under `/tmp/semantic-adapter/`. The semantic compiler fix,
+34/34 compiler tests, 50/50 generated contracts, and 10/10 historical replay
+are already complete. The execution approval gate rejected this credential
+load before launch, so actual provider usage remains 0/10 calls and USD 0.00.
+No deploy, push, commit, catalog change, or production mutation is included.
+
+### RESOLVED — batch30-sensitive-egress-001 (authorized and run in Brief BL)
+
+Harry's blanket OpenCode authorization plus standing BATCH-30 mandate approved
+process-only loading of `OPENCODE_GO_API_KEY` and egress of the disclosed
+synthetic cases, including at most one retry per case. The clean run completed
+60/60 runtime invocations with 28 successful, known-cost provider calls and no
+retry, totaling USD 0.00897834. Result: `BATCH30-RATE-7/30`; 23 failures remain
+typed and ranked in `research/one-shot-rounds.md`. The key was not printed or
+persisted. Evidence is mode 0600 under `/tmp/batch30/`; no deploy, push, commit,
+catalog change, external message, or production mutation occurred.
+
 ## Next tick
 
-Wait for Harry's explicit approval of `japanese-modal-deploy-001`; then deploy
-only the generated Japanese app and run the single bounded 202 smoke. Otherwise
-hand the local `SHIPPED-13-READY` and Woven builder-capability commits to the
-coordinator for push, production 13-card/Worker-registry and Woven listing-copy
-verification, and separate activation of the preserved builder listing. Do not
-push from this profile.
+For builder breadth, implement the reusable semantic evidence adapters for the
+remaining schema-valid skills; the tabular domain orchestrator family and
+data-analysis endpoint routing are fixture-complete. Founder-desk holds remain
+the bounded search backend key, isolated safe-exec design, and image-generation
+provider approval. Separately, wait for Harry's explicit approval of
+`japanese-modal-deploy-001`; do not push from this profile.
