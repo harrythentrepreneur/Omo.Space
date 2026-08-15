@@ -49,7 +49,11 @@ image = (
         f"groupadd --gid {HERMES_GID} omo-hermes && "
         f"useradd --uid {HERMES_UID} --gid {HERMES_GID} --no-create-home --shell /usr/sbin/nologin omo-hermes"
     )
-    .pip_install(f"hermes-agent=={HERMES_VERSION}", f"modal=={MODAL_VERSION}")
+    .pip_install(
+        f"hermes-agent=={HERMES_VERSION}",
+        "anthropic==0.87.0",
+        f"modal=={MODAL_VERSION}",
+    )
 )
 dispatches = modal.Dict.from_name(DISPATCH_STORE, create_if_missing=True)
 

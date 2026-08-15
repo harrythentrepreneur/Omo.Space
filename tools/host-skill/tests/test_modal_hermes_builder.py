@@ -135,6 +135,12 @@ def test_modal_disk_request_stays_within_workspace_limit() -> None:
     assert "ephemeral_disk=10240" not in source
 
 
+def test_modal_image_pins_runtime_dependencies_required_by_hermes_startup() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert 'f"hermes-agent=={HERMES_VERSION}"' in source
+    assert '"anthropic==0.87.0"' in source
+
+
 def test_dispatch_is_serialized_and_builder_containers_are_single_use() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
     assert '@app.function(image=image, cpu=0.25, memory=256, timeout=30, max_containers=1)' in source
