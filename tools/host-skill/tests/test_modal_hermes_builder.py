@@ -81,8 +81,8 @@ def test_hermes_environment_is_fresh_locked_down_and_opencode_go(tmp_path: Path)
     assert config["gateway"]["enabled"] is False
     assert config["cron"]["enabled"] is False
     assert env["OPENCODE_GO_API_KEY"] == "provider-secret"
-    assert env["BUILD_WORKER_TOKEN"] == "worker-secret"
-    assert env["GH_TOKEN"] == "github-secret"
+    assert "BUILD_WORKER_TOKEN" not in env
+    assert "GH_TOKEN" not in env
     assert "TELEGRAM_BOT_TOKEN" not in env
     assert "WHATSAPP_ALLOWED_USERS" not in env
     assert "STRIPE_SECRET_KEY" not in env
@@ -140,6 +140,15 @@ def test_dispatch_is_serialized_and_builder_containers_are_single_use() -> None:
     assert source.count('@modal.concurrent(max_inputs=1)') >= 2
     assert "single_use_containers=True" in source
     assert source.index('"status": "accepted"') < source.index("build_submission.spawn(")
+
+
+def test_untrusted_hermes_phase_has_no_terminal_or_github_release_authority() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert '"--toolsets", "file,skills"' in source
+    assert '"--toolsets", "terminal,file,skills"' not in source
+    assert 'processor.process_row(row, repository, deploy=True' in source
+    assert '"git", "remote", "set-url", "origin"' in source
+    assert source.index('processor.process_row(row, repository, deploy=True') < source.index('verified_completion(detail')
 
 
 def test_dispatch_reservation_lease_recovers_stale_jobs() -> None:
