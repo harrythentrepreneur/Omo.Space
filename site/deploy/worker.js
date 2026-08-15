@@ -473,7 +473,49 @@ async function handleWorkerFetch(request, env) {
     }
 }
 
-export default { fetch: handleWorkerFetch };
+export default { fetch: handleWorkerFetch, scheduled: handleBuilderSchedule };
+
+async function handleBuilderSchedule(_controller, env, ctx) {
+  const task = dispatchNextBuilderSubmission(env).catch((error) => {
+    console.error('builder_schedule_failed', String(error && error.message || error).slice(0, 120));
+    throw error;
+  });
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(task);
+  else await task;
+}
+
+async function dispatchNextBuilderSubmission(env) {
+  const modalUrl = String(env.OMO_BUILDER_MODAL_URL || '').trim();
+  const modalKey = String(env.OMO_BUILDER_MODAL_KEY || '').trim();
+  const modalSecret = String(env.OMO_BUILDER_MODAL_SECRET || '').trim();
+  const baseRevision = String(env.OMO_BUILDER_BASE_REVISION || '').trim();
+  if (!/^https:\/\/[a-z0-9-]+(?:--[a-z0-9-]+)*\.modal\.run\/?$/.test(modalUrl) ||
+      !modalKey || !modalSecret || !/^[0-9a-f]{40}$/.test(baseRevision)) {
+    throw new Error('builder_dispatch_not_configured');
+  }
+  const candidate = await internalPeekBuilderSubmission(env);
+  if (!candidate) return { status: 'idle' };
+  const dispatchHash = await sha256Hex(`omo-modal-builder-v2\0${candidate.id}\0${candidate.source_sha256}\0${baseRevision}`);
+  const payload = {
+    submission_id: candidate.id,
+    slug: candidate.slug,
+    source_sha256: candidate.source_sha256,
+    dispatch_id: 'dispatch_' + dispatchHash.slice(0, 32),
+  };
+  const response = await fetch(modalUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Modal-Key': modalKey,
+      'Modal-Secret': modalSecret,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (response.status !== 202 && response.status !== 200) {
+    throw new Error(`builder_dispatch_rejected_${response.status}`);
+  }
+  return { status: 'dispatched', id: candidate.id, dispatch_id: payload.dispatch_id };
+}
 
 // ── Route: UGC Script Studio ───────────────────────────────────────────────
 
@@ -3139,6 +3181,45 @@ async function internalClaimSubmission(env, options) {
     requested_runtime: record.requested_runtime || record.requestedRuntime,
     prior_status: priorStatus,
   };
+}
+
+async function internalPeekBuilderSubmission(env) {
+  const statuses = ['needs_review', 'queued'];
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-builder-peek-v1',
+      `SELECT id,slug,source_sha256,status
+       FROM submissions
+       WHERE status IN ($1, $2)
+       ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC
+       LIMIT 1`,
+      statuses
+    ));
+    return safeBuilderPeekRow(result.rows[0]);
+  }
+  if (databaseKind(env) === 'd1') {
+    const row = await env.BALANCE_DB
+      .prepare(`SELECT id,slug,source_sha256,status FROM submissions
+                WHERE status IN (?, ?)
+                ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`)
+      .bind(...statuses).first();
+    return safeBuilderPeekRow(row);
+  }
+  const row = Array.from(mockSubmissions.values())
+    .filter((record) => statuses.includes(record.status))
+    .sort((a, b) => (a.status === b.status ? 0 : a.status === 'needs_review' ? -1 : 1) ||
+      String(a.created_at || '').localeCompare(String(b.created_at || '')))[0];
+  return safeBuilderPeekRow(row);
+}
+
+function safeBuilderPeekRow(row) {
+  if (!row) return null;
+  const id = safeSubmissionId(row.id);
+  const slug = safeSlug(row.slug);
+  const sourceSha256 = safeSha256(row.source_sha256 || row.sourceSha256);
+  const status = safeSubmissionStatus(row.status);
+  if (!id || !slug || !sourceSha256 || !['queued', 'needs_review'].includes(status)) return null;
+  return { id, slug, source_sha256: sourceSha256, status };
 }
 
 async function internalGetSubmissionDetail(env, submissionId) {

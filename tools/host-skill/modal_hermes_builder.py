@@ -21,6 +21,7 @@ HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
 DEFAULT_MODEL = "minimax-m2.7"
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
+ALLOWED_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"
 MAX_SOURCE_BYTES = 200 * 1024
 LEASE_SECONDS = 7200
 
@@ -57,6 +58,20 @@ def validate_job_identity(submission_id: str, slug: str, source_sha256: str, dis
         or dispatch_id != expected_dispatch_id(submission_id, source_sha256, base_revision)
     ):
         raise ValueError("invalid builder job identity")
+
+
+def parse_dispatch_payload(payload: Mapping[str, Any]) -> tuple[str, str, str, str]:
+    expected_keys = {"submission_id", "slug", "source_sha256", "dispatch_id"}
+    if not isinstance(payload, Mapping) or set(payload) != expected_keys:
+        raise ValueError("invalid builder dispatch payload")
+    values = (
+        str(payload["submission_id"]),
+        str(payload["slug"]),
+        str(payload["source_sha256"]),
+        str(payload["dispatch_id"]),
+    )
+    validate_job_identity(*values, ALLOWED_BASE_REVISION)
+    return values
 
 
 def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]:
@@ -144,9 +159,12 @@ def smoke() -> dict[str, Any]:
     secrets=[modal.Secret.from_name(SECRET_NAME)],
     cpu=2.0,
     memory=4096,
-    ephemeral_disk=10240,
+    # Modal 1.3.4 serializes this field in KiB despite documenting MiB; the
+    # workspace accepts 524288..3145728 in that wire unit (512 MiB..3 GiB).
+    ephemeral_disk=3 * 1024 * 1024,
     timeout=3900,
     max_containers=1,
+    single_use_containers=True,
 )
 @modal.concurrent(max_inputs=1)
 def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str) -> dict[str, Any]:
@@ -156,12 +174,6 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
         raise RuntimeError("builder secret is incomplete")
 
     now = int(time.time())
-    prior = dispatches.get(dispatch_id)
-    if isinstance(prior, dict):
-        prior_status = str(prior.get("status") or "")
-        prior_started = int(prior.get("started_at") or 0)
-        if prior_status in {"completed", "running"} and (prior_status == "completed" or now - prior_started < LEASE_SECONDS):
-            return _safe_result("duplicate", dispatch_id, submission_id, reason=prior_status)
     dispatches[dispatch_id] = {"status": "running", "started_at": now, "submission_id": submission_id}
 
     repository = None
@@ -259,3 +271,35 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 repository.close()
             except Exception:
                 pass
+
+
+@app.function(image=image, cpu=0.25, memory=256, timeout=30, max_containers=1)
+@modal.concurrent(max_inputs=1)
+@modal.fastapi_endpoint(method="POST", requires_proxy_auth=True)
+def dispatch(payload: dict[str, Any]) -> dict[str, str]:
+    """Authenticate a Cloudflare dispatch and spawn one idempotent builder job."""
+    try:
+        submission_id, slug, source_sha256, dispatch_id = parse_dispatch_payload(payload)
+    except ValueError as error:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    prior = dispatches.get(dispatch_id)
+    if isinstance(prior, dict) and str(prior.get("status") or "") in {"accepted", "running", "completed"}:
+        return {"status": "duplicate", "dispatch_id": dispatch_id}
+    dispatches[dispatch_id] = {
+        "status": "accepted",
+        "submission_id": submission_id,
+        "started_at": int(time.time()),
+    }
+    try:
+        call = build_submission.spawn(
+            submission_id, slug, source_sha256, dispatch_id, ALLOWED_BASE_REVISION
+        )
+    except Exception:
+        dispatches[dispatch_id] = {"status": "spawn_failed", "submission_id": submission_id}
+        raise
+    call_id = str(getattr(call, "object_id", "") or "")
+    if not call_id:
+        dispatches[dispatch_id] = {"status": "spawn_failed", "submission_id": submission_id}
+        raise RuntimeError("builder spawn returned no call id")
+    return {"status": "accepted", "dispatch_id": dispatch_id, "call_id": call_id}
