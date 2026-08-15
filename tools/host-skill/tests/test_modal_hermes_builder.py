@@ -80,6 +80,9 @@ def test_hermes_environment_is_fresh_locked_down_and_opencode_go(tmp_path: Path)
     assert config["memory"] == {"memory_enabled": False, "user_profile_enabled": False}
     assert config["gateway"]["enabled"] is False
     assert config["cron"]["enabled"] is False
+    assert config["approvals"] == {"mode": "off"}
+    assert env["HERMES_YOLO_MODE"] == "1"
+    assert env["HERMES_REDACT_SECRETS"] == "true"
     assert env["OPENCODE_GO_API_KEY"] == "provider-secret"
     assert env["BUILD_WORKER_TOKEN"] == "worker-secret"
     assert env["GH_TOKEN"] == "github-secret"
