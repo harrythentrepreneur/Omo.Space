@@ -153,3 +153,11 @@ def test_dispatch_reservation_lease_recovers_stale_jobs() -> None:
     assert not builder.dispatch_is_duplicate({"status": "failed", "started_at": now}, now)
     assert not builder.dispatch_is_duplicate({"status": "spawn_failed", "started_at": now}, now)
     assert not builder.dispatch_is_duplicate(None, now)
+
+
+def test_safe_failure_stage_is_allowlisted() -> None:
+    builder = load_builder()
+    safe = builder._safe_result("failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="claim")
+    unsafe = builder._safe_result("failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="secret-value")
+    assert safe["stage"] == "claim"
+    assert "stage" not in unsafe
