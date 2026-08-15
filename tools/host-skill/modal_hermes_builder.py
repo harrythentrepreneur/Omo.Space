@@ -131,13 +131,13 @@ def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]
         "gateway": {"enabled": False},
         "cron": {"enabled": False},
         "security": {"redact_secrets": True},
-        "approvals": {"mode": "manual"},
+        "approvals": {"mode": "off"},
     }
     (home / "config.yaml").write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
     result = dict(environ)
     result.update({
         "HERMES_HOME": str(home),
-        "HERMES_YOLO_MODE": "0",
+        "HERMES_YOLO_MODE": "1",
         "HERMES_REDACT_SECRETS": "true",
         "NO_COLOR": "1",
     })
