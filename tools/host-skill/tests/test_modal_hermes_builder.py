@@ -172,6 +172,12 @@ def test_processor_loader_resolves_siblings_and_restores_sys_path(tmp_path: Path
     processor_path = host_skill / "process-submissions.py"
     processor_path.write_text("from submission_queue import MARKER\n", encoding="utf-8")
     before = list(sys.path)
-    module = builder.load_processor_module(processor_path)
-    assert module.MARKER == "sibling-loaded"
-    assert sys.path == before
+    previous_sibling = sys.modules.pop("submission_queue", None)
+    try:
+        module = builder.load_processor_module(processor_path)
+        assert module.MARKER == "sibling-loaded"
+        assert sys.path == before
+    finally:
+        sys.modules.pop("submission_queue", None)
+        if previous_sibling is not None:
+            sys.modules["submission_queue"] = previous_sibling
