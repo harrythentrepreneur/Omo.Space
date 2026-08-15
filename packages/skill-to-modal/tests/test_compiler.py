@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import shutil
@@ -9,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -461,6 +463,275 @@ def test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png(
             output_root=tmp_path / "too-many-rows",
         )
     assert writer_called == []
+
+
+def _domain_analysis_profile(domain: str, summary_field: str, findings_field: str) -> dict:
+    profile = _hardening_tabular_profile()
+    profile["name"] = domain.lower().replace(" ", "-")
+    profile["slug"] = profile["name"]
+    profile["DOMAIN"] = domain
+    profile["steps"] = [
+        {"id": "parse", "operation": "tabular.parse", "type": "tool"},
+        {"id": "statistics", "operation": "statistics.compute", "type": "tool"},
+        {
+            "id": "findings",
+            "operation": "chat.completions.strict_json",
+            "type": "llm",
+        },
+        {
+            "id": "chart",
+            "operation": "visualization.render.chart",
+            "type": "tool",
+        },
+    ]
+    findings_schema = {
+        "additionalProperties": False,
+        "properties": {
+            summary_field: {"minLength": 3, "type": "string"},
+            findings_field: {
+                "items": {"minLength": 3, "type": "string"},
+                "minItems": 1,
+                "type": "array",
+            },
+        },
+        "required": [summary_field, findings_field],
+        "type": "object",
+    }
+    profile["live"]["model_output_schema"] = findings_schema
+    profile["output_schema"] = {
+        "additionalProperties": False,
+        "properties": {
+            **findings_schema["properties"],
+            "chart_spec": {"type": "object"},
+        },
+        "required": [summary_field, findings_field, "chart_spec"],
+        "type": "object",
+    }
+    return profile
+
+
+@pytest.mark.parametrize(
+    ("domain", "summary_field", "findings_field"),
+    [
+        ("Marketing Analytics", "marketing_summary", "marketing_findings"),
+        ("Churn Analysis", "risk_summary", "risk_findings"),
+        ("Expense Categorization", "spend_summary", "category_findings"),
+    ],
+)
+def test_generic_domain_orchestrator_resolves_and_runs_stats_only_contracts(
+    tmp_path: Path,
+    domain: str,
+    summary_field: str,
+    findings_field: str,
+) -> None:
+    profile = _domain_analysis_profile(domain, summary_field, findings_field)
+    resolution = compiler.resolve_capabilities(profile, "d" * 64)
+    selected = [item["name"] for item in resolution["selected"]]
+
+    assert selected == [
+        "chart_generation",
+        "domain_analysis_orchestrator",
+        "tabular.statistics",
+    ]
+    assert "tabular_analysis_orchestrator" not in selected
+    assert resolution["decision"] == "approved"
+    prompt = compiler.domain_analysis_prompt(profile)
+    assert prompt.startswith(f"DOMAIN: {domain}\n")
+    assert summary_field in prompt and findings_field in prompt
+
+    runtime_path = tmp_path / f"{profile['slug']}.py"
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(profile["slug"].replace("-", "_"), runtime_path)
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    observed = []
+
+    def fixture_writer(grounded: dict) -> dict:
+        observed.append(grounded)
+        assert grounded["DOMAIN"] == domain
+        assert set(grounded) == {
+            "DOMAIN",
+            "expected_output_fields",
+            "questions",
+            "hypotheses",
+            "column_semantics",
+            "filters",
+            "units",
+            "computed_stats",
+        }
+        assert "dataset" not in grounded
+        assert "rows" not in grounded["computed_stats"]
+        return {
+            summary_field: "The computed row count is 2.",
+            findings_field: ["The computed value total is 30."],
+        }
+
+    result = runtime.run_domain_analysis_orchestrator(
+        {
+            "dataset": "segment,value\nA,10\nB,20\n",
+            "dataset_format": "csv",
+            "questions": ["Summarize the supplied values."],
+            "hypotheses": [],
+            "column_semantics": "segment is categorical and value is numeric",
+            "filters": "None",
+            "units": "count",
+        },
+        findings_writer=fixture_writer,
+    )
+    Draft202012Validator(profile["output_schema"]).validate(result)
+    assert len(observed) == 1
+    assert runtime.run_domain_analysis_orchestrator.__name__ == "run_domain_analysis_orchestrator"
+
+
+def test_domain_orchestrator_code_path_is_identical_and_rejects_ungrounded_numbers(
+    tmp_path: Path,
+) -> None:
+    bytecodes = []
+    runtimes = []
+    for index, args in enumerate(
+        [
+            ("Marketing Analytics", "marketing_summary", "marketing_findings"),
+            ("Churn Analysis", "risk_summary", "risk_findings"),
+            ("Expense Categorization", "spend_summary", "category_findings"),
+        ]
+    ):
+        profile = _domain_analysis_profile(*args)
+        runtime_path = tmp_path / f"domain_runtime_{index}.py"
+        runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+        spec = importlib.util.spec_from_file_location(f"domain_runtime_{index}", runtime_path)
+        assert spec is not None and spec.loader is not None
+        runtime = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runtime)
+        runtimes.append((runtime, args))
+        bytecodes.append(runtime.run_domain_analysis_orchestrator.__code__.co_code)
+    assert bytecodes[0] == bytecodes[1] == bytecodes[2]
+
+    runtime, (_, summary_field, findings_field) = runtimes[0]
+    with pytest.raises(ValueError, match="DOMAIN_FINDINGS_UNGROUNDED_NUMBER"):
+        runtime.run_domain_analysis_orchestrator(
+            {
+                "dataset": "segment,value\nA,10\nB,20\n",
+                "dataset_format": "csv",
+                "questions": ["Summarize the supplied values."],
+                "hypotheses": [],
+                "column_semantics": "segment and value",
+                "filters": "None",
+                "units": "count",
+            },
+            findings_writer=lambda _grounded: {
+                summary_field: "The unsupported result is 777.",
+                findings_field: ["No computed statistic supports that claim."],
+            },
+        )
+
+
+def test_tabular_hosted_submit_run_result_executes_bounded_program_and_returns_artifact(
+    tmp_path: Path,
+) -> None:
+    profile = _hardening_tabular_profile()
+    profile["input_schema"] = {
+        "additionalProperties": False,
+        "properties": {
+            "dataset": {"minLength": 10, "type": "string"},
+            "dataset_format": {"const": "csv"},
+            "questions": {"items": {"type": "string"}, "minItems": 1, "type": "array"},
+            "hypotheses": {"items": {"type": "string"}, "type": "array"},
+            "column_semantics": {"type": "string"},
+            "filters": {"type": "string"},
+            "units": {"type": "string"},
+        },
+        "required": [
+            "dataset",
+            "dataset_format",
+            "questions",
+            "hypotheses",
+            "column_semantics",
+            "filters",
+            "units",
+        ],
+        "type": "object",
+    }
+    bundle = tmp_path / "hosted-data-analysis"
+    (bundle / "schemas").mkdir(parents=True)
+    (bundle / "prompts").mkdir()
+    (bundle / "modal_app.py").write_text(
+        compiler.modal_app_template(profile), encoding="utf-8"
+    )
+    (bundle / "schemas" / "input.json").write_text(
+        compiler.canonical_json(compiler.runtime_input_schema(profile)), encoding="utf-8"
+    )
+    (bundle / "schemas" / "output.json").write_text(
+        compiler.canonical_json(compiler.runtime_output_schema(profile)), encoding="utf-8"
+    )
+    (bundle / "manifest.json").write_text(
+        compiler.canonical_json(
+            {
+                "readiness": {
+                    "can_submit": True,
+                    "blockers": [],
+                    "required_env_names": profile["required_env_names"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (bundle / "prompts" / "tabular_analysis.txt").write_text(
+        compiler.TABULAR_ANALYSIS_PROMPT, encoding="utf-8"
+    )
+    spec = importlib.util.spec_from_file_location("hosted_data_analysis", bundle / "modal_app.py")
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    payload = {
+        "dataset": "region,revenue\nNorth,120\nSouth,80\nNorth,100\n",
+        "dataset_format": "csv",
+        "questions": ["Compare region totals."],
+        "hypotheses": [],
+        "column_semantics": "region is categorical and revenue is numeric",
+        "filters": "None",
+        "units": "USD",
+    }
+    stored = {}
+    writer_inputs = []
+
+    def findings_writer(grounded: dict) -> dict:
+        writer_inputs.append(grounded)
+        assert "dataset" not in grounded
+        assert "rows" not in grounded["computed_stats"]
+        return {
+            "summary": "North totals 220 and South totals 80.",
+            "findings": ["The computed revenue sum is 300."],
+        }
+
+    def spawn_runner(submitted: dict) -> str:
+        stored["fc-hosted"] = runtime.execute_workflow(
+            submitted,
+            findings_writer=findings_writer,
+            artifact_root=tmp_path / "artifacts",
+            artifact_signing_key="offline-fixture-signing-key",
+            clock=lambda: 1_700_000_000,
+        )
+        return "fc-hosted"
+
+    web = runtime.create_fastapi_app(
+        spawn_runner=spawn_runner,
+        lookup_result=lambda call_id: stored[call_id],
+    )
+    submit_route = next(route for route in web.routes if route.path == "/v1/runs")
+    result_route = next(route for route in web.routes if route.path == "/v1/runs/{call_id}")
+    accepted = asyncio.run(submit_route.endpoint(payload))
+    assert accepted["status"] == "accepted"
+    assert accepted["call_id"] == "fc-hosted"
+    completed = asyncio.run(result_route.endpoint("fc-hosted"))
+
+    Draft202012Validator(compiler.runtime_output_schema(profile)).validate(completed)
+    artifact = completed["artifact"]
+    artifact_path = tmp_path / "artifacts" / artifact["object_key"]
+    assert artifact_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert artifact["sha256"] == compiler.hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+    assert "expires=1700003600" in completed["artifact_url"]
+    assert len(writer_inputs) == 1
 
 
 def test_generated_bundle_imports_public_fetch_and_tabular_modules_and_runs_offline(
