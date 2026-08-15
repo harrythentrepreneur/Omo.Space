@@ -139,3 +139,17 @@ def test_dispatch_is_serialized_and_builder_containers_are_single_use() -> None:
     assert source.count('@modal.concurrent(max_inputs=1)') >= 2
     assert "single_use_containers=True" in source
     assert source.index('"status": "accepted"') < source.index("build_submission.spawn(")
+
+
+def test_dispatch_reservation_lease_recovers_stale_jobs() -> None:
+    builder = load_builder()
+    now = 10_000
+    lease = builder.DISPATCH_LEASE_SECONDS
+    assert builder.dispatch_is_duplicate({"status": "accepted", "started_at": now - lease + 1}, now)
+    assert builder.dispatch_is_duplicate({"status": "running", "started_at": now - lease + 1}, now)
+    assert not builder.dispatch_is_duplicate({"status": "accepted", "started_at": now - lease}, now)
+    assert not builder.dispatch_is_duplicate({"status": "running", "started_at": now - lease - 1}, now)
+    assert builder.dispatch_is_duplicate({"status": "completed", "started_at": 0}, now)
+    assert not builder.dispatch_is_duplicate({"status": "failed", "started_at": now}, now)
+    assert not builder.dispatch_is_duplicate({"status": "spawn_failed", "started_at": now}, now)
+    assert not builder.dispatch_is_duplicate(None, now)
