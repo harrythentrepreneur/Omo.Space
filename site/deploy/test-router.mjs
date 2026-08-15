@@ -97,6 +97,7 @@ const canned = {
 const stripeCalls = [];
 const llmCalls = [];
 const modalCalls = [];
+const builderDispatchCalls = [];
 const supportCalls = [];
 const modalStatuses = new Map();
 let modalDispatchStatus = 202;
@@ -169,6 +170,10 @@ function llmResponse(status, envelope) {
 
 const sandbox = {
   fetch: async (url, opts) => {
+    if (String(url) === 'https://builder.modal.run') {
+      builderDispatchCalls.push({ url: String(url), opts, payload: JSON.parse(opts.body) });
+      return { ok: true, status: 202, json: async () => ({ status: 'accepted' }) };
+    }
     if (String(url) === 'https://support-broker.invalid/v1/chat') {
       const payload = JSON.parse(opts.body);
       supportCalls.push({ url: String(url), opts, payload });
@@ -1988,6 +1993,51 @@ check('webhook: invalid json returns 400', whBad.status === 400);
 const whNoSig = await worker.fetch(mkReq('POST', '/api/clerk-webhook', { type: 'user.created', data: { id: 'user_clerk2' } }), env);
 const whRealNoSecret = await worker.fetch(mkReq('POST', '/api/clerk-webhook', { type: 'user.created', data: { id: 'user_clerk3' } }), realEnv);
 check('webhook: unsigned demo works; real mode without secret fails closed', whNoSig.status === 200 && whRealNoSecret.status === 503);
+
+// ── Cloudflare cron → protected Modal Hermes dispatch ─────────────────────
+const builderEnv = {
+  ...env,
+  OMO_BUILDER_MODAL_URL: 'https://builder.modal.run',
+  OMO_BUILDER_MODAL_KEY: 'modal-key-test',
+  OMO_BUILDER_MODAL_SECRET: 'modal-secret-test',
+  OMO_BUILDER_BASE_REVISION: 'c'.repeat(40),
+};
+workerTest.mockSubmissions.clear();
+const beforeIdleDispatches = builderDispatchCalls.length;
+let scheduledTask = null;
+await worker.scheduled({}, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+if (scheduledTask) await scheduledTask;
+check('builder cron: empty queue makes zero Modal calls', builderDispatchCalls.length === beforeIdleDispatches);
+
+workerTest.mockSubmissions.set('user_builder:label-normalizer-canary', {
+  id: 'sub_abcdefgh12345678',
+  user_id: 'user_builder',
+  name: 'Label Normalizer Canary',
+  slug: 'label-normalizer-canary',
+  content: 'PRIVATE_SOURCE_MUST_NOT_LEAVE_WORKER',
+  source_sha256: 'a'.repeat(64),
+  requested_runtime: 'auto',
+  status: 'needs_review',
+  created_at: new Date().toISOString(),
+});
+scheduledTask = null;
+await worker.scheduled({}, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+if (scheduledTask) await scheduledTask;
+const builderCall = builderDispatchCalls.at(-1);
+check('builder cron: dispatches identifiers only with Modal proxy auth',
+  builderCall.url === builderEnv.OMO_BUILDER_MODAL_URL &&
+  builderCall.opts.method === 'POST' &&
+  builderCall.opts.headers['Modal-Key'] === builderEnv.OMO_BUILDER_MODAL_KEY &&
+  builderCall.opts.headers['Modal-Secret'] === builderEnv.OMO_BUILDER_MODAL_SECRET &&
+  builderCall.payload.submission_id === 'sub_abcdefgh12345678' &&
+  builderCall.payload.slug === 'label-normalizer-canary' &&
+  builderCall.payload.source_sha256 === 'a'.repeat(64) &&
+  /^dispatch_[0-9a-f]{32}$/.test(builderCall.payload.dispatch_id) &&
+  !('base_revision' in builderCall.payload) &&
+  !JSON.stringify(builderCall.payload).includes('PRIVATE_SOURCE_MUST_NOT_LEAVE_WORKER') &&
+  !('content' in builderCall.payload) && !('user_id' in builderCall.payload));
+check('builder cron: peek does not mutate authoritative queue state before Modal claims',
+  workerTest.mockSubmissions.get('user_builder:label-normalizer-canary').status === 'needs_review');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

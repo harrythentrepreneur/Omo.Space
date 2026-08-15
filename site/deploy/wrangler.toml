@@ -26,6 +26,9 @@ main = "worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
+[triggers]
+crons = ["*/1 * * * *"]
+
 # [[routes]]
 # pattern = "omo.space/api/*"
 # custom_domain = true
@@ -64,6 +67,8 @@ MAX_TOPUP_USD = "1000"
 CLERK_CLOCK_SKEW_SECONDS = "5"
 RUN_RESERVATION_TTL_SECONDS = "300"
 OMO_SUPPORT_BROKER_URL = "https://cognition.cv/omo-support-api/v1/chat"
+OMO_BUILDER_MODAL_URL = "https://omo-space--omo-hermes-builder-dispatch.modal.run"
+OMO_BUILDER_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"
 # Hosted Facebook Ads runtime in the phonicsmaker / OMOSpace Modal environment.
 FACEBOOK_ADS_MODAL_URL = "https://phonicsmaker-omospace--cognition-facebook-ads-copywriter-api.modal.run"
 

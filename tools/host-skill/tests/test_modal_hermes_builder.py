@@ -37,6 +37,30 @@ def test_job_identity_rejects_mismatched_dispatch() -> None:
         raise AssertionError("mismatched dispatch identity was accepted")
 
 
+def test_dispatch_payload_is_exact_and_identifier_only() -> None:
+    builder = load_builder()
+    submission_id = "sub_abcdefgh12345678"
+    source_hash = "a" * 64
+    revision = builder.ALLOWED_BASE_REVISION
+    payload = {
+        "submission_id": submission_id,
+        "slug": "safe-skill",
+        "source_sha256": source_hash,
+        "dispatch_id": builder.expected_dispatch_id(submission_id, source_hash, revision),
+    }
+    assert builder.parse_dispatch_payload(payload) == (
+        submission_id, "safe-skill", source_hash, payload["dispatch_id"]
+    )
+    for forbidden in ("content", "user_id", "profile", "model", "token", "base_revision"):
+        poisoned = dict(payload, **{forbidden: "not-allowed"})
+        try:
+            builder.parse_dispatch_payload(poisoned)
+        except ValueError as error:
+            assert str(error) == "invalid builder dispatch payload"
+        else:
+            raise AssertionError(f"dispatch accepted forbidden field: {forbidden}")
+
+
 def test_hermes_environment_is_fresh_locked_down_and_opencode_go(tmp_path: Path) -> None:
     builder = load_builder()
     env = builder.hermes_environment(tmp_path, {
@@ -101,3 +125,17 @@ def test_completion_requires_release_and_runtime_evidence() -> None:
         assert not builder.verified_completion(incomplete, submission_id, "safe-skill", source_hash)
     incomplete = dict(complete, status="needs_review")
     assert not builder.verified_completion(incomplete, submission_id, "safe-skill", source_hash)
+
+
+def test_modal_disk_request_stays_within_workspace_limit() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "ephemeral_disk=3 * 1024 * 1024" in source
+    assert "ephemeral_disk=10240" not in source
+
+
+def test_dispatch_is_serialized_and_builder_containers_are_single_use() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert '@app.function(image=image, cpu=0.25, memory=256, timeout=30, max_containers=1)' in source
+    assert source.count('@modal.concurrent(max_inputs=1)') >= 2
+    assert "single_use_containers=True" in source
+    assert source.index('"status": "accepted"') < source.index("build_submission.spawn(")
