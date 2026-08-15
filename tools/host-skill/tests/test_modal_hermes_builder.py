@@ -219,3 +219,21 @@ def test_processor_loader_resolves_siblings_and_restores_sys_path(tmp_path: Path
         sys.modules.pop("submission_queue", None)
         if previous_sibling is not None:
             sys.modules["submission_queue"] = previous_sibling
+
+
+def test_sequential_processor_loads_keep_checkout_roots_isolated(tmp_path: Path) -> None:
+    builder = load_builder()
+    before = list(sys.path)
+    previous_sibling = sys.modules.get("submission_queue")
+    loaded = []
+    for marker in ("authoring-root", "trusted-root"):
+        host_skill = tmp_path / marker / "tools" / "host-skill"
+        host_skill.mkdir(parents=True)
+        (host_skill / "submission_queue.py").write_text(f"ROOT = {marker!r}\n", encoding="utf-8")
+        processor_path = host_skill / "process-submissions.py"
+        processor_path.write_text("from submission_queue import ROOT\n", encoding="utf-8")
+        loaded.append(builder.load_processor_module(processor_path))
+    assert loaded[0].ROOT == "authoring-root"
+    assert loaded[1].ROOT == "trusted-root"
+    assert sys.path == before
+    assert sys.modules.get("submission_queue") is previous_sibling

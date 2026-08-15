@@ -112,10 +112,17 @@ def load_processor_module(processor_path: Path) -> Any:
     if spec is None or spec.loader is None:
         raise RuntimeError("processor import failed")
     module = importlib.util.module_from_spec(spec)
+    previous_sibling = sys.modules.pop("submission_queue", None)
     sys.path.insert(0, module_dir)
     try:
         spec.loader.exec_module(module)
     finally:
+        # Keep each immutable checkout's sibling module private to its loaded
+        # processor. Restoring sys.modules prevents the authoring ROOT from
+        # contaminating the later trusted processor import.
+        sys.modules.pop("submission_queue", None)
+        if previous_sibling is not None:
+            sys.modules["submission_queue"] = previous_sibling
         if sys.path and sys.path[0] == module_dir:
             sys.path.pop(0)
         else:
