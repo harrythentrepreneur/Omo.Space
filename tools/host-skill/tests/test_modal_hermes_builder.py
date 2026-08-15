@@ -75,14 +75,15 @@ def test_hermes_environment_is_fresh_locked_down_and_opencode_go(tmp_path: Path)
     })
     home = Path(env["HERMES_HOME"])
     assert home.parent == tmp_path
+    assert env["HOME"] == str(home)
     config = json.loads((home / "config.yaml").read_text())
     assert config["model"] == {"provider": "opencode-go", "default": "minimax-m2.7"}
     assert config["memory"] == {"memory_enabled": False, "user_profile_enabled": False}
     assert config["gateway"]["enabled"] is False
     assert config["cron"]["enabled"] is False
     assert env["OPENCODE_GO_API_KEY"] == "provider-secret"
-    assert env["BUILD_WORKER_TOKEN"] == "worker-secret"
-    assert env["GH_TOKEN"] == "github-secret"
+    assert "BUILD_WORKER_TOKEN" not in env
+    assert "GH_TOKEN" not in env
     assert "TELEGRAM_BOT_TOKEN" not in env
     assert "WHATSAPP_ALLOWED_USERS" not in env
     assert "STRIPE_SECRET_KEY" not in env
@@ -142,6 +143,43 @@ def test_dispatch_is_serialized_and_builder_containers_are_single_use() -> None:
     assert source.index('"status": "accepted"') < source.index("build_submission.spawn(")
 
 
+def test_untrusted_hermes_phase_has_no_terminal_or_github_release_authority() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert '"--toolsets", "file,skills"' in source
+    assert '"--toolsets", "terminal,file,skills"' not in source
+    assert 'trusted_processor.process_row(row, repository, deploy=True' in source
+    assert 'prepare_trusted_checkout(root, checkout, base_revision, slug, token)' in source
+    assert source.index('trusted_processor.process_row(row, repository, deploy=True') < source.index('verified_completion(detail')
+    assert "preexec_fn=drop_hermes_privileges" in source
+    assert "os.setgroups([])" in source
+    assert "os.setgid(HERMES_GID)" in source
+    assert "os.setuid(HERMES_UID)" in source
+    assert "prctl(38, 1, 0, 0, 0)" in source
+
+
+def test_only_regular_bounded_json_profile_crosses_trust_boundary(tmp_path: Path) -> None:
+    builder = load_builder()
+    source = tmp_path / "source"
+    trusted = tmp_path / "trusted"
+    profile = source / "packages" / "skill-to-modal" / "profiles" / "safe-skill.json"
+    profile.parent.mkdir(parents=True)
+    profile.write_text('{"runtime": {"kind": "worker-native"}}', encoding="utf-8")
+    copied = builder.copy_reviewed_profile(source, trusted, "safe-skill")
+    assert copied.read_bytes() == profile.read_bytes()
+    copied.write_text('{"old": true}', encoding="utf-8")
+    copied_again = builder.copy_reviewed_profile(source, trusted, "safe-skill")
+    assert copied_again.read_bytes() == profile.read_bytes()
+    copied.unlink()
+    profile.unlink()
+    profile.symlink_to(source / "outside.json")
+    try:
+        builder.copy_reviewed_profile(source, trusted, "safe-skill")
+    except RuntimeError as error:
+        assert str(error) == "reviewed profile is unsafe"
+    else:
+        raise AssertionError("symlinked profile crossed the trust boundary")
+
+
 def test_dispatch_reservation_lease_recovers_stale_jobs() -> None:
     builder = load_builder()
     now = 10_000
@@ -181,3 +219,21 @@ def test_processor_loader_resolves_siblings_and_restores_sys_path(tmp_path: Path
         sys.modules.pop("submission_queue", None)
         if previous_sibling is not None:
             sys.modules["submission_queue"] = previous_sibling
+
+
+def test_sequential_processor_loads_keep_checkout_roots_isolated(tmp_path: Path) -> None:
+    builder = load_builder()
+    before = list(sys.path)
+    previous_sibling = sys.modules.get("submission_queue")
+    loaded = []
+    for marker in ("authoring-root", "trusted-root"):
+        host_skill = tmp_path / marker / "tools" / "host-skill"
+        host_skill.mkdir(parents=True)
+        (host_skill / "submission_queue.py").write_text(f"ROOT = {marker!r}\n", encoding="utf-8")
+        processor_path = host_skill / "process-submissions.py"
+        processor_path.write_text("from submission_queue import ROOT\n", encoding="utf-8")
+        loaded.append(builder.load_processor_module(processor_path))
+    assert loaded[0].ROOT == "authoring-root"
+    assert loaded[1].ROOT == "trusted-root"
+    assert sys.path == before
+    assert sys.modules.get("submission_queue") is previous_sibling
