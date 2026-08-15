@@ -23,7 +23,7 @@ DEFAULT_MODEL = "minimax-m2.7"
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"
 MAX_SOURCE_BYTES = 200 * 1024
-LEASE_SECONDS = 7200
+DISPATCH_LEASE_SECONDS = 7200
 
 ID_RE = re.compile(r"^sub_[A-Za-z0-9_-]{8,100}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -46,6 +46,21 @@ def expected_dispatch_id(submission_id: str, source_sha256: str, base_revision: 
         raise ValueError("invalid builder dispatch identity")
     digest = hashlib.sha256(f"omo-modal-builder-v2\0{submission_id}\0{source_sha256}\0{base_revision}".encode()).hexdigest()
     return "dispatch_" + digest[:32]
+
+
+def dispatch_is_duplicate(prior: Any, now: int) -> bool:
+    if not isinstance(prior, dict):
+        return False
+    status = str(prior.get("status") or "")
+    if status == "completed":
+        return True
+    if status not in {"accepted", "running"}:
+        return False
+    try:
+        started_at = int(prior.get("started_at") or 0)
+    except (TypeError, ValueError):
+        return False
+    return started_at > 0 and now - started_at < DISPATCH_LEASE_SECONDS
 
 
 def validate_job_identity(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str) -> None:
@@ -283,13 +298,14 @@ def dispatch(payload: dict[str, Any]) -> dict[str, str]:
     except ValueError as error:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(error)) from error
+    now = int(time.time())
     prior = dispatches.get(dispatch_id)
-    if isinstance(prior, dict) and str(prior.get("status") or "") in {"accepted", "running", "completed"}:
+    if dispatch_is_duplicate(prior, now):
         return {"status": "duplicate", "dispatch_id": dispatch_id}
     dispatches[dispatch_id] = {
         "status": "accepted",
         "submission_id": submission_id,
-        "started_at": int(time.time()),
+        "started_at": now,
     }
     try:
         call = build_submission.spawn(
