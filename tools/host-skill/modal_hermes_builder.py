@@ -24,6 +24,10 @@ REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"
 MAX_SOURCE_BYTES = 200 * 1024
 DISPATCH_LEASE_SECONDS = 7200
+SAFE_FAILURE_STAGES = {
+    "checkout", "processor_import", "claim", "source_validation",
+    "private_handoff", "hermes", "release_evidence",
+}
 
 ID_RE = re.compile(r"^sub_[A-Za-z0-9_-]{8,100}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -152,6 +156,8 @@ def _safe_result(status: str, dispatch_id: str, submission_id: str, **extra: Any
     for key in ("returncode", "reason", "hermes_version", "model"):
         if key in extra:
             result[key] = extra[key]
+    if str(extra.get("stage") or "") in SAFE_FAILURE_STAGES:
+        result["stage"] = str(extra["stage"])
     return result
 
 
@@ -192,6 +198,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
     dispatches[dispatch_id] = {"status": "running", "started_at": now, "submission_id": submission_id}
 
     repository = None
+    stage = "checkout"
     try:
         with tempfile.TemporaryDirectory(prefix="omo-modal-builder-") as temp:
             root = Path(temp)
@@ -214,6 +221,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             if checkout_revision != base_revision:
                 raise RuntimeError("pinned checkout verification failed")
 
+            stage = "processor_import"
             import importlib.util
             processor_path = checkout / "tools" / "host-skill" / "process-submissions.py"
             spec = importlib.util.spec_from_file_location("omo_modal_processor", processor_path)
@@ -222,15 +230,18 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             processor = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(processor)
             repository = processor.repository_from_env(os.environ)
+            stage = "claim"
             row = repository.claim(submission_id, include_review=True)
             if not row:
                 raise RuntimeError("submission is not claimable")
             if row["id"] != submission_id or row["slug"] != slug or row["source_sha256"] != source_sha256:
                 raise RuntimeError("claimed source identity mismatch")
+            stage = "source_validation"
             source = str(row.get("content") or "").encode("utf-8")
             if not source or len(source) > MAX_SOURCE_BYTES or hashlib.sha256(source).hexdigest() != source_sha256:
                 raise RuntimeError("claimed source validation failed")
 
+            stage = "private_handoff"
             review_dir = root / "review"
             review_dir.mkdir(mode=0o700)
             review_path = review_dir / "SKILL.md"
@@ -242,6 +253,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             if stat.S_IMODE(review_path.stat().st_mode) != 0o600 or hashlib.sha256(review_path.read_bytes()).hexdigest() != source_sha256:
                 raise RuntimeError("private source handoff failed")
 
+            stage = "hermes"
             env = hermes_environment(root, os.environ)
             model = str(env.get("OMO_BUILDER_MODEL", DEFAULT_MODEL))
             prompt = builder_prompt(submission_id, slug, source_sha256, review_path, base_revision)
@@ -263,6 +275,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 repository.set_status(submission_id, "failed", "build_or_deploy_failed")
                 result = _safe_result("failed", dispatch_id, submission_id, returncode=agent.returncode)
             else:
+                stage = "release_evidence"
                 detail = repository.get(submission_id)
                 if not verified_completion(detail, submission_id, slug, source_sha256):
                     repository.set_status(submission_id, "failed", "canary_or_internal_failed")
@@ -277,7 +290,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 repository.set_status(submission_id, "failed", "canary_or_internal_failed")
             except Exception:
                 pass
-        failed = _safe_result("failed", dispatch_id, submission_id, reason="builder_internal_failed")
+        failed = _safe_result("failed", dispatch_id, submission_id, reason="builder_internal_failed", stage=stage)
         dispatches[dispatch_id] = {**failed, "started_at": now, "finished_at": int(time.time())}
         return failed
     finally:

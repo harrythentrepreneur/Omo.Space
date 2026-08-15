@@ -1411,6 +1411,15 @@ neonInternalDetailRow = {
 const neonDetail = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neondetail01/detail', {}, internalHeaders), migrationEnv);
 const neonDetailBody = await neonDetail.json();
 const neonDetailCall = neonSqlCalls.find((call) => call.name === 'omo-internal-submission-detail-v1');
+neonInternalDetailRow = {
+  id: 'sub_neondetail01',
+  slug: 'neon-workflow',
+  source_sha256: 'e'.repeat(64),
+  selected_runtime: null,
+  status: 'failed',
+};
+const neonPreRuntimeDetail = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neondetail01/detail', {}, internalHeaders), migrationEnv);
+const neonPreRuntimeBody = await neonPreRuntimeDetail.json();
 neonInternalDetailRow = null;
 const neonDetailMissing = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neondetail01/detail', {}, internalHeaders), migrationEnv);
 check('internal detail Neon: parameterized narrow select excludes content/user/private data and maps missing to 404',
@@ -1429,6 +1438,10 @@ check('internal detail Neon: parameterized narrow select excludes content/user/p
   !neonDetailCall.text.includes('user_id') &&
   neonDetailCall.values[0] === 'sub_neondetail01' &&
   neonDetailMissing.status === 404);
+check('internal detail Neon: valid pre-runtime failure omits unset selected_runtime instead of returning 500',
+  neonPreRuntimeDetail.status === 200 &&
+  neonPreRuntimeBody.submission.status === 'failed' &&
+  !('selected_runtime' in neonPreRuntimeBody.submission));
 
 const internalBadStatus = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/status`, {
   status: 'queued',

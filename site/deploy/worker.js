@@ -2442,17 +2442,18 @@ function internalClaimRow(row) {
 function internalDetailRow(row) {
   if (!row) return null;
   const sourceSha256 = safeSha256(row.source_sha256 || row.sourceSha256);
-  const selectedRuntime = safeRuntime(row.selected_runtime || row.selectedRuntime);
+  const rawSelectedRuntime = String(row.selected_runtime || row.selectedRuntime || '').trim();
+  const selectedRuntime = safeRuntime(rawSelectedRuntime);
   const slug = safeSlug(row.slug);
   const status = safeSubmissionStatus(row.status);
-  if (!safeSubmissionId(row.id) || !slug || !sourceSha256 || !selectedRuntime) return null;
+  if (!safeSubmissionId(row.id) || !slug || !sourceSha256 || !status || (rawSelectedRuntime && !selectedRuntime)) return null;
   const detail = {
     id: String(row.id),
     slug,
     status,
     source_sha256: sourceSha256,
-    selected_runtime: selectedRuntime,
   };
+  if (selectedRuntime) detail.selected_runtime = selectedRuntime;
   const workflowVersion = safeText(row.workflow_version, 160);
   const publishedSlug = safeSlug(row.published_slug);
   const buildEvidence = safeBuildEvidence(row.build_evidence);
