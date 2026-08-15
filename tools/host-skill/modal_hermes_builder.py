@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import ctypes
 import stat
 import subprocess
 import sys
@@ -25,6 +26,8 @@ REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"
 MAX_SOURCE_BYTES = 200 * 1024
 MAX_PROFILE_BYTES = 256 * 1024
+HERMES_UID = 10001
+HERMES_GID = 10001
 DISPATCH_LEASE_SECONDS = 7200
 SAFE_FAILURE_STAGES = {
     "checkout", "processor_import", "claim", "source_validation",
@@ -41,7 +44,11 @@ app = modal.App(APP_NAME)
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .env({"DEBIAN_FRONTEND": "noninteractive", "TZ": "UTC"})
-    .apt_install("ca-certificates", "curl", "gh", "git", "nodejs", "npm")
+    .apt_install("ca-certificates", "curl", "gh", "git", "nodejs", "npm", "passwd")
+    .run_commands(
+        f"groupadd --gid {HERMES_GID} omo-hermes && "
+        f"useradd --uid {HERMES_UID} --gid {HERMES_GID} --no-create-home --shell /usr/sbin/nologin omo-hermes"
+    )
     .pip_install(f"hermes-agent=={HERMES_VERSION}", f"modal=={MODAL_VERSION}")
 )
 dispatches = modal.Dict.from_name(DISPATCH_STORE, create_if_missing=True)
@@ -158,6 +165,25 @@ def copy_reviewed_profile(source_checkout: Path, trusted_checkout: Path, slug: s
     return destination
 
 
+def chown_tree(path: Path, uid: int = HERMES_UID, gid: int = HERMES_GID) -> None:
+    """Give the unprivileged authoring process only its disposable tree."""
+    os.chown(path, uid, gid, follow_symlinks=False)
+    for directory, names, files in os.walk(path):
+        for name in names + files:
+            os.chown(Path(directory) / name, uid, gid, follow_symlinks=False)
+
+
+def drop_hermes_privileges() -> None:
+    """Run Hermes under a UID that cannot inspect the root parent's /proc."""
+    os.setgroups([])
+    os.setgid(HERMES_GID)
+    os.setuid(HERMES_UID)
+    # PR_SET_NO_NEW_PRIVS prevents gaining privilege through future execs.
+    if ctypes.CDLL(None).prctl(38, 1, 0, 0, 0) != 0:
+        raise OSError("could not enable no_new_privs")
+    os.umask(0o077)
+
+
 def prepare_trusted_checkout(root: Path, source_checkout: Path, base_revision: str, slug: str, token: str) -> Path:
     """Create a fresh pinned checkout after Hermes exits and import one profile."""
     checkout = root / "trusted-repo"
@@ -198,6 +224,7 @@ def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]
     result = dict(environ)
     result.update({
         "HERMES_HOME": str(home),
+        "HOME": str(home),
         "HERMES_YOLO_MODE": "0",
         "HERMES_REDACT_SECRETS": "true",
         "NO_COLOR": "1",
@@ -341,6 +368,12 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
 
             stage = "hermes"
             env = hermes_environment(root, os.environ)
+            # The parent retains release credentials as root. Hermes owns only
+            # these disposable paths and cannot read the parent's /proc env.
+            root.chmod(0o711)
+            chown_tree(checkout)
+            chown_tree(review_dir)
+            chown_tree(Path(env["HERMES_HOME"]))
             model = str(env.get("OMO_BUILDER_MODEL", DEFAULT_MODEL))
             prompt = builder_prompt(submission_id, slug, source_sha256, review_path, base_revision)
             agent = subprocess.run(
@@ -356,6 +389,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 stderr=subprocess.DEVNULL,
                 timeout=3600,
                 check=False,
+                preexec_fn=drop_hermes_privileges,
             )
             if agent.returncode != 0:
                 repository.set_status(submission_id, "failed", "build_or_deploy_failed")

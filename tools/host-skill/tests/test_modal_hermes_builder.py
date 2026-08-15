@@ -75,6 +75,7 @@ def test_hermes_environment_is_fresh_locked_down_and_opencode_go(tmp_path: Path)
     })
     home = Path(env["HERMES_HOME"])
     assert home.parent == tmp_path
+    assert env["HOME"] == str(home)
     config = json.loads((home / "config.yaml").read_text())
     assert config["model"] == {"provider": "opencode-go", "default": "minimax-m2.7"}
     assert config["memory"] == {"memory_enabled": False, "user_profile_enabled": False}
@@ -149,6 +150,11 @@ def test_untrusted_hermes_phase_has_no_terminal_or_github_release_authority() ->
     assert 'trusted_processor.process_row(row, repository, deploy=True' in source
     assert 'prepare_trusted_checkout(root, checkout, base_revision, slug, token)' in source
     assert source.index('trusted_processor.process_row(row, repository, deploy=True') < source.index('verified_completion(detail')
+    assert "preexec_fn=drop_hermes_privileges" in source
+    assert "os.setgroups([])" in source
+    assert "os.setgid(HERMES_GID)" in source
+    assert "os.setuid(HERMES_UID)" in source
+    assert "prctl(38, 1, 0, 0, 0)" in source
 
 
 def test_only_regular_bounded_json_profile_crosses_trust_boundary(tmp_path: Path) -> None:
