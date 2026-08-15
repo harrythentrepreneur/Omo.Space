@@ -83,13 +83,17 @@ def run_once() -> int:
             return 1
         launcher = str(os.environ.get("OMO_BUILDER_LAUNCHER", "modal")).strip().lower()
         if launcher == "modal":
-            dispatch_id = dispatch_id_for(submission_id, source_hash)
+            revision = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
+            ).stdout.strip()
+            dispatch_id = dispatch_id_for(submission_id, source_hash, revision)
             try:
                 launch_modal_builder(
                     submission_id=submission_id,
                     slug=slug,
                     source_sha256=source_hash,
                     dispatch_id=dispatch_id,
+                    base_revision=revision,
                 )
             except (ImportError, OSError, RuntimeError, ValueError):
                 bounded_log("builder_launch_failed", id=submission_id, slug=slug)

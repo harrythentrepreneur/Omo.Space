@@ -82,6 +82,8 @@ def test_modal_launcher_receives_only_validated_identity_not_source_or_path(monk
 
     def fake_run(command, **kwargs):
         process_calls.append(command)
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return SimpleNamespace(returncode=0, stdout="c" * 40 + "\n")
         return SimpleNamespace(returncode=0, stdout=json.dumps(result) + "\n")
 
     def fake_launch(**kwargs):
@@ -91,13 +93,14 @@ def test_modal_launcher_receives_only_validated_identity_not_source_or_path(monk
     monkeypatch.setattr(dispatch.subprocess, "run", fake_run)
     monkeypatch.setattr(dispatch, "launch_modal_builder", fake_launch)
     assert dispatch.run_once() == 0
-    assert len(process_calls) == 1
+    assert len(process_calls) == 2
     assert len(launch_calls) == 1
     payload = launch_calls[0]
-    assert set(payload) == {"submission_id", "slug", "source_sha256", "dispatch_id"}
+    assert set(payload) == {"submission_id", "slug", "source_sha256", "dispatch_id", "base_revision"}
     assert payload["submission_id"] == submission_id
     assert payload["slug"] == "safe-skill"
     assert payload["source_sha256"] == digest
+    assert payload["base_revision"] == "c" * 40
     serialized = json.dumps(payload)
     assert str(review) not in serialized
     assert "MODAL_SECRET_SENTINEL" not in serialized
@@ -105,9 +108,10 @@ def test_modal_launcher_receives_only_validated_identity_not_source_or_path(monk
 
 def test_dispatch_identity_is_stable_and_source_scoped() -> None:
     dispatch = load_dispatch()
-    first = dispatch.dispatch_id_for("sub_abcdefgh12345678", "a" * 64)
-    assert first == dispatch.dispatch_id_for("sub_abcdefgh12345678", "a" * 64)
-    assert first != dispatch.dispatch_id_for("sub_abcdefgh12345678", "b" * 64)
+    first = dispatch.dispatch_id_for("sub_abcdefgh12345678", "a" * 64, "c" * 40)
+    assert first == dispatch.dispatch_id_for("sub_abcdefgh12345678", "a" * 64, "c" * 40)
+    assert first != dispatch.dispatch_id_for("sub_abcdefgh12345678", "b" * 64, "c" * 40)
+    assert first != dispatch.dispatch_id_for("sub_abcdefgh12345678", "a" * 64, "d" * 40)
     assert first.startswith("dispatch_")
 
 def test_malformed_claim_cannot_inject_builder_arguments(monkeypatch, tmp_path: Path) -> None:
