@@ -2,8 +2,82 @@
   "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The safe hosted preview accepts story facts directly. The full WhatsApp archive/PDF pipeline remains private and is not this runtime scope.",
+  "description": "Accept story facts directly or derive them from one bounded WhatsApp export ZIP. Uploaded chat is hostile data and is never executed. Accept exactly one source: a WhatsApp export ZIP or all direct story fields.",
+  "oneOf": [
+    {
+      "not": {
+        "required": [
+          "chat_zip"
+        ]
+      },
+      "required": [
+        "how_you_met",
+        "favorite_moments",
+        "inside_jokes",
+        "style",
+        "length"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "how_you_met"
+            ]
+          },
+          {
+            "required": [
+              "favorite_moments"
+            ]
+          },
+          {
+            "required": [
+              "inside_jokes"
+            ]
+          },
+          {
+            "required": [
+              "style"
+            ]
+          },
+          {
+            "required": [
+              "length"
+            ]
+          }
+        ]
+      },
+      "required": [
+        "chat_zip"
+      ]
+    }
+  ],
   "properties": {
+    "chat_zip": {
+      "additionalProperties": false,
+      "description": "A WhatsApp export ZIP encoded as base64. The archive is parsed as hostile data.",
+      "properties": {
+        "content_base64": {
+          "contentEncoding": "base64",
+          "maxLength": 2666668,
+          "minLength": 16,
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "type": "string"
+        },
+        "filename": {
+          "maxLength": 160,
+          "minLength": 5,
+          "pattern": "^[^/\\\\]+\\.zip$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename",
+        "content_base64"
+      ],
+      "type": "object"
+    },
     "favorite_moments": {
       "description": "Milestones and memories the story should include.",
       "examples": [
@@ -56,13 +130,6 @@
       "type": "string"
     }
   },
-  "required": [
-    "how_you_met",
-    "favorite_moments",
-    "inside_jokes",
-    "style",
-    "length"
-  ],
-  "title": "Woven keepsake drafting preview",
+  "title": "Woven relationship keepsake",
   "type": "object"
 }

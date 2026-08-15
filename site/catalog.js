@@ -1160,19 +1160,19 @@ window.OMO_CATALOG = [
     "promise": "Turn short audio into a vertical sumi-e drawing animation.",
     "maker": "de Mello",
     "makerName": "de Mello Studio",
-    "version": "v1.0.0 · 2026-08-11",
-    "demoCap": "Hosted milestone: bundled 10-second sample",
-    "desc": "Turn short audio into a directed Japanese-style drawing animation. The downloadable workflow supports your own audio; the current hosted milestone is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It transcribes the source, plans semantic ink-drawing beats, generates and expands the frames, then delivers a validated portrait MP4 with its frame artifacts.",
+    "version": "v1.1.0 · 2026-08-15",
+    "demoCap": "Ready hosted lane: bundled 10-second sample only",
+    "desc": "Turn the reviewed 10-second sample into a deterministic Japanese-style drawing animation. The hosted lane is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It loads the reviewed transcript, plans semantic ink-drawing beats, renders procedural sumi-e frames, then delivers a validated portrait MP4 with owner-scoped artifacts.",
     "cover": "covers/japanese-style-story-video.svg",
     "upvotes": 118,
     "inputs": [
-      "audio: hosted milestone requires sample-demello-10s (the downloaded workflow supports your own short audio)",
-      "style: sumi-e Japanese ink (pinned for this release)",
-      "duration: 5–20 seconds"
+      "audio: sample-demello-10s (the only enabled hosted sample)",
+      "style: sumi-e Japanese ink",
+      "duration: exactly 10 seconds"
     ],
     "outputs": [
       "video — 1080×1920 H.264/AAC MP4",
-      "frames — generated drawing frames and contact sheet"
+      "artifacts — owner-scoped transcript, frame brief, frame manifest, and contact sheet"
     ],
     "exampleIn": "A 10-second reflection about waking up to the present moment · quiet sumi-e · 10 seconds",
     "exampleOut": [
@@ -1183,15 +1183,13 @@ window.OMO_CATALOG = [
       "steps": [
         {
           "type": "pipeline",
-          "role": "transcribe",
-          "label": "Transcribe audio"
+          "role": "load-transcript",
+          "label": "Load the reviewed sample transcript"
         },
         {
-          "type": "llm",
+          "type": "pipeline",
           "role": "direct",
-          "model": "deepseek-v4-flash",
-          "max_output": 300,
-          "system": "Direct a short spoken story into a sparse, coherent sequence of Japanese sumi-e drawing beats. Preserve the source meaning and return only the bounded shot plan."
+          "label": "Direct deterministic ink beats"
         },
         {
           "type": "pipeline",
@@ -1211,6 +1209,12 @@ window.OMO_CATALOG = [
       ]
     },
     "runPrice": 0.1,
+    "runManifest": "run-manifests/japanese-style-story-video.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
+    "known_limits": "The hosted executor accepts only sample-demello-10s at exactly 10 seconds; arbitrary audio is rejected before work and remains unpriced.",
     "icon": null
   },
   {
@@ -1235,8 +1239,8 @@ window.OMO_CATALOG = [
     "maker": "Woven",
     "makerName": "Woven Studio",
     "version": "v1.0.0 · 2026-08-11",
-    "demoCap": "Hosted run: narrative draft + PDF-ready page plan",
-    "desc": "Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted run delivers a Markdown book draft and PDF-ready page plan for $0.40; the full private chat-archive-to-PDF pipeline remains a separate production milestone.",
+    "demoCap": "Hosted run: WhatsApp export ZIP or story fields to a beautiful PDF keepsake",
+    "desc": "Upload a WhatsApp export ZIP or share your story fields directly. Woven derives a factual relationship brief, writes a warm chaptered story, and delivers a beautiful PDF keepsake for $0.40. Markdown and the page plan remain available; unparseable or oversized ZIPs return typed blockers.",
     "cover": "covers/woven-relationship-book-maker.svg",
     "images": [
       "covers/woven-2-chapters.webp",
@@ -1245,6 +1249,7 @@ window.OMO_CATALOG = [
     ],
     "upvotes": 84,
     "inputs": [
+      "source: WhatsApp export ZIP or the story fields below",
       "how_you_met: a line about how you met",
       "favorite_moments: milestones and memories you want included",
       "inside_jokes: favorite jokes, phrases, and tiny details",
@@ -1252,22 +1257,28 @@ window.OMO_CATALOG = [
       "length: short or long"
     ],
     "outputs": [
-      "book — a chaptered relationship story in Markdown",
-      "page_plan — a PDF-ready page plan with chapter breaks and keepsake prompts"
+      "artifact_url — a signed link to the beautiful PDF keepsake book",
+      "book — the chaptered relationship story in Markdown",
+      "page_plan — the keepsake page plan retained in the result"
     ],
-    "exampleIn": "We met after reaching for the same book at a rainy-day shop · seven years, two cities, and one badly behaved corgi · warm and playful · short",
+    "exampleIn": "WhatsApp export ZIP — or: rainy-day bookshop · seven years, two cities, and one badly behaved corgi · warm and playful · short",
     "exampleOut": [
       "A warm chaptered story that carries the rainy bookshop meeting through seven years together",
-      "A PDF-ready page plan with chapter breaks, memory prompts, and the corgi joke woven through"
+      "A polished PDF keepsake with a designed cover, chapter typography, page numbers, and the corgi joke woven through"
     ],
     "workflow": {
       "steps": [
         {
+          "type": "pipeline",
+          "role": "whatsapp_zip",
+          "label": "Parse a WhatsApp export and derive the reviewed story fields"
+        },
+        {
           "type": "llm",
           "role": "write",
           "model": "deepseek-v4-flash",
-          "max_output": 900,
-          "system": "Write a personalized relationship keepsake from only the details supplied. Return EXACTLY this JSON shape: {\"book\":\"a warm chaptered relationship story in Markdown\",\"page_plan\":[\"PDF-ready page or chapter note\"]}. Keep the couple's facts accurate, weave in their own phrases and inside jokes naturally, and give the story a beginning, middle, and hopeful close. HARD RULES: page_plan is a flat array of STRINGS, never invent names, dates, events, or quotations, and output ONLY the JSON object."
+          "max_output": 2200,
+          "system": "Write a personalized relationship keepsake from only the details supplied. Preserve who did what and whether an event happened or is only planned. Return EXACTLY one JSON object with title, book, and page_plan. Keep the couple's facts accurate, weave in their own phrases and inside jokes naturally, never invent names, dates, events, dialogue, quotations, or motivations, and output only JSON."
         },
         {
           "type": "pipeline",
@@ -1282,7 +1293,7 @@ window.OMO_CATALOG = [
         {
           "type": "pipeline",
           "role": "deliver",
-          "label": "Deliver Markdown book and PDF-ready page plan"
+          "label": "Render, persist, and sign the beautiful PDF keepsake"
         }
       ]
     },
@@ -1366,13 +1377,16 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-phonics-list-generator-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/phonics-list-generator.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
+    "known_limits": "phonics-list #2 ended with only 1 of 10 reviewed `ai`/`ay` words after normalization and missing requested coverage.",
     "upvotes": 0,
-    "desc": "Build a dialect-aware phonics word list around the target patterns, topic, and learner level you choose.",
+    "desc": "Make 5–30 child-safe words for selected sound patterns, topic, learner difficulty, and English dialect, ready to review for a lesson. The list marks target matches and pronunciation notes; check ambiguous words and curriculum fit before use.",
     "inputs": [
       "phonemes: your phonemes settings",
       "topic: your topic settings",
@@ -1398,13 +1412,16 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-syllable-splitter-and-counter-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/syllable-splitter-and-counter.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
+    "known_limits": "syllable #3 again returned spelling-altering transcriptions for all three items.",
     "upvotes": 0,
-    "desc": "Split a word list into syllables and counts, with dialect differences and uncertain cases made clear.",
+    "desc": "Split and count syllables for 1–30 English words, returned in hyphen or dot notation with the original spelling preserved. Choose US, UK, or Australian English and review ambiguity notes because spoken boundaries and counts can vary.",
     "inputs": [
       "wordList: your word list settings"
     ],
@@ -1556,13 +1573,15 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-digraph-spotter-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/digraph-spotter.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "upvotes": 0,
-    "desc": "Find consonant and vowel digraphs in a passage and see exactly where each one appears.",
+    "desc": "Find consonant, vowel, or all reviewed digraphs in a passage up to 3,000 characters, with exact source spans and optional explanations. Results can vary with pronunciation and dialect, so review context-sensitive cases before teaching from them.",
     "inputs": [
       "textInput: your text input settings",
       "digraphType: your digraph type settings",
@@ -1775,13 +1794,15 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-phoneme-counter-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/phoneme-counter.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "upvotes": 0,
-    "desc": "Estimate the phonemes in an English word, with an optional transcription and clear uncertainty notes.",
+    "desc": "Count the likely phonemes in one English word and see the sound segments, with optional IPA transcription. Choose US, UK, or Australian English and review alternate-pronunciation notes instead of treating one count as universal.",
     "inputs": [
       "wordInput: your word input settings",
       "showTranscription: your show transcription settings"
@@ -1869,13 +1890,15 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-phonics-rule-explainer-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/phonics-rule-explainer.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "upvotes": 0,
-    "desc": "Explain one English phonics pattern with level-appropriate examples, exceptions, and uncertainty notes.",
+    "desc": "Explain one reviewed English phonics pattern for an early reader, elementary learner, teacher, or parent, with 2–5 examples and an exceptions note. English spelling patterns are not always fixed across words or dialects, so review every example before teaching it.",
     "inputs": [
       "phonicsRule: your phonics rule settings",
       "targetAudience: your target audience settings",
@@ -2160,13 +2183,15 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-grapheme-to-phoneme-converter-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/grapheme-to-phoneme-converter.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "upvotes": 0,
-    "desc": "Map an English grapheme or word to likely phonemes for the dialect you choose.",
+    "desc": "Convert one English word or grapheme into a likely phoneme sequence, with optional IPA, a short mapping explanation, and example words. Select US, UK, or Australian English and review the uncertainty note because spelling-to-sound mappings depend on word and dialect.",
     "inputs": [
       "textInput: your text input settings",
       "includeRulesExplanation: your include rules explanation settings",
@@ -3344,7 +3369,7 @@ window.OMO_CATALOG = [
   },
   {
     "slug": "phonics-reading-error-coach",
-    "name": "Phonics Reading Error Coach",
+    "name": "Reading Error Coach",
     "emoji": "📖",
     "category": "reading",
     "marketCategory": "education",
@@ -3353,13 +3378,15 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-phonics-reading-error-coach-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/phonics-reading-error-coach.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "upvotes": 0,
-    "desc": "Compare an attempted word with its target and get a cautious phonics hypothesis plus practice ideas.",
+    "desc": "Compare one attempted word with its printed target and get a cautious phonics-confusion hypothesis plus up to two short practice ideas. This is a teacher-reviewable observation note, not an assessment or diagnosis, and one attempt cannot establish a learner profile.",
     "inputs": [
       "misreadWord: your misread word settings",
       "actualWord: your actual word settings",
@@ -3702,7 +3729,7 @@ window.OMO_CATALOG = [
   },
   {
     "slug": "story-idea-generator",
-    "name": "Story Idea Generator",
+    "name": "Student Story Idea Generator",
     "emoji": "🖊️",
     "category": "writing",
     "marketCategory": "education",
@@ -3711,13 +3738,15 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-story-idea-generator-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/story-idea-generator.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "upvotes": 0,
-    "desc": "Generate original, child-safe story ideas around the genre, setting, and cast you choose.",
+    "desc": "Make 1–10 original, child-safe story premises for ages 5–13 using a genre, setting, and cast size you choose. Each idea includes a short premise and writing hook; review suitability for your students and avoid treating generated fiction as fact.",
     "inputs": [
       "genre: your genre settings",
       "numCharacters: your num characters settings",
@@ -3799,7 +3828,7 @@ window.OMO_CATALOG = [
   },
   {
     "slug": "decodable-sentence-creator",
-    "name": "Decodable Sentence Creator",
+    "name": "Decodable Sentence Generator",
     "emoji": "🖊️",
     "category": "writing",
     "marketCategory": "education",
@@ -3808,13 +3837,15 @@ window.OMO_CATALOG = [
     "maker": "PhonicsMaker",
     "makerName": "PhonicsMaker",
     "cover": "covers/thumb-decodable-sentence-creator-v5.webp",
-    "priceLabel": "Coming soon",
-    "status": "coming-soon",
-    "statusLabel": "Coming soon",
-    "chargeable": false,
-    "active": false,
+    "priceLabel": "$0.10 per run",
+    "runPrice": 0.1,
+    "runManifest": "run-manifests/decodable-sentence-creator.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "upvotes": 0,
-    "desc": "Create child-safe sentences constrained by your target phonics patterns, length, dialect, and sight words.",
+    "desc": "Make 1–5 child-safe practice sentences for selected phonics patterns, with target words and sight or irregular words marked for lesson review. Choose sentence length and US, UK, or Australian English; a teacher still needs to check the learner’s taught code, dialect, and classroom context.",
     "inputs": [
       "phonicsPattern: your phonics pattern settings",
       "numSentences: your num sentences settings",
@@ -7273,6 +7304,45 @@ window.OMO_CATALOG = [
         "alt_text — one line per image",
         "notes — what you deliberately included/excluded"
       ]
+    },
+    {
+      "slug": "skill-md-to-hosted-workflow",
+      "name": "Skill.md to Hosted Workflow",
+      "emoji": "🛠️",
+      "category": "ops",
+      "marketCategory": "creative",
+      "subcategory": "developer-tools",
+      "promise": "Send a skill.md. Receive a tested, priced, hosted marketplace listing.",
+      "maker": "Omo",
+      "makerName": "Omo Studio",
+      "cover": "covers/thumb-skill-md-to-hosted-workflow-v5.webp",
+      "priceLabel": "$5.00 per run · In review",
+      "runPrice": 5,
+      "status": "in-review",
+      "statusLabel": "In review — live soon",
+      "chargeable": false,
+      "active": false,
+      "upvotes": 0,
+      "desc": "Submit the contents of one SKILL.md as hostile data. Omo validates it without executing it, then queues, builds, tests, prices, and prepares one hosted marketplace listing. The provider economics are sub-cent for typical builds; the $5.00 fee covers the bounded build service, validation, testing, hosting work, and a typed result. Omo's stated product bar is about 70% hosted success across a rolling submission set. Skills that require external accounts, unavailable media renderers, credentials, or unsupported infrastructure may return a typed blocker with the exact reason, evidence, and resume point.",
+      "inputs": [
+        "skill_md: required SKILL.md content, 1–20,000 characters; treated as data and never executed",
+        "display_name: optional listing name",
+        "category: optional marketplace category",
+        "price_guidance_usd: optional non-negative price guidance"
+      ],
+      "outputs": [
+        "status — queued, building, blocked, or live",
+        "listing_url and slug — the prepared listing identity; URL may be null before hosting",
+        "typed_blocker — nullable reason, evidence, and resume point",
+        "build_meta — builder version, provider cost, and tests passed"
+      ],
+      "tags": [
+        "skill-md",
+        "hosting",
+        "workflow-builder",
+        "developer-tools",
+        "marketplace"
+      ]
     }
   ]
 );
@@ -7282,7 +7352,17 @@ window.OMO_CATALOG = [
 window.OMO_VISIBLE_SLUGS = [
   'japanese-style-story-video',
   'woven-relationship-book-maker',
-  'customer-feedback-theme-finder'
+  'customer-feedback-theme-finder',
+  'facebook-ads-copywriter',
+  'decodable-sentence-creator',
+  'digraph-spotter',
+  'grapheme-to-phoneme-converter',
+  'phoneme-counter',
+  'phonics-list-generator',
+  'phonics-reading-error-coach',
+  'phonics-rule-explainer',
+  'story-idea-generator',
+  'syllable-splitter-and-counter'
 ];
 window.OMO_VISIBLE_CATALOG = window.OMO_CATALOG.filter(function (listing) {
   return listing && window.OMO_VISIBLE_SLUGS.indexOf(listing.slug) !== -1;

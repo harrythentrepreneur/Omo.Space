@@ -23,6 +23,10 @@
   ],
   "rewrites": [
     {
+      "source": "/workflows/:slug",
+      "destination": "/workflow.html?slug=:slug"
+    },
+    {
       "source": "/v1/runs",
       "destination": "/api/v1/runs.js"
     },

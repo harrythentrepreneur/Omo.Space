@@ -1,0 +1,478 @@
+{
+  "catalog": {
+    "category": "education",
+    "cover": null,
+    "demoCap": "Hosted run: structured teacher-reviewable result",
+    "desc": "Identify consonant or vowel digraphs in short English text with exact source spans and cautious explanations.",
+    "emoji": "🔎",
+    "exampleIn": "The chick sat by the green shed. · consonant · true",
+    "exampleOut": [
+      "Find digraphs and show exactly where they occur.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "text: reviewed bounded input",
+      "digraph_type: reviewed bounded input",
+      "include_explanations: reviewed bounded input",
+      "dialect: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "makerName": "PhonicsMaker",
+    "name": "Digraph Spotter",
+    "niche": "phonics",
+    "outputs": [
+      "occurrences: schema-validated result",
+      "summary: schema-validated result",
+      "warnings: schema-validated result"
+    ],
+    "priceMaintain": 3.0,
+    "priceOwn": 12.0,
+    "promise": "Find digraphs and show exactly where they occur.",
+    "runManifest": "run-manifests/digraph-spotter.json",
+    "runPrice": 0.1,
+    "slug": "digraph-spotter",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13",
+    "workflow": {
+      "steps": [
+        {
+          "max_output": 1200,
+          "model": "deepseek-v4-flash",
+          "role": "generate",
+          "system": "Identify only requested digraph types in the exact supplied text. Return zero-based start-inclusive/end-exclusive spans whose substring exactly matches text. Explain cautiously and return only JSON with occurrences, summary, and warnings.",
+          "type": "llm"
+        },
+        {
+          "label": "Analyzing the phonics brief",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": true,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "digraph-spotter",
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "dialect": "en-US",
+          "digraph_type": "consonant",
+          "include_explanations": true,
+          "text": "The chick sat by the green shed."
+        },
+        "output_preview": "Find digraphs and show exactly where they occur.",
+        "title": "Digraph Spotter"
+      }
+    ],
+    "input_schema": {
+      "$id": "https://omo.space/schemas/digraph-spotter/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "digraph_type": {
+          "enum": [
+            "all",
+            "consonant",
+            "vowel"
+          ]
+        },
+        "include_explanations": {
+          "type": "boolean"
+        },
+        "text": {
+          "maxLength": 3000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "digraph_type",
+        "include_explanations",
+        "dialect"
+      ],
+      "type": "object"
+    },
+    "input_schema_source": "containers/digraph-spotter/schemas/input.json",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "occurrences": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "end": {
+                "maximum": 3000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "explanation": {
+                "maxLength": 240,
+                "type": "string"
+              },
+              "start": {
+                "maximum": 3000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "text": {
+                "maxLength": 8,
+                "minLength": 2,
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "consonant",
+                  "vowel"
+                ]
+              },
+              "word": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "word",
+              "start",
+              "end",
+              "type",
+              "explanation"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "summary": {
+          "items": {
+            "maxLength": 20,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 40,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "workflow_version": {
+          "const": "digraph-spotter@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "occurrences",
+        "summary",
+        "warnings",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "output_schema_source": "containers/digraph-spotter/schemas/output.json",
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "digraph-spotter",
+    "ui": {
+      "fields": {
+        "dialect": {
+          "widget": "select"
+        },
+        "digraph_type": {
+          "widget": "select"
+        },
+        "include_explanations": {
+          "widget": "checkbox"
+        },
+        "text": {
+          "widget": "textarea"
+        }
+      },
+      "order": [
+        "text",
+        "digraph_type",
+        "include_explanations",
+        "dialect"
+      ]
+    }
+  },
+  "runtime": {
+    "container_slug": "digraph-spotter",
+    "default_endpoint": "https://omo-space--cognition-digraph-spotter-api.modal.run",
+    "endpoint_env": "DIGRAPH_SPOTTER_MODAL_URL",
+    "input_schema": {
+      "$id": "https://omo.space/schemas/digraph-spotter/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "digraph_type": {
+          "enum": [
+            "all",
+            "consonant",
+            "vowel"
+          ]
+        },
+        "include_explanations": {
+          "type": "boolean"
+        },
+        "text": {
+          "maxLength": 3000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "digraph_type",
+        "include_explanations",
+        "dialect"
+      ],
+      "type": "object"
+    },
+    "kind": "modal-hosted",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "occurrences": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "end": {
+                "maximum": 3000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "explanation": {
+                "maxLength": 240,
+                "type": "string"
+              },
+              "start": {
+                "maximum": 3000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "text": {
+                "maxLength": 8,
+                "minLength": 2,
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "consonant",
+                  "vowel"
+                ]
+              },
+              "word": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "word",
+              "start",
+              "end",
+              "type",
+              "explanation"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "summary": {
+          "items": {
+            "maxLength": 20,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 40,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "workflow_version": {
+          "const": "digraph-spotter@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "occurrences",
+        "summary",
+        "warnings",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "reviewed_source_sha256": "1a4df000a3a1308000352a2519a7a11c33ff11c6895319566b15a0984855171b",
+    "run_price_cents": 10,
+    "slug": "digraph-spotter"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "legacy_profile_defaults_to_modal",
+    "recommended": "modal-hosted",
+    "requested": "modal-hosted"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 12.0,
+    "max_tokens": 1200,
+    "model": "deepseek-v4-flash",
+    "name": "Digraph Spotter",
+    "run_price_usd": 0.1,
+    "slug": "digraph-spotter",
+    "system_prompt": "Identify only requested digraph types in the exact supplied text. Return zero-based start-inclusive/end-exclusive spans whose substring exactly matches text. Explain cautiously and return only JSON with occurrences, summary, and warnings."
+  }
+}

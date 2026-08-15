@@ -1,0 +1,1177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/">
+  <meta name="description" content="A 60-second explainer video script that gets the problem, the fix, and the CTA into one tight arc. This helper is coming soon and cannot run or charge yet.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://omo.space/workflows/explainer-script-writer/">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#F8F7F5">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/nav-footer.css">
+  <link rel="stylesheet" href="/mobile-polish.css">
+  <title>Explainer Script Writer | Omo</title>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "name": "Explainer Script Writer",
+  "description": "Explainer videos die in the middle. This script forces the classic arc — open the wound, introduce the fix, prove it, close — in under 150 words of voiceover.",
+  "url": "https://omo.space/workflows/explainer-script-writer/",
+  "image": "https://omo.space/covers/thumb-explainer-script-writer-v5.webp",
+  "brand": {
+    "@type": "Brand",
+    "name": "Omo"
+  },
+  "category": "content",
+  "additionalProperty": [
+    {
+      "@type": "PropertyValue",
+      "name": "Input",
+      "value": "product: what it does; problem: what it fixes; audience: who it\\u2019s for"
+    },
+    {
+      "@type": "PropertyValue",
+      "name": "Output",
+      "value": "script — voiceover lines with visual notes; arc_check — where each beat lands"
+    },
+    {
+      "@type": "PropertyValue",
+      "name": "Availability status",
+      "value": "Coming soon"
+    }
+  ]
+}
+  </script>
+  <style>
+    :root {
+      --canvas: #F8F7F5;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #66756E;
+      --rule: #DCE3DE;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { overflow-x: clip; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: clip;
+      background: var(--canvas);
+      color: var(--pine);
+      font: 400 16px/1.65 var(--body);
+      text-rendering: optimizeLegibility;
+    }
+    body, button { font-family: var(--body); }
+    img, svg { display: block; max-width: 100%; }
+    button { cursor: pointer; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    a { color: inherit; }
+    h1, h2, p { margin-top: 0; overflow-wrap: break-word; }
+    :where(a, button):focus-visible {
+      outline: 3px solid var(--mint);
+      outline-offset: 3px;
+    }
+    [hidden] { display: none !important; }
+
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 100;
+      padding: 9px 13px;
+      border-radius: 8px;
+      background: var(--surface);
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+    .sig-cut { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%); }
+
+    .site-header {
+      border-bottom: 1px solid var(--rule);
+      background: rgba(248, 247, 245, .96);
+    }
+    .nav-row {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .wordmark {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      text-decoration: none;
+    }
+    .wordmark-logo { width: auto; height: 32px; }
+    .nav-actions {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 18px;
+    }
+    .nav-link {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      color: var(--moss);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .nav-link:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 4px; }
+    .login-link {
+      padding: 0 16px;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--pine);
+    }
+
+    .page { padding: 32px 0 80px; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2.75fr) minmax(280px, 1fr);
+      align-items: start;
+      gap: 32px;
+      max-width: none;
+      margin-inline: auto;
+    }
+    .story,
+    .offer-card,
+    .not-found {
+      min-width: 0;
+      border: 1px solid var(--rule);
+      background: var(--surface);
+    }
+    .story {
+      overflow: hidden;
+      border-radius: 14px 14px 5px 14px;
+    }
+    .story-header { padding: 34px 36px 26px; }
+    .listing-title {
+      margin-bottom: 12px;
+      font-family: var(--display);
+      font-size: clamp(34px, 5vw, 46px);
+      font-weight: 600;
+      letter-spacing: -.025em;
+      line-height: 1.08;
+      text-wrap: balance;
+    }
+    .listing-promise {
+      max-width: 700px;
+      margin-bottom: 12px;
+      color: #365349;
+      font-size: 18px;
+      line-height: 1.55;
+      text-wrap: pretty;
+    }
+    .media-gallery {
+      width: calc(100% - 72px);
+      margin: 0 36px;
+    }
+    .media-shell {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border: 1px solid var(--rule);
+      border-radius: 11px 11px 4px 11px;
+      background: #EEF3EF;
+      box-shadow: 0 8px 24px rgba(23, 53, 44, .06);
+      isolation: isolate;
+    }
+    .media-slide {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transform: scale(.995);
+      transition: opacity .28s ease, transform .28s ease;
+      pointer-events: none;
+    }
+    .media-slide.is-active {
+      z-index: 1;
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+    }
+    .media-poster,
+    .media-fallback {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+      background: var(--mint);
+      color: #fff;
+    }
+    .media-poster img,
+    .media-fallback img { width: 100%; height: 100%; object-fit: cover; }
+    .media-poster::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 45%, rgba(23, 53, 44, .5));
+    }
+    .media-emoji {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--mint), #F4EEE5);
+      color: var(--pine);
+      font-size: 64px;
+    }
+    .play-button {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 2;
+      width: 70px;
+      height: 70px;
+      display: grid;
+      place-items: center;
+      border: 2px solid rgba(255, 255, 255, .9);
+      border-radius: 50%;
+      background: var(--orange);
+      box-shadow: 0 10px 28px rgba(23, 53, 44, .28);
+      color: var(--pine);
+      font-size: 23px;
+      line-height: 1;
+      transform: translate(-50%, -50%);
+    }
+    .watch-label {
+      position: absolute;
+      left: 16px;
+      bottom: 13px;
+      z-index: 2;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .reel-frame { width: 100%; height: 100%; border: 0; background: #fff; }
+    .media-embed-html {
+      overflow: auto;
+      background: #fff;
+    }
+    .media-embed-html .instagram-media { margin: 0 auto !important; }
+    .media-nav {
+      position: absolute;
+      top: 50%;
+      z-index: 3;
+      width: 50px;
+      height: 50px;
+      display: grid;
+      place-items: center;
+      padding: 0 0 3px;
+      border: 2px solid rgba(255, 255, 255, .86);
+      border-radius: 50%;
+      background: rgba(23, 53, 44, .76);
+      box-shadow: 0 5px 18px rgba(23, 53, 44, .26);
+      color: #fff;
+      font: 500 36px/1 var(--body);
+      transform: translateY(-50%);
+      transition: background .15s ease, transform .15s ease;
+    }
+    .media-nav:hover { background: var(--pine); transform: translateY(-50%) scale(1.04); }
+    .media-prev { left: 16px; }
+    .media-next { right: 16px; }
+    .media-dots {
+      position: absolute;
+      left: 50%;
+      bottom: 12px;
+      z-index: 3;
+      display: flex;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(23, 53, 44, .48);
+      transform: translateX(-50%);
+    }
+    .media-dot {
+      width: 9px;
+      height: 9px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .52);
+      transition: background .15s ease, transform .15s ease;
+    }
+    .media-dot.is-active { background: #fff; transform: scale(1.22); }
+    .media-thumbnails {
+      --thumbnail-count: 1;
+      display: grid;
+      grid-template-columns: repeat(var(--thumbnail-count), minmax(92px, 1fr));
+      gap: 10px;
+      width: 100%;
+      margin-top: 12px;
+      padding: 4px;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      scroll-padding-inline: 4px;
+      scrollbar-width: thin;
+    }
+    .media-thumbnails.is-single { grid-template-columns: 112px; }
+    .media-thumbnail {
+      position: relative;
+      width: auto;
+      min-width: 92px;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      padding: 0;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: var(--mint);
+      box-shadow: 0 2px 8px rgba(23, 53, 44, .06);
+      opacity: .72;
+      transition: border-color .15s ease, box-shadow .15s ease, opacity .15s ease;
+    }
+    .media-thumbnail:hover { opacity: 1; }
+    .media-thumbnail.is-active {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--orange);
+      opacity: 1;
+    }
+    .media-thumbnails.is-single .media-thumbnail {
+      border-color: #BFCBC4;
+      box-shadow: none;
+      cursor: default;
+      opacity: .72;
+    }
+    .media-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
+    .media-thumbnail .media-emoji { font-size: 23px; }
+    .thumbnail-play {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(23, 53, 44, .22);
+      color: #fff;
+      font-size: 17px;
+      text-shadow: 0 1px 5px rgba(23, 53, 44, .45);
+    }
+    .quiet-line {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 14px 2px 0;
+      color: var(--moss);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .metadata-item { display: inline-flex; align-items: center; }
+    .metadata-item:first-child { color: #365349; font-weight: 500; }
+    .metadata-item:not(:last-child)::after {
+      content: "\00b7";
+      margin-inline: 8px;
+      color: #A7B2AC;
+      font-weight: 400;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .story-copy { padding: 16px 36px 54px; }
+    .intro {
+      max-width: 720px;
+      margin: 24px 0 34px;
+      font-size: 17px;
+      line-height: 1.72;
+      text-wrap: pretty;
+    }
+    .copy-section {
+      max-width: 720px;
+      margin: 0;
+      padding: 28px 0 30px;
+      border-top: 1px solid var(--rule);
+    }
+    .copy-section h2 {
+      margin-bottom: 17px;
+      font-family: var(--display);
+      font-size: 29px;
+      font-weight: 600;
+      letter-spacing: -.01em;
+      line-height: 1.2;
+    }
+    .plain-list {
+      display: grid;
+      gap: 11px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .plain-list li {
+      position: relative;
+      margin: 0;
+      padding-left: 34px;
+      line-height: 1.58;
+    }
+    .plain-list li::before {
+      content: "\2713";
+      position: absolute;
+      top: .18em;
+      left: 0;
+      width: 21px;
+      height: 21px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--mint);
+      color: var(--pine);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .closing-copy {
+      max-width: 720px;
+      margin: 12px 0 0;
+      padding: 20px 22px;
+      border-left: 3px solid var(--orange);
+      border-radius: 0 8px 8px 0;
+      background: #F2F6F1;
+      color: #365349;
+      line-height: 1.65;
+      text-wrap: pretty;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 20px;
+      min-width: 0;
+    }
+    .offer-card {
+      padding: 13px;
+      border-radius: 14px 14px 5px 14px;
+      box-shadow: 0 10px 28px rgba(23, 53, 44, .05);
+    }
+    .offer-cover {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 9px;
+      background: var(--mint);
+    }
+    .offer-cover img { width: 100%; height: 100%; object-fit: cover; }
+    .offer-cover .media-emoji { font-size: 46px; }
+    .offer-body { padding: 20px 9px 8px; }
+    .offer-title {
+      margin-bottom: 8px;
+      font-family: var(--display);
+      font-size: 23px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .offer-desc {
+      margin-bottom: 18px;
+      color: var(--moss);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+    .offer-actions {
+      display: grid;
+      gap: 13px;
+      padding-top: 18px;
+      border-top: 1px solid var(--rule);
+    }
+    .offer-choice { position: relative; }
+    .button {
+      min-height: 50px;
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      font: 700 14px/1.25 var(--body);
+      text-align: center;
+      text-decoration: none;
+    }
+    .button:disabled { cursor: wait; opacity: .66; }
+    .button-buy { background: var(--orange); color: var(--pine); }
+    .button-run { border-color: var(--pine); background: var(--surface); color: var(--pine); }
+    .button:hover:not(:disabled) { filter: brightness(.98); transform: translateY(-1px); }
+    .offer-choice .button { padding-inline: 36px; }
+    .offer-info {
+      position: absolute;
+      top: 50%;
+      right: 7px;
+      z-index: 2;
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: inherit;
+      transform: translateY(-50%);
+      cursor: help;
+    }
+    .offer-info-mark {
+      width: 17px;
+      height: 17px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(23, 53, 44, .48);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .18);
+      font: 700 11px/1 var(--body);
+    }
+    .offer-choice-run .offer-info-mark { background: rgba(23, 53, 44, .06); }
+    .offer-tooltip {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 9px);
+      z-index: 4;
+      width: max-content;
+      max-width: min(240px, calc(100vw - 48px));
+      padding: 8px 10px;
+      border-radius: 7px;
+      background: var(--pine);
+      box-shadow: 0 6px 18px rgba(23, 53, 44, .2);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.45;
+      text-align: left;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(3px);
+      transition: opacity .15s ease, transform .15s ease, visibility .15s ease;
+      pointer-events: none;
+    }
+    .offer-tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      right: 15px;
+      border: 5px solid transparent;
+      border-top-color: var(--pine);
+    }
+    .offer-info:hover + .offer-tooltip,
+    .offer-info:focus-visible + .offer-tooltip,
+    .offer-info[aria-expanded="true"] + .offer-tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .offer-note {
+      margin: 8px 0 0;
+      color: var(--moss);
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: center;
+    }
+    .offer-powered {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 10px 0 0;
+      color: var(--moss);
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: center;
+    }
+    .offer-logo {
+      width: auto;
+      height: 22px;
+    }
+
+    .not-found {
+      max-width: 660px;
+      margin: 48px auto;
+      padding: 48px 42px;
+      border-radius: 14px 14px 5px 14px;
+      text-align: center;
+    }
+    .not-found-emoji { margin-bottom: 10px; font-size: 40px; }
+    .not-found h1 {
+      margin-bottom: 9px;
+      font-family: var(--display);
+      font-size: clamp(32px, 7vw, 44px);
+      font-weight: 600;
+      line-height: 1.1;
+    }
+    .not-found p { max-width: 490px; margin: 0 auto 22px; color: var(--moss); }
+    .not-found .button { width: auto; min-width: 210px; background: var(--orange); color: var(--pine); }
+
+    @media (max-width: 820px) {
+      .layout { grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; }
+    }
+    @media (max-width: 720px) {
+      .shell { width: min(var(--shell), calc(100% - 28px)); }
+      .page { padding-top: 20px; }
+      .layout { display: flex; flex-direction: column; }
+      .story, .sidebar, .offer-card { width: 100%; }
+      .sidebar { position: static; }
+    }
+    @media (max-width: 520px) {
+      .shell { width: calc(100% - 24px); }
+      .nav-row { gap: 10px; }
+      .wordmark-logo { height: 28px; }
+      .nav-actions { gap: 10px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-inline: contain; }
+      .nav-actions::-webkit-scrollbar { display: none; }
+      .nav-actions > * { flex: 0 0 auto; }
+      .nav-link { font-size: 12px; }
+      .login-link { padding-inline: 11px; }
+      .page { padding-bottom: 48px; }
+      .story-header { padding: 28px 20px 22px; }
+      .listing-title { font-size: clamp(32px, 10vw, 40px); }
+      .listing-promise { font-size: 16px; }
+      .media-gallery { width: calc(100% - 40px); margin-inline: 20px; }
+      .media-nav { width: 40px; height: 40px; font-size: 29px; }
+      .media-prev { left: 9px; }
+      .media-next { right: 9px; }
+      .media-thumbnails {
+        grid-template-columns: repeat(var(--thumbnail-count), minmax(64px, 1fr));
+        gap: 8px;
+      }
+      .media-thumbnails.is-single { grid-template-columns: 96px; }
+      .media-thumbnail { min-width: 64px; }
+      .play-button { width: 56px; height: 56px; font-size: 20px; }
+      .quiet-line { margin-top: 12px; font-size: 13px; }
+      .story-copy { padding: 14px 20px 38px; }
+      .intro { margin: 20px 0 28px; font-size: 16px; }
+      .copy-section { padding: 25px 0 27px; }
+      .copy-section h2 { margin-bottom: 15px; font-size: 25px; }
+      .plain-list { gap: 10px; }
+      .plain-list li { padding-left: 31px; }
+      .closing-copy { margin-top: 8px; padding: 18px; }
+      .not-found { margin: 28px auto; padding: 38px 20px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+  <script defer src="/signup-modal.js"></script>
+  <script defer src="/nav.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header omo-site-header">
+    <div class="shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="omo-nav-workflow-identity" href="/workflows/explainer-script-writer/" aria-label="Explainer Script Writer workflow listing"><span class="omo-nav-context-thumb" aria-hidden="true"><img src="/covers/thumb-explainer-script-writer-v5.webp" alt=""></span><span class="omo-nav-context-name">Explainer Script Writer</span></a>
+        <div class="omo-nav-menu"><button class="omo-nav-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true"><span class="omo-nav-chevron" aria-hidden="true">▾</span></button><nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden><a href="/">Discover</a><a href="/sell">Sell Workflow</a></nav></div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="/signup.html">Log in</a>
+    </div>
+  </header>
+  <main class="page" id="main">
+    <div class="shell">
+      <div class="layout" id="workflow-layout">
+        <article class="story sig-cut" aria-labelledby="listing-title">
+          <header class="story-header"><h1 class="listing-title" id="listing-title">Explainer Script Writer</h1><p class="listing-promise" id="listing-promise">A 60-second explainer video script that gets the problem, the fix, and the CTA into one tight arc.</p></header>
+          <div class="media-gallery">
+            <div class="media-shell sig-cut" id="hero-media" role="region" aria-roledescription="carousel" aria-label="Explainer Script Writer media" tabindex="0"><div class="media-slide is-active" id="media-slide-0" data-slide-index="0" role="group" aria-roledescription="slide" aria-label="1 of 1: Cover" aria-hidden="false"><div class="media-fallback"><img src="/covers/thumb-explainer-script-writer-v5.webp" alt="Explainer Script Writer cover"></div></div><span class="sr-only" id="media-status" aria-live="polite">Slide 1 of 1</span></div>
+            <div class="media-thumbnails is-single" id="media-thumbnails" role="tablist" aria-label="Choose a slide" style="--thumbnail-count:1"><button class="media-thumbnail is-active" type="button" data-thumbnail-index="0" role="tab" aria-controls="media-slide-0" aria-label="Show cover" aria-selected="true" aria-current="true" tabindex="0"><img src="/covers/thumb-explainer-script-writer-v5.webp" alt=""></button></div>
+            <p class="quiet-line" id="quiet-line"><span class="metadata-item">by Sage Whitfield</span><span class="metadata-item">0 upvotes</span><span class="metadata-item">Content</span></p>
+          </div>
+          <div class="story-copy">
+            <p class="intro" id="listing-intro">Explainer videos die in the middle. This script forces the classic arc — open the wound, introduce the fix, prove it, close — in under 150 words of voiceover.</p>
+            <section class="copy-section" aria-labelledby="inside-title"><h2 id="inside-title">What’s inside</h2><ol class="plain-list" id="steps-list"><li>Complete hosting, review, and safety checks before activation</li></ol></section>
+            <section class="copy-section" aria-labelledby="inputs-title"><h2 id="inputs-title">What you’ll bring</h2><ul class="plain-list" id="inputs-list"><li>product: what it does</li><li>problem: what it fixes</li><li>audience: who it\u2019s for</li></ul></section>
+            <section class="copy-section" aria-labelledby="outputs-title"><h2 id="outputs-title">What you’ll get</h2><ul class="plain-list" id="outputs-list"><li>script — voiceover lines with visual notes</li><li>arc_check — where each beat lands</li></ul></section>
+            <section class="copy-section" aria-labelledby="perfect-title"><h2 id="perfect-title">Perfect for</h2><ul class="plain-list" id="perfect-list"><li>Content creators</li></ul></section>
+            <p class="closing-copy" id="closing-copy">This helper is being prepared for hosting and review. It cannot run or charge yet.</p>
+          </div>
+        </article>
+        <aside class="sidebar" aria-label="Workflow offer">
+          <div class="offer-card sig-cut">
+            <div class="offer-cover" id="offer-cover"><img src="/covers/thumb-explainer-script-writer-v5.webp" alt="Explainer Script Writer cover"></div>
+            <div class="offer-body">
+              <h2 class="offer-title" id="offer-title">Explainer Script Writer</h2>
+              <p class="offer-desc" id="offer-desc">A 60-second explainer video script that gets the problem, the fix, and the CTA into one tight arc.</p>
+                <div class="offer-actions" hidden>
+                  <div class="offer-choice offer-choice-buy">
+                    <button class="button button-buy" id="buy-button" type="button" aria-label="Coming soon. Workflow + prompts. Run them on your computer.">Coming soon</button>
+                    <button class="offer-info" id="buy-info" type="button" aria-label="About Download Skill.md: Workflow + prompts. Run them on your computer." aria-controls="buy-tooltip" aria-expanded="false"><span class="offer-info-mark" aria-hidden="true">i</span></button>
+                    <span class="offer-tooltip" id="buy-tooltip" role="tooltip">Workflow + prompts. Run them on your computer.</span>
+                  </div>
+                  <div class="offer-choice offer-choice-run">
+                    <button class="button button-run" id="run-button" type="button" aria-label="Coming soon. Per run. Omo handles the setup and sends back the finished result.">Coming soon</button>
+                    <button class="offer-info" id="run-info" type="button" aria-label="About Run it for me: Per run. Omo handles the setup and sends back the finished result." aria-controls="run-tooltip" aria-expanded="false"><span class="offer-info-mark" aria-hidden="true">i</span></button>
+                    <span class="offer-tooltip" id="run-tooltip" role="tooltip">Per run. Omo handles the setup and sends back the finished result.</span>
+                  </div>
+                </div>
+            </div>
+          </div>
+          <div class="offer-powered"><span>Powered by</span><img class="offer-logo" src="/logo-sweet-pastel.svg" alt="" width="128" height="40"></div>
+          <p class="offer-note" id="offer-note" role="status" aria-live="polite">Coming soon — this helper cannot run or charge yet.</p>
+        </aside>
+      </div>
+    </div>
+  </main>
+  <footer class="omo-footer">
+    <div class="shell footer-row"><p>Omo — useful AI helpers, ready to run.</p><nav class="omo-footer-links" aria-label="Footer"><a href="/about">About</a><a href="/sell">Sell yours</a><a href="/creators">For creators</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a></nav></div>
+  </footer>
+  <script src="/catalog.js"></script>
+  <script src="/key-config.js"></script>
+  <script src="/clerk.js"></script>
+  <script src="/stripe.js"></script>
+  <script>
+(function () {
+      'use strict';
+
+      function el(id) { return document.getElementById(id); }
+      function esc(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+      function titleCase(value) {
+        return String(value || '')
+          .replace(/[_-]+/g, ' ')
+          .replace(/\b\w/g, function (character) { return character.toUpperCase(); });
+      }
+      function formatPrice(value) {
+        var price = Number(value);
+        if (!isFinite(price)) return '$0';
+        return '$' + (Math.round(price * 100) % 100 === 0 ? price.toFixed(0) : price.toFixed(2).replace(/0$/, ''));
+      }
+      function formatRunPrice(value) {
+        var price = Number(value);
+        return '$' + (isFinite(price) ? price : 0).toFixed(2);
+      }
+      function apiUrl(path) {
+        return (window.OMO_API_BASE || '').replace(/\/+$/, '') + path;
+      }
+
+      var products = {};
+      var catalog = window.OMO_CATALOG || [];
+      for (var itemIndex = 0; itemIndex < catalog.length; itemIndex++) {
+        var item = catalog[itemIndex];
+        if (item && item.slug && !products[item.slug]) products[item.slug] = item;
+      }
+
+      var slug = '';
+      try { slug = (new URLSearchParams(window.location.search || '').get('slug') || '').trim(); } catch (error) {}
+      if (!slug) {
+        try {
+          var cleanPathMatch = window.location.pathname.match(/^\/workflows\/([a-z0-9][a-z0-9-]*)\/?$/);
+          if (cleanPathMatch) slug = decodeURIComponent(cleanPathMatch[1]);
+        } catch (error) {}
+      }
+      var listing = products[slug] || null;
+      if (!listing) {
+        el('not-found').hidden = false;
+        document.title = 'Workflow not found | Omo';
+        return;
+      }
+      var comingSoon = listing.status === 'coming-soon' || listing.chargeable === false || listing.active === false;
+
+      function signedIn() {
+        return !!(window.ClerkAuth &&
+          typeof window.ClerkAuth.isSignedIn === 'function' &&
+          window.ClerkAuth.isSignedIn());
+      }
+      function currentUser() {
+        return window.ClerkAuth && typeof window.ClerkAuth.getUser === 'function'
+          ? window.ClerkAuth.getUser()
+          : null;
+      }
+      function coverHTML(alt) {
+        var source = listing.cover || listing.icon || '';
+        return source
+          ? '<img src="' + esc(source) + '" alt="' + esc(alt || '') + '">'
+          : '<span class="media-emoji" aria-hidden="true">' + esc(listing.emoji || '✦') + '</span>';
+      }
+      function workflowStepLabel(step, index) {
+        if (step && step.label) return step.label;
+        if (step && step.type === 'llm') {
+          return 'Shape the ' + titleCase(step.role || 'result').toLowerCase() +
+            (step.model ? ' with ' + titleCase(step.model) : '');
+        }
+        if (step && step.type === 'api') {
+          var apiLabels = {
+            replicate_run: 'Generate the visual assets',
+            modal_gpu_30s: 'Render the final media',
+            heygen_avatar_render: 'Render the on-camera avatar',
+            heygen_voiceover: 'Add the finished voiceover',
+            openai_image: 'Create the supporting images',
+            elevenlabs_tts: 'Generate the voice track',
+            e2b_sandbox: 'Package the result in a clean workspace'
+          };
+          return apiLabels[step.api] || titleCase(step.api || 'service step');
+        }
+        if (step && step.role) return titleCase(step.role);
+        return 'Complete workflow step ' + (index + 1);
+      }
+      function perfectFor() {
+        var results = [];
+        var tags = listing.tags || [];
+        for (var index = 0; index < tags.length && results.length < 3; index++) {
+          var tag = titleCase(tags[index]);
+          if (tag && results.indexOf(tag) === -1) results.push(tag);
+        }
+        var haystack = [listing.name, listing.promise, listing.desc].join(' ').toLowerCase();
+        var inferred = [];
+        if (/ugc|ad|creative|commercial/.test(haystack)) inferred.push('Ecommerce creative teams', 'Performance marketers');
+        if (/shopify|product page|storefront/.test(haystack)) inferred.push('Shopify operators');
+        if (/seo|discover|recommend/.test(haystack)) inferred.push('Growth and SEO teams');
+        if (/video|reel|animation/.test(haystack)) inferred.push('Content creators');
+        if (/relationship|book|story/.test(haystack)) inferred.push('Thoughtful gift makers');
+        if (!inferred.length) inferred.push('Small teams', 'Solo operators');
+        for (var inferredIndex = 0; inferredIndex < inferred.length && results.length < 5; inferredIndex++) {
+          if (results.indexOf(inferred[inferredIndex]) === -1) results.push(inferred[inferredIndex]);
+        }
+        return results;
+      }
+      function renderList(id, items, formatter) {
+        el(id).innerHTML = items.map(function (item, index) {
+          return '<li>' + esc(formatter ? formatter(item, index) : item) + '</li>';
+        }).join('');
+      }
+      function setOfferNote(message) {
+        el('offer-note').textContent = message || '';
+      }
+      function addOpenParam() {
+        try {
+          var url = new URL(window.location.href);
+          url.searchParams.set('open', listing.slug);
+          window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+        } catch (error) {}
+      }
+
+      var ownPrice = comingSoon ? 'Coming soon' : formatPrice(listing.priceOwn);
+      var perRun = comingSoon ? 'Coming soon' : formatRunPrice(listing.runPrice != null ? listing.runPrice : listing.priceRun);
+      var workflowSteps = listing.workflow && Array.isArray(listing.workflow.steps)
+        ? listing.workflow.steps
+        : [];
+      var maker = listing.makerName || listing.maker || 'Independent maker';
+
+      document.title = listing.name + ' | Omo';
+      var metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) {
+        metaDescription.setAttribute('content', (listing.promise || 'Explore this Omo workflow.') +
+          (comingSoon ? ' This helper is coming soon and cannot run or charge yet.' : ' Download the workflow + prompts, or have Omo run it in the cloud per run.'));
+      }
+      el('listing-title').textContent = listing.name;
+      el('listing-promise').textContent = listing.promise;
+      var infoParts = ['by ' + maker, String(listing.upvotes || 0) + ' upvotes'];
+      if (listing.category) infoParts.push(titleCase(listing.category));
+      if (listing.version) {
+        var versionLabel = String(listing.version).split('·')[0].trim();
+        infoParts.push(/^v/i.test(versionLabel) ? versionLabel : 'v' + versionLabel);
+      }
+      el('quiet-line').innerHTML = infoParts.map(function (part) {
+        return '<span class="metadata-item">' + esc(part) + '</span>';
+      }).join('');
+      el('listing-intro').textContent = listing.desc || listing.promise;
+
+      function imageSource(candidate) {
+        if (typeof candidate === 'string') return candidate;
+        if (!candidate || typeof candidate !== 'object') return '';
+        if (/video|reel|embed/i.test(String(candidate.type || candidate.kind || ''))) return '';
+        return candidate.url || candidate.src || candidate.image || candidate.imageUrl || candidate.path || '';
+      }
+      function mediaAssets() {
+        var assets = [];
+        var imageUrls = {};
+        var hasCreatorReel = !!(listing.embedHtml || listing.embed || listing.reelUrl);
+        function addImage(candidate, label) {
+          if (Array.isArray(candidate)) {
+            for (var arrayIndex = 0; arrayIndex < candidate.length; arrayIndex++) {
+              addImage(candidate[arrayIndex], label + ' ' + (arrayIndex + 1));
+            }
+            return;
+          }
+          var source = imageSource(candidate);
+          if (source) {
+            if (!imageUrls[source]) {
+              imageUrls[source] = true;
+              assets.push({ type: 'image', src: source, label: label });
+            }
+            return;
+          }
+          if (candidate && typeof candidate === 'object') {
+            for (var objectKey in candidate) {
+              if (Object.prototype.hasOwnProperty.call(candidate, objectKey)) {
+                addImage(candidate[objectKey], titleCase(objectKey));
+              }
+            }
+          }
+        }
+        if (hasCreatorReel) {
+          var posterSource = imageSource(listing.cover);
+          if (posterSource) imageUrls[posterSource] = true;
+          assets.push({ type: 'video', src: posterSource, label: 'Creator reel' });
+        } else {
+          addImage(listing.cover, 'Cover');
+        }
+        if (listing.icon && /[/.]/.test(String(listing.icon))) addImage(listing.icon, 'Artwork');
+        var collectionKeys = ['media', 'gallery', 'images', 'frames', 'art', 'assets'];
+        for (var keyIndex = 0; keyIndex < collectionKeys.length; keyIndex++) {
+          var key = collectionKeys[keyIndex];
+          if (listing[key]) addImage(listing[key], titleCase(key));
+        }
+        if (!assets.length) assets.push({ type: 'image', src: '', label: 'Artwork' });
+        return assets;
+      }
+      function assetImageHTML(asset, alt) {
+        return asset && asset.src
+          ? '<img src="' + esc(asset.src) + '" alt="' + esc(alt || '') + '">'
+          : '<span class="media-emoji" aria-hidden="true">' + esc(listing.emoji || '✦') + '</span>';
+      }
+
+      var slides = mediaAssets();
+      var currentSlide = 0;
+      var heroMedia = el('hero-media');
+      var thumbnailRow = el('media-thumbnails');
+      heroMedia.setAttribute('aria-label', listing.name + ' media');
+      heroMedia.innerHTML = slides.map(function (asset, index) {
+        var activeClass = index === 0 ? ' is-active' : '';
+        var hidden = index === 0 ? 'false' : 'true';
+        var slideAttributes = ' id="media-slide-' + index + '" data-slide-index="' + index +
+          '" role="group" aria-roledescription="slide" aria-label="' + (index + 1) + ' of ' + slides.length +
+          ': ' + esc(asset.label) + '" aria-hidden="' + hidden + '"';
+        if (asset.type === 'video') {
+          return '<div class="media-slide' + activeClass + '"' + slideAttributes + '>' +
+            '<button class="media-poster" type="button" data-play-index="' + index + '" aria-label="Play the creator reel">' +
+            assetImageHTML(asset, '') +
+            '<span class="play-button" aria-hidden="true">▶</span>' +
+            '<span class="watch-label">Watch the creator’s reel</span></button></div>';
+        }
+        return '<div class="media-slide' + activeClass + '"' + slideAttributes + '>' +
+          '<div class="media-fallback">' + assetImageHTML(asset, listing.name + ' ' + asset.label.toLowerCase()) + '</div></div>';
+      }).join('') +
+        (slides.length > 1
+          ? '<button class="media-nav media-prev" type="button" aria-label="Previous slide">‹</button>' +
+            '<button class="media-nav media-next" type="button" aria-label="Next slide">›</button>' +
+            '<div class="media-dots" aria-label="Choose a slide">' + slides.map(function (asset, index) {
+              return '<button class="media-dot' + (index === 0 ? ' is-active' : '') + '" type="button" data-dot-index="' + index +
+                '" aria-label="Go to slide ' + (index + 1) + '" aria-current="' + (index === 0 ? 'true' : 'false') + '"></button>';
+            }).join('') + '</div>'
+          : '') +
+        '<span class="sr-only" id="media-status" aria-live="polite"></span>';
+
+      thumbnailRow.style.setProperty('--thumbnail-count', String(slides.length));
+      thumbnailRow.classList.toggle('is-single', slides.length === 1);
+      thumbnailRow.innerHTML = slides.map(function (asset, index) {
+        var thumbnailAsset = asset.type === 'video'
+          ? { src: asset.src || '', label: asset.label }
+          : asset;
+        return '<button class="media-thumbnail' + (index === 0 ? ' is-active' : '') + '" type="button" data-thumbnail-index="' + index +
+          '" role="tab" aria-controls="media-slide-' + index + '" aria-label="Show ' + esc(asset.label.toLowerCase()) +
+          '" aria-selected="' + (index === 0 ? 'true' : 'false') + '" aria-current="' + (index === 0 ? 'true' : 'false') +
+          '" tabindex="' + (index === 0 ? '0' : '-1') + '">' +
+          assetImageHTML(thumbnailAsset, '') +
+          (asset.type === 'video' ? '<span class="thumbnail-play" aria-hidden="true">▶</span>' : '') + '</button>';
+      }).join('');
+      el('media-status').textContent = 'Slide 1 of ' + slides.length;
+
+      function showSlide(nextIndex) {
+        var normalizedIndex = (nextIndex + slides.length) % slides.length;
+        var slideElements = heroMedia.querySelectorAll('.media-slide');
+        var dotElements = heroMedia.querySelectorAll('.media-dot');
+        var thumbnailElements = thumbnailRow.querySelectorAll('.media-thumbnail');
+        for (var slideIndex = 0; slideIndex < slideElements.length; slideIndex++) {
+          var isActive = slideIndex === normalizedIndex;
+          slideElements[slideIndex].classList.toggle('is-active', isActive);
+          slideElements[slideIndex].setAttribute('aria-hidden', isActive ? 'false' : 'true');
+          if (dotElements[slideIndex]) {
+            dotElements[slideIndex].classList.toggle('is-active', isActive);
+            dotElements[slideIndex].setAttribute('aria-current', isActive ? 'true' : 'false');
+          }
+          if (thumbnailElements[slideIndex]) {
+            thumbnailElements[slideIndex].classList.toggle('is-active', isActive);
+            thumbnailElements[slideIndex].setAttribute('aria-current', isActive ? 'true' : 'false');
+            thumbnailElements[slideIndex].setAttribute('aria-selected', isActive ? 'true' : 'false');
+            thumbnailElements[slideIndex].setAttribute('tabindex', isActive ? '0' : '-1');
+          }
+        }
+        currentSlide = normalizedIndex;
+        el('media-status').textContent = 'Slide ' + (currentSlide + 1) + ' of ' + slides.length;
+        if (thumbnailElements[currentSlide]) {
+          thumbnailElements[currentSlide].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        }
+      }
+      function loadCreatorReel(index) {
+        var slideElement = heroMedia.querySelector('[data-slide-index="' + index + '"]');
+        if (!slideElement) return;
+        if (listing.embed) {
+          slideElement.innerHTML = '<iframe class="reel-frame" src="' + esc(listing.embed) +
+            '" title="Creator reel for ' + esc(listing.name) +
+            '" allow="autoplay; fullscreen; encrypted-media" allowfullscreen loading="eager"></iframe>';
+          return;
+        }
+        if (listing.embedHtml) {
+          slideElement.classList.add('media-embed-html');
+          slideElement.innerHTML = String(listing.embedHtml).replace(/<script[\s\S]*?<\/script>/gi, '');
+          if (window.instgrm && window.instgrm.Embeds) {
+            window.instgrm.Embeds.process();
+          } else if (!document.querySelector('script[data-omo-instagram]')) {
+            var instagramScript = document.createElement('script');
+            instagramScript.async = true;
+            instagramScript.src = 'https://www.instagram.com/embed.js';
+            instagramScript.setAttribute('data-omo-instagram', '');
+            document.body.appendChild(instagramScript);
+          }
+          return;
+        }
+        if (listing.reelUrl) window.open(listing.reelUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      var previousButton = heroMedia.querySelector('.media-prev');
+      var nextButton = heroMedia.querySelector('.media-next');
+      if (previousButton) previousButton.addEventListener('click', function () { showSlide(currentSlide - 1); });
+      if (nextButton) nextButton.addEventListener('click', function () { showSlide(currentSlide + 1); });
+      heroMedia.addEventListener('click', function (event) {
+        var dot = event.target.closest('[data-dot-index]');
+        var play = event.target.closest('[data-play-index]');
+        if (dot) showSlide(Number(dot.getAttribute('data-dot-index')));
+        if (play) loadCreatorReel(Number(play.getAttribute('data-play-index')));
+      });
+      thumbnailRow.addEventListener('click', function (event) {
+        var thumbnail = event.target.closest('[data-thumbnail-index]');
+        if (thumbnail) showSlide(Number(thumbnail.getAttribute('data-thumbnail-index')));
+      });
+      function handleGalleryKeydown(event) {
+        if (slides.length <= 1 || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+        event.preventDefault();
+        showSlide(currentSlide + (event.key === 'ArrowLeft' ? -1 : 1));
+        if (event.currentTarget === thumbnailRow) {
+          var activeThumbnail = thumbnailRow.querySelector('.media-thumbnail.is-active');
+          if (activeThumbnail) activeThumbnail.focus();
+        }
+      }
+      heroMedia.addEventListener('keydown', handleGalleryKeydown);
+      thumbnailRow.addEventListener('keydown', handleGalleryKeydown);
+
+      if (comingSoon) {
+        workflowSteps = [{ label: 'Complete hosting, review, and safety checks before activation' }];
+      } else if (!workflowSteps.length) {
+        workflowSteps = [{ label: 'Follow the included process from your input to a finished result' }];
+      }
+      renderList('steps-list', workflowSteps, workflowStepLabel);
+      renderList('inputs-list', listing.inputs || ['Your brief and the details you want the workflow to use']);
+      renderList('outputs-list', listing.outputs || ['A finished, ready-to-use result']);
+      renderList('perfect-list', perfectFor());
+      el('closing-copy').textContent = comingSoon
+        ? 'This helper is being prepared for hosting and review. It cannot run or charge yet.'
+        : 'Buy it once if you want the workflow and prompts in your own hands. Choose a cloud run when you would rather skip the setup and let Omo handle the service keys.';
+
+      el('offer-cover').innerHTML = coverHTML(listing.name + ' cover');
+      el('offer-title').textContent = listing.name;
+      el('offer-desc').textContent = listing.promise;
+      var buyButtonLabel = comingSoon ? 'Coming soon' : 'Download Skill.md — ' + ownPrice;
+      var runButtonLabel = comingSoon ? 'Coming soon' : 'Run it for me — ' + perRun + '/run';
+      el('buy-button').textContent = buyButtonLabel;
+      el('buy-button').setAttribute('aria-label', buyButtonLabel + '. Workflow + prompts. Run them on your computer.');
+      el('run-button').textContent = runButtonLabel;
+      el('run-button').setAttribute('aria-label', runButtonLabel + '. Per run. Omo handles the setup and sends back the finished result.');
+
+      if (comingSoon) {
+        var offerActions = document.querySelector('.offer-actions');
+        if (offerActions) offerActions.hidden = true;
+        setOfferNote('Coming soon — this helper cannot run or charge yet.');
+        return;
+      }
+
+      var infoButtons = document.querySelectorAll('.offer-info');
+      function closeInfoTooltips(except) {
+        for (var infoIndex = 0; infoIndex < infoButtons.length; infoIndex++) {
+          if (infoButtons[infoIndex] !== except) infoButtons[infoIndex].setAttribute('aria-expanded', 'false');
+        }
+      }
+      for (var infoIndex = 0; infoIndex < infoButtons.length; infoIndex++) {
+        infoButtons[infoIndex].addEventListener('click', function (event) {
+          event.stopPropagation();
+          var shouldOpen = this.getAttribute('aria-expanded') !== 'true';
+          closeInfoTooltips(this);
+          this.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        });
+        infoButtons[infoIndex].addEventListener('keydown', function (event) {
+          if (event.key === 'Escape') {
+            this.setAttribute('aria-expanded', 'false');
+            this.blur();
+          }
+        });
+      }
+      document.addEventListener('click', function () { closeInfoTooltips(); });
+
+      el('buy-button').addEventListener('click', function () {
+        var button = el('buy-button');
+        var user = currentUser();
+        var payload = { slug: listing.slug };
+        var priceUsd = Number(listing.priceOwn);
+        if (isFinite(priceUsd)) payload.priceUsd = priceUsd;
+        if (user && user.email) payload.email = user.email;
+
+        button.disabled = true;
+        setOfferNote('Opening secure checkout…');
+        fetch(apiUrl('/api/checkout'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (data) {
+            return { response: response, data: data };
+          });
+        }).then(function (result) {
+          if (result.response.status === 501) {
+            var unavailable = new Error('checkout_not_configured');
+            unavailable.checkoutNotConfigured = true;
+            throw unavailable;
+          }
+          if (!result.response.ok || !result.data.url) {
+            throw new Error(result.data.error || 'checkout_unavailable');
+          }
+          window.location.assign(result.data.url);
+        }).catch(function (error) {
+          button.disabled = false;
+          if (error && error.checkoutNotConfigured) {
+            setOfferNote('Checkout is being switched on — try again in a bit');
+            return;
+          }
+          setOfferNote('Checkout could not start right now — please try again');
+        });
+      });
+
+      el('run-button').addEventListener('click', function () {
+        setOfferNote('');
+        if (signedIn()) {
+          window.location.assign('run.html?slug=' + encodeURIComponent(listing.slug));
+          return;
+        }
+        if (window.OmoAuth && typeof window.OmoAuth.open === 'function') {
+          window.OmoAuth.open('signup', { open: listing.slug, destination: 'run' });
+          return;
+        }
+        setOfferNote('The account form could not open — please refresh and try again');
+      });
+
+      el('workflow-layout').hidden = false;
+    })();
+  </script>
+</body>
+</html>

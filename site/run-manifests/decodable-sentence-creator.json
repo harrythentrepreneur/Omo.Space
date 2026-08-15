@@ -1,0 +1,249 @@
+{
+  "chargeable": true,
+  "container_slug": "decodable-sentence-creator",
+  "examples": [
+    {
+      "caption": "Reviewed fixture",
+      "id": "reviewed-fixture",
+      "input": {
+        "dialect": "en-US",
+        "include_sight_words": true,
+        "num_sentences": 2,
+        "phonics_patterns": [
+          "cvc",
+          "sh_digraph"
+        ],
+        "sentence_length": "short"
+      },
+      "output_preview": "Create targeted practice sentences with irregular words disclosed.",
+      "title": "Decodable Sentence Creator"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/decodable-sentence-creator/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "include_sight_words": {
+        "type": "boolean"
+      },
+      "num_sentences": {
+        "maximum": 5,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "phonics_patterns": {
+        "items": {
+          "enum": [
+            "cvc",
+            "cvcc",
+            "ccvc",
+            "long_a",
+            "long_e",
+            "long_i",
+            "long_o",
+            "long_u",
+            "sh_digraph",
+            "ch_digraph",
+            "th_digraph",
+            "wh_digraph",
+            "ck_digraph",
+            "ai_vowel_team",
+            "ee_vowel_team",
+            "oa_vowel_team"
+          ]
+        },
+        "maxItems": 6,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "sentence_length": {
+        "enum": [
+          "short",
+          "medium",
+          "long"
+        ]
+      }
+    },
+    "required": [
+      "phonics_patterns",
+      "num_sentences",
+      "sentence_length",
+      "include_sight_words",
+      "dialect"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/decodable-sentence-creator/schemas/input.json",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "coverage": {
+        "items": {
+          "maxLength": 40,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 6,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "sentences": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "sight_or_irregular_words": {
+              "items": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 20,
+              "type": "array"
+            },
+            "target_words": {
+              "items": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 20,
+              "minItems": 1,
+              "type": "array"
+            },
+            "text": {
+              "maxLength": 160,
+              "minLength": 3,
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "target_words",
+            "sight_or_irregular_words"
+          ],
+          "type": "object"
+        },
+        "maxItems": 5,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "warnings": {
+        "items": {
+          "maxLength": 240,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 8,
+        "type": "array"
+      },
+      "workflow_version": {
+        "const": "decodable-sentence-creator@0.1.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "sentences",
+      "coverage",
+      "warnings",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/decodable-sentence-creator/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Analyzing the phonics brief"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "decodable-sentence-creator",
+  "ui": {
+    "fields": {
+      "dialect": {
+        "widget": "select"
+      },
+      "include_sight_words": {
+        "widget": "checkbox"
+      },
+      "num_sentences": {
+        "widget": "number"
+      },
+      "phonics_patterns": {
+        "widget": "multi_select"
+      },
+      "sentence_length": {
+        "widget": "select"
+      }
+    },
+    "order": [
+      "phonics_patterns",
+      "num_sentences",
+      "sentence_length",
+      "include_sight_words",
+      "dialect"
+    ]
+  }
+}

@@ -92,5 +92,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "phonics-rule-explainer",
+  "source_sha256": "e5027826977a6290bd9b036480ca09dc89f14114dd76ae5d3c020ce361c6ab06",
   "version": "0.1.0"
 }

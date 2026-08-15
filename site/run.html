@@ -705,6 +705,10 @@
         return value;
       }
 
+      function multilineArrayValue(value) {
+        return String(value || '').replace(/\r\n?/g, '\n').split('\n');
+      }
+
       function resolveField(key) {
         var schema = schemaFor(key);
         var ui = uiFor(key);
@@ -716,6 +720,7 @@
           { component: 'UrlField', match: function () { return schema.type === 'string' && /^(uri|url|uri-reference)$/.test(schema.format || ''); } },
           { component: 'EmailField', match: function () { return schema.type === 'string' && /^(email|idn-email)$/.test(schema.format || ''); } },
           { component: 'DateField', match: function () { return schema.type === 'string' && schema.format === 'date'; } },
+          { component: 'ArrayTextField', match: function () { return schema.type === 'array' && ui.widget === 'textarea'; } },
           { component: 'LongTextField', match: function () { return schema.type === 'string' && (ui.widget === 'textarea' || Number(schema.maxLength || 0) > 160); } },
           { component: 'ShortTextField', match: function () { return schema.type === 'string'; } },
           { component: 'FallbackField', match: function () { return true; } }
@@ -834,11 +839,16 @@
           control = document.createElement('input');
           control.type = 'checkbox';
           control.checked = schema.default === true;
-        } else if (component === 'LongTextField' || component === 'FallbackField') {
+        } else if (component === 'LongTextField' || component === 'ArrayTextField' || component === 'FallbackField') {
           control = document.createElement('textarea');
           if (component === 'FallbackField') control.dataset.jsonInput = '';
           control.rows = Number(ui.rows || 4);
-          control.placeholder = component === 'FallbackField' ? JSON.stringify(schemaExample(schema, key), null, 2) : String(schemaExample(schema, key));
+          var exampleValue = schemaExample(schema, key);
+          control.placeholder = component === 'FallbackField'
+            ? JSON.stringify(exampleValue, null, 2)
+            : component === 'ArrayTextField' && Array.isArray(exampleValue)
+              ? exampleValue.join('\n')
+              : String(exampleValue);
         } else {
           control = document.createElement('input');
           control.type = component === 'NumberField' ? 'number' : component === 'UrlField' ? 'url' : component === 'EmailField' ? 'email' : component === 'DateField' ? 'date' : 'text';
@@ -900,6 +910,8 @@
             try { value = JSON.parse(option.dataset.typedValue); } catch (error) { value = primitiveValue(control.value, schema); }
           } else if (component === 'NumberField') {
             value = control.value === '' ? '' : Number(control.value);
+          } else if (component === 'ArrayTextField') {
+            value = multilineArrayValue(control.value);
           } else if (component === 'FallbackField') {
             if (!control.value.trim()) value = '';
             else {
@@ -1108,6 +1120,7 @@
           if (!control || !Object.prototype.hasOwnProperty.call(values, key)) return;
           var component = control.dataset.component;
           if (component === 'BooleanField') control.checked = !!values[key];
+          else if (component === 'ArrayTextField') control.value = Array.isArray(values[key]) ? values[key].join('\n') : String(values[key]);
           else if (component === 'FallbackField') control.value = JSON.stringify(values[key], null, 2);
           else control.value = String(values[key]);
           control.dispatchEvent(new Event('input', { bubbles: true }));

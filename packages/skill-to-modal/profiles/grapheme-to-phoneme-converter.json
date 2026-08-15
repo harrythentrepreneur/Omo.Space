@@ -102,7 +102,6 @@
     "base_url_env": "LLM_BASE_URL",
     "default_base_url": "https://opencode.ai/zen/go/v1",
     "default_model": "deepseek-v4-flash",
-    "input_rate_per_million_usd": 0.14,
     "max_tokens": 1200,
     "modal_secret_name": "omo-skill-providers",
     "model_env": "LLM_MODEL",
@@ -166,7 +165,6 @@
         "uncertainty"
       ]
     },
-    "output_rate_per_million_usd": 0.28,
     "prompt": "run.txt",
     "provider": "opencode-go",
     "temperature": 0.2,
@@ -177,7 +175,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-grapheme-to-phoneme-converter-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-grapheme-to-phoneme-converter-api.modal.run",
       "endpoint_env": "GRAPHEME_TO_PHONEME_CONVERTER_MODAL_URL"
     },
     "description": "Convert one English word or grapheme to a likely phoneme representation with dialect and context cautions.",
@@ -444,6 +442,16 @@
     "memory_mb": 512,
     "timeout_seconds": 180,
     "max_containers": 4
+  },
+  "semantic_normalizers": {
+    "flag_fields": [
+      {
+        "flag": "include_rules_explanation",
+        "path": [
+          "rules_explanation"
+        ]
+      }
+    ]
   },
   "slug": "grapheme-to-phoneme-converter",
   "steps": [

@@ -106,7 +106,6 @@
     "base_url_env": "LLM_BASE_URL",
     "default_base_url": "https://opencode.ai/zen/go/v1",
     "default_model": "deepseek-v4-flash",
-    "input_rate_per_million_usd": 0.14,
     "max_tokens": 1200,
     "modal_secret_name": "omo-skill-providers",
     "model_env": "LLM_MODEL",
@@ -166,7 +165,6 @@
         "warnings"
       ]
     },
-    "output_rate_per_million_usd": 0.28,
     "prompt": "run.txt",
     "provider": "opencode-go",
     "temperature": 0.2,
@@ -177,7 +175,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-syllable-splitter-and-counter-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-syllable-splitter-and-counter-api.modal.run",
       "endpoint_env": "SYLLABLE_SPLITTER_AND_COUNTER_MODAL_URL"
     },
     "description": "Split a short English word list into syllables and counts while flagging pronunciation or dialect ambiguity.",
@@ -417,7 +415,7 @@
     ]
   },
   "prompts": {
-    "run.txt": "For each supplied English word, return a likely spoken syllable split and count in the selected dialect and notation. Preserve spelling and include an ambiguity note when pronunciation can vary. Return only JSON with items and warnings."
+    "run.txt": "For each supplied English word, return a likely spoken syllable split and count in the selected dialect and notation. Preserve the exact input word order and spelling; joining the syllable parts must recreate the input word exactly. Include an ambiguity note when pronunciation can vary. Return only JSON with items and warnings."
   },
   "readiness": {
     "can_submit": true,
@@ -433,6 +431,29 @@
     "memory_mb": 512,
     "timeout_seconds": 180,
     "max_containers": 4
+  },
+  "semantic_normalizers": {
+    "syllable_validation": {
+      "input_words_field": "words",
+      "input_notation_field": "notation",
+      "output_items_field": "items",
+      "word_field": "word",
+      "syllabified_field": "syllabified",
+      "count_field": "syllable_count",
+      "notation_separators": {
+        "hyphen": "-",
+        "dots": "."
+      },
+      "accepted_separator_chars": [
+        "-",
+        ".",
+        "·",
+        "•",
+        "‧",
+        "∙",
+        "⋅"
+      ]
+    }
   },
   "slug": "syllable-splitter-and-counter",
   "steps": [

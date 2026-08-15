@@ -1,0 +1,33 @@
+{
+  "$id": "https://omo.space/schemas/japanese-style-story-video/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Fail-closed hosted milestone input. Only the bundled 10-second sample is accepted; arbitrary audio is not enabled.",
+  "properties": {
+    "audio": {
+      "const": "sample-demello-10s",
+      "description": "The only audio source enabled for the hosted milestone.",
+      "title": "Audio source",
+      "type": "string"
+    },
+    "duration": {
+      "const": 10,
+      "description": "The exact duration of the bundled sample in seconds.",
+      "title": "Duration",
+      "type": "integer"
+    },
+    "style": {
+      "const": "sumi-e",
+      "description": "The reviewed Japanese ink style for this release.",
+      "title": "Visual style",
+      "type": "string"
+    }
+  },
+  "required": [
+    "audio",
+    "style",
+    "duration"
+  ],
+  "title": "Japanese Style Story Video hosted sample",
+  "type": "object"
+}

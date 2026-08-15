@@ -1,0 +1,22 @@
+# Search indexing crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# User-initiated OpenAI fetches
+User-agent: ChatGPT-User
+Allow: /
+
+# Training crawler decision is separate from search; currently allowed.
+User-agent: GPTBot
+Allow: /
+
+Sitemap: https://omo.space/sitemap.xml

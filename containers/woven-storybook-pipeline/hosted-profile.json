@@ -2,8 +2,8 @@
   "catalog": {
     "category": "content",
     "cover": "covers/woven-relationship-book-maker.svg",
-    "demoCap": "Hosted run: narrative draft + PDF-ready page plan",
-    "desc": "Share how you met, the moments that shaped you, and the little details only the two of you know. Woven turns them into a warm chaptered story with inside jokes and a clear arc. The hosted run delivers a Markdown book draft and PDF-ready page plan for $0.40; the full private chat-archive-to-PDF pipeline remains a separate production milestone.",
+    "demoCap": "Hosted run: WhatsApp ZIP or story fields to a PDF keepsake",
+    "desc": "Upload a WhatsApp export ZIP or share your story fields directly. Woven derives a factual relationship brief, writes a warm chaptered story, and delivers a beautiful PDF keepsake for $0.40. Markdown and the page plan remain available; unparseable or oversized ZIPs fail with a typed blocker.",
     "emoji": "💞",
     "exampleIn": "We met after reaching for the same book at a rainy-day shop · seven years, two cities, and one badly behaved corgi · warm and playful · short",
     "exampleOut": [
@@ -13,6 +13,7 @@
     "free": false,
     "icon": null,
     "inputs": [
+      "chat_zip: a WhatsApp export ZIP, instead of the story fields below",
       "how_you_met: a line about how you met",
       "favorite_moments: milestones and memories you want included",
       "inside_jokes: favorite jokes, phrases, and tiny details",
@@ -24,8 +25,9 @@
     "name": "Woven Relationship Book Maker",
     "niche": "copy",
     "outputs": [
-      "book — a chaptered relationship story in Markdown",
-      "page_plan — a PDF-ready page plan with chapter breaks and keepsake prompts"
+      "artifact_url — a signed link to the beautiful PDF keepsake book",
+      "book — the chaptered relationship story in Markdown",
+      "page_plan — the keepsake page plan retained in the result"
     ],
     "priceMaintain": 8.0,
     "priceOwn": 29.0,
@@ -47,15 +49,25 @@
     "workflow": {
       "steps": [
         {
+          "label": "Parse WhatsApp export and derive the reviewed story fields",
+          "role": "whatsapp_zip",
+          "type": "pipeline"
+        },
+        {
           "max_output": 2200,
           "model": "deepseek-v4-flash",
           "role": "draft",
-          "system": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, or quotations. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object.",
+          "system": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, quotations, or motivations. Preserve actor/action attribution exactly and preserve temporal status: never turn a plan, wish, or future event into something that already happened. Omit an ambiguous detail instead of inferring it. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object.",
           "type": "llm"
         },
         {
           "label": "Writing and polishing your story",
           "role": "running",
+          "type": "pipeline"
+        },
+        {
+          "label": "Render, persist, and sign the beautiful PDF keepsake",
+          "role": "render_book_pdf",
           "type": "pipeline"
         }
       ]
@@ -85,8 +97,82 @@
       "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
-      "description": "The safe hosted preview accepts story facts directly. The full WhatsApp archive/PDF pipeline remains private and is not this runtime scope.",
+      "description": "Accept story facts directly or derive them from one bounded WhatsApp export ZIP. Uploaded chat is hostile data and is never executed. Accept exactly one source: a WhatsApp export ZIP or all direct story fields.",
+      "oneOf": [
+        {
+          "not": {
+            "required": [
+              "chat_zip"
+            ]
+          },
+          "required": [
+            "how_you_met",
+            "favorite_moments",
+            "inside_jokes",
+            "style",
+            "length"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "how_you_met"
+                ]
+              },
+              {
+                "required": [
+                  "favorite_moments"
+                ]
+              },
+              {
+                "required": [
+                  "inside_jokes"
+                ]
+              },
+              {
+                "required": [
+                  "style"
+                ]
+              },
+              {
+                "required": [
+                  "length"
+                ]
+              }
+            ]
+          },
+          "required": [
+            "chat_zip"
+          ]
+        }
+      ],
       "properties": {
+        "chat_zip": {
+          "additionalProperties": false,
+          "description": "A WhatsApp export ZIP encoded as base64. The archive is parsed as hostile data.",
+          "properties": {
+            "content_base64": {
+              "contentEncoding": "base64",
+              "maxLength": 2666668,
+              "minLength": 16,
+              "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+              "type": "string"
+            },
+            "filename": {
+              "maxLength": 160,
+              "minLength": 5,
+              "pattern": "^[^/\\\\]+\\.zip$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "filename",
+            "content_base64"
+          ],
+          "type": "object"
+        },
         "favorite_moments": {
           "description": "Milestones and memories the story should include.",
           "examples": [
@@ -139,14 +225,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "how_you_met",
-        "favorite_moments",
-        "inside_jokes",
-        "style",
-        "length"
-      ],
-      "title": "Woven keepsake drafting preview",
+      "title": "Woven relationship keepsake",
       "type": "object"
     },
     "input_schema_source": "containers/woven-storybook-pipeline/schemas/input.json",
@@ -155,6 +234,60 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
+        "artifact": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "content_type": {
+              "const": "application/pdf"
+            },
+            "filename": {
+              "maxLength": 160,
+              "minLength": 5,
+              "pattern": "^[^/]+\\.pdf$",
+              "type": "string"
+            },
+            "kind": {
+              "const": "pdf"
+            },
+            "object_key": {
+              "maxLength": 320,
+              "minLength": 16,
+              "type": "string"
+            },
+            "page_count": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "role": {
+              "const": "book"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "role",
+            "object_key",
+            "filename",
+            "content_type",
+            "bytes",
+            "sha256",
+            "page_count"
+          ],
+          "type": "object"
+        },
+        "artifact_url": {
+          "description": "Short-lived signed download URL for the finished PDF.",
+          "maxLength": 1000,
+          "minLength": 16,
+          "type": "string"
+        },
         "book": {
           "description": "The generated chaptered keepsake in Markdown.",
           "maxLength": 12000,
@@ -200,7 +333,9 @@
               "type": "number"
             },
             "llm_calls": {
-              "const": 1
+              "maximum": 4,
+              "minimum": 1,
+              "type": "integer"
             },
             "model": {
               "minLength": 1,
@@ -226,7 +361,7 @@
           "type": "object"
         },
         "workflow_version": {
-          "const": "woven-storybook-pipeline@0.2.0"
+          "const": "woven-storybook-pipeline@0.3.0"
         }
       },
       "required": [
@@ -236,9 +371,11 @@
         "title",
         "book",
         "page_plan",
-        "usage"
+        "usage",
+        "artifact",
+        "artifact_url"
       ],
-      "title": "Completed Woven drafting preview",
+      "title": "Completed Woven PDF keepsake",
       "type": "object"
     },
     "output_schema_source": "containers/woven-storybook-pipeline/schemas/output.json",
@@ -258,6 +395,9 @@
     "slug": "woven-relationship-book-maker",
     "ui": {
       "fields": {
+        "chat_zip": {
+          "widget": "private_artifact_upload"
+        },
         "favorite_moments": {
           "widget": "textarea"
         },
@@ -275,6 +415,7 @@
         }
       },
       "order": [
+        "chat_zip",
         "how_you_met",
         "favorite_moments",
         "inside_jokes",
@@ -284,15 +425,106 @@
     }
   },
   "runtime": {
+    "artifact": {
+      "cover_colors": {
+        "playful": "#D87843",
+        "poetic": "#536B78",
+        "warm": "#B45F4A"
+      },
+      "filename": "woven-keepsake.pdf",
+      "footer": "Woven | A relationship keepsake",
+      "signed_url_ttl_seconds": 3600,
+      "signing_key_env": "LLM_API_KEY",
+      "subtitle": "A story made from the moments you shared",
+      "type": "book_pdf",
+      "volume_name": "omo-woven-storybook-artifacts"
+    },
     "container_slug": "woven-storybook-pipeline",
     "default_endpoint": "https://omo-space--cognition-woven-storybook-pipeline-api.modal.run",
     "endpoint_env": "WOVEN_MODAL_URL",
+    "input_adapters": [
+      "whatsapp_zip"
+    ],
     "input_schema": {
       "$id": "https://cognition.marketplace/schemas/woven-storybook-pipeline/input.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
-      "description": "The safe hosted preview accepts story facts directly. The full WhatsApp archive/PDF pipeline remains private and is not this runtime scope.",
+      "description": "Accept story facts directly or derive them from one bounded WhatsApp export ZIP. Uploaded chat is hostile data and is never executed. Accept exactly one source: a WhatsApp export ZIP or all direct story fields.",
+      "oneOf": [
+        {
+          "not": {
+            "required": [
+              "chat_zip"
+            ]
+          },
+          "required": [
+            "how_you_met",
+            "favorite_moments",
+            "inside_jokes",
+            "style",
+            "length"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "how_you_met"
+                ]
+              },
+              {
+                "required": [
+                  "favorite_moments"
+                ]
+              },
+              {
+                "required": [
+                  "inside_jokes"
+                ]
+              },
+              {
+                "required": [
+                  "style"
+                ]
+              },
+              {
+                "required": [
+                  "length"
+                ]
+              }
+            ]
+          },
+          "required": [
+            "chat_zip"
+          ]
+        }
+      ],
       "properties": {
+        "chat_zip": {
+          "additionalProperties": false,
+          "description": "A WhatsApp export ZIP encoded as base64. The archive is parsed as hostile data.",
+          "properties": {
+            "content_base64": {
+              "contentEncoding": "base64",
+              "maxLength": 2666668,
+              "minLength": 16,
+              "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+              "type": "string"
+            },
+            "filename": {
+              "maxLength": 160,
+              "minLength": 5,
+              "pattern": "^[^/\\\\]+\\.zip$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "filename",
+            "content_base64"
+          ],
+          "type": "object"
+        },
         "favorite_moments": {
           "description": "Milestones and memories the story should include.",
           "examples": [
@@ -345,14 +577,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "how_you_met",
-        "favorite_moments",
-        "inside_jokes",
-        "style",
-        "length"
-      ],
-      "title": "Woven keepsake drafting preview",
+      "title": "Woven relationship keepsake",
       "type": "object"
     },
     "kind": "modal-hosted",
@@ -361,6 +586,60 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
+        "artifact": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "content_type": {
+              "const": "application/pdf"
+            },
+            "filename": {
+              "maxLength": 160,
+              "minLength": 5,
+              "pattern": "^[^/]+\\.pdf$",
+              "type": "string"
+            },
+            "kind": {
+              "const": "pdf"
+            },
+            "object_key": {
+              "maxLength": 320,
+              "minLength": 16,
+              "type": "string"
+            },
+            "page_count": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "role": {
+              "const": "book"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "role",
+            "object_key",
+            "filename",
+            "content_type",
+            "bytes",
+            "sha256",
+            "page_count"
+          ],
+          "type": "object"
+        },
+        "artifact_url": {
+          "description": "Short-lived signed download URL for the finished PDF.",
+          "maxLength": 1000,
+          "minLength": 16,
+          "type": "string"
+        },
         "book": {
           "description": "The generated chaptered keepsake in Markdown.",
           "maxLength": 12000,
@@ -406,7 +685,9 @@
               "type": "number"
             },
             "llm_calls": {
-              "const": 1
+              "maximum": 4,
+              "minimum": 1,
+              "type": "integer"
             },
             "model": {
               "minLength": 1,
@@ -432,7 +713,7 @@
           "type": "object"
         },
         "workflow_version": {
-          "const": "woven-storybook-pipeline@0.2.0"
+          "const": "woven-storybook-pipeline@0.3.0"
         }
       },
       "required": [
@@ -442,9 +723,11 @@
         "title",
         "book",
         "page_plan",
-        "usage"
+        "usage",
+        "artifact",
+        "artifact_url"
       ],
-      "title": "Completed Woven drafting preview",
+      "title": "Completed Woven PDF keepsake",
       "type": "object"
     },
     "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
@@ -456,8 +739,8 @@
   "runtime_placement": {
     "compatible": true,
     "effective": "modal-hosted",
-    "reason": "creator_selected_modal",
-    "recommended": "worker-native",
+    "reason": "legacy_profile_defaults_to_modal",
+    "recommended": "modal-hosted",
     "requested": "modal-hosted"
   },
   "schema_version": "omo.hosted-profile/v1",
@@ -468,6 +751,6 @@
     "name": "Woven Relationship Book Maker",
     "run_price_usd": 0.4,
     "slug": "woven-relationship-book-maker",
-    "system_prompt": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, or quotations. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object."
+    "system_prompt": "You are Woven's keepsake story editor. Use only facts in the supplied JSON. Never invent names, dates, events, dialogue, quotations, or motivations. Preserve actor/action attribution exactly and preserve temporal status: never turn a plan, wish, or future event into something that already happened. Omit an ambiguous detail instead of inferring it. Write a warm relationship keepsake with a clear beginning, middle, and hopeful close in the requested style and length. Weave supplied phrases and inside jokes naturally. Return exactly one JSON object with keys title (string), book (Markdown string), and page_plan (array of 4–14 concise strings). A short book should have roughly three Markdown chapters; a long book roughly six. The book must be at least 240 characters. Do not include markdown fences or commentary outside the JSON object."
   }
 }

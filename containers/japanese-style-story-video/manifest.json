@@ -1,0 +1,249 @@
+{
+  "artifacts": [
+    {
+      "content_type": "video/mp4",
+      "kind": "video",
+      "required": true
+    },
+    {
+      "content_type": "image/jpeg",
+      "kind": "contact_sheet",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "transcript",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "frame_brief",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "frame_manifest",
+      "required": true
+    }
+  ],
+  "description": "Turn short audio into a validated vertical sumi-e drawing animation MP4.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{run_id}"
+  },
+  "form": [
+    {
+      "field": "audio",
+      "widget": "select"
+    },
+    {
+      "field": "style",
+      "widget": "hidden"
+    },
+    {
+      "field": "duration",
+      "widget": "hidden"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/japanese-style-story-video/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Fail-closed hosted milestone input. Only the bundled 10-second sample is accepted; arbitrary audio is not enabled.",
+    "properties": {
+      "audio": {
+        "const": "sample-demello-10s",
+        "description": "The only audio source enabled for the hosted milestone.",
+        "title": "Audio source",
+        "type": "string"
+      },
+      "duration": {
+        "const": 10,
+        "description": "The exact duration of the bundled sample in seconds.",
+        "title": "Duration",
+        "type": "integer"
+      },
+      "style": {
+        "const": "sumi-e",
+        "description": "The reviewed Japanese ink style for this release.",
+        "title": "Visual style",
+        "type": "string"
+      }
+    },
+    "required": [
+      "audio",
+      "style",
+      "duration"
+    ],
+    "title": "Japanese Style Story Video hosted sample",
+    "type": "object"
+  },
+  "name": "japanese-style-story-video",
+  "output_schema": {
+    "$id": "https://omo.space/schemas/japanese-style-story-video/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "artifacts": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "content_type": {
+              "enum": [
+                "video/mp4",
+                "image/jpeg",
+                "application/json"
+              ],
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "video",
+                "contact_sheet",
+                "transcript",
+                "frame_brief",
+                "frame_manifest"
+              ],
+              "type": "string"
+            },
+            "object_key": {
+              "maxLength": 512,
+              "minLength": 3,
+              "pattern": "^owners/[0-9a-f]{24}/runs/run-[0-9a-f]{32}/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "url": {
+              "maxLength": 4096,
+              "pattern": "^https://",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "object_key",
+            "sha256",
+            "bytes",
+            "content_type",
+            "url"
+          ],
+          "type": "object"
+        },
+        "maxItems": 5,
+        "minItems": 5,
+        "type": "array"
+      },
+      "media": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_codec": {
+            "const": "aac"
+          },
+          "duration_seconds": {
+            "maximum": 10.2,
+            "minimum": 9.8,
+            "type": "number"
+          },
+          "fps": {
+            "const": 30
+          },
+          "height": {
+            "const": 1920
+          },
+          "video_codec": {
+            "const": "h264"
+          },
+          "width": {
+            "const": 1080
+          }
+        },
+        "required": [
+          "duration_seconds",
+          "width",
+          "height",
+          "fps",
+          "video_codec",
+          "audio_codec"
+        ],
+        "type": "object"
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_frames": {
+            "const": 30
+          },
+          "generated_frames": {
+            "const": 30
+          },
+          "generation_provider": {
+            "const": "procedural-fallback"
+          },
+          "output_frames": {
+            "const": 300
+          },
+          "provider_cost_usd": {
+            "const": 0
+          }
+        },
+        "required": [
+          "generated_frames",
+          "accepted_frames",
+          "output_frames",
+          "generation_provider",
+          "provider_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "japanese-style-story-video@0.2.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "artifacts",
+      "media",
+      "usage"
+    ],
+    "title": "Completed Japanese Style Story Video run",
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "measured_sample_lane",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "japanese-style-story-video",
+  "source_sha256": "e8ad3662a6852a90a5fe02bea4b9987cdafc266358c57b7c17381932f0bda764",
+  "version": "0.2.0"
+}

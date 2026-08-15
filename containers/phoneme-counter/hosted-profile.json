@@ -1,0 +1,403 @@
+{
+  "catalog": {
+    "category": "education",
+    "cover": null,
+    "demoCap": "Hosted run: structured teacher-reviewable result",
+    "desc": "Estimate the phoneme count and optional IPA for one English word in a declared dialect.",
+    "emoji": "🔊",
+    "exampleIn": "ship · en-US · true",
+    "exampleOut": [
+      "Count a word's sounds with pronunciation uncertainty made explicit.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "word: reviewed bounded input",
+      "dialect: reviewed bounded input",
+      "show_transcription: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "makerName": "PhonicsMaker",
+    "name": "Phoneme Counter",
+    "niche": "phonics",
+    "outputs": [
+      "word: schema-validated result",
+      "dialect: schema-validated result",
+      "phonemes: schema-validated result",
+      "phoneme_count: schema-validated result",
+      "ipa: schema-validated result",
+      "uncertainty: schema-validated result"
+    ],
+    "priceMaintain": 3.0,
+    "priceOwn": 12.0,
+    "promise": "Count a word's sounds with pronunciation uncertainty made explicit.",
+    "runManifest": "run-manifests/phoneme-counter.json",
+    "runPrice": 0.1,
+    "slug": "phoneme-counter",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13",
+    "workflow": {
+      "steps": [
+        {
+          "max_output": 1200,
+          "model": "deepseek-v4-flash",
+          "role": "generate",
+          "system": "Analyze one English word in the declared dialect. Return a phoneme array, a count equal to its length, optional IPA as requested, and an explicit uncertainty statement. Return only JSON.",
+          "type": "llm"
+        },
+        {
+          "label": "Analyzing the phonics brief",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": true,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "phoneme-counter",
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "dialect": "en-US",
+          "show_transcription": true,
+          "word": "ship"
+        },
+        "output_preview": "Count a word's sounds with pronunciation uncertainty made explicit.",
+        "title": "Phoneme Counter"
+      }
+    ],
+    "input_schema": {
+      "$id": "https://omo.space/schemas/phoneme-counter/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "show_transcription": {
+          "type": "boolean"
+        },
+        "word": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z'-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "word",
+        "dialect",
+        "show_transcription"
+      ],
+      "type": "object"
+    },
+    "input_schema_source": "containers/phoneme-counter/schemas/input.json",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "ipa": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "phoneme_count": {
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "phonemes": {
+          "items": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "uncertainty": {
+          "maxLength": 300,
+          "minLength": 1,
+          "type": "string"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "word": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "workflow_version": {
+          "const": "phoneme-counter@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "word",
+        "dialect",
+        "phonemes",
+        "phoneme_count",
+        "ipa",
+        "uncertainty",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "output_schema_source": "containers/phoneme-counter/schemas/output.json",
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "phoneme-counter",
+    "ui": {
+      "fields": {
+        "dialect": {
+          "widget": "select"
+        },
+        "show_transcription": {
+          "widget": "checkbox"
+        },
+        "word": {
+          "widget": "text"
+        }
+      },
+      "order": [
+        "word",
+        "dialect",
+        "show_transcription"
+      ]
+    }
+  },
+  "runtime": {
+    "container_slug": "phoneme-counter",
+    "default_endpoint": "https://omo-space--cognition-phoneme-counter-api.modal.run",
+    "endpoint_env": "PHONEME_COUNTER_MODAL_URL",
+    "input_schema": {
+      "$id": "https://omo.space/schemas/phoneme-counter/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "show_transcription": {
+          "type": "boolean"
+        },
+        "word": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z'-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "word",
+        "dialect",
+        "show_transcription"
+      ],
+      "type": "object"
+    },
+    "kind": "modal-hosted",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "ipa": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "phoneme_count": {
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "phonemes": {
+          "items": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "uncertainty": {
+          "maxLength": 300,
+          "minLength": 1,
+          "type": "string"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "word": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "workflow_version": {
+          "const": "phoneme-counter@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "word",
+        "dialect",
+        "phonemes",
+        "phoneme_count",
+        "ipa",
+        "uncertainty",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "reviewed_source_sha256": "4ab30f0ffa0041f2d232d38fec59fa31d4be8fd90c7f288778bd9c09de4d5966",
+    "run_price_cents": 10,
+    "slug": "phoneme-counter"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "legacy_profile_defaults_to_modal",
+    "recommended": "worker-native",
+    "requested": "modal-hosted"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 12.0,
+    "max_tokens": 1200,
+    "model": "deepseek-v4-flash",
+    "name": "Phoneme Counter",
+    "run_price_usd": 0.1,
+    "slug": "phoneme-counter",
+    "system_prompt": "Analyze one English word in the declared dialect. Return a phoneme array, a count equal to its length, optional IPA as requested, and an explicit uncertainty statement. Return only JSON."
+  }
+}

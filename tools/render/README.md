@@ -1,4 +1,4 @@
-# Shared education artifact renderer
+# Shared artifact renderer
 
 `tools/render/runtime.py` is a local, deterministic compositor for the three
 reviewed PhonicsMaker artifact workflows. It accepts a post-generation
@@ -10,6 +10,13 @@ The runtime has no network, billing, deployment, or authentication behavior.
 It is deliberately separate from story/worksheet generation. The host must
 validate the public workflow input schema, generate and QA the instructional
 manifest, authorize any source artifacts/images, then invoke this compositor.
+
+`tools/render/book.py` adds the reusable `omo.book-pdf/v1` contract for book and
+keepsake workflows. It accepts a title, subtitle, Markdown chapters, page plan,
+style metadata, and footer, then emits a deterministic ReportLab PDF with a
+designed cover, keepsake map, chapter typography, justified body copy, running
+heads, page numbers, and footer. It performs no provider, upload, storage,
+authorization, or signing work; generated hosts own those boundaries.
 
 ## Outputs
 

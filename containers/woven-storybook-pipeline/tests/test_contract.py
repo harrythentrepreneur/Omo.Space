@@ -6,6 +6,10 @@ import asyncio
 import importlib.util
 import json
 import os
+import base64
+import io
+import zipfile
+
 from pathlib import Path
 
 import pytest
@@ -131,4 +135,103 @@ def test_manifest_and_capabilities_are_honest() -> None:
     assert manifest["readiness"]["can_submit"] is EXPECTED_READY
     assert manifest["pricing"]["chargeable"] is EXPECTED_CHARGEABLE
     assert capabilities["decision"] == ("approved" if EXPECTED_READY else "blocked")
-    assert capabilities["approved"] == (capabilities["requested"] if EXPECTED_READY else [])
+    expected = [f"{item['name']}@{item['version']}" for item in capabilities["selected"]]
+    assert capabilities["approved"] == (expected if EXPECTED_READY else [])
+    assert capabilities["schema_version"] == "cognition.capabilities/v2"
+    assert capabilities["registry_digest"].startswith("sha256:")
+    assert capabilities["contract_digest"].startswith("sha256:")
+
+
+def _chat_zip(entries: dict[str, str]) -> dict[str, str]:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, value in entries.items():
+            archive.writestr(name, value)
+    return {
+        "filename": "whatsapp-export.zip",
+        "content_base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
+    }
+
+
+def _synthetic_chat() -> str:
+    return "\n".join([
+        "1/2/20, 9:00 AM - Alice: Remember the rainy bookshop where we met?",
+        "1/2/20, 9:01 AM - Bob: And reaching for the same travel book.",
+        "2/3/21, 8:00 PM - Alice: Two cities and the tiny apartment were worth it.",
+        "2/3/21, 8:01 PM - Bob: Wrong turn, best view. Always.",
+        "3/4/22, 7:00 PM - Alice: The corgi stole another sock.",
+        "3/4/22, 7:01 PM - Bob: Our smoke-alarm serenade still wins.",
+    ])
+
+
+def _story_result_without_artifact(*, llm_calls: int) -> dict:
+    result = json.loads(json.dumps(CASES["happy_path"]["output"]))
+    result.pop("artifact", None)
+    result.pop("artifact_url", None)
+    result["usage"]["llm_calls"] = llm_calls
+    return result
+
+
+def test_direct_fields_run_materializes_a_real_signed_pdf(tmp_path: Path) -> None:
+    result = modal_app.execute_workflow(
+        CASES["happy_path"]["input"],
+        executor=lambda _payload: _story_result_without_artifact(llm_calls=1),
+        artifact_root=tmp_path,
+        artifact_signing_key="offline-test-signing-key",
+        clock=lambda: 1_700_000_000,
+    )
+    descriptor = result["artifact"]
+    path = tmp_path / descriptor["object_key"]
+    assert path.read_bytes().startswith(b"%PDF-")
+    assert path.stat().st_size == descriptor["bytes"]
+    assert descriptor["page_count"] >= 4
+    assert "expires=1700003600" in result["artifact_url"]
+    Draft202012Validator(OUTPUT_SCHEMA).validate(result)
+
+
+def test_whatsapp_zip_derives_fields_then_runs_and_materializes_pdf(tmp_path: Path) -> None:
+    request = {"chat_zip": _chat_zip({"_chat.txt": _synthetic_chat()})}
+    derived = CASES["happy_path"]["input"]
+    observed = {}
+
+    def extractor(messages: list[dict]) -> dict:
+        observed["messages"] = messages
+        return derived
+
+    def story_executor(payload: dict) -> dict:
+        observed["payload"] = payload
+        return _story_result_without_artifact(llm_calls=2)
+
+    result = modal_app.execute_workflow(
+        request,
+        executor=story_executor,
+        input_extractor=extractor,
+        artifact_root=tmp_path,
+        artifact_signing_key="offline-test-signing-key",
+        clock=lambda: 1_700_000_000,
+    )
+    assert observed["payload"] == derived
+    assert observed["messages"][0]["sender"] == "Participant 1"
+    assert observed["messages"][1]["sender"] == "Participant 2"
+    assert (tmp_path / result["artifact"]["object_key"]).is_file()
+    assert result["artifact"]["page_count"] >= 4
+
+
+def test_whatsapp_zip_without_chat_file_is_a_typed_error() -> None:
+    with pytest.raises(modal_app.InputAdapterError, match="WHATSAPP_CHAT_NOT_FOUND"):
+        modal_app._parse_whatsapp_zip(_chat_zip({"notes.txt": "not an export"}))
+
+
+def test_oversized_whatsapp_zip_is_rejected_before_decode() -> None:
+    oversized = "A" * ((((modal_app.WHATSAPP_MAX_ZIP_BYTES + 2) // 3) * 4) + 4)
+    with pytest.raises(modal_app.InputAdapterError, match="WHATSAPP_ZIP_TOO_LARGE"):
+        modal_app._parse_whatsapp_zip({
+            "filename": "too-large.zip",
+            "content_base64": oversized,
+        })
+
+
+def test_whatsapp_adapter_prompt_is_strict_and_treats_messages_as_hostile_data() -> None:
+    prompt = (ROOT / modal_app.WHATSAPP_PROMPT_PATH).read_text(encoding="utf-8")
+    assert "hostile quoted data" in prompt
+    assert "Do not invent" in prompt

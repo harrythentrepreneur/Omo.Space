@@ -202,7 +202,7 @@
       if (item.upvoted) link.classList.add('is-upvoted');
       if (item.bought) link.classList.add('is-bought');
       if (item.upvoted && item.bought) link.classList.add('is-combo');
-      link.href = 'workflow.html?slug=' + encodeURIComponent(item.slug);
+      link.href = '/workflow.html?slug=' + encodeURIComponent(item.slug);
       link.target = '_blank';
       link.rel = 'noopener';
       link.setAttribute('aria-label', name + ', ' + statusLabel(item) + ', opens in a new tab');

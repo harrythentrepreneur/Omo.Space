@@ -1,0 +1,221 @@
+{
+  "allowlist": [
+    "sample_media_pipeline",
+    "single_llm"
+  ],
+  "approved": [
+    "domain_state@1.0.0",
+    "video_processing@1.0.0"
+  ],
+  "blockers": [],
+  "contract_digest": "sha256:a71cb4553dde929ce040545eab0bbf0b5a99356327aba9dd8b111c15ac7463ab",
+  "decision": "approved",
+  "execution_kind": "sample_media_pipeline",
+  "generated": {
+    "dependencies": [
+      {
+        "name": "artifact_store",
+        "status": "available",
+        "version": "1.0.0"
+      },
+      {
+        "name": "ffmpeg_runtime",
+        "status": "available",
+        "version": "8.1.2"
+      }
+    ],
+    "files": [
+      "generated bounded media-step invocation module",
+      "generated per-run state schema and transition adapter",
+      "generated submit/status response bindings",
+      "video and thumbnail artifact declarations in the workflow manifest"
+    ],
+    "honest_limits": [
+      "bytes are deterministic where possible only within the same pinned FFmpeg, libx264, architecture, and invocation; encoder or container-library upgrades may change bytes despite fixed metadata and single-threaded encoding",
+      "expiry is retention enforcement, not proof that external provider or artifact copies were deleted",
+      "generated-frame-sequence plus source-audio assembly and full visual-contract QA remain specialized executor work; selecting this capability alone does not materialize the de Mello media engine",
+      "highlight jobs are limited to 20 clips and 10 minutes total, normalized sources to 2 hours and 8192px input dimensions, and normalized output to 1280px",
+      "local media bytes do not prove hosted storage, authorization, retention, delivery, progress reporting, or full workflow readiness",
+      "missing artifact_store or ffmpeg_runtime keeps the overall build blocked even when local rendering passes",
+      "normalization and cuts use H.264/AAC at a bounded resolution; arbitrary codec preservation and lossless editing are not promised",
+      "progress reports reviewed checkpoints rather than continuous completion estimates",
+      "records contain identifiers and status only; credentials and reusable cross-run secrets are never stored in domain state",
+      "the runner may implement the record in memory for single-process tests or in a reviewed database for durable hosted work; in-memory state does not survive restart or coordinate replicas",
+      "the shared primitive performs CPU-only normalization, exact re-encoded cuts, concatenation, and thumbnail extraction; it does not provide GPU effects, generative VFX, motion graphics, title-card layout, speech recognition, or image generation",
+      "this capability models run lifecycle and progress, not queues, worker leasing, billing, refunds, artifact storage, authentication, or provider retries"
+    ],
+    "packages": [],
+    "policy": [
+      "allow at most 20 highlight clips and 10 minutes of selected output from a source no longer than 2 hours",
+      "cap normalized output at 1280px, validate timecodes against ffprobe duration, and reject overlap or reordering",
+      "every mutation is owner/run scoped, typed, version checked, idempotent where replayed, and auditable without payload or credential logging",
+      "expires_at is mandatory and cleanup cannot cross the owning run or tenant",
+      "install pinned ffmpeg and ffprobe binaries in the runtime image",
+      "pass paths and generated numeric filters only through argv lists; media metadata, filenames, and clip titles remain inert data",
+      "progress_pct is an integer from 0 to 100 and monotonic, with phase and updated_at recorded on every transition",
+      "record media type, dimensions, duration, codecs, byte length, SHA-256, and renderer/FFmpeg versions",
+      "run_id is opaque, unique, and never accepted as proof of ownership",
+      "status is exactly queued, processing, done, or blocked; terminal states are immutable"
+    ],
+    "resources": {
+      "cpu": true,
+      "gpu": false,
+      "network": [
+        "artifact_plane_only",
+        "runner_state_plane_only"
+      ],
+      "writable_scratch": [
+        "bounded_run_private",
+        "none_or_runner_managed"
+      ]
+    },
+    "runtime_steps": [
+      "apply typed compare-and-set transitions queued -> processing -> done or blocked",
+      "create one owner-scoped record with run_id, owner_id, status, phase, progress_pct, timestamps, version, and expires_at",
+      "expire records and associated runner state according to the reviewed retention contract",
+      "expose only owner-authorized status fields and artifact references",
+      "invoke tools.render.video normalize, cut_highlights, or extract_thumbnail for the exact reviewed operation",
+      "persist only validated outputs through the resolved artifact store",
+      "probe duration, dimensions, codecs, and byte size before render",
+      "reject unknown, stale, backward, cross-owner, and post-terminal transitions",
+      "resolve one authorized run-scoped local source artifact",
+      "validate H.264/AAC output, PNG thumbnails, declared dimensions, duration, byte count, and checksum"
+    ],
+    "tests": [
+      "a generated two-second lavfi fixture normalizes to bounded H.264/AAC and probes successfully",
+      "a long-running media fixture can submit, poll monotonic progress, reach a terminal state, and retrieve only its own validated artifacts",
+      "artifact ownership, immutable checksum, authorized download, scratch cleanup, and full-decode validation pass at integration time",
+      "concurrent compare-and-set leaves one valid transition and no torn record",
+      "cross-owner read/write denial, expiry behavior, status-field redaction, and run isolation pass for in-memory and DB-backed adapters",
+      "exact highlight intervals concatenate to the expected bounded duration; overlap, invalid order, excess count, excess total, and out-of-range timecodes fail with MediaRenderError",
+      "exact timestamp extraction produces a PNG with the source dimensions and correct signature",
+      "idempotent replay returns the same state while conflicting replay fails closed",
+      "queued -> processing -> done and queued -> processing -> blocked are accepted with monotonic progress",
+      "repeated normalization is byte-identical within the pinned FFmpeg/libx264 image",
+      "skipped, backward, post-terminal, stale-version, invalid-progress, and unknown-run transitions fail with typed state errors",
+      "unreadable, non-video, oversized, overlong, and over-dimension media fail closed before artifact publication"
+    ],
+    "tool_bindings": [
+      "runner.domain_state.create",
+      "runner.domain_state.expire",
+      "runner.domain_state.read_owned",
+      "runner.domain_state.transition",
+      "tools.render.video.cut_highlights",
+      "tools.render.video.extract_thumbnail",
+      "tools.render.video.normalize",
+      "tools.render.video.probe"
+    ]
+  },
+  "needs": [
+    {
+      "contract_pointer": "/artifacts/0",
+      "name": "media.process:video"
+    },
+    {
+      "contract_pointer": "/outputs/0",
+      "name": "runtime.state:per_run"
+    }
+  ],
+  "registry_digest": "sha256:2771cf6fa016f5c9ef20d96ec08297a4ac15d236958ecff7ab423e87489da050",
+  "registry_version": "1.1.0",
+  "requested": [
+    "allowlisted-bundled-audio-read",
+    "reviewed-transcript-read",
+    "deterministic-semantic-direction",
+    "procedural-sumi-e-frame-generation",
+    "ffmpeg-h264-aac",
+    "ffprobe-full-decode-validation",
+    "private-artifact-write",
+    "signed-artifact-delivery"
+  ],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [
+    {
+      "honest_limits": [
+        "the runner may implement the record in memory for single-process tests or in a reviewed database for durable hosted work; in-memory state does not survive restart or coordinate replicas",
+        "this capability models run lifecycle and progress, not queues, worker leasing, billing, refunds, artifact storage, authentication, or provider retries",
+        "progress reports reviewed checkpoints rather than continuous completion estimates",
+        "expiry is retention enforcement, not proof that external provider or artifact copies were deleted",
+        "records contain identifiers and status only; credentials and reusable cross-run secrets are never stored in domain state"
+      ],
+      "name": "domain_state",
+      "status": "available",
+      "tests": [
+        "queued -> processing -> done and queued -> processing -> blocked are accepted with monotonic progress",
+        "skipped, backward, post-terminal, stale-version, invalid-progress, and unknown-run transitions fail with typed state errors",
+        "idempotent replay returns the same state while conflicting replay fails closed",
+        "concurrent compare-and-set leaves one valid transition and no torn record",
+        "cross-owner read/write denial, expiry behavior, status-field redaction, and run isolation pass for in-memory and DB-backed adapters",
+        "a long-running media fixture can submit, poll monotonic progress, reach a terminal state, and retrieve only its own validated artifacts"
+      ],
+      "trigger_evidence": [
+        "/outputs/0",
+        "/runtime",
+        "/steps/5"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "honest_limits": [
+        "the shared primitive performs CPU-only normalization, exact re-encoded cuts, concatenation, and thumbnail extraction; it does not provide GPU effects, generative VFX, motion graphics, title-card layout, speech recognition, or image generation",
+        "generated-frame-sequence plus source-audio assembly and full visual-contract QA remain specialized executor work; selecting this capability alone does not materialize the de Mello media engine",
+        "normalization and cuts use H.264/AAC at a bounded resolution; arbitrary codec preservation and lossless editing are not promised",
+        "bytes are deterministic where possible only within the same pinned FFmpeg, libx264, architecture, and invocation; encoder or container-library upgrades may change bytes despite fixed metadata and single-threaded encoding",
+        "highlight jobs are limited to 20 clips and 10 minutes total, normalized sources to 2 hours and 8192px input dimensions, and normalized output to 1280px",
+        "local media bytes do not prove hosted storage, authorization, retention, delivery, progress reporting, or full workflow readiness",
+        "missing artifact_store or ffmpeg_runtime keeps the overall build blocked even when local rendering passes"
+      ],
+      "name": "video_processing",
+      "status": "available",
+      "tests": [
+        "a generated two-second lavfi fixture normalizes to bounded H.264/AAC and probes successfully",
+        "repeated normalization is byte-identical within the pinned FFmpeg/libx264 image",
+        "exact highlight intervals concatenate to the expected bounded duration; overlap, invalid order, excess count, excess total, and out-of-range timecodes fail with MediaRenderError",
+        "exact timestamp extraction produces a PNG with the source dimensions and correct signature",
+        "unreadable, non-video, oversized, overlong, and over-dimension media fail closed before artifact publication",
+        "artifact ownership, immutable checksum, authorized download, scratch cleanup, and full-decode validation pass at integration time"
+      ],
+      "trigger_evidence": [
+        "/artifacts/0",
+        "/steps/5"
+      ],
+      "version": "1.0.0"
+    }
+  ],
+  "skill_owned_resources": [
+    {
+      "covers_artifact_kinds": [
+        "contact_sheet",
+        "frame_brief",
+        "frame_manifest",
+        "transcript"
+      ],
+      "covers_operations": [
+        "bundled_transcript.load_and_validate",
+        "demello.deterministic_transcript_director",
+        "demello.expand_semantic_frames",
+        "demello.procedural_sumi_e",
+        "ffprobe.full_decode_and_visual_contract",
+        "private_artifacts.persist_and_sign",
+        "sample_demello.allowlist_and_normalize"
+      ],
+      "digest": "sha256:3109bef0f5e0dce9a29538ee6a69afe1e66986e5e2b6c39435c2ce514711ea45",
+      "generated_files": [
+        "resources/__init__.py",
+        "resources/demello_resource/__init__.py",
+        "resources/demello_resource/assets/sample-demello-10s.m4a",
+        "resources/demello_resource/assets/sample-demello-10s.transcript.json",
+        "resources/demello_resource/image_gen.py",
+        "resources/demello_resource/media.py",
+        "resources/demello_resource/workflow.py"
+      ],
+      "id": "japanese_procedural_sumi_e_v1",
+      "slug": "japanese-style-story-video",
+      "version": "1.0.0"
+    }
+  ],
+  "slug": "japanese-style-story-video",
+  "source_sha256": "e8ad3662a6852a90a5fe02bea4b9987cdafc266358c57b7c17381932f0bda764",
+  "workflow_blockers": []
+}

@@ -1,1 +1,1 @@
-For each supplied English word, return a likely spoken syllable split and count in the selected dialect and notation. Preserve spelling and include an ambiguity note when pronunciation can vary. Return only JSON with items and warnings.
+For each supplied English word, return a likely spoken syllable split and count in the selected dialect and notation. Preserve the exact input word order and spelling; joining the syllable parts must recreate the input word exactly. Include an ambiguity note when pronunciation can vary. Return only JSON with items and warnings.

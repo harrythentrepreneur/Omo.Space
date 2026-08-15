@@ -1,0 +1,602 @@
+{
+  "apt_packages": [
+    "ffmpeg"
+  ],
+  "artifacts": [
+    {
+      "content_type": "video/mp4",
+      "kind": "video",
+      "required": true
+    },
+    {
+      "content_type": "image/jpeg",
+      "kind": "contact_sheet",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "transcript",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "frame_brief",
+      "required": true
+    },
+    {
+      "content_type": "application/json",
+      "kind": "frame_manifest",
+      "required": true
+    }
+  ],
+  "capabilities": [
+    "allowlisted-bundled-audio-read",
+    "reviewed-transcript-read",
+    "deterministic-semantic-direction",
+    "procedural-sumi-e-frame-generation",
+    "ffmpeg-h264-aac",
+    "ffprobe-full-decode-validation",
+    "private-artifact-write",
+    "signed-artifact-delivery"
+  ],
+  "cost_drivers": [
+    "CPU-only 10-second portrait frame generation, FFmpeg assembly, and full-decode QA",
+    "Run-scoped video, transcript, frame brief, frame manifest, and contact-sheet storage and egress",
+    "The reviewed procedural lane has zero provider cost; measured Modal compute has remained below $0.003 per delivered 10-second run",
+    "The arbitrary-audio planning estimate uses deepseek-v4-flash rates from site/deploy/cost-model.mjs; it is not an enabled hosted lane"
+  ],
+  "execution_kind": "sample_media_pipeline",
+  "form": [
+    {
+      "field": "audio",
+      "widget": "select"
+    },
+    {
+      "field": "style",
+      "widget": "hidden"
+    },
+    {
+      "field": "duration",
+      "widget": "hidden"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "audio": "sample-demello-10s",
+      "duration": 10,
+      "style": "sumi-e"
+    },
+    "output": {
+      "artifacts": [
+        {
+          "bytes": 388765,
+          "content_type": "video/mp4",
+          "kind": "video",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/1111111111111111111111111111111111111111111111111111111111111111/video.mp4",
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/video.mp4"
+        },
+        {
+          "bytes": 182440,
+          "content_type": "image/jpeg",
+          "kind": "contact_sheet",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/2222222222222222222222222222222222222222222222222222222222222222/contact-sheet.jpg",
+          "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/contact-sheet.jpg"
+        },
+        {
+          "bytes": 483,
+          "content_type": "application/json",
+          "kind": "transcript",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/3333333333333333333333333333333333333333333333333333333333333333/transcript.json",
+          "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/transcript.json"
+        },
+        {
+          "bytes": 24180,
+          "content_type": "application/json",
+          "kind": "frame_brief",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/4444444444444444444444444444444444444444444444444444444444444444/frame-brief.json",
+          "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/frame-brief.json"
+        },
+        {
+          "bytes": 9120,
+          "content_type": "application/json",
+          "kind": "frame_manifest",
+          "object_key": "owners/0123456789abcdef01234567/runs/run-0123456789abcdef0123456789abcdef/5555555555555555555555555555555555555555555555555555555555555555/frames.json",
+          "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+          "url": "https://artifacts.example.invalid/runs/run-sample-demello/frames.json"
+        }
+      ],
+      "media": {
+        "audio_codec": "aac",
+        "duration_seconds": 10,
+        "fps": 30,
+        "height": 1920,
+        "video_codec": "h264",
+        "width": 1080
+      },
+      "run_id": "run-0123456789abcdef0123456789abcdef",
+      "status": "completed",
+      "usage": {
+        "accepted_frames": 30,
+        "generated_frames": 30,
+        "generation_provider": "procedural-fallback",
+        "output_frames": 300,
+        "provider_cost_usd": 0
+      },
+      "workflow_version": "japanese-style-story-video@0.2.0"
+    }
+  },
+  "input_schema": {
+    "$id": "https://omo.space/schemas/japanese-style-story-video/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Fail-closed hosted milestone input. Only the bundled 10-second sample is accepted; arbitrary audio is not enabled.",
+    "properties": {
+      "audio": {
+        "const": "sample-demello-10s",
+        "description": "The only audio source enabled for the hosted milestone.",
+        "title": "Audio source",
+        "type": "string"
+      },
+      "duration": {
+        "const": 10,
+        "description": "The exact duration of the bundled sample in seconds.",
+        "title": "Duration",
+        "type": "integer"
+      },
+      "style": {
+        "const": "sumi-e",
+        "description": "The reviewed Japanese ink style for this release.",
+        "title": "Visual style",
+        "type": "string"
+      }
+    },
+    "required": [
+      "audio",
+      "style",
+      "duration"
+    ],
+    "title": "Japanese Style Story Video hosted sample",
+    "type": "object"
+  },
+  "marketplace": {
+    "catalog_managed": false,
+    "category": "content",
+    "cover": "covers/japanese-style-story-video.svg",
+    "demo_cap": "Hosted milestone: bundled 10-second sample",
+    "deployment": {
+      "default_endpoint": "https://omo-space--cognition-japanese-style-story-video-api.modal.run",
+      "endpoint_env": "JAPANESE_STORY_VIDEO_MODAL_URL"
+    },
+    "description": "Turn the reviewed 10-second sample into a deterministic Japanese-style drawing animation. The hosted lane is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It loads the reviewed transcript, plans semantic ink-drawing beats, renders procedural sumi-e frames, then delivers a validated portrait MP4 with owner-scoped frame artifacts.",
+    "emoji": "🎋",
+    "example_in": "sample-demello-10s · sumi-e · 10 seconds",
+    "example_out": [
+      "A validated 1080×1920 H.264/AAC MP4 with the bundled reflection audio",
+      "The reviewed transcript, semantic frame brief, frame manifest, and contact sheet"
+    ],
+    "examples": [
+      {
+        "caption": "Sumi-e · bundled 10-second sample",
+        "id": "sample-demello-10s",
+        "input": {
+          "audio": "sample-demello-10s",
+          "duration": 10,
+          "style": "sumi-e"
+        },
+        "output_preview": "A validated portrait MP4 plus the reviewed transcript and run-scoped frame artifacts.",
+        "title": "Present-moment reflection"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "audio: hosted milestone requires sample-demello-10s",
+      "style: sumi-e Japanese ink",
+      "duration: exactly 10 seconds"
+    ],
+    "maker": "de Mello",
+    "maker_name": "de Mello Studio",
+    "niche": "video",
+    "outputs": [
+      "video — validated 1080×1920 H.264/AAC MP4",
+      "frames — transcript, semantic frame brief, frame manifest, and contact sheet"
+    ],
+    "phases": [
+      {
+        "id": "transcribing",
+        "label": "Validating transcript"
+      },
+      {
+        "id": "directing",
+        "label": "Directing ink beats"
+      },
+      {
+        "id": "generating",
+        "label": "Generating frames"
+      },
+      {
+        "id": "assembling",
+        "label": "Assembling and validating"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 8,
+    "price_own": 29,
+    "promise": "Turn short audio into a vertical sumi-e drawing animation.",
+    "slug": "japanese-style-story-video",
+    "tags": [
+      "video",
+      "animation",
+      "japanese",
+      "sumi-e",
+      "storytelling",
+      "audio"
+    ],
+    "title": "Japanese Style Story Video",
+    "upvotes": 118,
+    "version": "v1.1.0 · 2026-08-15"
+  },
+  "name": "japanese-style-story-video",
+  "negative_cases": [
+    {
+      "id": "missing-audio",
+      "input": {
+        "duration": 10,
+        "style": "sumi-e"
+      },
+      "reason": "audio is required"
+    },
+    {
+      "id": "arbitrary-audio-reference",
+      "input": {
+        "audio": "customer-upload-001",
+        "duration": 10,
+        "style": "sumi-e"
+      },
+      "reason": "the hosted lane accepts only sample-demello-10s"
+    },
+    {
+      "id": "arbitrary-audio-url",
+      "input": {
+        "audio": "https://example.com/customer.mp3",
+        "duration": 10,
+        "style": "sumi-e"
+      },
+      "reason": "arbitrary audio is rejected before provider work"
+    },
+    {
+      "id": "wrong-style",
+      "input": {
+        "audio": "sample-demello-10s",
+        "duration": 10,
+        "style": "photorealistic"
+      },
+      "reason": "this release is pinned to sumi-e"
+    },
+    {
+      "id": "wrong-duration",
+      "input": {
+        "audio": "sample-demello-10s",
+        "duration": 20,
+        "style": "sumi-e"
+      },
+      "reason": "the hosted milestone does not stretch the 10-second sample"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "audio": "sample-demello-10s",
+        "duration": 10,
+        "provider": "unreviewed",
+        "style": "sumi-e"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ],
+  "output_schema": {
+    "$id": "https://omo.space/schemas/japanese-style-story-video/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "artifacts": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "content_type": {
+              "enum": [
+                "video/mp4",
+                "image/jpeg",
+                "application/json"
+              ],
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "video",
+                "contact_sheet",
+                "transcript",
+                "frame_brief",
+                "frame_manifest"
+              ],
+              "type": "string"
+            },
+            "object_key": {
+              "maxLength": 512,
+              "minLength": 3,
+              "pattern": "^owners/[0-9a-f]{24}/runs/run-[0-9a-f]{32}/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "url": {
+              "maxLength": 4096,
+              "pattern": "^https://",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "object_key",
+            "sha256",
+            "bytes",
+            "content_type",
+            "url"
+          ],
+          "type": "object"
+        },
+        "maxItems": 5,
+        "minItems": 5,
+        "type": "array"
+      },
+      "media": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_codec": {
+            "const": "aac"
+          },
+          "duration_seconds": {
+            "maximum": 10.2,
+            "minimum": 9.8,
+            "type": "number"
+          },
+          "fps": {
+            "const": 30
+          },
+          "height": {
+            "const": 1920
+          },
+          "video_codec": {
+            "const": "h264"
+          },
+          "width": {
+            "const": 1080
+          }
+        },
+        "required": [
+          "duration_seconds",
+          "width",
+          "height",
+          "fps",
+          "video_codec",
+          "audio_codec"
+        ],
+        "type": "object"
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_frames": {
+            "const": 30
+          },
+          "generated_frames": {
+            "const": 30
+          },
+          "generation_provider": {
+            "const": "procedural-fallback"
+          },
+          "output_frames": {
+            "const": 300
+          },
+          "provider_cost_usd": {
+            "const": 0
+          }
+        },
+        "required": [
+          "generated_frames",
+          "accepted_frames",
+          "output_frames",
+          "generation_provider",
+          "provider_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "japanese-style-story-video@0.2.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "artifacts",
+      "media",
+      "usage"
+    ],
+    "title": "Completed Japanese Style Story Video run",
+    "type": "object"
+  },
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "sample_demello_10s",
+    "estimates": [
+      {
+        "guard_cost_usd": 0.003,
+        "notes": [
+          "The procedural sample lane has zero provider spend and a conservative $0.003 delivered-compute guard.",
+          "The canonical repository formula max($0.10, cost x 5) yields the $0.10 buyer quote."
+        ],
+        "tier": "sample_demello_10s",
+        "workflow": {
+          "steps": []
+        }
+      },
+      {
+        "guard_cost_usd": 0.18,
+        "notes": [
+          "Planning is modeled with canonical deepseek-v4-flash rates and three canonical openai_image calls only as a conservative future benchmark.",
+          "This arbitrary-audio lane is not enabled or chargeable."
+        ],
+        "tier": "arbitrary_audio_10s_unavailable",
+        "workflow": {
+          "steps": [
+            {
+              "estimated_input_tokens": 1800,
+              "max_output_tokens": 1200,
+              "model": "deepseek-v4-flash",
+              "role": "semantic-director",
+              "type": "llm"
+            },
+            {
+              "api": "openai_image",
+              "qty": 3,
+              "type": "api"
+            }
+          ]
+        }
+      }
+    ],
+    "measured_evidence": [
+      {
+        "artifact_bytes": 384681,
+        "artifact_sha256": "8308cb0299c83bdc7256eb62c3a88eb5f5178f657458f5db0a3478d2e6afe14c",
+        "canonical_markup": 5,
+        "canonical_price_usd": 0.1,
+        "compute_cost_usd": 0.00061482,
+        "cpu_core_seconds": 40.13183,
+        "cpu_rate_usd_per_core_second": 0.0000131,
+        "duration_seconds": 10,
+        "measured_at": "2026-08-15",
+        "memory_gib_seconds": 40.13183,
+        "memory_rate_usd_per_gib_second": 0.00000222,
+        "provider_cost_usd": 0,
+        "sample": "sample-demello-10s",
+        "wall_seconds": 20.065915
+      }
+    ],
+    "notes": [
+      "The $0.10 quote applies only to the bundled deterministic 10-second sample lane.",
+      "The bundled sample reuses a reviewed transcript and procedural renderer, so it reports zero provider spend rather than fabricating an ASR or image-provider charge.",
+      "Arbitrary audio remains rejected before provider work and is not priced or chargeable."
+    ],
+    "quote_status": "measured_sample_lane",
+    "unpriced_costs": [
+      "arbitrary-audio transcription, direction, and image generation",
+      "long-run artifact egress outside the bundled sample canary"
+    ]
+  },
+  "prompts": {
+    "director.txt": "Direct the reviewed transcript into exactly thirty semantic sumi-e cells for a ten-second portrait animation. Preserve the spoken meaning. Each cell must name one visible mechanical delta, one stable anchor, and the state that must persist. Do not invent dialogue, themes, objects, or claims absent from the transcript. Return strict JSON only.",
+    "frame.txt": "Render one portrait 1080×1920 Japanese sumi-e drawing frame from the reviewed semantic cell. Preserve the prior accepted frame's anchor identity and geometry. Apply only the named countable delta; keep prior changes persistent. Black ink on warm white paper, no text, seals, logos, borders, faces, or landscape output."
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true
+  },
+  "required_env_names": [],
+  "outputs": [
+    {
+      "kind": "run_status"
+    }
+  ],
+  "runtime": {
+    "ownership_scope": "per_run"
+  },
+  "skill_owned_resource": "japanese_procedural_sumi_e_v1",
+  "resources": {
+    "cpu": 2.0,
+    "max_containers": 2,
+    "memory_mb": 2048,
+    "timeout_seconds": 1200
+  },
+  "slug": "japanese-style-story-video",
+  "steps": [
+    {
+      "id": "admit-sample",
+      "operation": "sample_demello.allowlist_and_normalize",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    },
+    {
+      "id": "transcribe",
+      "operation": "bundled_transcript.load_and_validate",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    },
+    {
+      "id": "direct",
+      "operation": "demello.deterministic_transcript_director",
+      "prompt": "director.txt",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    },
+    {
+      "id": "generate-frames",
+      "operation": "demello.procedural_sumi_e",
+      "prompt": "frame.txt",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    },
+    {
+      "id": "expand-frames",
+      "operation": "demello.expand_semantic_frames",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    },
+    {
+      "id": "assemble",
+      "operation": "ffmpeg.h264_aac_portrait",
+      "provider": "local",
+      "readiness": "ready",
+      "execution_mode": "long_running",
+      "type": "native"
+    },
+    {
+      "id": "validate",
+      "operation": "ffprobe.full_decode_and_visual_contract",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "quality"
+    },
+    {
+      "id": "deliver",
+      "operation": "private_artifacts.persist_and_sign",
+      "readiness": "ready",
+      "type": "artifact"
+    }
+  ],
+  "version": "0.2.0"
+}

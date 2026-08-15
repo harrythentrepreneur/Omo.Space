@@ -157,7 +157,6 @@
     "base_url_env": "LLM_BASE_URL",
     "default_base_url": "https://opencode.ai/zen/go/v1",
     "default_model": "deepseek-v4-flash",
-    "input_rate_per_million_usd": 0.14,
     "max_tokens": 1200,
     "modal_secret_name": "omo-skill-providers",
     "model_env": "LLM_MODEL",
@@ -233,7 +232,6 @@
         "warnings"
       ]
     },
-    "output_rate_per_million_usd": 0.28,
     "prompt": "run.txt",
     "provider": "opencode-go",
     "temperature": 0.2,
@@ -244,7 +242,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-decodable-sentence-creator-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-decodable-sentence-creator-api.modal.run",
       "endpoint_env": "DECODABLE_SENTENCE_CREATOR_MODAL_URL"
     },
     "description": "Generate short practice sentences constrained by reviewed phonics patterns, length, dialect, and sight-word policy.",
@@ -517,7 +515,7 @@
     ]
   },
   "prompts": {
-    "run.txt": "Generate exactly the requested number of child-safe sentences in the selected length band and dialect. Emphasize every requested phonics pattern, disclose sight or irregular words, and do not claim full decodability. Return only JSON with sentences, coverage, and warnings."
+    "run.txt": "Generate exactly the requested number of child-safe sentences in the selected length band and dialect. Emphasize every requested phonics pattern, disclose sight or irregular words, and do not claim full decodability. Every target word must appear verbatim as a whole word in its sentence and contain at least one requested reviewed spelling or word shape. Return only JSON with sentences, coverage, and warnings."
   },
   "readiness": {
     "can_submit": true,
@@ -533,6 +531,81 @@
     "memory_mb": 512,
     "timeout_seconds": 180,
     "max_containers": 4
+  },
+  "semantic_normalizers": {
+    "flag_fields": [
+      {
+        "flag": "include_sight_words",
+        "path": [
+          "sentences",
+          "*",
+          "sight_or_irregular_words"
+        ]
+      }
+    ],
+    "target_word_containment": {
+      "request_field": "phonics_patterns",
+      "items_field": "sentences",
+      "target_field": "target_words",
+      "pattern_to_word_shape": {
+        "cvc": "CVC",
+        "ccvc": "CCVC",
+        "cvcc": "CVCC"
+      },
+      "pattern_to_graphemes": {
+        "long_a": [
+          "ai",
+          "ay",
+          "a_e"
+        ],
+        "long_e": [
+          "ee",
+          "ea",
+          "e_e",
+          "y"
+        ],
+        "long_i": [
+          "igh",
+          "ie",
+          "i_e",
+          "y"
+        ],
+        "long_o": [
+          "oa",
+          "ow",
+          "o_e"
+        ],
+        "long_u": [
+          "ue",
+          "ew",
+          "u_e"
+        ],
+        "sh_digraph": [
+          "sh"
+        ],
+        "ch_digraph": [
+          "ch"
+        ],
+        "th_digraph": [
+          "th"
+        ],
+        "wh_digraph": [
+          "wh"
+        ],
+        "ck_digraph": [
+          "ck"
+        ],
+        "ai_vowel_team": [
+          "ai"
+        ],
+        "ee_vowel_team": [
+          "ee"
+        ],
+        "oa_vowel_team": [
+          "oa"
+        ]
+      }
+    }
   },
   "slug": "decodable-sentence-creator",
   "steps": [

@@ -80,5 +80,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "grapheme-to-phoneme-converter",
+  "source_sha256": "978d396e2adb26f2f47cf7374d4ae984bf178e3c89271bc25e99e1bcb58b75be",
   "version": "0.1.0"
 }

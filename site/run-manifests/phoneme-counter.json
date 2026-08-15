@@ -1,0 +1,181 @@
+{
+  "chargeable": true,
+  "container_slug": "phoneme-counter",
+  "examples": [
+    {
+      "caption": "Reviewed fixture",
+      "id": "reviewed-fixture",
+      "input": {
+        "dialect": "en-US",
+        "show_transcription": true,
+        "word": "ship"
+      },
+      "output_preview": "Count a word's sounds with pronunciation uncertainty made explicit.",
+      "title": "Phoneme Counter"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/phoneme-counter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "show_transcription": {
+        "type": "boolean"
+      },
+      "word": {
+        "maxLength": 80,
+        "minLength": 1,
+        "pattern": "^[A-Za-z'-]+$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "word",
+      "dialect",
+      "show_transcription"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/phoneme-counter/schemas/input.json",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dialect": {
+        "enum": [
+          "en-US",
+          "en-GB",
+          "en-AU"
+        ]
+      },
+      "ipa": {
+        "maxLength": 120,
+        "type": "string"
+      },
+      "phoneme_count": {
+        "maximum": 30,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "phonemes": {
+        "items": {
+          "maxLength": 20,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 30,
+        "minItems": 1,
+        "type": "array"
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "uncertainty": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "word": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "workflow_version": {
+        "const": "phoneme-counter@0.1.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "word",
+      "dialect",
+      "phonemes",
+      "phoneme_count",
+      "ipa",
+      "uncertainty",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/phoneme-counter/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Analyzing the phonics brief"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "phoneme-counter",
+  "ui": {
+    "fields": {
+      "dialect": {
+        "widget": "select"
+      },
+      "show_transcription": {
+        "widget": "checkbox"
+      },
+      "word": {
+        "widget": "text"
+      }
+    },
+    "order": [
+      "word",
+      "dialect",
+      "show_transcription"
+    ]
+  }
+}

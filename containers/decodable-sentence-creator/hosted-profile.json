@@ -1,0 +1,525 @@
+{
+  "catalog": {
+    "category": "education",
+    "cover": null,
+    "demoCap": "Hosted run: structured teacher-reviewable result",
+    "desc": "Generate short practice sentences constrained by reviewed phonics patterns, length, dialect, and sight-word policy.",
+    "emoji": "📝",
+    "exampleIn": "cvc, sh_digraph · 2 · short",
+    "exampleOut": [
+      "Create targeted practice sentences with irregular words disclosed.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "phonics_patterns: reviewed bounded input",
+      "num_sentences: reviewed bounded input",
+      "sentence_length: reviewed bounded input",
+      "include_sight_words: reviewed bounded input",
+      "dialect: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "makerName": "PhonicsMaker",
+    "name": "Decodable Sentence Creator",
+    "niche": "phonics",
+    "outputs": [
+      "sentences: schema-validated result",
+      "coverage: schema-validated result",
+      "warnings: schema-validated result"
+    ],
+    "priceMaintain": 3.0,
+    "priceOwn": 12.0,
+    "promise": "Create targeted practice sentences with irregular words disclosed.",
+    "runManifest": "run-manifests/decodable-sentence-creator.json",
+    "runPrice": 0.1,
+    "slug": "decodable-sentence-creator",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13",
+    "workflow": {
+      "steps": [
+        {
+          "max_output": 1200,
+          "model": "deepseek-v4-flash",
+          "role": "generate",
+          "system": "Generate exactly the requested number of child-safe sentences in the selected length band and dialect. Emphasize every requested phonics pattern, disclose sight or irregular words, and do not claim full decodability. Every target word must appear verbatim as a whole word in its sentence and contain at least one requested reviewed spelling or word shape. Return only JSON with sentences, coverage, and warnings.",
+          "type": "llm"
+        },
+        {
+          "label": "Analyzing the phonics brief",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": true,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "decodable-sentence-creator",
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "dialect": "en-US",
+          "include_sight_words": true,
+          "num_sentences": 2,
+          "phonics_patterns": [
+            "cvc",
+            "sh_digraph"
+          ],
+          "sentence_length": "short"
+        },
+        "output_preview": "Create targeted practice sentences with irregular words disclosed.",
+        "title": "Decodable Sentence Creator"
+      }
+    ],
+    "input_schema": {
+      "$id": "https://omo.space/schemas/decodable-sentence-creator/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "include_sight_words": {
+          "type": "boolean"
+        },
+        "num_sentences": {
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "phonics_patterns": {
+          "items": {
+            "enum": [
+              "cvc",
+              "cvcc",
+              "ccvc",
+              "long_a",
+              "long_e",
+              "long_i",
+              "long_o",
+              "long_u",
+              "sh_digraph",
+              "ch_digraph",
+              "th_digraph",
+              "wh_digraph",
+              "ck_digraph",
+              "ai_vowel_team",
+              "ee_vowel_team",
+              "oa_vowel_team"
+            ]
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "sentence_length": {
+          "enum": [
+            "short",
+            "medium",
+            "long"
+          ]
+        }
+      },
+      "required": [
+        "phonics_patterns",
+        "num_sentences",
+        "sentence_length",
+        "include_sight_words",
+        "dialect"
+      ],
+      "type": "object"
+    },
+    "input_schema_source": "containers/decodable-sentence-creator/schemas/input.json",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "sentences": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "sight_or_irregular_words": {
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "target_words": {
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              "text": {
+                "maxLength": 160,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "target_words",
+              "sight_or_irregular_words"
+            ],
+            "type": "object"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "type": "array"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "workflow_version": {
+          "const": "decodable-sentence-creator@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "sentences",
+        "coverage",
+        "warnings",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "output_schema_source": "containers/decodable-sentence-creator/schemas/output.json",
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "decodable-sentence-creator",
+    "ui": {
+      "fields": {
+        "dialect": {
+          "widget": "select"
+        },
+        "include_sight_words": {
+          "widget": "checkbox"
+        },
+        "num_sentences": {
+          "widget": "number"
+        },
+        "phonics_patterns": {
+          "widget": "multi_select"
+        },
+        "sentence_length": {
+          "widget": "select"
+        }
+      },
+      "order": [
+        "phonics_patterns",
+        "num_sentences",
+        "sentence_length",
+        "include_sight_words",
+        "dialect"
+      ]
+    }
+  },
+  "runtime": {
+    "container_slug": "decodable-sentence-creator",
+    "default_endpoint": "https://omo-space--cognition-decodable-sentence-creator-api.modal.run",
+    "endpoint_env": "DECODABLE_SENTENCE_CREATOR_MODAL_URL",
+    "input_schema": {
+      "$id": "https://omo.space/schemas/decodable-sentence-creator/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "include_sight_words": {
+          "type": "boolean"
+        },
+        "num_sentences": {
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "phonics_patterns": {
+          "items": {
+            "enum": [
+              "cvc",
+              "cvcc",
+              "ccvc",
+              "long_a",
+              "long_e",
+              "long_i",
+              "long_o",
+              "long_u",
+              "sh_digraph",
+              "ch_digraph",
+              "th_digraph",
+              "wh_digraph",
+              "ck_digraph",
+              "ai_vowel_team",
+              "ee_vowel_team",
+              "oa_vowel_team"
+            ]
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "sentence_length": {
+          "enum": [
+            "short",
+            "medium",
+            "long"
+          ]
+        }
+      },
+      "required": [
+        "phonics_patterns",
+        "num_sentences",
+        "sentence_length",
+        "include_sight_words",
+        "dialect"
+      ],
+      "type": "object"
+    },
+    "kind": "modal-hosted",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "sentences": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "sight_or_irregular_words": {
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "target_words": {
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              "text": {
+                "maxLength": 160,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "target_words",
+              "sight_or_irregular_words"
+            ],
+            "type": "object"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "type": "array"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "workflow_version": {
+          "const": "decodable-sentence-creator@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "sentences",
+        "coverage",
+        "warnings",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "reviewed_source_sha256": "de9789e410223c8607961a62553604f150b2eee00c9caabe30f7efebf25b052c",
+    "run_price_cents": 10,
+    "slug": "decodable-sentence-creator"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "legacy_profile_defaults_to_modal",
+    "recommended": "modal-hosted",
+    "requested": "modal-hosted"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 12.0,
+    "max_tokens": 1200,
+    "model": "deepseek-v4-flash",
+    "name": "Decodable Sentence Creator",
+    "run_price_usd": 0.1,
+    "slug": "decodable-sentence-creator",
+    "system_prompt": "Generate exactly the requested number of child-safe sentences in the selected length band and dialect. Emphasize every requested phonics pattern, disclose sight or irregular words, and do not claim full decodability. Every target word must appear verbatim as a whole word in its sentence and contain at least one requested reviewed spelling or word shape. Return only JSON with sentences, coverage, and warnings."
+  }
+}

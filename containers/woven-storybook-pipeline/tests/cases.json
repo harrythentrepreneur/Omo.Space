@@ -8,6 +8,17 @@
       "style": "warm"
     },
     "output": {
+      "artifact": {
+        "bytes": 8421,
+        "content_type": "application/pdf",
+        "filename": "woven-keepsake.pdf",
+        "kind": "pdf",
+        "object_key": "runs/run-fixture-woven-preview/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/woven-keepsake.pdf",
+        "page_count": 5,
+        "role": "book",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "artifact_url": "/v1/artifacts/run-fixture-woven-preview/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/woven-keepsake.pdf?expires=1700003600&signature=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "book": "# Wrong Turn, Best View\n\n## The Bookshop in the Rain\n\nIt began with two hands reaching for the same travel book while rain traced the window. They talked until closing, discovering that an ordinary detour could become the start of everything.\n\n## Two Cities and One Small Home\n\nSeven years carried them through two cities and into a first tiny apartment. The rooms were modest, but the life inside them kept expanding—especially after a sock-stealing corgi arrived and claimed the softest corners.\n\n## The View They Kept\n\nPlans still went sideways. Breakfast still occasionally became a smoke-alarm serenade. Each time, they returned to the phrase that had become their compass: wrong turn, best view. Their keepsake was never a perfect route; it was the joy of finding the view together.",
       "page_plan": [
         "Cover — Wrong Turn, Best View, with a rainy bookshop motif",
@@ -27,10 +38,25 @@
         "prompt_tokens": 410,
         "provider": "opencode-go"
       },
-      "workflow_version": "woven-storybook-pipeline@0.2.0"
+      "workflow_version": "woven-storybook-pipeline@0.3.0"
     }
   },
   "negative_cases": [
+    {
+      "id": "mixed-input-sources",
+      "input": {
+        "chat_zip": {
+          "content_base64": "UEsDBAAAAAAAAAAAAA==",
+          "filename": "messages.zip"
+        },
+        "favorite_moments": "Seven years and two cities together.",
+        "how_you_met": "We met in a rainy bookshop after reaching for one book.",
+        "inside_jokes": "Wrong turn, best view.",
+        "length": "short",
+        "style": "warm"
+      },
+      "reason": "exactly one source is accepted: chat_zip or all direct fields"
+    },
     {
       "id": "missing-how-you-met",
       "input": {

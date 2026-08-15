@@ -10,7 +10,7 @@
     if (document.querySelector('link[href$="signup-modal.css"]')) return;
     var stylesheet = document.createElement('link');
     stylesheet.rel = 'stylesheet';
-    stylesheet.href = 'signup-modal.css';
+    stylesheet.href = '/signup-modal.css';
     document.head.appendChild(stylesheet);
   }
 
@@ -21,7 +21,7 @@
       '<div class="auth-modal" id="signup-modal" hidden>',
         '<section class="auth-modal__card" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" aria-describedby="auth-modal-subtitle">',
           '<button class="auth-modal__close" id="auth-modal-close" type="button" aria-label="Close">&times;</button>',
-          '<img class="auth-modal__logo" src="logo-sweet-pastel.svg" alt="Omo">',
+          '<img class="auth-modal__logo" src="/logo-sweet-pastel.svg" alt="Omo">',
           '<div class="auth-modal__view" id="auth-form-view">',
             '<h2 class="auth-modal__heading" id="auth-modal-title">Create your Omo account</h2>',
             '<p class="auth-modal__subheading" id="auth-modal-subtitle">to run AI helpers and keep what you build</p>',

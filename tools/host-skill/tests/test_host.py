@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -37,11 +38,57 @@ def test_hosted_profile_is_deterministic_and_schema_driven() -> None:
     first = host.build_hosted_profile(profile, manifest, pricing)
     second = host.build_hosted_profile(profile, manifest, pricing)
     assert first == second
-    assert first["runtime"]["input_schema"] == profile["input_schema"]
-    assert first["runtime"]["output_schema"] == profile["output_schema"]
+    assert first["runtime"]["input_schema"] == manifest["input_schema"]
+    assert first["runtime"]["output_schema"] == manifest["output_schema"]
     assert first["runtime"]["reviewed_source_sha256"] == manifest["source_sha256"]
     assert len(first["runtime"]["reviewed_source_sha256"]) == 64
     assert first["run_manifest"]["price_usd"] == pricing["display_price_usd"] == 0.1
+
+
+def test_host_registration_preserves_compiler_materialized_adapter_and_artifact_schemas() -> None:
+    skill = ROOT / "containers" / "woven-storybook-pipeline" / "source" / "SKILL.md"
+    profile_path = (
+        ROOT / "packages" / "skill-to-modal" / "profiles" / "woven-storybook-pipeline.json"
+    )
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = host.COMPILER.build_files(skill.read_text(encoding="utf-8"), profile)
+    manifest = json.loads(files["manifest.json"])
+    pricing = json.loads(files["pricing-report.json"])
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    input_schema = hosted["runtime"]["input_schema"]
+    output_schema = hosted["runtime"]["output_schema"]
+
+    assert "chat_zip" in input_schema["properties"]
+    assert len(input_schema["oneOf"]) == 2
+    assert {"artifact", "artifact_url"} <= set(output_schema["required"])
+    assert hosted["run_manifest"]["input_schema"] == input_schema
+    assert hosted["run_manifest"]["output_schema"] == output_schema
+
+
+def test_host_registration_supports_owned_native_media_executor() -> None:
+    slug = "japanese-style-story-video"
+    skill = ROOT / "containers" / slug / "source" / "SKILL.md"
+    profile_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = host.COMPILER.build_files(skill.read_text(encoding="utf-8"), profile)
+    manifest = json.loads(files["manifest.json"])
+    pricing = json.loads(files["pricing-report.json"])
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+
+    assert hosted["catalog_managed"] is False
+    assert hosted["runtime_placement"]["effective"] == "modal-hosted"
+    assert hosted["runtime"]["protocol"] == "owner-scoped-async-v1"
+    assert hosted["runtime"]["run_price_cents"] == 10
+    assert hosted["runtime"]["input_schema"] == manifest["input_schema"]
+    assert hosted["runtime"]["output_schema"] == manifest["output_schema"]
+    assert hosted["server_catalog"]["model"] == "native-media"
+    assert hosted["server_catalog"]["max_tokens"] == 0
+    assert hosted["catalog"]["runManifest"] == (
+        "run-manifests/japanese-style-story-video.json"
+    )
+    assert all(
+        step["type"] == "pipeline" for step in hosted["catalog"]["workflow"]["steps"]
+    )
 
 
 def test_catalog_patch_is_idempotent() -> None:
@@ -228,3 +275,26 @@ def test_unknown_generated_runtime_kind_is_rejected() -> None:
     hosted["runtime"]["kind"] = "edge-magic"
     with pytest.raises(ValueError, match="unsupported generated runtime kind"):
         host.render_registry([hosted])
+
+
+def test_pricing_verifier_checks_the_requested_compiled_report(tmp_path: Path) -> None:
+    profile, _manifest, pricing = compiled_inputs()
+    report_path = tmp_path / "pricing-report.json"
+    report_path.write_text(json.dumps(pricing), encoding="utf-8")
+    command = [
+        "node",
+        str(ROOT / "packages" / "skill-to-modal" / "verify-pricing.mjs"),
+        profile["slug"],
+        "--report",
+        str(report_path),
+    ]
+    assert subprocess.run(command, cwd=ROOT, check=False).returncode == 0
+
+    pricing["estimates"][0]["modeled_cost_usd"] = 999.0
+    report_path.write_text(json.dumps(pricing), encoding="utf-8")
+    assert subprocess.run(command, cwd=ROOT, check=False).returncode != 0
+
+
+def test_display_path_supports_output_outside_the_repository(tmp_path: Path) -> None:
+    assert host.display_path(ROOT / "containers" / "example") == "containers/example"
+    assert host.display_path(tmp_path / "manifest.json") == str(tmp_path / "manifest.json")

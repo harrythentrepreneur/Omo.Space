@@ -127,7 +127,6 @@
     "base_url_env": "LLM_BASE_URL",
     "default_base_url": "https://opencode.ai/zen/go/v1",
     "default_model": "deepseek-v4-flash",
-    "input_rate_per_million_usd": 0.14,
     "max_tokens": 1200,
     "modal_secret_name": "omo-skill-providers",
     "model_env": "LLM_MODEL",
@@ -183,7 +182,6 @@
         "teacher_review_required"
       ]
     },
-    "output_rate_per_million_usd": 0.28,
     "prompt": "run.txt",
     "provider": "opencode-go",
     "temperature": 0.2,
@@ -194,7 +192,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-phonics-reading-error-coach-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-phonics-reading-error-coach-api.modal.run",
       "endpoint_env": "PHONICS_READING_ERROR_COACH_MODAL_URL"
     },
     "description": "Compare one attempted word with its target and return a cautious, non-diagnostic phonics hypothesis and practice ideas.",

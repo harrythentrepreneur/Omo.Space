@@ -3,6 +3,60 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "content_type": {
+          "const": "application/pdf"
+        },
+        "filename": {
+          "maxLength": 160,
+          "minLength": 5,
+          "pattern": "^[^/]+\\.pdf$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "pdf"
+        },
+        "object_key": {
+          "maxLength": 320,
+          "minLength": 16,
+          "type": "string"
+        },
+        "page_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "role": {
+          "const": "book"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "role",
+        "object_key",
+        "filename",
+        "content_type",
+        "bytes",
+        "sha256",
+        "page_count"
+      ],
+      "type": "object"
+    },
+    "artifact_url": {
+      "description": "Short-lived signed download URL for the finished PDF.",
+      "maxLength": 1000,
+      "minLength": 16,
+      "type": "string"
+    },
     "book": {
       "description": "The generated chaptered keepsake in Markdown.",
       "maxLength": 12000,
@@ -48,7 +102,9 @@
           "type": "number"
         },
         "llm_calls": {
-          "const": 1
+          "maximum": 4,
+          "minimum": 1,
+          "type": "integer"
         },
         "model": {
           "minLength": 1,
@@ -74,7 +130,7 @@
       "type": "object"
     },
     "workflow_version": {
-      "const": "woven-storybook-pipeline@0.2.0"
+      "const": "woven-storybook-pipeline@0.3.0"
     }
   },
   "required": [
@@ -84,8 +140,10 @@
     "title",
     "book",
     "page_plan",
-    "usage"
+    "usage",
+    "artifact",
+    "artifact_url"
   ],
-  "title": "Completed Woven drafting preview",
+  "title": "Completed Woven PDF keepsake",
   "type": "object"
 }

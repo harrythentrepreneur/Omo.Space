@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import io
 import os
+import subprocess
 import sys
 import stat
 from pathlib import Path
 from urllib.error import HTTPError
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -35,6 +39,100 @@ def write_profile(tmp_path: Path, runtime_preference: str) -> Path:
     profile_path = tmp_path / f"profile-{runtime_preference}.json"
     profile_path.write_text(json.dumps(profile, sort_keys=True), encoding="utf-8")
     return profile_path
+
+
+def test_modal_canary_missing_proxy_pair_is_typed_before_network(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    profile_path = write_profile(tmp_path, "modal-hosted")
+    for name in (
+        "HOSTED_MODAL_PROXY_TOKEN_ID",
+        "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+        "WOVEN_MODAL_PROXY_TOKEN_ID",
+        "WOVEN_MODAL_PROXY_TOKEN_SECRET",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        process.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("network called")),
+    )
+    try:
+        process.direct_modal_canary("facebook-ads-copywriter", profile_path)
+    except process.HostedPathBlocker as blocker:
+        assert blocker.code == "hosted_modal_auth_not_configured"
+        assert "HOSTED_MODAL_PROXY_TOKEN_ID" in blocker.remediation
+        assert "HOSTED_MODAL_PROXY_TOKEN_SECRET" in blocker.remediation
+    else:
+        raise AssertionError("missing proxy pair was not typed")
+
+
+def test_modal_canary_preflight_401_is_typed_and_never_submits(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    profile_path = write_profile(tmp_path, "modal-hosted")
+    monkeypatch.setenv("HOSTED_MODAL_PROXY_TOKEN_ID", "SECRET_ID_SENTINEL")
+    monkeypatch.setenv("HOSTED_MODAL_PROXY_TOKEN_SECRET", "SECRET_VALUE_SENTINEL")
+    calls = []
+
+    def unauthorized(request, timeout):
+        calls.append((request.full_url, request.get_method(), timeout))
+        raise HTTPError(request.full_url, 401, "Unauthorized", {}, io.BytesIO(b"SECRET_BODY_SENTINEL"))
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", unauthorized)
+    try:
+        process.direct_modal_canary("facebook-ads-copywriter", profile_path)
+    except process.HostedPathBlocker as blocker:
+        assert blocker.code == "hosted_modal_auth_invalid"
+        assert "SECRET_ID_SENTINEL" not in str(blocker)
+        assert "SECRET_VALUE_SENTINEL" not in blocker.remediation
+        assert "SECRET_BODY_SENTINEL" not in blocker.remediation
+    else:
+        raise AssertionError("invalid proxy pair was not typed")
+    assert calls == [
+        (
+            "https://omo-space--cognition-facebook-ads-copywriter-api.modal.run/openapi.json",
+            "GET",
+            30,
+        )
+    ]
+
+
+def test_modal_canary_preflight_then_submit_and_poll(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    profile_path = write_profile(tmp_path, "modal-hosted")
+    profile = json.loads(profile_path.read_text())
+    monkeypatch.setenv("HOSTED_MODAL_PROXY_TOKEN_ID", "id-test")
+    monkeypatch.setenv("HOSTED_MODAL_PROXY_TOKEN_SECRET", "secret-test")
+    calls = []
+    responses = [
+        (200, b""),
+        (202, json.dumps({"result_url": "/v1/runs/fc-test"}).encode()),
+        (200, json.dumps(profile["happy_path"]["output"]).encode()),
+    ]
+
+    class Response:
+        def __init__(self, status, body):
+            self.status = status
+            self.body = body
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+        def read(self, _limit=-1):
+            return self.body
+
+    def fake_urlopen(request, timeout):
+        calls.append((request.full_url, request.get_method(), dict(request.header_items())))
+        status, body = responses[len(calls) - 1]
+        return Response(status, body)
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", fake_urlopen)
+    process.direct_modal_canary("facebook-ads-copywriter", profile_path)
+    assert [call[1] for call in calls] == ["GET", "POST", "GET"]
+    assert calls[0][0].endswith("/openapi.json")
+    assert calls[1][0].endswith("/v1/runs")
+    assert calls[2][0].endswith("/v1/runs/fc-test")
+    assert all(call[2]["Modal-key"] == "id-test" for call in calls)
+    assert all(call[2]["Modal-secret"] == "secret-test" for call in calls)
 
 
 def test_prepare_release_registers_worker_without_modal_or_wrangler(monkeypatch, tmp_path: Path) -> None:
@@ -143,6 +241,11 @@ def test_deploy_merged_release_runs_deploy_only_after_verified_merge(monkeypatch
     canaries: list[tuple[str, Path]] = []
     monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append(list(command)))
     monkeypatch.setattr(process, "direct_modal_canary", lambda slug, profile_path, timeout_seconds=240: canaries.append((slug, profile_path)))
+    monkeypatch.setattr(
+        process,
+        "smoke_live_worker_registry",
+        lambda slugs: {"status": "passed", "slugs": {slugs[0]: {"status": 401, "error": "authentication_required"}}},
+    )
     profile_path = write_profile(tmp_path, "modal-hosted")
     release = {
         "submission_id": "sub_verifieddeploy000000000002",
@@ -164,10 +267,13 @@ def test_deploy_merged_release_runs_deploy_only_after_verified_merge(monkeypatch
 
     flattened = [" ".join(command) for command in commands]
     assert result["release_phase"] == "promoted"
+    assert result["release_gates"]["status"] == "live"
+    assert result["release_gates"]["R1"]["slug_counts"] == {"facebook-ads-copywriter": 1}
+    assert result["release_gates"]["R3"]["slugs"]["facebook-ads-copywriter"]["status"] == 401
     assert any("modal deploy" in command for command in flattened)
     assert "npm ci" in flattened
-    assert any("wrangler deploy" in command for command in flattened)
-    assert flattened.index("npm ci") < next(index for index, command in enumerate(flattened) if "wrangler deploy" in command)
+    assert any("wrangler@4.123.0 deploy" in command for command in flattened)
+    assert flattened.index("npm ci") < next(index for index, command in enumerate(flattened) if "wrangler@4.123.0 deploy" in command)
     assert canaries == [("facebook-ads-copywriter", profile_path)]
 
 
@@ -183,9 +289,19 @@ def test_deploy_merged_release_uses_verified_checkout_when_adapter_provides_one(
     (release_root / "containers" / "facebook-ads-copywriter").mkdir(parents=True)
     (release_root / "containers" / "facebook-ads-copywriter" / "modal_app.py").write_text("# clean\n", encoding="utf-8")
     (release_root / "site" / "deploy").mkdir(parents=True)
+    (release_root / "site" / "deploy" / "hosted-skills.generated.mjs").write_text(
+        'export const HOSTED_WORKER_SKILL_ROWS = [\n  [\n    "facebook-ads-copywriter",\n    {}\n  ]\n];\n'
+        'export const HOSTED_SERVER_CATALOG_ROWS = [];\n',
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append((list(command), cwd)))
     monkeypatch.setattr(process, "direct_modal_canary", lambda slug, profile_path, timeout_seconds=240: canaries.append((slug, profile_path)))
+    monkeypatch.setattr(
+        process,
+        "smoke_live_worker_registry",
+        lambda slugs: {"status": "passed", "slugs": {slugs[0]: {"status": 401, "error": "authentication_required"}}},
+    )
     dirty_profile = write_profile(tmp_path, "worker-native")
     release = {
         "selected_runtime": "worker-native",
@@ -208,9 +324,119 @@ def test_deploy_merged_release_uses_verified_checkout_when_adapter_provides_one(
     assert result["release_phase"] == "promoted"
     assert commands == [
         (["npm", "ci"], release_root / "site" / "deploy"),
-        (["npx", "wrangler", "deploy"], release_root / "site" / "deploy"),
+        (["npx", "wrangler@4.123.0", "deploy"], release_root / "site" / "deploy"),
     ]
     assert canaries == []
+
+
+def test_prepare_release_registry_gate_requires_exactly_one_hosted_runtime_row(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    worker_root = tmp_path / "deploy"
+    worker_root.mkdir()
+    registry = worker_root / process.WORKER_REGISTRY_FILENAME
+    registry.write_text(
+        'export const HOSTED_WORKER_SKILL_ROWS = [\n'
+        '  [\n    "released-one",\n    {}\n  ],\n'
+        '  [\n    "released-one",\n    {}\n  ]\n'
+        '];\nexport const HOSTED_MODAL_SKILL_ROWS = [];\n'
+        'export const HOSTED_SERVER_CATALOG_ROWS = [];\n',
+        encoding="utf-8",
+    )
+
+    try:
+        process.verify_generated_worker_registry(["released-one", "released-two"], worker_root)
+    except process.WorkerReleaseBlocker as blocker:
+        assert blocker.code == "hosted_worker_registry_missing_slug"
+        assert blocker.gate == "R1"
+        assert set(blocker.slugs) == {"released-one", "released-two"}
+    else:
+        raise AssertionError("R1 must reject missing or duplicate hosted runtime rows")
+
+
+def test_prepare_release_worker_deploy_error_fails_closed_before_live_smoke(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[list[str]] = []
+    profile_path = write_profile(tmp_path, "worker-native")
+    release = {
+        "selected_runtime": "worker-native",
+        "source_sha256": "a" * 64,
+        "artifact_hash": "b" * 64,
+        "head_sha": "c" * 40,
+        "merge_sha": "d" * 40,
+        "verified_merge_sha": "d" * 40,
+        "release_phase": "merged_verified",
+    }
+
+    class Adapter:
+        def verify_merged_release(self, release_metadata):
+            return release_metadata
+
+    def fake_run_checked(command, cwd=process.ROOT):
+        commands.append(list(command))
+        if list(command) == list(process.WORKER_DEPLOY_COMMAND):
+            raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(process, "run_checked", fake_run_checked)
+    monkeypatch.setattr(
+        process,
+        "smoke_live_worker_registry",
+        lambda _slugs: (_ for _ in ()).throw(AssertionError("R3 ran after failed R2")),
+    )
+
+    try:
+        process.deploy_merged_release(SKILL_PATH, "facebook-ads-copywriter", profile_path, release, Adapter())
+    except process.WorkerReleaseBlocker as blocker:
+        assert blocker.code == "hosted_worker_deploy_failed"
+        assert blocker.gate == "R2"
+    else:
+        raise AssertionError("Wrangler failure must return a typed, fail-closed R2 blocker")
+    assert commands[-1] == ["npx", "wrangler@4.123.0", "deploy"]
+
+
+def test_prepare_release_live_smoke_unknown_slug_is_typed_blocker(monkeypatch) -> None:
+    process = load_process_submissions()
+
+    def unresolved(request, timeout):
+        assert json.loads(request.data) == {"fields": {}, "slug": "new-tool"}
+        assert timeout == process.HTTP_TIMEOUT_SECONDS
+        raise HTTPError(
+            request.full_url,
+            404,
+            "Not Found",
+            {},
+            io.BytesIO(b'{"error":"unknown_catalog_slug"}'),
+        )
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", unresolved)
+    try:
+        process.smoke_live_worker_registry(["new-tool"])
+    except process.WorkerReleaseBlocker as blocker:
+        assert blocker.code == "hosted_worker_registry_unresolved"
+        assert blocker.gate == "R3"
+        assert blocker.slugs == ("new-tool",)
+    else:
+        raise AssertionError("unknown_catalog_slug must block the release")
+
+
+def test_prepare_release_live_smoke_accepts_auth_4xx_as_resolution_evidence(monkeypatch) -> None:
+    process = load_process_submissions()
+
+    def auth_required(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            401,
+            "Unauthorized",
+            {},
+            io.BytesIO(b'{"error":"authentication_required"}'),
+        )
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", auth_required)
+    evidence = process.smoke_live_worker_registry(["new-tool"])
+
+    assert evidence["status"] == "passed"
+    assert evidence["slugs"] == {
+        "new-tool": {"status": 401, "error": "authentication_required"}
+    }
 
 
 class FakeRepository:
@@ -449,6 +675,25 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
     assert not any("/tmp/" in command and "SKILL.md" in command for command in flattened)
 
 
+def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    slug = "education-workflow"
+    container = tmp_path / "containers" / slug
+    container.mkdir(parents=True)
+    (container / "hosted-profile.json").write_text(
+        json.dumps({"runtime": {"slug": "education-workflow-pro"}}),
+        encoding="utf-8",
+    )
+    run_manifests = tmp_path / "site" / "run-manifests"
+    run_manifests.mkdir(parents=True)
+    aliased = run_manifests / "education-workflow-pro.json"
+    aliased.write_text("{}", encoding="utf-8")
+
+    assert "site/run-manifests/education-workflow-pro.json" in process.release_allowlisted_paths(
+        slug, root=tmp_path
+    )
+
+
 def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> None:
     process = load_process_submissions()
     create_commands: list[list[str]] = []
@@ -571,7 +816,8 @@ def test_reviewed_profile_auto_inherits_exact_match_runtime_from_hosted_metadata
     assert profile["runtime_preference"] == "modal-hosted"
     assert decision["requested"] == "modal-hosted"
     assert decision["effective"] == "modal-hosted"
-    assert decision["reason"] == "creator_selected_modal"
+    assert decision["recommended"] == "modal-hosted"
+    assert decision["reason"] == "worker_executor_contract_not_satisfied"
 
 
 def test_runtime_preference_helper_is_data_only_and_changes_only_auto() -> None:
@@ -586,22 +832,17 @@ def test_runtime_preference_helper_is_data_only_and_changes_only_auto() -> None:
     assert process.runtime_preference_for_reviewed_source(None, source_sha, runtime_by_source) is None
 
 
-def test_reviewed_profile_explicit_runtime_override_is_not_silently_changed(tmp_path: Path) -> None:
+def test_reviewed_profile_rejects_worker_override_for_modal_only_capabilities(tmp_path: Path) -> None:
     process = load_process_submissions()
     woven_source_sha = "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf"
 
-    profile_path, decision = process.reviewed_profile_artifact(
-        "woven-storybook-pipeline",
-        "worker-native",
-        tmp_path,
-        source_sha256=woven_source_sha,
-    )
-    profile = json.loads(profile_path.read_text(encoding="utf-8"))
-
-    assert profile["runtime_preference"] == "worker-native"
-    assert decision["requested"] == "worker-native"
-    assert decision["effective"] == "worker-native"
-    assert decision["reason"] == "bounded_single_llm_is_worker_compatible"
+    with pytest.raises(ValueError, match="workflow requires Modal"):
+        process.reviewed_profile_artifact(
+            "woven-storybook-pipeline",
+            "worker-native",
+            tmp_path,
+            source_sha256=woven_source_sha,
+        )
 
 
 def test_process_row_retries_exact_match_with_inherited_modal_runtime(monkeypatch, tmp_path: Path) -> None:

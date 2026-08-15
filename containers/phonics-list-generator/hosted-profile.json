@@ -1,0 +1,507 @@
+{
+  "catalog": {
+    "category": "education",
+    "cover": null,
+    "demoCap": "Hosted run: structured teacher-reviewable result",
+    "desc": "Generate a dialect-aware, teacher-reviewable phonics word list with target coverage and pronunciation cautions.",
+    "emoji": "🔤",
+    "exampleIn": "ch, sh · farm animals · beginner",
+    "exampleOut": [
+      "Turn target phonemes into a clean, reviewed word list.",
+      "Schema-validated JSON with measured provider usage"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "phonemes: reviewed bounded input",
+      "topic: reviewed bounded input",
+      "difficulty_level: reviewed bounded input",
+      "dialect: reviewed bounded input",
+      "word_count: reviewed bounded input"
+    ],
+    "maker": "PhonicsMaker",
+    "makerName": "PhonicsMaker",
+    "name": "Phonics Word List Generator",
+    "niche": "phonics",
+    "outputs": [
+      "words: schema-validated result",
+      "coverage: schema-validated result",
+      "warnings: schema-validated result"
+    ],
+    "priceMaintain": 3.0,
+    "priceOwn": 12.0,
+    "promise": "Turn target phonemes into a clean, reviewed word list.",
+    "runManifest": "run-manifests/phonics-list-generator.json",
+    "runPrice": 0.1,
+    "slug": "phonics-list-generator",
+    "tags": [
+      "education",
+      "phonics",
+      "teachers"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-13",
+    "workflow": {
+      "steps": [
+        {
+          "max_output": 1200,
+          "model": "deepseek-v4-flash",
+          "role": "generate",
+          "system": "Generate exactly the requested number of child-safe English words for the supplied phonemes, topic, difficulty, and dialect. Represent every requested phoneme, avoid duplicates, use concrete current content words with clear topic relevance, exclude function words and marginal or archaic vocabulary, and do not claim universal pronunciation. Return only JSON with words, coverage, and warnings matching the schema.",
+          "type": "llm"
+        },
+        {
+          "label": "Analyzing the phonics brief",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": true,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "phonics-list-generator",
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "dialect": "en-US",
+          "difficulty_level": "beginner",
+          "phonemes": [
+            "ch",
+            "sh"
+          ],
+          "topic": "farm animals",
+          "word_count": 8
+        },
+        "output_preview": "Turn target phonemes into a clean, reviewed word list.",
+        "title": "Phonics Word List Generator"
+      }
+    ],
+    "input_schema": {
+      "$id": "https://omo.space/schemas/phonics-list-generator/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "difficulty_level": {
+          "enum": [
+            "beginner",
+            "intermediate",
+            "advanced"
+          ]
+        },
+        "phonemes": {
+          "items": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "topic": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "word_count": {
+          "maximum": 30,
+          "minimum": 5,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "phonemes",
+        "topic",
+        "difficulty_level",
+        "dialect",
+        "word_count"
+      ],
+      "type": "object"
+    },
+    "input_schema_source": "containers/phonics-list-generator/schemas/input.json",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "items": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "type": "array"
+        },
+        "words": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "matched_phonemes": {
+                "items": {
+                  "maxLength": 20,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "minItems": 1,
+                "type": "array"
+              },
+              "pronunciation_note": {
+                "maxLength": 240,
+                "minLength": 1,
+                "type": "string"
+              },
+              "target_position": {
+                "enum": [
+                  "initial",
+                  "medial",
+                  "final",
+                  "multiple"
+                ]
+              },
+              "word": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "word",
+              "matched_phonemes",
+              "target_position",
+              "pronunciation_note"
+            ],
+            "type": "object"
+          },
+          "maxItems": 30,
+          "minItems": 5,
+          "type": "array"
+        },
+        "workflow_version": {
+          "const": "phonics-list-generator@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "words",
+        "coverage",
+        "warnings",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "output_schema_source": "containers/phonics-list-generator/schemas/output.json",
+    "phases": [
+      {
+        "id": "running",
+        "label": "Analyzing the phonics brief"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "phonics-list-generator",
+    "ui": {
+      "fields": {
+        "dialect": {
+          "widget": "select"
+        },
+        "difficulty_level": {
+          "widget": "select"
+        },
+        "phonemes": {
+          "widget": "multi_select"
+        },
+        "topic": {
+          "widget": "text"
+        },
+        "word_count": {
+          "widget": "number"
+        }
+      },
+      "order": [
+        "phonemes",
+        "topic",
+        "difficulty_level",
+        "dialect",
+        "word_count"
+      ]
+    }
+  },
+  "runtime": {
+    "container_slug": "phonics-list-generator",
+    "default_endpoint": "https://omo-space--cognition-phonics-list-generator-api.modal.run",
+    "endpoint_env": "PHONICS_LIST_GENERATOR_MODAL_URL",
+    "input_schema": {
+      "$id": "https://omo.space/schemas/phonics-list-generator/input.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        },
+        "difficulty_level": {
+          "enum": [
+            "beginner",
+            "intermediate",
+            "advanced"
+          ]
+        },
+        "phonemes": {
+          "items": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "topic": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "word_count": {
+          "maximum": 30,
+          "minimum": 5,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "phonemes",
+        "topic",
+        "difficulty_level",
+        "dialect",
+        "word_count"
+      ],
+      "type": "object"
+    },
+    "kind": "modal-hosted",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "items": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "run_id": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "estimated_cost_usd": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "llm_calls": {
+              "const": 1
+            },
+            "model": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provider": {
+              "const": "opencode-go"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "type": "array"
+        },
+        "words": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "matched_phonemes": {
+                "items": {
+                  "maxLength": 20,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "minItems": 1,
+                "type": "array"
+              },
+              "pronunciation_note": {
+                "maxLength": 240,
+                "minLength": 1,
+                "type": "string"
+              },
+              "target_position": {
+                "enum": [
+                  "initial",
+                  "medial",
+                  "final",
+                  "multiple"
+                ]
+              },
+              "word": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "word",
+              "matched_phonemes",
+              "target_position",
+              "pronunciation_note"
+            ],
+            "type": "object"
+          },
+          "maxItems": 30,
+          "minItems": 5,
+          "type": "array"
+        },
+        "workflow_version": {
+          "const": "phonics-list-generator@0.1.0"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "workflow_version",
+        "words",
+        "coverage",
+        "warnings",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "reviewed_source_sha256": "e01b41ab16ef547264e99fe46c721f30bba4e2dc2a3a47def11689d1b8959278",
+    "run_price_cents": 10,
+    "slug": "phonics-list-generator"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "legacy_profile_defaults_to_modal",
+    "recommended": "modal-hosted",
+    "requested": "modal-hosted"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 12.0,
+    "max_tokens": 1200,
+    "model": "deepseek-v4-flash",
+    "name": "Phonics Word List Generator",
+    "run_price_usd": 0.1,
+    "slug": "phonics-list-generator",
+    "system_prompt": "Generate exactly the requested number of child-safe English words for the supplied phonemes, topic, difficulty, and dialect. Represent every requested phoneme, avoid duplicates, use concrete current content words with clear topic relevance, exclude function words and marginal or archaic vocabulary, and do not claim universal pronunciation. Return only JSON with words, coverage, and warnings matching the schema."
+  }
+}

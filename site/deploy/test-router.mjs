@@ -101,9 +101,12 @@ const modalStatuses = new Map();
 let modalDispatchStatus = 202;
 const wovenCalls = [];
 const wovenStatuses = new Map();
+const japaneseCalls = [];
+const japaneseStatuses = new Map();
 const facebookCalls = [];
 const facebookStatuses = new Map();
 const facebookCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'tests', 'cases.json'), 'utf8'));
+const japaneseCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'japanese-style-story-video', 'tests', 'cases.json'), 'utf8'));
 let workerNativeMode = 'valid';
 const neonSqlCalls = [];
 let neonPoolShouldThrow = false;
@@ -189,6 +192,23 @@ const sandbox = {
       }
       const callId = target.pathname.split('/').at(-1);
       const value = facebookStatuses.get(callId);
+      return value
+        ? { ok: value.status >= 200 && value.status < 300, status: value.status, json: async () => value.body }
+        : { ok: false, status: 404, json: async () => ({ detail: 'run_not_found' }) };
+    }
+    if (String(url).startsWith('https://japanese.modal.invalid')) {
+      const target = new URL(String(url));
+      japaneseCalls.push({ url: String(url), method: opts && opts.method || 'GET', headers: opts && opts.headers, body: opts && opts.body });
+      if (target.pathname === '/v1/runs' && opts && opts.method === 'POST') {
+        const callId = 'fc-JAPANESEROUTER001';
+        const runId = 'run-0123456789abcdef0123456789abcdef';
+        const accessToken = 'japanese_owner_token_0123456789abcdefghi';
+        const resultUrl = `/v1/runs/${runId}?call_id=${callId}&access_token=${accessToken}`;
+        japaneseStatuses.set(callId, { status: 202, body: { run_id: runId, status: 'processing' } });
+        return { ok: true, status: 202, json: async () => ({ run_id: runId, call_id: callId, status: 'accepted', result_url: resultUrl }) };
+      }
+      const callId = target.searchParams.get('call_id');
+      const value = japaneseStatuses.get(callId);
       return value
         ? { ok: value.status >= 200 && value.status < 300, status: value.status, json: async () => value.body }
         : { ok: false, status: 404, json: async () => ({ detail: 'run_not_found' }) };
@@ -343,6 +363,7 @@ check('run manifest: Facebook Ads browser schemas stay aligned with its generate
 check('catalog: Facebook Ads listing and hosted manifest publish the modeled $0.10 price', facebookListing.runPrice === 0.1 && facebookRunManifest.price_usd === 0.1 && facebookListing.runManifest === 'run-manifests/facebook-ads-copywriter.json');
 check('catalog cards: per-run prices render to two decimal places', indexSource.includes("Number(p.runPrice || p.priceRun || 0).toFixed(2)"));
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
+check('run page: textarea array inputs accept one item per line and examples preserve lines', runPageSource.includes("component: 'ArrayTextField'") && runPageSource.includes("value = multilineArrayValue(control.value)") && runPageSource.includes("values[key].join('\\n')"));
 check('run page: empty API base dispatches through the deployed same-origin Worker rewrite', runPageSource.includes("function workerBase() { return API_BASE || window.location.origin; }"));
 check('creator upload: seller CTA reaches a real file-reading authenticated queue with honest local-only rollout receipts', sellSource.includes('href="host.html#upload"') && hostSource.includes('id="upload-form"') && uploadSource.includes('await selectedFile.text()') && uploadSource.includes("fetch(apiBase() + '/api/submit'") && uploadSource.includes("Authorization: 'Bearer ' + token") && uploadSource.includes('if (isFilePreview())') && uploadSource.includes("error.code === 'queue_unavailable'") && uploadSource.includes('not the Markdown') && !uploadSource.includes('startProgress'));
 check('creator upload: browser persists only server submission ids and restores from owner APIs',
@@ -1592,10 +1613,12 @@ check('woven: schema-invalid input fails before debit or Modal spend', badWoven.
 const wovenRunning = await worker.fetch(mkReq('GET', `/api/run/${wovenStart.run_id}`, {}, { Authorization: `Bearer ${wovenMe.api_key}` }), wovenEnv);
 check('woven: Omo status poll proxies Modal running state', wovenRunning.status === 202);
 wovenStatuses.set('fc-WOVENROUTER0001', { status: 200, body: {
-  run_id: 'run-provider-woven', status: 'completed', workflow_version: 'woven-storybook-pipeline@0.2.0',
+  run_id: 'run-provider-woven', status: 'completed', workflow_version: 'woven-storybook-pipeline@0.3.0',
   title: 'Wrong Turns, Best Views', book: '# Wrong Turns, Best Views\n\nA long enough factual keepsake story that clears the minimum output length. '.repeat(4),
   page_plan: ['Cover with rainy bookshop', 'The beginning in the bookshop', 'Two cities and one corgi', 'Closing on the best view'],
   usage: { provider: 'opencode-go', model: 'deepseek-v4-flash', llm_calls: 1, prompt_tokens: 269, completion_tokens: 314, estimated_cost_usd: 0.00012558 },
+  artifact: { kind: 'pdf', role: 'book', object_key: 'runs/run-provider-woven/woven-keepsake.pdf', filename: 'woven-keepsake.pdf', content_type: 'application/pdf', bytes: 2048, sha256: 'a'.repeat(64), page_count: 4 },
+  artifact_url: 'https://woven.modal.invalid/v1/artifacts/run-provider-woven/woven-keepsake.pdf?token=test',
 } });
 const wovenDoneResponse = await worker.fetch(mkReq('GET', `/api/run/${wovenStart.run_id}`, {}, { Authorization: `Bearer ${wovenMe.api_key}` }), wovenEnv);
 const wovenDone = await wovenDoneResponse.json();
@@ -1661,10 +1684,44 @@ const facebookProviderAfter = await (await worker.fetch(mkReq('GET', '/api/me?us
 check('hosted registry: Worker-native provider failure refunds exactly once', providerFailure.status === 502 && providerFailureBody.reason === 'worker_native_provider_error' && facebookProviderAfter.balance_usd === 5);
 workerNativeMode = 'valid';
 
+// ── Japanese generated executor → owner-scoped Modal async run ───────────
+
+const japaneseHostedEnv = {
+  ...realEnv,
+  JAPANESE_STORY_VIDEO_MODAL_URL: 'https://japanese.modal.invalid',
+  HOSTED_MODAL_PROXY_TOKEN_ID: 'wk-japanese-test-id',
+  HOSTED_MODAL_PROXY_TOKEN_SECRET: 'ws-japanese-test-secret',
+};
+const japaneseMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_japanese_hosted', {}), env)).json();
+const japaneseHeaders = { Authorization: `Bearer ${japaneseMe.api_key}`, 'Idempotency-Key': 'japanese-hosted-0001' };
+const japaneseInput = { slug: 'japanese-style-story-video', input: japaneseCases.happy_path.input };
+const japaneseStartResponse = await worker.fetch(mkReq('POST', '/api/run', japaneseInput, japaneseHeaders), japaneseHostedEnv);
+const japaneseStart = await japaneseStartResponse.json();
+check('japanese generated: exact sample input reserves $0.10 and dispatches asynchronously', japaneseStartResponse.status === 202 && japaneseStart.status === 'running' && japaneseStart.quoted_cost_usd === 0.1 && japaneseStart.billed_amount_usd === 0.1);
+check('japanese generated: Worker sends proxy credentials plus stable owner scope header', japaneseCalls.length === 1 && japaneseCalls[0].headers['Modal-Key'] === 'wk-japanese-test-id' && japaneseCalls[0].headers['Modal-Secret'] === 'ws-japanese-test-secret' && japaneseCalls[0].headers['X-Omo-Owner-Id'] === 'user_japanese_hosted');
+check('japanese generated: Worker dispatches only the compiler-validated public sample input', JSON.stringify(JSON.parse(japaneseCalls[0].body)) === JSON.stringify(japaneseCases.happy_path.input));
+const japaneseBad = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'japanese-style-story-video',
+  input: { audio: 'customer-upload-001', style: 'sumi-e', duration: 10 },
+}, { ...japaneseHeaders, 'Idempotency-Key': 'japanese-hosted-bad1' }), japaneseHostedEnv);
+check('japanese generated: arbitrary audio fails schema validation before reservation or Modal work', japaneseBad.status === 422 && japaneseCalls.length === 1);
+const japaneseRunning = await worker.fetch(mkReq('GET', `/api/run/${japaneseStart.run_id}`, {}, { Authorization: `Bearer ${japaneseMe.api_key}` }), japaneseHostedEnv);
+check('japanese generated: owner-scoped status poll forwards the same owner header', japaneseRunning.status === 202 && japaneseCalls.at(-1).headers['X-Omo-Owner-Id'] === 'user_japanese_hosted');
+const japaneseCompleted = JSON.parse(JSON.stringify(japaneseCases.happy_path.output));
+japaneseCompleted.run_id = 'run-0123456789abcdef0123456789abcdef';
+japaneseStatuses.set('fc-JAPANESEROUTER001', { status: 200, body: japaneseCompleted });
+const japaneseDoneResponse = await worker.fetch(mkReq('GET', `/api/run/${japaneseStart.run_id}`, {}, { Authorization: `Bearer ${japaneseMe.api_key}` }), japaneseHostedEnv);
+const japaneseDone = await japaneseDoneResponse.json();
+const japaneseAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_japanese_hosted', {}), env)).json();
+check('japanese generated: schema-valid five-artifact result settles the reserved $0.10 once', japaneseDoneResponse.status === 200 && japaneseDone.status === 'completed' && japaneseDone.output.artifacts.length === 5 && japaneseDone.output.media.video_codec === 'h264' && japaneseAfter.balance_usd === 4.9);
+const japaneseReplay = await (await worker.fetch(mkReq('POST', '/api/run', japaneseInput, japaneseHeaders), japaneseHostedEnv)).json();
+check('japanese generated: idempotent replay never dispatches or charges twice', japaneseReplay.idempotent_replay === true && japaneseReplay.run_id === japaneseStart.run_id && japaneseCalls.length === 3 && japaneseAfter.balance_usd === 4.9);
+
 // ── Japanese Style Story Video → private Modal + async progress ───────────
 
 const demelloEnv = {
   ...realEnv,
+  DEMELLO_LEGACY_EXECUTOR: '1',
   DEMELLO_MODAL_URL: 'https://modal.invalid',
   DEMELLO_MODAL_BEARER: 'private-modal-test-secret',
   DEMELLO_PROGRESS_WEBHOOK_SECRET: 'progress-webhook-test-secret',

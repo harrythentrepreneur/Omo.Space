@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#17352C">
+  <meta name="robots" content="noindex,follow">
+  <meta name="description" content="An honest comparison of Omo's bounded decodable-sentence workflow and Diffit's broader differentiation platform.">
+  <title>Decodable sentence generator vs Diffit | Omo Stories</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --orange: #FF6B3D;
+      --mint: #BDEFD4;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1160px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; overflow-x: hidden; }
+    body {
+      min-width: 320px; margin: 0; overflow-x: hidden; background: var(--canvas); color: var(--pine);
+      font: 17px/1.72 var(--body); text-rendering: optimizeLegibility;
+    }
+    a { color: inherit; }
+    p, h1, h2 { margin-top: 0; overflow-wrap: break-word; }
+    :where(a, button):focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+    .skip-link {
+      position: fixed; z-index: 100; top: 8px; left: 8px; padding: 10px 14px; border-radius: 8px;
+      background: var(--surface); transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark-logo { width: auto; height: 34px; }
+    .article-shell { max-width: 760px; padding: clamp(68px, 9vw, 104px) 0 112px; }
+    .back-link { display: inline-block; margin-bottom: 36px; color: var(--moss); font-size: 14px; font-weight: 700; text-decoration: none; }
+    .back-link:hover { color: var(--pine); text-decoration: underline; text-underline-offset: 4px; }
+    .article-tag {
+      display: inline-flex; align-items: center; min-height: 28px; margin-bottom: 18px; padding: 3px 10px;
+      border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); color: var(--moss);
+      font-size: 12px; font-weight: 700;
+    }
+    .article-header h1 {
+      margin-bottom: 22px; font: 600 clamp(39px, 7vw, 64px)/1.04 var(--display);
+      letter-spacing: -.035em; text-wrap: balance;
+    }
+    .article-meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; color: var(--moss); font-size: 14px; }
+    .article-body { margin-top: 58px; }
+    .article-body h2 { margin: 48px 0 12px; font: 600 clamp(26px, 4vw, 33px)/1.2 var(--display); letter-spacing: -.015em; }
+    .article-body p { margin-bottom: 20px; }
+    .article-body ul { margin: 0 0 24px; padding-left: 1.25em; }
+    .article-body li + li { margin-top: 9px; }
+    .article-cta {
+      margin-top: 56px; padding: clamp(26px, 5vw, 42px); border: 1px solid var(--pine);
+      border-radius: 16px; background: var(--surface);
+    }
+    .article-cta h2 { margin: 0 0 10px; }
+    .article-cta p { margin-bottom: 24px; color: var(--moss); }
+    .cta-link {
+      min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px;
+      border-radius: 10px; background: var(--pine); color: #FFFFFF; font-size: 15px; font-weight: 700; text-decoration: none;
+    }
+    .cta-link:hover { box-shadow: 0 6px 18px rgba(23, 53, 44, .18); }
+    .article-tagline { margin: 25px 0 0 !important; color: var(--pine) !important; font: 600 19px/1.3 var(--display); }
+    .footer-brand .wordmark-logo { height: 36px; }
+    .footer-tagline { margin: 8px 0 0; color: var(--moss); font-size: 14px; }
+    .footer-links { display: flex; gap: 8px; flex-wrap: wrap; }
+    @media (max-width: 760px) {
+      .shell { width: min(var(--shell), calc(100% - 32px)); }
+      .article-shell { padding: 54px 0 78px; }
+      .article-body { margin-top: 44px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <link rel="stylesheet" href="mobile-polish.css">
+  <script defer src="nav.js"></script>
+  <!-- nav.js loads menu-workflows.js so personalized workflow rows match the storefront. -->
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header omo-site-header">
+    <div class="shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt="Omo"></a>
+        <div class="omo-nav-menu">
+          <button class="omo-nav-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true"><span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell Workflow</a>
+          </nav>
+        </div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
+    </div>
+  </header>
+
+  <!-- Clone this file, replace the article content and metadata, then add the published post to blog.html. -->
+  <main class="shell article-shell" id="main">
+    <a class="back-link" href="blog.html">← Omo Stories</a>
+    <article>
+      <header class="article-header">
+        <span class="article-tag">Comparison</span>
+        <h1>Decodable sentence generator vs Diffit</h1>
+        <p class="article-meta"><time datetime="2026-08-14">August 14, 2026</time><span aria-hidden="true">·</span><span>By Omo</span></p>
+      </header>
+
+      <div class="article-body">
+        <p>If you need controlled sentences for one phonics worksheet, Omo’s bounded workflow is designed for that single result. Diffit is the stronger fit when you need a broader set of leveled readings and classroom activities.</p>
+
+        <section aria-labelledby="bounded-job">
+          <h2 id="bounded-job">Start with the bounded job</h2>
+          <p>Omo returns short practice sentences constrained by phonics patterns, length, dialect, and sight-word policy. It does not claim to replace a complete differentiation platform.</p>
+        </section>
+
+        <section aria-labelledby="choose-fit">
+          <h2 id="choose-fit">Choose the fit, not the feature count</h2>
+          <ul>
+            <li>Choose the Omo workflow when you need a one-off set of decodable practice sentences.</li>
+            <li>Choose Diffit when you need adapted passages, vocabulary, comprehension questions, and answer keys.</li>
+            <li>Review generated material against the learner’s taught code, dialect, reading level, and classroom context.</li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="honest-limit">
+          <h2 id="honest-limit">The honest limit</h2>
+          <p>The Omo output is not equivalent to Diffit’s platform, and current availability should always be confirmed on the workflow page before relying on it.</p>
+        </section>
+
+        <aside class="article-cta" aria-labelledby="cta-title">
+          <h2 id="cta-title">See the related workflow</h2>
+          <p>Review the workflow’s inputs, output, and current availability.</p>
+          <a class="cta-link" href="workflow-decodable-sentence-creator.html">See Decodable Sentence Creator</a>
+          <p class="article-tagline">Buy the result, not another subscription.</p>
+        </aside>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer omo-footer">
+    <div class="shell footer-row">
+      <div class="footer-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <p class="footer-tagline">The store for AI helpers. Browse the catalog, then download or run live tools by API.</p>
+      </div>
+      <nav class="footer-links omo-footer-links" aria-label="Footer">
+        <a href="about.html">About</a>
+        <a href="sell.html">Sell yours</a>
+        <a href="creators.html">For creators</a>
+        <a href="blog.html" aria-current="page">Blog</a>
+        <a href="terms.html">Terms</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

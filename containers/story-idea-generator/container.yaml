@@ -4,7 +4,7 @@ slug: story-idea-generator
 version: "0.1.0"
 status: ready
 generated:
-  compiler: skill-to-modal/0.1.0
+  compiler: skill-to-modal/0.2.3
   hand_edit_allowed: false
 source:
   kind: vendored-skill-md
@@ -20,7 +20,7 @@ image:
 resources:
   cpu: 1
   memory_mb: 512
-  timeout_seconds: 180
+  timeout_seconds: 270
   min_containers: 0
   max_containers: 4
 endpoint:

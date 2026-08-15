@@ -183,7 +183,6 @@
     "base_url_env": "LLM_BASE_URL",
     "default_base_url": "https://opencode.ai/zen/go/v1",
     "default_model": "deepseek-v4-flash",
-    "input_rate_per_million_usd": 0.14,
     "max_tokens": 1200,
     "modal_secret_name": "omo-skill-providers",
     "model_env": "LLM_MODEL",
@@ -264,7 +263,6 @@
         "warnings"
       ]
     },
-    "output_rate_per_million_usd": 0.28,
     "prompt": "run.txt",
     "provider": "opencode-go",
     "temperature": 0.2,
@@ -275,7 +273,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-phonics-list-generator-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-phonics-list-generator-api.modal.run",
       "endpoint_env": "PHONICS_LIST_GENERATOR_MODAL_URL"
     },
     "description": "Generate a dialect-aware, teacher-reviewable phonics word list with target coverage and pronunciation cautions.",
@@ -553,7 +551,7 @@
     ]
   },
   "prompts": {
-    "run.txt": "Generate exactly the requested number of child-safe English words for the supplied phonemes, topic, difficulty, and dialect. Represent every requested phoneme, avoid duplicates, and do not claim universal pronunciation. Return only JSON with words, coverage, and warnings matching the schema."
+    "run.txt": "Generate exactly the requested number of child-safe English words for the supplied phonemes, topic, difficulty, and dialect. Represent every requested phoneme, avoid duplicates, use concrete current content words with clear topic relevance, exclude function words and marginal or archaic vocabulary, and do not claim universal pronunciation. Return only JSON with words, coverage, and warnings matching the schema."
   },
   "readiness": {
     "can_submit": true,
@@ -569,6 +567,109 @@
     "memory_mb": 512,
     "timeout_seconds": 180,
     "max_containers": 4
+  },
+  "semantic_normalizers": {
+    "phoneme_containment": {
+      "phoneme_to_graphemes": {
+        "ai": [
+          "ai"
+        ],
+        "ay": [
+          "ay"
+        ],
+        "ch": [
+          "ch"
+        ],
+        "ee": [
+          "ee"
+        ],
+        "sh": [
+          "sh"
+        ],
+        "th": [
+          "th"
+        ]
+      },
+      "weak_evidence_denylist": [
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "been",
+        "but",
+        "by",
+        "can",
+        "chow",
+        "could",
+        "did",
+        "do",
+        "does",
+        "for",
+        "from",
+        "had",
+        "has",
+        "have",
+        "he",
+        "her",
+        "here",
+        "him",
+        "his",
+        "how",
+        "i",
+        "if",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "may",
+        "me",
+        "my",
+        "no",
+        "not",
+        "of",
+        "on",
+        "or",
+        "our",
+        "she",
+        "shag",
+        "shoat",
+        "so",
+        "than",
+        "that",
+        "the",
+        "thee",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "those",
+        "to",
+        "too",
+        "up",
+        "us",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "will",
+        "with",
+        "would",
+        "you",
+        "your"
+      ]
+    }
   },
   "slug": "phonics-list-generator",
   "steps": [

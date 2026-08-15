@@ -48,8 +48,7 @@
         },
         "required": [
           "text",
-          "target_words",
-          "sight_or_irregular_words"
+          "target_words"
         ],
         "type": "object"
       },
@@ -72,7 +71,9 @@
           "type": "number"
         },
         "llm_calls": {
-          "const": 1
+          "maximum": 2,
+          "minimum": 1,
+          "type": "integer"
         },
         "model": {
           "minLength": 1,

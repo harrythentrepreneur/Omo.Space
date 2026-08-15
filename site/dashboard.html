@@ -536,6 +536,7 @@
         <a href="about.html">About</a>
         <a href="sell.html">Sell yours</a>
         <a href="creators.html">For creators</a>
+        <a href="blog.html">Blog</a>
         <a href="terms.html">Terms</a>
         <a href="privacy.html">Privacy</a>
         <a href="support.html">Support</a>
@@ -853,7 +854,7 @@
         } else if (closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus({ preventScroll: true });
       }
       function openWorkflowPage(slug) {
-        window.open('workflow.html?slug=' + encodeURIComponent(slug), '_blank', 'noopener');
+        window.open('/workflows/' + encodeURIComponent(slug) + '/', '_blank', 'noopener');
       }
       var openedRequestedListing = false;
       function openRequestedListing() {

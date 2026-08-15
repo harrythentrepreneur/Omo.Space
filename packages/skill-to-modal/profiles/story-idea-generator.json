@@ -125,7 +125,6 @@
     "base_url_env": "LLM_BASE_URL",
     "default_base_url": "https://opencode.ai/zen/go/v1",
     "default_model": "deepseek-v4-flash",
-    "input_rate_per_million_usd": 0.14,
     "max_tokens": 1200,
     "modal_secret_name": "omo-skill-providers",
     "model_env": "LLM_MODEL",
@@ -180,7 +179,6 @@
         "constraints_used"
       ]
     },
-    "output_rate_per_million_usd": 0.28,
     "prompt": "run.txt",
     "provider": "opencode-go",
     "temperature": 0.2,
@@ -191,7 +189,7 @@
     "cover": null,
     "demo_cap": "Hosted run: structured teacher-reviewable result",
     "deployment": {
-      "default_endpoint": "https://harrythentrepreneur--cognition-story-idea-generator-api.modal.run",
+      "default_endpoint": "https://omo-space--cognition-story-idea-generator-api.modal.run",
       "endpoint_env": "STORY_IDEA_GENERATOR_MODAL_URL"
     },
     "description": "Create a bounded set of original, child-safe story premises for classroom writing.",

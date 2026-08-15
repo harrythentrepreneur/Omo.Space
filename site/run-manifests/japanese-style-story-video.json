@@ -1,0 +1,241 @@
+{
+  "chargeable": true,
+  "container_slug": "japanese-style-story-video",
+  "examples": [
+    {
+      "caption": "Sumi-e · bundled 10-second sample",
+      "id": "sample-demello-10s",
+      "input": {
+        "audio": "sample-demello-10s",
+        "duration": 10,
+        "style": "sumi-e"
+      },
+      "output_preview": "A validated portrait MP4 plus the reviewed transcript and run-scoped frame artifacts.",
+      "title": "Present-moment reflection"
+    }
+  ],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/japanese-style-story-video/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Fail-closed hosted milestone input. Only the bundled 10-second sample is accepted; arbitrary audio is not enabled.",
+    "properties": {
+      "audio": {
+        "const": "sample-demello-10s",
+        "description": "The only audio source enabled for the hosted milestone.",
+        "title": "Audio source",
+        "type": "string"
+      },
+      "duration": {
+        "const": 10,
+        "description": "The exact duration of the bundled sample in seconds.",
+        "title": "Duration",
+        "type": "integer"
+      },
+      "style": {
+        "const": "sumi-e",
+        "description": "The reviewed Japanese ink style for this release.",
+        "title": "Visual style",
+        "type": "string"
+      }
+    },
+    "required": [
+      "audio",
+      "style",
+      "duration"
+    ],
+    "title": "Japanese Style Story Video hosted sample",
+    "type": "object"
+  },
+  "input_schema_source": "containers/japanese-style-story-video/schemas/input.json",
+  "output_schema": {
+    "$id": "https://omo.space/schemas/japanese-style-story-video/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "artifacts": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "content_type": {
+              "enum": [
+                "video/mp4",
+                "image/jpeg",
+                "application/json"
+              ],
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "video",
+                "contact_sheet",
+                "transcript",
+                "frame_brief",
+                "frame_manifest"
+              ],
+              "type": "string"
+            },
+            "object_key": {
+              "maxLength": 512,
+              "minLength": 3,
+              "pattern": "^owners/[0-9a-f]{24}/runs/run-[0-9a-f]{32}/[0-9a-f]{64}/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "url": {
+              "maxLength": 4096,
+              "pattern": "^https://",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "object_key",
+            "sha256",
+            "bytes",
+            "content_type",
+            "url"
+          ],
+          "type": "object"
+        },
+        "maxItems": 5,
+        "minItems": 5,
+        "type": "array"
+      },
+      "media": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_codec": {
+            "const": "aac"
+          },
+          "duration_seconds": {
+            "maximum": 10.2,
+            "minimum": 9.8,
+            "type": "number"
+          },
+          "fps": {
+            "const": 30
+          },
+          "height": {
+            "const": 1920
+          },
+          "video_codec": {
+            "const": "h264"
+          },
+          "width": {
+            "const": 1080
+          }
+        },
+        "required": [
+          "duration_seconds",
+          "width",
+          "height",
+          "fps",
+          "video_codec",
+          "audio_codec"
+        ],
+        "type": "object"
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_frames": {
+            "const": 30
+          },
+          "generated_frames": {
+            "const": 30
+          },
+          "generation_provider": {
+            "const": "procedural-fallback"
+          },
+          "output_frames": {
+            "const": 300
+          },
+          "provider_cost_usd": {
+            "const": 0
+          }
+        },
+        "required": [
+          "generated_frames",
+          "accepted_frames",
+          "output_frames",
+          "generation_provider",
+          "provider_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "japanese-style-story-video@0.2.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "artifacts",
+      "media",
+      "usage"
+    ],
+    "title": "Completed Japanese Style Story Video run",
+    "type": "object"
+  },
+  "output_schema_source": "containers/japanese-style-story-video/schemas/output.json",
+  "phases": [
+    {
+      "id": "transcribing",
+      "label": "Validating transcript"
+    },
+    {
+      "id": "directing",
+      "label": "Directing ink beats"
+    },
+    {
+      "id": "generating",
+      "label": "Generating frames"
+    },
+    {
+      "id": "assembling",
+      "label": "Assembling and validating"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "japanese-style-story-video",
+  "ui": {
+    "fields": {
+      "audio": {
+        "widget": "select"
+      },
+      "duration": {
+        "widget": "hidden"
+      },
+      "style": {
+        "widget": "hidden"
+      }
+    },
+    "order": [
+      "audio",
+      "style",
+      "duration"
+    ]
+  }
+}

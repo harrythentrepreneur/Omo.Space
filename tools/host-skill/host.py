@@ -92,6 +92,13 @@ def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def display_path(path: Path) -> str:
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def js_json(value: Any, indent: int = 0) -> str:
     rendered = json.dumps(value, ensure_ascii=True, indent=2, sort_keys=True)
     prefix = " " * indent
@@ -314,8 +321,11 @@ def build_hosted_profile(
         if not ENV_NAME_RE.fullmatch(endpoint_env):
             raise ValueError("marketplace deployment endpoint_env must be an uppercase env name")
 
-    input_schema = profile["input_schema"]
-    output_schema = profile["output_schema"]
+    # The compiler is authoritative for generator-level schema capabilities
+    # such as upload adapters and artifact envelopes. Registration must carry
+    # the materialized contracts, not the pre-generation profile sketches.
+    input_schema = container_manifest.get("input_schema") or profile["input_schema"]
+    output_schema = container_manifest.get("output_schema") or profile["output_schema"]
     ui = market.get("ui") or {
         "order": [item["field"] for item in profile["form"]],
         "fields": {item["field"]: {"widget": item["widget"]} for item in profile["form"]},
@@ -349,21 +359,46 @@ def build_hosted_profile(
         "ui": ui,
     }
 
-    prompt_name = profile["live"]["prompt"]
-    workflow_steps = [
-        {
+    live = profile.get("live") if isinstance(profile.get("live"), dict) else None
+    prompt_name = live["prompt"] if live is not None else None
+    workflow_steps = []
+    if "whatsapp_zip" in profile.get("input_adapters", []):
+        workflow_steps.append({
+            "type": "pipeline",
+            "role": "whatsapp_zip",
+            "label": "Parse WhatsApp export and derive the reviewed story fields",
+        })
+    if live is not None:
+        workflow_steps.append({
             "type": "llm",
             "role": profile["steps"][0]["id"],
-            "model": profile["live"]["default_model"],
-            "max_output": int(profile["live"]["max_tokens"]),
+            "model": live["default_model"],
+            "max_output": int(live["max_tokens"]),
             "system": profile["prompts"][prompt_name],
-        }
-    ]
+        })
+    elif profile.get("skill_owned_resource"):
+        workflow_steps.extend(
+            {
+                "type": "pipeline",
+                "role": str(step.get("id") or "native"),
+                "label": str(step.get("operation") or step.get("id") or "Native step"),
+            }
+            for step in profile.get("steps", [])
+            if isinstance(step, dict)
+        )
+    else:
+        raise ValueError("hosted native profiles require a reviewed skill-owned resource")
     workflow_steps.extend(
         {"type": "pipeline", "role": phase["id"], "label": phase["label"]}
         for phase in phases
         if phase["id"] != "delivered"
     )
+    if isinstance(profile.get("artifact"), dict) and profile["artifact"].get("type") == "book_pdf":
+        workflow_steps.append({
+            "type": "pipeline",
+            "role": "render_book_pdf",
+            "label": "Render, persist, and sign the beautiful PDF keepsake",
+        })
     catalog = {
         "slug": slug,
         "name": require_text(market.get("title"), "title"),
@@ -399,6 +434,8 @@ def build_hosted_profile(
         "input_schema": input_schema,
         "output_schema": output_schema,
         "run_price_cents": run_price_cents,
+        "input_adapters": list(profile.get("input_adapters") or []),
+        "artifact": profile.get("artifact"),
     }
     if placement["effective"] == "modal-hosted":
         runtime.update({
@@ -406,6 +443,11 @@ def build_hosted_profile(
             "endpoint_env": endpoint_env,
             "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
             "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+            "protocol": (
+                "owner-scoped-async-v1"
+                if profile.get("skill_owned_resource")
+                else "modal-function-call-v1"
+            ),
         })
     else:
         runtime["executor"] = build_worker_executor(profile)
@@ -414,9 +456,13 @@ def build_hosted_profile(
         "name": catalog["name"],
         "license_price_usd": catalog["priceOwn"],
         "run_price_usd": price_usd,
-        "model": profile["live"]["default_model"],
-        "max_tokens": int(profile["live"]["max_tokens"]),
-        "system_prompt": profile["prompts"][prompt_name],
+        "model": live["default_model"] if live is not None else "native-media",
+        "max_tokens": int(live["max_tokens"]) if live is not None else 0,
+        "system_prompt": (
+            profile["prompts"][prompt_name]
+            if live is not None
+            else "Execute the reviewed server-owned native media pipeline."
+        ),
     }
     return {
         "schema_version": "omo.hosted-profile/v1",
@@ -587,7 +633,15 @@ def main() -> int:
     )
     contract_test = out / "tests" / "test_contract.py"
     run_checked([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(contract_test)])
-    run_checked(["node", str(ROOT / "packages" / "skill-to-modal" / "verify-pricing.mjs"), slug])
+    run_checked(
+        [
+            "node",
+            str(ROOT / "packages" / "skill-to-modal" / "verify-pricing.mjs"),
+            slug,
+            "--report",
+            str(out / "pricing-report.json"),
+        ]
+    )
 
     manifest = read_json(out / "manifest.json")
     pricing = read_json(out / "pricing-report.json")
@@ -606,7 +660,7 @@ def main() -> int:
         "status": "ready_for_catalog" if manifest["readiness"]["can_submit"] else "blocked",
         "slug": slug,
         "source_sha256": read_json(out / "skill-analysis.json")["source"]["sha256"],
-        "manifest": (out / "manifest.json").relative_to(ROOT).as_posix(),
+        "manifest": display_path(out / "manifest.json"),
         "price_usd": pricing["display_price_usd"],
         "chargeable": manifest["pricing"]["chargeable"],
         "registered": bool(registered),
