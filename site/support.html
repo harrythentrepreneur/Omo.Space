@@ -85,6 +85,20 @@
       border-radius: 10px; background: var(--pine); color: #fff; font-weight: 700; text-decoration: none;
     }
     .email-button:hover { background: #21483D; }
+    .support-chat { max-width: 760px; margin-bottom: 38px; padding: clamp(20px, 4vw, 32px); border: 1px solid var(--rule); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 34px rgba(23,53,44,.08); }
+    .support-chat h2 { margin-bottom: 6px; }
+    .support-chat-intro { margin-bottom: 18px; color: var(--moss); }
+    .support-messages { min-height: 260px; max-height: 520px; overflow-y: auto; display: grid; align-content: start; gap: 12px; padding: 16px; border: 1px solid var(--rule); border-radius: 12px; background: var(--canvas); }
+    .support-message { max-width: 88%; padding: 11px 14px; border-radius: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .support-message-user { justify-self: end; background: var(--pine); color: #fff; }
+    .support-message-agent { justify-self: start; border: 1px solid var(--rule); background: #fff; }
+    .support-form { display: grid; gap: 10px; margin-top: 12px; }
+    .support-form textarea { width: 100%; min-height: 96px; resize: vertical; padding: 13px 14px; border: 1px solid var(--rule); border-radius: 12px; color: var(--pine); background: #fff; font: inherit; }
+    .support-form-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .support-status { min-height: 22px; margin: 0; color: var(--moss); font-size: 13px; }
+    .support-send { min-height: 44px; padding: 0 20px; border: 0; border-radius: 10px; background: var(--orange); color: var(--pine); font-weight: 700; }
+    .support-send:disabled { opacity: .55; cursor: wait; }
+    .support-signin { padding: 18px; border: 1px dashed var(--rule); border-radius: 12px; text-align: center; }
     .site-footer { padding: 36px 0 44px; border-top: 1px solid var(--rule); }
     .footer-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
     .footer-tagline { max-width: 350px; margin: 8px 0 0; color: var(--moss); font-size: 13.5px; }
@@ -136,14 +150,34 @@
   <main id="main">
     <section class="legal-hero" aria-labelledby="page-title">
       <div class="shell">
-        <p class="eyebrow">Real help from real people</p>
+        <p class="eyebrow">Omo beta support</p>
         <h1 id="page-title">Support</h1>
-        <p class="intro">Something stuck? Tell us what happened and we’ll help you get moving again.</p>
+        <p class="intro">Chat with the Omo support agent about uploads, builds, workflow runs, billing states, or a reproducible bug.</p>
       </div>
     </section>
 
     <div class="legal-body">
       <div class="shell legal-copy">
+        <section class="support-chat" aria-labelledby="support-chat-title">
+          <h2 id="support-chat-title">Chat with Omo Support Hermes</h2>
+          <p class="support-chat-intro">It can inspect the Omo pipeline, explain failures, and help the beta team turn confirmed defects into tested pull requests. Never paste passwords, API keys, or card details.</p>
+          <div class="support-signin" id="support-signin">
+            <p>Sign in to start a private support session.</p>
+            <button class="support-send" id="support-signin-button" type="button">Sign in</button>
+          </div>
+          <div id="support-chat-app" hidden>
+            <div class="support-messages" id="support-messages" aria-live="polite" aria-label="Support conversation"></div>
+            <form class="support-form" id="support-form">
+              <label for="support-input">What is happening?</label>
+              <textarea id="support-input" maxlength="8000" required placeholder="For example: My upload has stayed on reviewing since this morning. The submission ID is…"></textarea>
+              <div class="support-form-row">
+                <p class="support-status" id="support-status" role="status"></p>
+                <button class="support-send" id="support-send" type="submit">Send</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
         <section class="legal-section">
           <h2>Email us</h2>
           <p>Send a note with the email on your Omo account, the workflow name, and a quick description of what you saw. Please do not send passwords, API keys, or card details.</p>
@@ -187,5 +221,8 @@
       </nav>
     </div>
   </footer>
+  <script src="key-config.js"></script>
+  <script src="clerk.js"></script>
+  <script src="support.js"></script>
 </body>
 </html>
