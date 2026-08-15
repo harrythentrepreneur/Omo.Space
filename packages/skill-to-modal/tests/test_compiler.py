@@ -35,6 +35,9 @@ SEMANTIC_REPLAY_PATH = (
     / "semantic-adapter-real-runs.json"
 )
 SEMANTIC_INPUTS_PATH = SEMANTIC_REPLAY_PATH.with_name("semantic-adapter-inputs.json")
+HARDENING_FIXTURE_PATH = SEMANTIC_REPLAY_PATH.with_name(
+    "hardening-final-rerun.json"
+)
 
 
 def test_parse_skill_requires_and_returns_frontmatter() -> None:
@@ -305,6 +308,159 @@ def test_resolver_selects_tabular_statistics_from_steps_adapter_and_artifacts() 
     ]
     assert analysis_artifact_resolution["decision"] == "approved"
     assert analysis_artifact_resolution["blockers"] == []
+
+
+def _hardening_tabular_profile() -> dict:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["name"] = "hardening-tabular-analysis"
+    profile["slug"] = "hardening-tabular-analysis"
+    profile["input_adapters"] = ["tabular_dataset"]
+    profile["steps"] = [
+        {"operation": "tabular.parse"},
+        {"operation": "statistics.compute"},
+        {"operation": "visualization.render.chart"},
+    ]
+    profile["outputs"] = [
+        {
+            "content_media_type": "application/json",
+            "name": "analysis",
+            "semantic_type": "statistical_analysis",
+        },
+        {
+            "artifact_type": "chart",
+            "content_media_type": "image/png",
+            "kind": "chart",
+            "name": "chart",
+        },
+    ]
+    profile["artifacts"] = []
+    profile["artifact"] = {
+        "content_media_type": "image/png",
+        "filename": "analysis-chart.png",
+        "kind": "chart",
+        "signed_url_ttl_seconds": 3600,
+        "signing_key_env": "LLM_API_KEY",
+        "source_field": "chart_spec",
+        "type": "chart_png",
+        "volume_name": "omo-hardening-tabular-artifacts",
+    }
+    profile["output_schema"] = {
+        "additionalProperties": False,
+        "properties": {
+            "summary": {"type": "string"},
+            "findings": {"items": {"type": "string"}, "type": "array"},
+            "chart_spec": {"type": "object"},
+        },
+        "required": ["summary", "findings", "chart_spec"],
+        "type": "object",
+    }
+    return profile
+
+
+def test_resolver_selects_tabular_analysis_orchestrator_for_combined_contract() -> None:
+    resolution = compiler.resolve_capabilities(_hardening_tabular_profile(), "9" * 64)
+
+    assert [item["name"] for item in resolution["selected"]] == [
+        "chart_generation",
+        "tabular.statistics",
+        "tabular_analysis_orchestrator",
+    ]
+    assert resolution["decision"] == "approved"
+    assert resolution["blockers"] == []
+    assert "tabular.analysis.orchestrate" in {
+        item["name"] for item in resolution["needs"]
+    }
+    assert {
+        "tools.render.tabular.parse_csv",
+        "tools.render.tabular.statistics",
+        "tools.render.charts.render_chart_png",
+    } <= set(resolution["generated"]["tool_bindings"])
+
+
+def test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png(
+    tmp_path: Path,
+) -> None:
+    fixture = json.loads(HARDENING_FIXTURE_PATH.read_text(encoding="utf-8"))
+    source = compiler.modal_app_template(_hardening_tabular_profile())
+    runtime_path = tmp_path / "generated_tabular_orchestrator.py"
+    runtime_path.write_text(source, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_tabular_orchestrator", runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    for case in fixture["data_analysis"]:
+        payload = case["input"]
+        assert compiler.sha256_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        ) == case["input_sha256"]
+        writer_calls = []
+
+        def fixture_writer(grounded_payload: dict, *, _case=case) -> dict:
+            writer_calls.append(grounded_payload)
+            assert set(grounded_payload) == {
+                "questions",
+                "hypotheses",
+                "column_semantics",
+                "filters",
+                "units",
+                "computed_stats",
+            }
+            assert "dataset" not in grounded_payload
+            assert "rows" not in grounded_payload["computed_stats"]
+            return json.loads(json.dumps(_case["findings_writer_output"]))
+
+        result = runtime.run_tabular_analysis_orchestrator(
+            payload,
+            findings_writer=fixture_writer,
+            output_root=tmp_path / case["id"],
+        )
+        assert set(result) == {
+            "summary", "findings", "chart_spec", "artifact_path", "stats"
+        }
+        assert len(writer_calls) == 1
+        artifact_path = Path(result["artifact_path"])
+        assert artifact_path.is_file()
+        assert artifact_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+        from PIL import Image
+
+        with Image.open(artifact_path) as rendered:
+            rendered.verify()
+        grouped = result["stats"]["grouped_sums"][0]
+        if case["id"] == "reviewed-happy-path":
+            assert {item["key"]: item["sum"] for item in grouped["groups"]} == {
+                "North": 260,
+                "South": 90,
+            }
+            assert result["chart_spec"]["kind"] == "bar"
+        else:
+            assert result["chart_spec"]["kind"] == "line"
+
+    bad_payload = fixture["data_analysis"][0]["input"]
+    with pytest.raises(ValueError, match="TABULAR_FINDINGS_UNGROUNDED_NUMBER"):
+        runtime.run_tabular_analysis_orchestrator(
+            bad_payload,
+            findings_writer=lambda _stats: {
+                "summary": "The result is 777.",
+                "findings": ["No computed statistic supports 777."],
+            },
+            output_root=tmp_path / "ungrounded",
+        )
+
+    too_many_rows = json.loads(json.dumps(bad_payload))
+    too_many_rows["dataset"] = "group,value\n" + "\n".join(
+        f"g{index % 2},{index}" for index in range(5001)
+    )
+    writer_called = []
+    with pytest.raises(ValueError, match="TABULAR_TOO_MANY_ROWS"):
+        runtime.run_tabular_analysis_orchestrator(
+            too_many_rows,
+            findings_writer=lambda _stats: writer_called.append(True),
+            output_root=tmp_path / "too-many-rows",
+        )
+    assert writer_called == []
 
 
 def test_generated_bundle_imports_public_fetch_and_tabular_modules_and_runs_offline(
@@ -798,6 +954,129 @@ def test_copy_revision_replays_recorded_good_output_with_contract_evidence(tmp_p
     assert runtime._semantic_validation_diff(output, payload) == ""
     output["revised_copy"] = payload["copy"]
     assert "semantic_revision_required" in runtime._semantic_validation_diff(output, payload)
+
+
+def _hardening_semantic_runtime(tmp_path: Path, section: str):
+    fixture = json.loads(HARDENING_FIXTURE_PATH.read_text(encoding="utf-8"))
+    cases = fixture[section]
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "hardening-" + section.replace("_", "-")
+    profile["name"] = profile["slug"]
+    profile["input_schema"] = _fixture_schema(cases[0]["input"])
+    profile["live"]["model_output_schema"] = _fixture_schema(
+        cases[0]["semantic_projection"]
+    )
+    profile["semantic_normalizers"] = {}
+    if section == "copy_editing":
+        profile["reviewed_spec"] = {
+            "constraints": [
+                "Use only supplied facts",
+                "Return a revised draft with before/after revision evidence",
+            ],
+            "source_expected_contract": {
+                "outputs": "A revised draft and revision report."
+            },
+        }
+        expected_kind = "copy_revision"
+    else:
+        profile["reviewed_spec"] = {
+            "constraints": [
+                "Reconcile every total from supplied arrays",
+                "Variance equals actual minus budget",
+            ],
+            "source_expected_contract": {
+                "outputs": "Budget totals, variances, percentages, and forecast."
+            },
+        }
+        expected_kind = "budget_arithmetic"
+    runtime_path = tmp_path / (profile["slug"] + ".py")
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + profile["slug"].replace("-", "_"), runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == expected_kind
+    return runtime, cases
+
+
+def test_final_rerun_copy_fixtures_reconcile_claims_and_edit_pairs(
+    tmp_path: Path,
+) -> None:
+    runtime, cases = _hardening_semantic_runtime(tmp_path, "copy_editing")
+    assert runtime.SEMANTIC_EVIDENCE_SPEC["before_field"] == "before"
+    for case in cases:
+        payload = case["input"]
+        assert compiler.sha256_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        ) == case["input_sha256"]
+        normalized = runtime._semantic_normalize(
+            json.loads(json.dumps(case["semantic_projection"])), payload
+        )
+        assert runtime._semantic_validation_diff(normalized, payload) == ""
+        if case["id"] == "reviewed-happy-path":
+            assert normalized["unsupported_claims"] == []
+            assert all(
+                "No credit card required" not in item["after"]
+                for item in normalized["edits"]
+            )
+
+    payload = cases[0]["input"]
+    survives = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    survives["revised_copy"] += " No-credit-card required!"
+    survives = runtime._semantic_normalize(survives, payload)
+    assert "semantic_unsupported_claim" in runtime._semantic_validation_diff(
+        survives, payload
+    )
+
+    missing_pair = runtime._semantic_normalize(
+        json.loads(json.dumps(cases[1]["semantic_projection"])), cases[1]["input"]
+    )
+    missing_pair["edits"][0].pop("before")
+    assert "semantic_before_after_pair_required" in runtime._semantic_validation_diff(
+        missing_pair, cases[1]["input"]
+    )
+
+    shape_variant = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    shape_variant["unsupported_claims"] = [
+        {"claim": "No credit card required", "reason": "absent from supplied facts"}
+    ]
+    shape_variant["edits"] = {
+        "clarity": shape_variant["edits"][0],
+        "zero_risk": shape_variant["edits"][1],
+    }
+    reconciled, shape_diff = runtime._candidate(
+        json.dumps(shape_variant), cases[0]["input"]
+    )
+    assert shape_diff == ""
+    assert reconciled is not None
+    assert reconciled["unsupported_claims"] == []
+    assert len(reconciled["edits"]) == 1
+
+
+def test_final_rerun_budget_fixtures_allow_only_recomputed_derived_numbers(
+    tmp_path: Path,
+) -> None:
+    runtime, cases = _hardening_semantic_runtime(tmp_path, "budget_planning")
+    for case in cases:
+        payload = case["input"]
+        assert compiler.sha256_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        ) == case["input_sha256"]
+        output = json.loads(json.dumps(case["semantic_projection"]))
+        assert runtime._semantic_validation_diff(output, payload) == ""
+
+    wrong_target = json.loads(json.dumps(cases[1]["semantic_projection"]))
+    wrong_target["target_variance"] = 200
+    target_diff = runtime._semantic_validation_diff(wrong_target, cases[1]["input"])
+    assert "$.target_variance:semantic_budget_arithmetic" in target_diff
+
+    invented = json.loads(json.dumps(cases[1]["semantic_projection"]))
+    invented["recommendations"] = ["Allocate 777 more next period."]
+    assert "$:semantic_invented_number" in runtime._semantic_validation_diff(
+        invented, cases[1]["input"]
+    )
 
 
 def test_indexed_facts_replays_recorded_paraphrases_with_valid_indexes(tmp_path: Path) -> None:
