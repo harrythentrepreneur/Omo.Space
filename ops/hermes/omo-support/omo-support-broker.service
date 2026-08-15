@@ -10,7 +10,7 @@ DynamicUser=yes
 WorkingDirectory=/opt/omo-support-broker
 EnvironmentFile=/etc/omo-support-broker/env
 Environment=OMO_SUPPORT_HOST=127.0.0.1
-Environment=OMO_SUPPORT_PORT=8771
+Environment=OMO_SUPPORT_PORT=18771
 Environment=OMO_SUPPORT_STATE_DB=/var/lib/omo-support-broker/state.db
 Environment=HERMES_API_BASE=http://127.0.0.1:8642
 ExecStart=/usr/bin/python3 /opt/omo-support-broker/app.py
