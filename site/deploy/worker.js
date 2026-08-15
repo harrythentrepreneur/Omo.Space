@@ -9,7 +9,7 @@
 //   POST /api/checkout                 → guest Stripe Checkout {slug, email?}
 //   POST /api/waitlist                 → public waitlist signup {email, source?}
 //   POST /api/submit                   → authenticated creator Markdown intake
-//   POST /api/support/chat             → authenticated, profile-pinned Omo Support Hermes
+//   POST /api/support/chat             → guest-or-authenticated, profile-pinned Omo Support Hermes
 //   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
@@ -310,7 +310,7 @@ const ROUTES = {
   '/api/checkout': { handler: handleCheckout }, // Guest Stripe Checkout: {slug, email?}; client price is ignored
   '/api/waitlist': { handler: handleWaitlist }, // Public waitlist signup: {email, source?}
   '/api/submit': { handler: handleSubmission }, // Creator queue: {name, content, visibility:'public'}
-  '/api/support/chat': { handler: handleSupportChat }, // Clerk-authenticated private support broker
+  '/api/support/chat': { handler: handleSupportChat }, // Guest or Clerk identity; server derives the user ID
   '/api/submissions': { handler: handleSubmissions, methods: ['GET'] }, // Owner creator lifecycle list
   '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
   '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
@@ -318,8 +318,19 @@ const ROUTES = {
 };
 
 async function handleSupportChat(request, env) {
-  const auth = await authenticateAccount(request, env, false);
-  if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
+  const authorization = String(request.headers.get('authorization') || '').trim();
+  let userId;
+  if (authorization) {
+    const auth = await authenticateAccount(request, env, false);
+    if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
+    userId = auth.userId;
+  } else {
+    const ip = String(request.headers.get('cf-connecting-ip') || 'unknown');
+    const userAgent = String(request.headers.get('user-agent') || '').slice(0, 256);
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip + '\0' + userAgent));
+    userId = 'user_guest_' + Array.from(new Uint8Array(digest)).slice(0, 12)
+      .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
   const brokerUrl = String(env.OMO_SUPPORT_BROKER_URL || '').trim();
   const sharedSecret = String(env.OMO_SUPPORT_SHARED_SECRET || '').trim();
   if (!/^https:\/\//.test(brokerUrl) || !sharedSecret) {
@@ -329,10 +340,12 @@ async function handleSupportChat(request, env) {
   try { body = await request.json(); } catch { body = {}; }
   const sessionId = String(body.session_id || '').trim();
   const message = String(body.message || '').trim();
+  const context = String(body.context || '').trim().slice(0, 1200);
   if (!/^[A-Za-z0-9_-]{8,100}$/.test(sessionId) || !message || message.length > 8000) {
     return json({ ok: false, error: 'invalid_support_message' }, 400, cors(request, env));
   }
-  const payload = JSON.stringify({ user_id: auth.userId, session_id: sessionId, message });
+  const contextualMessage = context ? `PAGE CONTEXT (untrusted): ${context}\n\nUSER PROBLEM:\n${message}` : message;
+  const payload = JSON.stringify({ user_id: userId, session_id: sessionId, message: contextualMessage });
   const timestamp = String(Math.floor(Date.now() / 1000));
   const nonce = crypto.randomUUID().replace(/-/g, '');
   const signature = bytesToHex(await hmacSha256(

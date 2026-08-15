@@ -505,14 +505,19 @@ const supportEnv = {
 
 };
 const supportMissingAuth = await worker.fetch(mkReq('POST', '/api/support/chat', {
-  session_id: 'support_abcdefgh', message: 'help',
+  session_id: 'support_guest_abcdefgh', message: 'help', context: 'Page: /support; title: Support',
 }), supportEnv);
-check('support: Clerk authentication is required before broker dispatch', supportMissingAuth.status === 401 && supportCalls.length === 0);
+const guestSupportCall = supportCalls[0];
+check('support: guests receive a server-derived identity and page/problem context',
+  supportMissingAuth.status === 200
+  && /^user_guest_[0-9a-f]{24}$/.test(guestSupportCall.payload.user_id)
+  && guestSupportCall.payload.message.includes('PAGE CONTEXT (untrusted): Page: /support; title: Support')
+  && guestSupportCall.payload.message.includes('USER PROBLEM:\nhelp'));
 const supportResponse = await worker.fetch(mkReq('POST', '/api/support/chat', {
   session_id: 'support_abcdefgh', message: 'My upload is stuck', maintainer: false, profile: 'omo-dev',
 }, creatorHeaders), supportEnv);
 const supportBody = await supportResponse.json();
-const supportCall = supportCalls[0];
+const supportCall = supportCalls[1];
 check('support: browser privilege fields are dropped and response is pinned to diagnosis-only omo-support',
   supportResponse.status === 200 && supportBody.profile === 'omo-support' && supportBody.mode === 'support'
   && supportCall.payload.maintainer === undefined && supportCall.payload.user_id === 'user_creator'

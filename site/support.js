@@ -41,34 +41,37 @@
   }
 
   function updateAuthState() {
-    var signedIn = isSignedIn();
-    signInPanel.hidden = signedIn;
-    app.hidden = !signedIn;
-    if (signedIn && !messages.childElementCount) {
+    signInPanel.hidden = true;
+    app.hidden = false;
+    if (!messages.childElementCount) {
       addMessage('Hi — I’m Omo Support Hermes. Tell me what is stuck, and include a run or submission ID if you have one.', 'agent');
     }
   }
 
   function token() {
     if (!window.Clerk || !window.Clerk.session || typeof window.Clerk.session.getToken !== 'function') {
-      return Promise.reject(new Error('Sign in to continue.'));
+      return Promise.resolve('');
     }
     return Promise.resolve(window.Clerk.session.getToken()).then(function (value) {
-      if (!value) throw new Error('Your session expired. Sign in again.');
-      return value;
+      return value || '';
     });
   }
 
   function submitMessage(message) {
     return token().then(function (bearer) {
+      var headers = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      };
+      if (bearer) headers.Authorization = 'Bearer ' + bearer;
       return fetch(API_BASE + '/api/support/chat', {
         method: 'POST',
-        headers: {
-          Authorization: 'Bearer ' + bearer,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify({ session_id: sessionId(), message: message })
+        headers: headers,
+        body: JSON.stringify({
+          session_id: sessionId(),
+          message: message,
+          context: 'Page: ' + window.location.pathname + '; title: ' + document.title
+        })
       });
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (body) {
