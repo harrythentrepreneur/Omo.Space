@@ -421,7 +421,7 @@ check('creator upload: reviewed failed submissions expose the generalized gated-
   uploadSource.includes("isRetryableReviewedBuildFailure(submission)") &&
   uploadSource.includes("submission.failure_code === 'build_or_deploy_failed'") &&
   uploadSource.includes("submission.failure_code === 'canary_or_internal_failed'") &&
-  uploadSource.includes('submission.selected_runtime') &&
+  uploadSource.includes("submission.failure_code === 'canary_or_internal_failed' && !submission.selected_runtime") &&
   !uploadSource.includes("submission.approval_reason === 'exact_source_slug_collision'") &&
   uploadSource.includes("fetch(apiBase() + '/api/submissions/' + encodeURIComponent(submission.id) + '/retry'") &&
   uploadSource.includes("Authorization: 'Bearer ' + token") &&
@@ -904,12 +904,14 @@ const retryCanaryRecord = {
   id: 'sub_retrycanary000000000000000001',
   status: 'failed',
   failure_code: 'canary_or_internal_failed',
+  selected_runtime: null,
+  runtime_policy: null,
   updated_at: '2026-08-14T00:04:00.000Z',
 };
 workerTest.mockSubmissions.set(`user_creator\u0000${retryCanaryRecord.id}`, retryCanaryRecord);
 const retryCanaryResponse = await worker.fetch(mkReq('POST', `/api/submissions/${retryCanaryRecord.id}/retry`, {}, creatorHeaders), realEnv);
 const retryCanaryBody = await retryCanaryResponse.json();
-check('submission retry: owner can retry approved exact-match canary/internal failure with the same gates',
+check('submission retry: owner can requeue a pre-runtime canary/internal failure through the same review gates',
   retryCanaryResponse.status === 200 &&
   retryCanaryBody.ok === true &&
   retryCanaryBody.retried === true &&
@@ -917,7 +919,8 @@ check('submission retry: owner can retry approved exact-match canary/internal fa
   retryCanaryBody.submission.status === 'queued' &&
   retryCanaryBody.submission.failure_code === null &&
   retryCanaryBody.submission.approved_by === 'user_creator' &&
-  retryCanaryBody.submission.approval_reason === 'exact_source_slug_collision');
+  retryCanaryBody.submission.approval_reason === 'exact_source_slug_collision' &&
+  retryCanaryBody.submission.selected_runtime === null);
 
 const retryReviewedNewRecord = {
   ...retryRecord,
@@ -1018,12 +1021,14 @@ const d1Env = {
               const [, id, userId] = values;
               const row = d1RetryRows.get(id);
               const retryableCode = row && (row.failure_code === 'build_or_deploy_failed' || row.failure_code === 'canary_or_internal_failed');
+              const preRuntimeCanary = row && row.failure_code === 'canary_or_internal_failed' && !row.selected_runtime && !row.runtime_policy;
+              const reviewedRuntimeFailure = row &&
+                (row.selected_runtime === 'worker-native' || row.selected_runtime === 'modal-hosted') && row.runtime_policy;
               const allowed = row && row.user_id === userId &&
                 /^[a-f0-9]{64}$/.test(row.source_sha256) &&
                 row.status === 'failed' &&
                 retryableCode &&
-                (row.selected_runtime === 'worker-native' || row.selected_runtime === 'modal-hosted') &&
-                row.runtime_policy;
+                (preRuntimeCanary || reviewedRuntimeFailure);
               if (!allowed) return { meta: { changes: 0 } };
               row.status = 'queued';
               row.failure_code = null;
