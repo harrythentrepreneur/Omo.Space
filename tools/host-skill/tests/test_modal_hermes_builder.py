@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "modal_hermes_builder.py"
@@ -161,3 +162,22 @@ def test_safe_failure_stage_is_allowlisted() -> None:
     unsafe = builder._safe_result("failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="secret-value")
     assert safe["stage"] == "claim"
     assert "stage" not in unsafe
+
+
+def test_processor_loader_resolves_siblings_and_restores_sys_path(tmp_path: Path) -> None:
+    builder = load_builder()
+    host_skill = tmp_path / "tools" / "host-skill"
+    host_skill.mkdir(parents=True)
+    (host_skill / "submission_queue.py").write_text("MARKER = 'sibling-loaded'\n", encoding="utf-8")
+    processor_path = host_skill / "process-submissions.py"
+    processor_path.write_text("from submission_queue import MARKER\n", encoding="utf-8")
+    before = list(sys.path)
+    previous_sibling = sys.modules.pop("submission_queue", None)
+    try:
+        module = builder.load_processor_module(processor_path)
+        assert module.MARKER == "sibling-loaded"
+        assert sys.path == before
+    finally:
+        sys.modules.pop("submission_queue", None)
+        if previous_sibling is not None:
+            sys.modules["submission_queue"] = previous_sibling

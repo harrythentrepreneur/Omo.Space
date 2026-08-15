@@ -7,6 +7,7 @@ import os
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -91,6 +92,30 @@ def parse_dispatch_payload(payload: Mapping[str, Any]) -> tuple[str, str, str, s
     )
     validate_job_identity(*values, ALLOWED_BASE_REVISION)
     return values
+
+
+def load_processor_module(processor_path: Path) -> Any:
+    import importlib.util
+
+    if not processor_path.is_file() or processor_path.name != "process-submissions.py":
+        raise RuntimeError("processor import failed")
+    module_dir = str(processor_path.parent)
+    spec = importlib.util.spec_from_file_location("omo_modal_processor", processor_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("processor import failed")
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, module_dir)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if sys.path and sys.path[0] == module_dir:
+            sys.path.pop(0)
+        else:
+            try:
+                sys.path.remove(module_dir)
+            except ValueError:
+                pass
+    return module
 
 
 def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]:
@@ -222,13 +247,8 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 raise RuntimeError("pinned checkout verification failed")
 
             stage = "processor_import"
-            import importlib.util
             processor_path = checkout / "tools" / "host-skill" / "process-submissions.py"
-            spec = importlib.util.spec_from_file_location("omo_modal_processor", processor_path)
-            if spec is None or spec.loader is None:
-                raise RuntimeError("processor import failed")
-            processor = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(processor)
+            processor = load_processor_module(processor_path)
             repository = processor.repository_from_env(os.environ)
             stage = "claim"
             row = repository.claim(submission_id, include_review=True)
