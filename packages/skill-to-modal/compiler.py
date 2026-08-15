@@ -23,7 +23,7 @@ from typing import Any
 
 COMPILER_VERSION = "skill-to-modal/0.3.0"
 CAPABILITY_RESOLVER_VERSION = "1.0.0"
-CAPABILITY_REGISTRY_VERSION = "1.1.0"
+CAPABILITY_REGISTRY_VERSION = "1.2.0"
 COST_MODEL_PATH = Path(__file__).resolve().parents[2] / "site" / "deploy" / "cost-model.mjs"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SKILL_OWNED_TEMPLATE_ROOT = Path(__file__).resolve().parent / "skill_owned_resources"
@@ -298,6 +298,166 @@ CAPABILITY_REGISTRY: dict[str, dict[str, Any]] = {
             "missing artifact_store keeps the overall build blocked even when local rendering passes",
         ],
     },
+    "research.collect:public_search_fetch": {
+        "name": "research.collect:public_search_fetch",
+        "version": "1.0.0",
+        "status": "available",
+        "triggers": {
+            "all": [],
+            "any": [
+                {
+                    "scope": "steps",
+                    "where": {
+                        "operation": {
+                            "in": [
+                                "research.collect.public_search",
+                                "research.collect.web_fetch",
+                                "research.collect.primary_source",
+                                "research.collect.primary_sources",
+                                "research.web.collect",
+                                "research.fetch.public_url",
+                            ]
+                        }
+                    },
+                },
+                {
+                    "scope": "steps",
+                    "where": {"source_class": {"equals": "primary_source"}},
+                },
+                {
+                    "scope": "inputs",
+                    "where": {"adapter_type": {"equals": "browser_research"}},
+                },
+            ],
+            "excludes": [
+                {
+                    "scope": "inputs",
+                    "where": {"trust_class": {"in": ["private", "credentialed"]}},
+                },
+                {
+                    "scope": "steps",
+                    "where": {"requires_authenticated_session": {"equals": True}},
+                },
+            ],
+        },
+        "covers": [
+            "input.adapt:browser_research",
+            "research.collect:public_search_fetch",
+        ],
+        "requires": ["reviewed_network_egress_policy"],
+        "generated_pieces": {
+            "files": [
+                "tools/research/public_fetch.py",
+                "generated bounded public-search/fetch invocation step",
+            ],
+            "runtime_steps": [
+                "validate a bounded non-empty public search query",
+                "call tools.research.public_fetch.search_snippets and preserve SEARCH_UNAVAILABLE",
+                "fetch direct public URLs only through the bounded robots-aware primitive",
+            ],
+            "tool_bindings": [
+                "tools.research.public_fetch.fetch_public_url",
+                "tools.research.public_fetch.search_snippets",
+            ],
+            "packages": ["python_standard_library"],
+            "resources": {
+                "network": "bounded_public_https",
+                "credentials": False,
+                "shell": False,
+            },
+            "policy": [
+                "queries are at most 500 characters and results are capped at 10 snippets",
+                "public query search fails closed with SEARCH_UNAVAILABLE until a reviewed backend exists",
+                "direct URL fetches retain HTTPS, robots, redirect, timeout, and response-size bounds",
+            ],
+        },
+        "tests": [
+            "generated public search binding rejects empty and oversized queries before lookup",
+            "search without a reviewed backend raises typed SEARCH_UNAVAILABLE",
+            "direct URL fetch behavior remains covered by loopback-only primitive tests",
+        ],
+        "honest_limits": [
+            "public query search is unavailable in v1 and always fails closed with SEARCH_UNAVAILABLE",
+            "direct fetch does not establish source authority, truth, or citation quality",
+            "credentialed, private, and authenticated-session research is excluded",
+        ],
+    },
+    "tabular.statistics": {
+        "name": "tabular.statistics",
+        "version": "1.0.0",
+        "status": "available",
+        "triggers": {
+            "all": [],
+            "any": [
+                {
+                    "scope": "steps",
+                    "where": {
+                        "operation": {"in": ["tabular.parse", "statistics.compute"]}
+                    },
+                },
+                {
+                    "scope": "inputs",
+                    "where": {"semantic_type": {"equals": "tabular_dataset"}},
+                },
+                {
+                    "scope": "inputs",
+                    "where": {"adapter_type": {"equals": "tabular_dataset"}},
+                },
+                {
+                    "scope": "artifacts",
+                    "where": {"kind": {"in": ["metrics_viz", "tabular_analysis"]}},
+                },
+                {
+                    "scope": "artifacts",
+                    "where": {"type": {"in": ["metrics_viz", "tabular_analysis"]}},
+                },
+                {
+                    "scope": "outputs",
+                    "where": {"kind": {"in": ["metrics_viz", "tabular_analysis"]}},
+                },
+                {
+                    "scope": "outputs",
+                    "where": {
+                        "artifact_type": {"in": ["metrics_viz", "tabular_analysis"]}
+                    },
+                },
+            ],
+            "excludes": [],
+        },
+        "covers": ["input.adapt:tabular_dataset", "tabular.statistics"],
+        "requires": [],
+        "generated_pieces": {
+            "files": [
+                "tools/render/tabular.py",
+                "generated parse-compute-structured-output step",
+            ],
+            "runtime_steps": [
+                "parse bounded in-memory delimited text with tools.render.tabular.parse_csv",
+                "compute deterministic statistics with tools.render.tabular.statistics",
+                "return an omo.tabular-analysis/v1 structured result",
+            ],
+            "tool_bindings": [
+                "tools.render.tabular.parse_csv",
+                "tools.render.tabular.statistics",
+                "tools.render.tabular.analyze_csv",
+            ],
+            "packages": ["python_standard_library"],
+            "resources": {"network": False, "credentials": False, "llm": False},
+            "policy": [
+                "tabular input is capped at 256 KiB before parsing",
+                "typed EMPTY_TABLE, NON_NUMERIC_COLUMN, and INSUFFICIENT_DATA failures propagate",
+            ],
+        },
+        "tests": [
+            "generated step parses then computes exact deterministic statistics",
+            "generated structured output contains schema version, rows, and statistics",
+            "oversized input fails before parsing and provider execution",
+        ],
+        "honest_limits": [
+            "input is bounded delimited text, not XLSX, a database, or a streaming dataset",
+            "statistics are descriptive only and mixed numeric/text columns are categorical by default",
+        ],
+    },
     "video_processing": {
         "name": "video_processing",
         "version": "1.0.0",
@@ -477,6 +637,7 @@ PLATFORM_CAPABILITY_DEPENDENCIES: dict[str, dict[str, str]] = {
     "artifact_store": {"version": "1.0.0", "status": "available"},
     "ffmpeg_runtime": {"version": "8.1.2", "status": "available"},
     "private_input_artifact_reader": {"version": "1.0.0", "status": "available"},
+    "reviewed_network_egress_policy": {"version": "1.0.0", "status": "available"},
 }
 
 
@@ -770,7 +931,21 @@ def _unknown_contract_needs(
     owned_operations = set(
         owned_resource.get("covers_operations", []) if owned_resource else []
     )
-    known_artifact_kinds = {"book", "chart", "plot", "metrics_viz", "video"}
+    covered_adapters = {
+        need.removeprefix("input.adapt:")
+        for entry in CAPABILITY_REGISTRY.values()
+        if _match_registry_entry(contract, entry)
+        for need in entry.get("covers", [])
+        if isinstance(need, str) and need.startswith("input.adapt:")
+    }
+    known_artifact_kinds = {
+        "book",
+        "chart",
+        "plot",
+        "metrics_viz",
+        "tabular_analysis",
+        "video",
+    }
     for artifact in contract["artifacts"]:
         artifact_type = str(artifact.get("type") or artifact.get("kind") or "").strip()
         kind = str(artifact.get("kind") or "").strip()
@@ -778,12 +953,16 @@ def _unknown_contract_needs(
         known = (
             (kind == "book" and media_type == "application/pdf")
             or (kind in {"chart", "plot", "metrics_viz"} and media_type == "image/png")
+            or (
+                (kind in {"metrics_viz", "tabular_analysis"} or artifact_type == "tabular_analysis")
+                and media_type in {"", "application/json"}
+            )
             or (kind == "video" and media_type in {"video/mp4", "video/quicktime"})
         )
         if (
             artifact_type
             and kind not in owned_artifact_kinds
-            and (not known or kind not in known_artifact_kinds)
+            and (not known or (kind or artifact_type) not in known_artifact_kinds)
         ):
             needs.append(
                 _capability_need(
@@ -794,7 +973,7 @@ def _unknown_contract_needs(
     for output in contract["outputs"]:
         artifact_type = output.get("artifact_type")
         if isinstance(artifact_type, str) and artifact_type not in {
-            "chart", "plot", "metrics_viz"
+            "chart", "plot", "metrics_viz", "tabular_analysis"
         }:
             needs.append(
                 _capability_need(
@@ -820,7 +999,11 @@ def _unknown_contract_needs(
     adapters = profile.get("input_adapters", [])
     if isinstance(adapters, list):
         for index, adapter in enumerate(adapters):
-            if isinstance(adapter, str) and adapter != "whatsapp_zip":
+            if (
+                isinstance(adapter, str)
+                and adapter != "whatsapp_zip"
+                and adapter not in covered_adapters
+            ):
                 needs.append(_capability_need("input.adapt:" + adapter, f"/input_adapters/{index}"))
     unique = {
         (item["name"], item["contract_pointer"]): item
@@ -1768,6 +1951,8 @@ def modal_app_template(profile: dict[str, Any]) -> str:
     selected = _selected_capability_names(profile)
     has_video = "video_processing" in selected
     has_domain_state = "domain_state" in selected
+    has_public_search_fetch = "research.collect:public_search_fetch" in selected
+    has_tabular_statistics = "tabular.statistics" in selected
     apt_packages = [str(item) for item in profile.get("apt_packages", [])]
     if has_video and "ffmpeg" not in apt_packages:
         apt_packages.append("ffmpeg")
@@ -1828,6 +2013,103 @@ WHATSAPP_OUTPUT_SCHEMA = {adapter_schema!r}
     media_run_volume = ""
     media_api_volume = ""
     domain_state_runtime = ""
+    public_fetch_runtime = ""
+    public_fetch_image_add = ""
+    tabular_runtime = ""
+    tabular_image_add = ""
+    if has_public_search_fetch:
+        public_fetch_image_add = '''.add_local_file(RESEARCH_ROOT / "public_fetch.py", str(IMAGE_ROOT / "omo_public_fetch.py"), copy=True)'''
+        public_fetch_runtime = '''
+
+def _public_fetch_tools() -> dict[str, Any]:
+    try:
+        from tools.research.public_fetch import (
+            PublicFetchError,
+            fetch_public_url,
+            search_snippets,
+        )
+    except ImportError:
+        from omo_public_fetch import (
+            PublicFetchError,
+            fetch_public_url,
+            search_snippets,
+        )
+    return {
+        "error": PublicFetchError,
+        "fetch_public_url": fetch_public_url,
+        "search_snippets": search_snippets,
+    }
+
+
+def run_public_search(query: str) -> dict[str, Any]:
+    """Run the reviewed bounded search seam, which fails closed in v1."""
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("query must be a non-empty string")
+    normalized = query.strip()
+    if len(normalized) > 500:
+        raise ValueError("query must be at most 500 characters")
+    snippets = _public_fetch_tools()["search_snippets"](normalized)
+    if not isinstance(snippets, list) or len(snippets) > 10 or any(
+        not isinstance(item, dict) for item in snippets
+    ):
+        error = _public_fetch_tools()["error"]
+        raise error("SEARCH_UNAVAILABLE", "search backend returned an invalid response")
+    return {
+        "schema_version": "omo.public-search-snippets/v1",
+        "query": normalized,
+        "snippets": snippets,
+    }
+
+
+def run_public_fetch(url: str, *, allowed_hosts: set[str] | None = None) -> dict[str, Any]:
+    """Fetch one reviewed public URL through the bounded robots-aware primitive."""
+    return _public_fetch_tools()["fetch_public_url"](
+        url,
+        preview_chars=4000,
+        timeout=10,
+        allowed_hosts=allowed_hosts,
+    )
+'''
+    if has_tabular_statistics:
+        tabular_image_add = '''.add_local_file(RENDER_ROOT / "tabular.py", str(IMAGE_ROOT / "omo_tabular.py"), copy=True)'''
+        tabular_runtime = '''
+
+def _tabular_tools() -> dict[str, Any]:
+    try:
+        from tools.render.tabular import TabularError, parse_csv, statistics
+    except ImportError:
+        from omo_tabular import TabularError, parse_csv, statistics
+    return {
+        "error": TabularError,
+        "parse_csv": parse_csv,
+        "statistics": statistics,
+    }
+
+
+def run_tabular_statistics(
+    text: str,
+    *,
+    numeric_columns: list[str] | None = None,
+    percentiles: tuple[float, ...] = (25, 50, 75),
+) -> dict[str, Any]:
+    """Parse bounded delimited text, compute stats, and return typed output."""
+    if not isinstance(text, str):
+        raise TypeError("tabular input must be text")
+    if len(text.encode("utf-8")) > 256 * 1024:
+        raise ValueError("tabular input exceeds 262144 UTF-8 bytes")
+    tools = _tabular_tools()
+    rows = tools["parse_csv"](text)
+    computed = tools["statistics"](
+        rows,
+        numeric_columns=numeric_columns,
+        percentiles=percentiles,
+    )
+    return {
+        "schema_version": "omo.tabular-analysis/v1",
+        "rows": rows,
+        "statistics": computed,
+    }
+'''
     if has_video:
         extra_imports += "import hashlib\nimport math\nimport subprocess\nfrom collections.abc import Mapping, Sequence\n"
         video_constants = f'''
@@ -4358,6 +4640,7 @@ EXECUTION_KIND = {profile['execution_kind']!r}
 LOCAL_ROOT = Path(__file__).resolve().parent
 IMAGE_ROOT = Path({('/root/' + slug.replace('-', '_'))!r})
 RENDER_ROOT = LOCAL_ROOT.parents[1] / "tools" / "render"
+RESEARCH_ROOT = LOCAL_ROOT.parents[1] / "tools" / "research"
 {live_constants}
 {adapter_constants}
 {artifact_constants}
@@ -4406,6 +4689,8 @@ def readiness() -> dict[str, Any]:
 {adapter_runtime}
 {live_executor}
 {artifact_runtime}
+{public_fetch_runtime}
+{tabular_runtime}
 {video_runtime}
 {domain_state_runtime}
 
@@ -4456,6 +4741,8 @@ runtime_image = (
     .add_local_file(LOCAL_ROOT / "manifest.json", str(IMAGE_ROOT / "manifest.json"), copy=True)
     .add_local_file(LOCAL_ROOT / "capability-manifest.json", str(IMAGE_ROOT / "capability-manifest.json"), copy=True)
     {artifact_image_add}
+    {public_fetch_image_add}
+    {tabular_image_add}
     {video_image_add}
 )
 

@@ -191,11 +191,183 @@ description: A deliberately unrelated contract fixture.
         },
         "c" * 64,
     )
-    assert [item["name"] for item in chart_resolution["selected"]] == ["chart_generation"]
-    assert chart_resolution["approved"] == ["chart_generation@1.0.0"]
-    assert chart_resolution["generated"]["tool_bindings"] == [
-        "tools.render.charts.render_chart_png"
+    assert [item["name"] for item in chart_resolution["selected"]] == [
+        "chart_generation",
+        "tabular.statistics",
     ]
+    assert chart_resolution["approved"] == [
+        "chart_generation@1.0.0",
+        "tabular.statistics@1.0.0",
+    ]
+    assert set(chart_resolution["generated"]["tool_bindings"]) == {
+        "tools.render.charts.render_chart_png",
+        "tools.render.tabular.analyze_csv",
+        "tools.render.tabular.parse_csv",
+        "tools.render.tabular.statistics",
+    }
+
+
+def test_resolver_selects_public_search_fetch_from_operations_and_legacy_adapter() -> None:
+    resolution = compiler.resolve_capabilities(
+        {
+            "artifacts": [],
+            "capabilities": [],
+            "execution_kind": "single_llm",
+            "input_adapters": ["browser_research"],
+            "outputs": [],
+            "readiness": {"blockers": [], "can_submit": True},
+            "steps": [
+                {"operation": "research.collect.public_search"},
+                {"operation": "research.collect.web_fetch", "source_class": "primary_source"},
+            ],
+        },
+        "f" * 64,
+    )
+
+    assert [item["name"] for item in resolution["selected"]] == [
+        "research.collect:public_search_fetch"
+    ]
+    assert resolution["approved"] == ["research.collect:public_search_fetch@1.0.0"]
+    assert resolution["blockers"] == []
+    assert {item["name"] for item in resolution["needs"]} == {
+        "input.adapt:browser_research",
+        "research.collect:public_search_fetch",
+    }
+    assert resolution["generated"]["tool_bindings"] == [
+        "tools.research.public_fetch.fetch_public_url",
+        "tools.research.public_fetch.search_snippets",
+    ]
+
+
+def test_resolver_selects_tabular_statistics_from_steps_adapter_and_artifacts() -> None:
+    resolution = compiler.resolve_capabilities(
+        {
+            "artifacts": [],
+            "capabilities": [],
+            "execution_kind": "single_llm",
+            "input_adapters": ["tabular_dataset"],
+            "outputs": [{"kind": "tabular_analysis"}],
+            "readiness": {"blockers": [], "can_submit": True},
+            "steps": [
+                {"operation": "tabular.parse"},
+                {"operation": "statistics.compute"},
+            ],
+        },
+        "a" * 64,
+    )
+
+    assert [item["name"] for item in resolution["selected"]] == [
+        "tabular.statistics"
+    ]
+    assert resolution["approved"] == ["tabular.statistics@1.0.0"]
+    assert resolution["blockers"] == []
+    assert {item["name"] for item in resolution["needs"]} == {
+        "input.adapt:tabular_dataset",
+        "tabular.statistics",
+    }
+    assert resolution["generated"]["tool_bindings"] == [
+        "tools.render.tabular.analyze_csv",
+        "tools.render.tabular.parse_csv",
+        "tools.render.tabular.statistics",
+    ]
+
+    metrics_resolution = compiler.resolve_capabilities(
+        {
+            "artifacts": [
+                {"kind": "metrics_viz", "content_media_type": "image/png"}
+            ],
+            "capabilities": [],
+            "execution_kind": "single_llm",
+            "outputs": [],
+            "readiness": {"blockers": [], "can_submit": True},
+            "steps": [],
+        },
+        "b" * 64,
+    )
+    assert {item["name"] for item in metrics_resolution["selected"]} == {
+        "chart_generation",
+        "tabular.statistics",
+    }
+
+    analysis_artifact_resolution = compiler.resolve_capabilities(
+        {
+            "artifacts": [{"kind": "tabular_analysis"}],
+            "capabilities": [],
+            "execution_kind": "single_llm",
+            "outputs": [],
+            "readiness": {"blockers": [], "can_submit": True},
+            "steps": [],
+        },
+        "e" * 64,
+    )
+    assert [item["name"] for item in analysis_artifact_resolution["selected"]] == [
+        "tabular.statistics"
+    ]
+    assert analysis_artifact_resolution["decision"] == "approved"
+    assert analysis_artifact_resolution["blockers"] == []
+
+
+def test_generated_bundle_imports_public_fetch_and_tabular_modules_and_runs_offline(
+    tmp_path: Path,
+) -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["input_adapters"] = ["browser_research", "tabular_dataset"]
+    profile["steps"].extend(
+        [
+            {
+                "id": "collect-primary-sources",
+                "type": "native",
+                "provider": "local",
+                "operation": "research.collect.public_search",
+                "readiness": "ready",
+            },
+            {
+                "id": "parse-table",
+                "type": "native",
+                "provider": "local",
+                "operation": "tabular.parse",
+                "readiness": "ready",
+            },
+            {
+                "id": "compute-statistics",
+                "type": "native",
+                "provider": "local",
+                "operation": "statistics.compute",
+                "readiness": "ready",
+            },
+        ]
+    )
+    files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
+    modal_app = files["modal_app.py"]
+
+    assert "from tools.research.public_fetch import (" in modal_app
+    assert "from tools.render.tabular import TabularError, parse_csv, statistics" in modal_app
+    assert 'RESEARCH_ROOT / "public_fetch.py"' in modal_app
+    assert 'RENDER_ROOT / "tabular.py"' in modal_app
+    compile(modal_app, "generated-public-tabular-modal-app", "exec")
+
+    output = tmp_path / "public-tabular"
+    assert compiler.write_or_check(files, output, check=False) == 0
+    spec = importlib.util.spec_from_file_location(
+        "generated_public_tabular_contract", output / "modal_app.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    with pytest.raises(Exception) as exc_info:
+        runtime.run_public_search("bounded primary-source query")
+    assert getattr(exc_info.value, "code", None) == "SEARCH_UNAVAILABLE"
+    with pytest.raises(ValueError, match="at most 500"):
+        runtime.run_public_search("x" * 501)
+
+    result = runtime.run_tabular_statistics("group,value\na,1\na,3\n")
+    assert result["schema_version"] == "omo.tabular-analysis/v1"
+    assert result["rows"] == [
+        {"group": "a", "value": 1},
+        {"group": "a", "value": 3},
+    ]
+    assert result["statistics"]["stats"]["value"]["mean"] == 2.0
 
 
 def _video_contract_profile() -> dict:
