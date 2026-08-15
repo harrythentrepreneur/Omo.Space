@@ -10,10 +10,13 @@ WorkingDirectory=/root/work/cognition-marketplace
 EnvironmentFile=/root/.config/omo-build-worker/env
 Environment=OMO_BUILD_REVIEW_ROOT=/var/lib/omo-builder/reviews
 Environment=OMO_BUILDER_LOCK=/run/lock/omo-builder-dispatch.lock
+Environment=OMO_BUILDER_LAUNCHER=modal
+Environment=OMO_MODAL_BUILDER_APP=omo-hermes-builder
+Environment=OMO_MODAL_BUILDER_FUNCTION=build_submission
 ExecStart=/usr/bin/python3 /root/work/cognition-marketplace/tools/host-skill/automation/dispatch-queued-submission.py
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=read-only
-ReadWritePaths=/root/work /root/.hermes/profiles/omo-builder /var/lib/omo-builder /run/lock
-TimeoutStartSec=3700
+ReadWritePaths=/root/work /var/lib/omo-builder /run/lock
+TimeoutStartSec=180

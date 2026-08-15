@@ -1,6 +1,6 @@
 # Automated Omo builder dispatch
 
-This is a private, outbound-only bridge from Cloudflare's authoritative submission queue to the isolated `omo-builder` Hermes profile.
+This is a private, outbound-only bridge from Cloudflare's authoritative submission queue to an ephemeral, isolated `omo-builder` Hermes job on Modal.
 
 ## Behaviour
 
@@ -9,20 +9,30 @@ This is a private, outbound-only bridge from Cloudflare's authoritative submissi
 3. `process-submissions.py` uses the protected Cloudflare build-worker API and claims at most one queued item.
 4. An empty queue exits silently and starts no model.
 5. A genuinely new valid source is stored beneath `OMO_BUILD_REVIEW_ROOT` as a mode-0600 `SKILL.md` inside a mode-0700 submission directory.
-6. Only `needs_review/reviewed_profile_required` wakes `omo-builder`. Uploaded source is never placed in arguments, prompts or logs; only the verified private path and source hash are supplied.
-7. The first automation phase may open a verified PR but cannot merge, deploy or publish.
+6. Only `needs_review/reviewed_profile_required` launches Modal. The launch payload contains only validated submission ID, slug, source SHA-256 and a deterministic dispatch ID; it never contains source bytes or a host path.
+7. The Modal job re-claims that exact reviewed submission through the protected API, persists the source in its own mode-0600 temporary file, verifies SHA-256, and starts a fresh Hermes home with messaging, memory and cron disabled.
+8. Hermes uses OpenCode Go with the server-controlled low-cost model (default `minimax-m2.7`). It may open a verified PR but cannot merge, deploy or publish.
 
 ## Installation
 
-Create the private root with owner `root` and mode `0700`. Install the service and timer files into `/etc/systemd/system/`, run `systemctl daemon-reload`, and enable the timer. The environment file must contain the protected build-worker base URL and token; never duplicate them into unit files.
+Create the private root with owner `root` and mode `0700`. Install the service and timer files into `/etc/systemd/system/`, run `systemctl daemon-reload`, and enable the timer. The host environment file needs Modal CLI authentication plus the protected build-worker base URL/token used by the claim processor; never duplicate credentials into unit files.
+
+Deploy `tools/host-skill/modal_hermes_builder.py` as `omo-hermes-builder`. Its dedicated Modal secret must be named `omo-hermes-builder` and contain exactly the runtime credentials it needs: `OPENCODE_GO_API_KEY`, `BUILD_WORKER_BASE_URL`, `BUILD_WORKER_TOKEN`, and `GH_TOKEN`. Do not reuse conversational Hermes auth, messaging credentials, Stripe keys or broad Cloudflare credentials.
+
+Run the credential-free image smoke with:
+
+```bash
+python3 -m modal run tools/host-skill/modal_hermes_smoke.py
+```
 
 ## Verification
 
 - `systemctl status omo-builder-dispatch.timer`
 - `systemctl list-timers omo-builder-dispatch.timer`
 - `journalctl -u omo-builder-dispatch.service`
-- With an empty queue, the service exits 0 without a log line or Hermes session.
-- For a test submission, verify Cloudflare moves `queued -> processing -> needs_review` and a new `omo-builder` session starts exactly once.
+- With an empty queue, the service exits 0 without a log line, Modal call or Hermes session.
+- For a controlled test submission, verify Cloudflare moves `queued -> processing -> needs_review`, exactly one Modal call is recorded for the deterministic dispatch ID, and the conversational Hermes profile is untouched.
+- Verify the Modal job reports only safe identifiers/status, never source, credentials, private paths or subprocess output.
 
 ## Recovery
 
