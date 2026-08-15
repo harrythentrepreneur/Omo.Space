@@ -138,9 +138,23 @@ def copy_reviewed_profile(source_checkout: Path, trusted_checkout: Path, slug: s
         raise RuntimeError("reviewed profile is invalid")
     destination = trusted_checkout / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
-    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(descriptor, "wb") as handle:
-        handle.write(raw)
+    if destination.exists() or destination.is_symlink():
+        destination_stat = destination.lstat()
+        if not stat.S_ISREG(destination_stat.st_mode) or destination.is_symlink():
+            raise RuntimeError("trusted profile destination is unsafe")
+    temporary = destination.with_name(destination.name + ".reviewed.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(raw)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
     return destination
 
 
