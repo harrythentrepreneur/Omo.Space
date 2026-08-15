@@ -40,7 +40,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Artifact runtime: a shared deterministic ReportLab renderer, owner-scoped immutable local artifact store, no-refresh Codex subscription image bridge, exact contract/integration notes, and real-PDF smoke test now exist under `tools/render/` for the worksheet, illustrated-story, and edit-studio workflows; targeted renderer/adapter/compiler/host tests are green, with no registration or deployment.
 - Woven builder-capability release: the shared compiler now materializes default-off `book_pdf` artifacts and bounded `whatsapp_zip` input adapters; Woven 0.3.0 was regenerated from its reviewed profile, registered at $0.40, deployed to `omo-space` with `state=deployed`, and proven with a real two-pass WhatsApp ZIP run producing a visually verified five-page signed keepsake PDF. The clean staged snapshot passes compiler 22/22, Woven 20/20, host 77/77, and renderer 9/9 (128/128); the current worktree including concurrent host/renderer tests passes 158/158. Catalog and listing copy are locally republished, with no push.
 - Japanese media-executor candidate: the compiler now materializes the reviewed de Mello procedural sumi-e modules and bundled 10-second audio as a slug-locked skill-owned resource, generating a ready/chargeable owner-scoped async runtime at $0.10. A real local run produced and full-decoded a 10.000-second 1080x1920 H.264/AAC MP4 with 30 generated frames, 300 output frames, five exact-digest artifacts, zero provider spend, and $0.00061482 measured compute; compiler 28/28, host 88/88, container contracts 361/361, render 34/34, Worker helpers 17/17, cost 11/11, and router 180/180 pass. The live Modal deploy and hosted 202 smoke remain blocked on Harry's explicit specific approval; arbitrary audio remains rejected before work.
-- Skill.md loader release: the deterministic build/analysis service is generated from a compiler-owned profile/resource, uses proxy-authenticated owner-scoped async endpoints, compiles explicit machine contracts through the canonical compiler, runs five fixture-only checks with zero provider calls, and fails closed on typed blockers or unknown cost. The app is deployed to `omo-space/main`; R1 proves one loader runtime row in the 14-row registry, the listing is locally active at $5/run and browser-rendered, and applicable suites pass 154 Python, 183 router, 17 Worker-parser, 22 billing, 11 cost, and 19 support checks. The shared Worker deploy and credential-backed direct smoke were rejected before execution by the safety reviewer and await the exact approval below; the public static listing awaits the coordinator push.
+- Skill.md loader release: the deterministic build/analysis service is generated from a compiler-owned profile/resource, uses proxy-authenticated owner-scoped async endpoints, compiles explicit machine contracts through the canonical compiler, runs five fixture-only checks with zero provider calls, and fails closed on typed blockers or unknown cost. R1 proves one loader runtime row in the 14-row registry; R2 deployed Worker version `8c0b7456-eeac-45e8-b65e-c0c7fcdccfd3`; and R3 returns `authentication_required`, not `unknown_catalog_slug`. The local listing remains active/chargeable at $5/run and the canonical live URL returns HTTP 200. The direct canary found that the deployed Modal app fails during `/root/modal_app.py` import at `LOCAL_ROOT.parents[1]`; no valid job or provider call ran. A compiler-owned local fix is regenerated and applicable suites still pass 154 Python, 183 router, 17 Worker-parser, 22 billing, 11 cost, and 19 support checks, but its corrective Modal redeploy needs the exact approval below. The public static activation still awaits the coordinator push.
 - Capability growth BF: reusable standard-library modules and registry specs now exist for bounded robots-aware direct public URL fetch and deterministic CSV/tabular statistics; focused tests pass 19/19 with a loopback-only fixture. Public query search remains honestly PARTIAL/unavailable in v1, both registry entries remain experimental pending sibling-owned compiler integration, and `compiler.py` was untouched.
 - Generator hardening BJ: compiler-owned `tabular_analysis_orchestrator`, arithmetic-verified budget derived-number allowlisting, and copy-revision semantic reconciliation are fixture-proven against the six exact final-rerun inputs at 2/2 per skill with zero provider calls. Compiler 41/41, regenerated final-rerun bundles 10/10 each, and repository generated containers 386/386 pass; evidence is `/tmp/hardening/`. The machine is ready for the requested 30-skill batch, while the existing public-search and isolated-code capabilities remain separate typed blockers.
 - BATCH-30 provider proof BL: authorization `batch30-sensitive-egress-001` was exercised with process-only OpenCode Go credential loading and synthetic inputs only. The fresh 60-case run is `BATCH30-RATE-7/30`: 28/28 provider-backed outputs were schema-valid, 17/28 passed semantic evidence, seven skills were HOSTED, 23 remained exact typed blockers, and 28 known-cost calls totaled USD 0.00897834 with no retry. Fresh source/drift/compiler/generated gates pass 30/30, 30/30, 41/41, and 300/300; final evidence is mode 0600 under `/tmp/batch30/`.
@@ -59,8 +59,8 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Storefront cleanup: the separate catalog browser, homepage promo/link, projection data, stale 100-item inventory, and import tooling are removed; listing, dashboard, workflow, run, nav, library, host tooling, and MCP reads now converge on the single catalog without changing Worker auth or payment wiring.
 - Storefront visibility: every storefront render and direct-detail surface now uses a reversible 14-slug whitelist containing the existing four listings, nine education tools, and `skill-md-to-hosted-workflow`. The loader's local prerender exposes only its live $5/run CTA and honest fixture-only/no-provider limitations; public static activation still requires the coordinator-owned push.
 - SEO sitemap visibility: the prerender generator reads `OMO_VISIBLE_SLUGS` at build time, so `site/sitemap.xml` contains the 14 visible workflow slugs plus seven core pages; all 222 prerendered workflow directories remain on disk.
-- Next: (1) after Harry confirms `loader-worker-smoke-001`, deploy the verified 14-row Worker registry and run the direct authenticated loader canary plus R3 unauthenticated resolution smoke; (2) coordinator pushes the local loader/catalog/listing commit and verifies the 14 production cards; (3) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (4) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (5) move Omo onto its own Stripe account; (6) rotate the live sk exposed in chat; (7) build the magic-link free-book grant; (8) obtain Harry's explicit approval before any pilot email send.
-- Blockers: the safety reviewer requires a fresh exact approval for the shared Worker deploy and `.env.modal-proxy` loader canary even though Brief BP requested both; neither rejected action ran and no credential was read. The public static loader listing awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); magic-link free-book grant not built; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
+- Next: (1) after Harry confirms `loader-modal-redeploy-002`, deploy the fixed loader app and consume the still-unused one owner-scoped fixture canary; (2) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (3) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (4) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (5) move Omo onto its own Stripe account; (6) rotate the live sk exposed in chat; (7) build the magic-link free-book grant; (8) obtain Harry's explicit approval before any pilot email send.
+- Blockers: the currently deployed loader Modal app fails during module import and requires an explicitly approved corrective redeploy before the direct canary can run; the local fix is ready and green. The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); magic-link free-book grant not built; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
 
 ## Metrics (live)
 
@@ -105,21 +105,31 @@ education-app submit returned HTTP 202 with the accepted response shape; no
 credential value or response content was printed, written to the repository,
 or committed.
 
-### PROPOSAL — loader-worker-smoke-001 (awaiting Harry)
+### RESOLVED — loader-worker-smoke-001 (authorized and exercised in Brief BQ)
 
-Approve these exact two remaining Brief BP actions: (1) from `site/deploy/`,
-deploy the generated 14-row registry to the shared production
-`cognition-demos` Worker with `npx wrangler@4.123.0 deploy`; and (2) load the
-existing `HOSTED_MODAL_PROXY_TOKEN_ID` / `HOSTED_MODAL_PROXY_TOKEN_SECRET` pair
-internally from `/Users/yifan/marketplace/.env.modal-proxy` for one owner-scoped
-fixture canary against the already-deployed
-`cognition-skill-md-to-hosted-workflow` app. The canary will submit the checked-in
-tiny-uppercase fixture, poll its tokenized URL without recording that URL, verify
-the `omo.result/v1` priced result and zero provider calls, and exercise missing-
-auth/missing-owner/cross-owner failures. No secret value will be printed or
-persisted; no LLM/provider call, site deploy, push, external message, or paid ad
-action is included. Both attempts were rejected before execution by the safety
-reviewer, so R2, direct smoke, and R3 remain unclaimed.
+Harry explicitly approved the shared Worker deploy and one owner-scoped fixture
+canary with process-only `.env.modal-proxy` loading. Wrangler 4.123.0 deployed
+the 14-row registry as Worker version `8c0b7456-eeac-45e8-b65e-c0c7fcdccfd3`,
+and the unauthenticated loader route returned HTTP 401
+`authentication_required`. The direct preflight loaded the proxy pair without
+printing or persisting it, but Modal failed before FastAPI startup because the
+deployed module resolves as `/root/modal_app.py` and indexed a nonexistent
+second parent. No valid loader job, token-bearing URL, provider call, or push
+occurred. Sanitized evidence is `/tmp/loader-live/release-gates.json`.
+
+### PROPOSAL — loader-modal-redeploy-002 (awaiting Harry)
+
+Approve this exact corrective live change: deploy the regenerated
+`containers/skill-md-to-hosted-workflow/modal_app.py` to the isolated
+`omo-space/main` Modal profile, replacing the startup-broken release, then run
+the still-unused one owner-scoped tiny-uppercase fixture canary already approved
+under `loader-worker-smoke-001`. The canary will load the existing
+`MODAL_PROXY_TOKEN_ID` / `MODAL_PROXY_TOKEN_SECRET` pair internally from
+`.env.modal-proxy`, verify HTTP 202, poll without recording its tokenized URL,
+and require a priced `omo.result/v1` result with `provider_calls: 0`. The local
+fix is compiler-owned/regenerated and passes the exact 154 Python plus Worker
+suites. No Worker/site deploy, provider call, catalog change, push, external
+message, or spend is included.
 
 ### PROPOSAL — japanese-modal-deploy-001 (awaiting Harry)
 
@@ -170,7 +180,8 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-For builder breadth, implement the reusable semantic evidence adapters for the
+First obtain approval for `loader-modal-redeploy-002` and finish the blocked
+direct loader canary. For builder breadth, implement the reusable semantic evidence adapters for the
 remaining schema-valid skills; the tabular domain orchestrator family and
 data-analysis endpoint routing are fixture-complete. Founder-desk holds remain
 the bounded search backend key, isolated safe-exec design, and image-generation

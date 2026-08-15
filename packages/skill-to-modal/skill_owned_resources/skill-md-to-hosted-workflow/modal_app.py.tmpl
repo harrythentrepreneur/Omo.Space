@@ -30,9 +30,17 @@ PROFILE_VERSION = "__PROFILE_VERSION__"
 TOOL_ID = "2c2f5f49-95b3-5a33-b80d-603d054c2ae1"
 TOOL_VERSION = 1
 LOCAL_ROOT = Path(__file__).resolve().parent
-REPOSITORY_ROOT = LOCAL_ROOT.parents[1]
 IMAGE_ROOT = Path("/root/skill_md_to_hosted_workflow")
 IMAGE_REPOSITORY_ROOT = IMAGE_ROOT / "repository"
+
+
+def _runtime_repository_root(local_root: Path, image_repository_root: Path) -> Path:
+    """Resolve repo assets both from the checkout and Modal's /root import."""
+    return local_root.parents[1] if len(local_root.parents) > 1 else image_repository_root
+
+
+REPOSITORY_ROOT = _runtime_repository_root(LOCAL_ROOT, IMAGE_REPOSITORY_ROOT)
+SOURCE_ROOT = LOCAL_ROOT if (LOCAL_ROOT / "schemas").is_dir() else IMAGE_ROOT
 COMPILER_RELATIVE_PATH = Path("packages/skill-to-modal/compiler.py")
 COST_MODEL_RELATIVE_PATH = Path("site/deploy/cost-model.mjs")
 OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{1,199}$")
@@ -724,7 +732,7 @@ def execute_loader(payload: dict[str, Any], *, run_id: str | None = None) -> dic
 runtime_image = (
     modal.Image.debian_slim(python_version="3.12")
     .uv_pip_install("modal==1.5.0", "fastapi==0.109.0", "jsonschema==4.26.0")
-    .add_local_dir(LOCAL_ROOT / "schemas", IMAGE_ROOT / "schemas", copy=True)
+    .add_local_dir(SOURCE_ROOT / "schemas", IMAGE_ROOT / "schemas", copy=True)
     .add_local_file(
         REPOSITORY_ROOT / COMPILER_RELATIVE_PATH,
         str(IMAGE_REPOSITORY_ROOT / COMPILER_RELATIVE_PATH),

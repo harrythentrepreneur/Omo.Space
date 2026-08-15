@@ -950,6 +950,8 @@ def test_loader_owned_resource_compiles_to_secret_free_builder_surface(tmp_path:
     assert "modal.Secret" not in runtime
     assert "COMPILER.build_files" in runtime
     assert "provider_calls\": 0" in runtime
+    assert "LOCAL_ROOT.parents[1]" not in runtime
+    assert "_runtime_repository_root" in runtime
     compile(runtime, "generated-loader-modal-app", "exec")
 
 

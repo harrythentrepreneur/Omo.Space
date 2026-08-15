@@ -129,3 +129,5 @@ def test_modal_surface_is_proxy_protected_and_has_no_secret_binding() -> None:
     assert "modal.Secret" not in source
     assert ".add_local_file(" in source
     assert "cost-model.mjs" in source
+    image_repository = Path("/root/skill_md_to_hosted_workflow/repository")
+    assert modal_app._runtime_repository_root(Path("/root"), image_repository) == image_repository
