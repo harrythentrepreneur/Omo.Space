@@ -72,6 +72,26 @@ REQUIRED_RELEASE_CHECKS = ("contracts",)
 WORKER_REGISTRY_FILENAME = "hosted-skills.generated.mjs"
 WORKER_DEPLOY_COMMAND = ("npx", "wrangler@4.123.0", "deploy")
 LIVE_WORKER_BASE_URL = "https://cognition-demos.harrythentrepreneurr.workers.dev"
+SAFE_FAILURE_STAGES = {
+    "trusted_release",
+    "trusted_compile",
+    "trusted_register",
+    "trusted_check",
+    "worker_contracts",
+    "release_issue_lookup",
+    "release_issue_create",
+    "release_worktree",
+    "release_push",
+    "release_pr_lookup",
+    "release_pr_create",
+    "release_pr_view",
+    "release_merge",
+    "release_command",
+    "modal_deploy",
+    "worker_dependencies",
+    "worker_deploy",
+    "worker_smoke",
+}
 WORKER_REGISTRY_MISSING_SLUG = "hosted_worker_registry_missing_slug"
 WORKER_DEPLOY_FAILED = "hosted_worker_deploy_failed"
 WORKER_LIVE_SMOKE_UNRESOLVED = "hosted_worker_registry_unresolved"
@@ -137,6 +157,16 @@ class WorkerReleaseBlocker(ReleaseBlocker):
             raise ValueError("invalid worker release blocker")
         self.slugs = tuple(slugs)
         super().__init__(code, gate, WORKER_RELEASE_REMEDIATIONS[code])
+
+
+class StagedCalledProcessError(subprocess.CalledProcessError):
+    """A subprocess failure with a secret-free release gate label."""
+
+    def __init__(self, stage: str, error: subprocess.CalledProcessError):
+        if stage not in SAFE_FAILURE_STAGES:
+            raise ValueError("invalid failure stage")
+        super().__init__(error.returncode, f"<{stage}>", output=None, stderr=None)
+        self.stage = stage
 
 
 def _load_host_module() -> Any:
@@ -701,6 +731,13 @@ def run_checked(command: list[str], cwd: Path = ROOT) -> None:
     subprocess.run(command, cwd=cwd, check=True)
 
 
+def run_checked_at_stage(command: list[str], cwd: Path, stage: str) -> None:
+    try:
+        run_checked(command, cwd)
+    except subprocess.CalledProcessError as error:
+        raise StagedCalledProcessError(stage, error) from None
+
+
 def run_capture(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
     completed = subprocess.run(
         command,
@@ -1171,7 +1208,29 @@ class GitHubReleaseAdapter:
         self.required_checks = required_checks
 
     def _run(self, command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
-        return self.command_runner(command, cwd=cwd, text=text)
+        try:
+            return self.command_runner(command, cwd=cwd, text=text)
+        except subprocess.CalledProcessError as error:
+            first = tuple(command[:3])
+            if first == ("gh", "issue", "list"):
+                stage = "release_issue_lookup"
+            elif first == ("gh", "issue", "create"):
+                stage = "release_issue_create"
+            elif first == ("git", "worktree", "add") or first == ("git", "switch", "-C"):
+                stage = "release_worktree"
+            elif first == ("git", "push", "-u"):
+                stage = "release_push"
+            elif first == ("gh", "pr", "list"):
+                stage = "release_pr_lookup"
+            elif first == ("gh", "pr", "create"):
+                stage = "release_pr_create"
+            elif first == ("gh", "pr", "view"):
+                stage = "release_pr_view"
+            elif first == ("gh", "pr", "merge"):
+                stage = "release_merge"
+            else:
+                stage = "release_command"
+            raise StagedCalledProcessError(stage, error) from None
 
     def _json(self, command: list[str], cwd: Path | None = None) -> Any:
         raw = self._run(command, cwd=cwd)
@@ -1401,10 +1460,18 @@ def prepare_reviewed_release(skill_path: Path, slug: str, profile_path: Path, se
     assert_modal_workspace(profile_path, selected_runtime)
     if selected_runtime not in SAFE_SELECTED_RUNTIMES:
         raise RuntimeError("selected runtime must be worker-native or modal-hosted")
-    run_checked(host_command(skill_path, slug, profile_path=profile_path, register=True))
-    run_checked(host_command(skill_path, slug, profile_path=profile_path, register=True, check=True))
+    run_checked_at_stage(
+        host_command(skill_path, slug, profile_path=profile_path, register=True),
+        ROOT,
+        "trusted_register",
+    )
+    run_checked_at_stage(
+        host_command(skill_path, slug, profile_path=profile_path, register=True, check=True),
+        ROOT,
+        "trusted_check",
+    )
     for script in ("test-workers.mjs", "test-router.mjs", "test-balance.mjs", "test-cost.mjs"):
-        run_checked(["node", script], WORKER_ROOT)
+        run_checked_at_stage(["node", script], WORKER_ROOT, "worker_contracts")
 
 
 def deploy_merged_release(
@@ -1498,7 +1565,11 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
                 Path(temp_dir),
                 source_sha256=validated.source_sha256,
             )
-            run_checked(host_command(skill_path, validated.slug, profile_path=profile_path))
+            run_checked_at_stage(
+                host_command(skill_path, validated.slug, profile_path=profile_path),
+                ROOT,
+                "trusted_compile",
+            )
             metadata = generated_runtime_metadata(validated.slug, profile_path, validated.source_sha256)
             decision = metadata["decision"]
             repository.set_runtime_decision(submission_id, decision)
@@ -1532,6 +1603,15 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
                     metadata["workflow_version"],
                     metadata["build_evidence"],
                 )
+    except StagedCalledProcessError as error:
+        repository.set_status(submission_id, "failed", "build_or_deploy_failed")
+        return {
+            "id": submission_id,
+            "slug": validated.slug,
+            "status": "failed",
+            "failure_code": "build_or_deploy_failed",
+            "failure_stage": error.stage,
+        }
     except subprocess.CalledProcessError:
         repository.set_status(submission_id, "failed", "build_or_deploy_failed")
         return {
@@ -1539,6 +1619,7 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
             "slug": validated.slug,
             "status": "failed",
             "failure_code": "build_or_deploy_failed",
+            "failure_stage": "trusted_release",
         }
     except RuntimeError as error:
         failure_code = "generated_source_hash_mismatch" if str(error) == "generated_source_hash_mismatch" else "canary_or_internal_failed"

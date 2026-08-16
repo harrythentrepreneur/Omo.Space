@@ -576,6 +576,83 @@ def test_process_row_fails_closed_when_generated_source_hash_differs(monkeypatch
     assert repo.statuses[-1] == ("sub_sourcehashmismatch", "failed", "generated_source_hash_mismatch")
 
 
+def test_process_row_preserves_secret_free_stage_for_compile_failure(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source = SKILL_PATH.read_text(encoding="utf-8")
+    validated = process.validate_submission("Facebook Ads Copywriter", source)
+    repo = FakeRepository()
+    monkeypatch.setattr(process, "evaluate_review_gate", lambda validated, allow_matching_container=False: ("ready_for_build", None))
+    monkeypatch.setattr(
+        process,
+        "reviewed_profile_artifact",
+        lambda slug, requested_runtime, temp_dir, source_sha256=None: (
+            write_profile(tmp_path, "worker-native"),
+            {"effective": "worker-native"},
+        ),
+    )
+
+    def fail_compile(command, cwd=process.ROOT):
+        raise subprocess.CalledProcessError(17, command)
+
+    monkeypatch.setattr(process, "run_checked", fail_compile)
+
+    result = process.process_row({
+        "id": "sub_compilefailure000000000001",
+        "name": "Facebook Ads Copywriter",
+        "content": source,
+        "source_sha256": validated.source_sha256,
+        "slug": validated.slug,
+        "requested_runtime": "worker-native",
+    }, repo, deploy=False)
+
+    assert result == {
+        "id": "sub_compilefailure000000000001",
+        "slug": "facebook-ads-copywriter",
+        "status": "failed",
+        "failure_code": "build_or_deploy_failed",
+        "failure_stage": "trusted_compile",
+    }
+    assert repo.statuses[-1] == (
+        "sub_compilefailure000000000001",
+        "failed",
+        "build_or_deploy_failed",
+    )
+    assert "17" not in result
+    assert "SKILL.md" not in result
+
+
+def test_github_release_adapter_preserves_safe_stage_for_command_failure() -> None:
+    process = load_process_submissions()
+
+    def fail(command, cwd=None, text=True):
+        raise subprocess.CalledProcessError(23, command, stderr="token=should-not-escape")
+
+    adapter = process.GitHubReleaseAdapter(command_runner=fail)
+
+    with pytest.raises(process.StagedCalledProcessError) as caught:
+        adapter._issue_for_submission("sub_stagefailure000000000001", "facebook-ads-copywriter")
+
+    assert caught.value.stage == "release_issue_lookup"
+    assert caught.value.output is None
+    assert caught.value.stderr is None
+    assert caught.value.__cause__ is None
+    assert "should-not-escape" not in str(caught.value)
+
+
+def test_github_release_adapter_uses_generic_stage_for_unknown_command() -> None:
+    process = load_process_submissions()
+
+    def fail(command, cwd=None, text=True):
+        raise subprocess.CalledProcessError(23, command)
+
+    adapter = process.GitHubReleaseAdapter(command_runner=fail)
+
+    with pytest.raises(process.StagedCalledProcessError) as caught:
+        adapter._run(["git", "commit", "-m", "release"])
+
+    assert caught.value.stage == "release_command"
+
+
 def test_process_row_with_deploy_prepares_git_release_without_production_side_effects(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     source = SKILL_PATH.read_text(encoding="utf-8")

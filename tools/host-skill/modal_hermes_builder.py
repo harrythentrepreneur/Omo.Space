@@ -23,7 +23,7 @@ HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
 DEFAULT_MODEL = "minimax-m2.7"
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
-ALLOWED_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"
+ALLOWED_BASE_REVISION = "88df29188fe94d9b8c942e6b3936a7f7d6aade2d"
 MAX_SOURCE_BYTES = 200 * 1024
 MAX_PROFILE_BYTES = 256 * 1024
 HERMES_UID = 10001
@@ -32,6 +32,11 @@ DISPATCH_LEASE_SECONDS = 7200
 SAFE_FAILURE_STAGES = {
     "checkout", "processor_import", "claim", "source_validation",
     "private_handoff", "hermes", "trusted_release", "release_evidence",
+    "trusted_compile", "trusted_register", "trusted_check", "worker_contracts",
+    "release_issue_lookup", "release_issue_create", "release_worktree",
+    "release_push", "release_pr_lookup", "release_pr_create", "release_pr_view",
+    "release_merge", "release_command", "modal_deploy", "worker_dependencies", "worker_deploy",
+    "worker_smoke",
 }
 
 ID_RE = re.compile(r"^sub_[A-Za-z0-9_-]{8,100}$")
@@ -87,6 +92,7 @@ def validate_job_identity(submission_id: str, slug: str, source_sha256: str, dis
         or not SHA_RE.fullmatch(str(source_sha256))
         or not DISPATCH_RE.fullmatch(str(dispatch_id))
         or not REVISION_RE.fullmatch(str(base_revision))
+        or str(base_revision) != ALLOWED_BASE_REVISION
         or dispatch_id != expected_dispatch_id(submission_id, source_sha256, base_revision)
     ):
         raise ValueError("invalid builder job identity")
@@ -404,7 +410,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             )
             if agent.returncode != 0:
                 repository.set_status(submission_id, "failed", "build_or_deploy_failed")
-                result = _safe_result("failed", dispatch_id, submission_id, returncode=agent.returncode)
+                result = _safe_result("failed", dispatch_id, submission_id, returncode=agent.returncode, stage=stage)
             else:
                 stage = "trusted_release"
                 # Hermes has exited. Only the trusted parent now receives
@@ -428,6 +434,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                     result = _safe_result(
                         "failed", dispatch_id, submission_id, returncode=0,
                         reason=str(processed.get("failure_code") or "trusted_release_failed"),
+                        stage=str(processed.get("failure_stage") or "trusted_release"),
                     )
                     dispatches[dispatch_id] = {**result, "started_at": now, "finished_at": int(time.time())}
                     return result

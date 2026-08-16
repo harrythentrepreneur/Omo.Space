@@ -20,7 +20,7 @@ def test_job_identity_is_exact_and_source_scoped() -> None:
     builder = load_builder()
     submission_id = "sub_abcdefgh12345678"
     source_hash = "a" * 64
-    revision = "c" * 40
+    revision = builder.ALLOWED_BASE_REVISION
     dispatch_id = builder.expected_dispatch_id(submission_id, source_hash, revision)
     builder.validate_job_identity(submission_id, "safe-skill", source_hash, dispatch_id, revision)
     assert dispatch_id.startswith("dispatch_")
@@ -36,6 +36,18 @@ def test_job_identity_rejects_mismatched_dispatch() -> None:
         assert str(error) == "invalid builder job identity"
     else:
         raise AssertionError("mismatched dispatch identity was accepted")
+
+
+def test_job_identity_rejects_unpinned_revision() -> None:
+    builder = load_builder()
+    revision = "c" * 40
+    dispatch_id = builder.expected_dispatch_id("sub_abcdefgh12345678", "a" * 64, revision)
+    try:
+        builder.validate_job_identity("sub_abcdefgh12345678", "safe-skill", "a" * 64, dispatch_id, revision)
+    except ValueError as error:
+        assert str(error) == "invalid builder job identity"
+    else:
+        raise AssertionError("unpinned builder revision was accepted")
 
 
 def test_dispatch_payload_is_exact_and_identifier_only() -> None:
@@ -203,8 +215,12 @@ def test_dispatch_reservation_lease_recovers_stale_jobs() -> None:
 def test_safe_failure_stage_is_allowlisted() -> None:
     builder = load_builder()
     safe = builder._safe_result("failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="claim")
+    release_safe = builder._safe_result(
+        "failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="release_issue_lookup"
+    )
     unsafe = builder._safe_result("failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="secret-value")
     assert safe["stage"] == "claim"
+    assert release_safe["stage"] == "release_issue_lookup"
     assert "stage" not in unsafe
 
 
