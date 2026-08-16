@@ -34,6 +34,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 - State: production payment loop is LIVE (per the marketplace dev agent's session, 2026-08-12) — the additive Neon schema is applied (all 12 tables), the three live Worker secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, NEON_DATABASE_URL) are set, and a Woven checkout returned a real Stripe Checkout URL. The local release state now has a reversible 14-listing whitelist: the existing four listings, nine ready education tools, and the ready $5/run Skill.md loader; the coordinator still owns the production push.
 - Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit, fast signup-grant visibility, live secrets/routes, request-safe Neon access, 10/10 unauthenticated live canary, checkout orphan-session expiry, 24-listing honesty audit, four text-free phonics marketplace thumbnails, and 12 locally compiled/tested/priced PhonicsMaker workflow bundles.
+- Social-post skill proof: the validated `omo-social-media-post` Hermes skill is installed in the Omo profile with eight synthesized layouts, three exact custom themes, X/IG/FB presets, honest caption templates, and Codex/API `gpt-image-2` paths. Its first real X post is a visually verified 1600x900 Woven binary comparison under `research/social-assets/sample-posts/woven-whatsapp-keepsake/`; nothing was posted or sent.
 - Pilot cohort: the exact 200-contact GATE 1 cohort is built from the 5,087-row Loops export at the protected Hermes data path; it contains 182 intent+segment contacts and 18 segment-fill contacts, excludes unsubscribed/junk/current-active-subscriber rows, and passes count, format, uniqueness, and subscription checks. No email was sent.
 - Modal isolation: the account topology is `harrythentrepreneur`, `phonicsmaker`, and `omo-space`; the user-local Modal CLI 1.5.0 launcher is authenticated only through the owner-only `/Users/yifan/.modal-omo.toml`. The nine education apps are deployed in `omo-space/main` and each reports `state=deployed`; no PhonicsMaker resource was opened or changed.
 - Education hosting release: the founder accepted the 70% hosted-success bar and Gate 1R3 provides 25/27 schema-valid plus 25/27 semantic runs, with every one of the nine tools retaining at least 2/3 passes. All nine are now generated, registered, priced at $0.10, deployed, chargeable, and locally activated; the two known limits remain typed, fail-closed catalog disclosures. A real authenticated education-app POST returned HTTP 202 with the accepted run shape. Exact suites pass compiler 20/20, host 82/82, generated containers 99/99, Worker helpers 17/17, and router 173/173.
@@ -73,6 +74,17 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Refund/complaint rate: n/a
 
 ## Open proposals (awaiting Harry)
+
+### PROPOSAL — social-x-identity-001 (awaiting Harry)
+
+In ego-browser task space `social-setup` (id 2), X is open at the new-account
+phone/SMS identity gate. Harry must enter the selected business phone number,
+SMS verification code, and account password himself, then stop at the first
+non-sensitive onboarding/profile screen and reply `continue`. No account has
+been created and no branding field was available before this gate. After
+handoff, the agent may request `@omospace` and apply the prepared Omo branding.
+Instagram and Facebook remain queued for later one-action growth-loop rounds.
+No password, code, or other secret may be written to the repository.
 
 - **RESOLVED — PhonicsMaker contact audit:** Harry supplied the 5,087-row Loops CSV export. The exact 200-contact cohort was generated locally and verified on 2026-08-14; the export and cohort remain outside git.
 
