@@ -23,7 +23,7 @@ HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
 DEFAULT_MODEL = "minimax-m2.7"
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
-ALLOWED_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"
+ALLOWED_BASE_REVISION = "e44fbbff374b4542809984f54d1e41720433627c"
 MAX_SOURCE_BYTES = 200 * 1024
 MAX_PROFILE_BYTES = 256 * 1024
 HERMES_UID = 10001
@@ -35,7 +35,7 @@ SAFE_FAILURE_STAGES = {
     "trusted_compile", "trusted_register", "trusted_check", "worker_contracts",
     "release_issue_lookup", "release_issue_create", "release_worktree",
     "release_push", "release_pr_lookup", "release_pr_create", "release_pr_view",
-    "release_merge", "modal_deploy", "worker_dependencies", "worker_deploy",
+    "release_merge", "release_command", "modal_deploy", "worker_dependencies", "worker_deploy",
     "worker_smoke",
 }
 

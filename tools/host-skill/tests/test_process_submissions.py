@@ -633,7 +633,24 @@ def test_github_release_adapter_preserves_safe_stage_for_command_failure() -> No
         adapter._issue_for_submission("sub_stagefailure000000000001", "facebook-ads-copywriter")
 
     assert caught.value.stage == "release_issue_lookup"
+    assert caught.value.output is None
+    assert caught.value.stderr is None
+    assert caught.value.__cause__ is None
     assert "should-not-escape" not in str(caught.value)
+
+
+def test_github_release_adapter_uses_generic_stage_for_unknown_command() -> None:
+    process = load_process_submissions()
+
+    def fail(command, cwd=None, text=True):
+        raise subprocess.CalledProcessError(23, command)
+
+    adapter = process.GitHubReleaseAdapter(command_runner=fail)
+
+    with pytest.raises(process.StagedCalledProcessError) as caught:
+        adapter._run(["git", "commit", "-m", "release"])
+
+    assert caught.value.stage == "release_command"
 
 
 def test_process_row_with_deploy_prepares_git_release_without_production_side_effects(monkeypatch, tmp_path: Path) -> None:

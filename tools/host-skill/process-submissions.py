@@ -73,6 +73,7 @@ WORKER_REGISTRY_FILENAME = "hosted-skills.generated.mjs"
 WORKER_DEPLOY_COMMAND = ("npx", "wrangler@4.123.0", "deploy")
 LIVE_WORKER_BASE_URL = "https://cognition-demos.harrythentrepreneurr.workers.dev"
 SAFE_FAILURE_STAGES = {
+    "trusted_release",
     "trusted_compile",
     "trusted_register",
     "trusted_check",
@@ -85,6 +86,7 @@ SAFE_FAILURE_STAGES = {
     "release_pr_create",
     "release_pr_view",
     "release_merge",
+    "release_command",
     "modal_deploy",
     "worker_dependencies",
     "worker_deploy",
@@ -163,7 +165,7 @@ class StagedCalledProcessError(subprocess.CalledProcessError):
     def __init__(self, stage: str, error: subprocess.CalledProcessError):
         if stage not in SAFE_FAILURE_STAGES:
             raise ValueError("invalid failure stage")
-        super().__init__(error.returncode, error.cmd, output=error.output, stderr=error.stderr)
+        super().__init__(error.returncode, f"<{stage}>", output=None, stderr=None)
         self.stage = stage
 
 
@@ -733,7 +735,7 @@ def run_checked_at_stage(command: list[str], cwd: Path, stage: str) -> None:
     try:
         run_checked(command, cwd)
     except subprocess.CalledProcessError as error:
-        raise StagedCalledProcessError(stage, error) from error
+        raise StagedCalledProcessError(stage, error) from None
 
 
 def run_capture(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
@@ -1227,8 +1229,8 @@ class GitHubReleaseAdapter:
             elif first == ("gh", "pr", "merge"):
                 stage = "release_merge"
             else:
-                stage = "release_worktree"
-            raise StagedCalledProcessError(stage, error) from error
+                stage = "release_command"
+            raise StagedCalledProcessError(stage, error) from None
 
     def _json(self, command: list[str], cwd: Path | None = None) -> Any:
         raw = self._run(command, cwd=cwd)
@@ -1617,7 +1619,7 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
             "slug": validated.slug,
             "status": "failed",
             "failure_code": "build_or_deploy_failed",
-            "failure_stage": "trusted_compile",
+            "failure_stage": "trusted_release",
         }
     except RuntimeError as error:
         failure_code = "generated_source_hash_mismatch" if str(error) == "generated_source_hash_mismatch" else "canary_or_internal_failed"
