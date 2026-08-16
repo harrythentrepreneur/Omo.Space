@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { signPilotToken, verifyPilotToken } from './pilot-magic.mjs';
+import { webcrypto } from 'node:crypto';
+
+globalThis.crypto ??= webcrypto;
+const { signPilotToken, verifyPilotToken } = await import('./pilot-magic.mjs');
 
 const secret = 'fixture-only-pilot-secret-32-bytes-minimum';
 const payload = {

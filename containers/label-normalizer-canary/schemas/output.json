@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "duplicate_count": {
+      "maximum": 49,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "input_count": {
+      "maximum": 50,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "items": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate_of": {
+            "maximum": 48,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "identifier": {
+            "pattern": "^[A-Z0-9]+_[A-Z0-9]+(?:_[A-Z0-9]+)*$",
+            "type": "string"
+          },
+          "index": {
+            "maximum": 49,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "original": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "original",
+          "identifier",
+          "duplicate_of"
+        ],
+        "type": "object"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "type": "array"
+    },
+    "unique_count": {
+      "maximum": 50,
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "input_count",
+    "unique_count",
+    "duplicate_count"
+  ],
+  "type": "object"
+}

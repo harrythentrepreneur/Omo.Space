@@ -1,0 +1,338 @@
+{
+  "catalog": {
+    "category": "ops",
+    "cover": null,
+    "demoCap": "CPU-only deterministic canary; zero provider calls",
+    "desc": "Normalize a bounded list of human labels into deterministic uppercase identifiers, preserving order and reporting duplicates.",
+    "emoji": "🧪",
+    "exampleIn": "Green Apple · green-apple · Class 2B",
+    "exampleOut": [
+      "ITEM_GREEN_APPLE",
+      "ITEM_CLASS_2B",
+      "duplicate index evidence"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "labels: 1–50 bounded strings",
+      "prefix: optional ASCII identifier prefix"
+    ],
+    "maker": "Omo",
+    "makerName": "Omo Studio",
+    "name": "Label Normalizer Canary",
+    "niche": "developer-tools",
+    "outputs": [
+      "ordered identifiers",
+      "duplicate indexes and counts"
+    ],
+    "priceMaintain": 0.0,
+    "priceOwn": 0.0,
+    "promise": "Normalize bounded labels into deterministic uppercase identifiers.",
+    "runManifest": "run-manifests/label-normalizer-canary.json",
+    "runPrice": 0.1,
+    "slug": "label-normalizer-canary",
+    "tags": [
+      "deterministic",
+      "text",
+      "canary",
+      "testing"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-16",
+    "workflow": {
+      "steps": [
+        {
+          "label": "label_normalizer.normalize",
+          "role": "normalize",
+          "type": "pipeline"
+        },
+        {
+          "label": "Validating bounded labels",
+          "role": "validate",
+          "type": "pipeline"
+        },
+        {
+          "label": "Normalizing identifiers",
+          "role": "normalize",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": false,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "label-normalizer-canary",
+    "examples": [
+      {
+        "caption": "Exact deterministic normalization fixture",
+        "id": "label-normalizer-canary",
+        "input": {
+          "labels": [
+            "  Green Apple  ",
+            "green-apple",
+            "Class 2B"
+          ],
+          "prefix": "item"
+        },
+        "output_preview": "Three ordered identifiers with one duplicate.",
+        "title": "Label Normalizer Canary"
+      }
+    ],
+    "input_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        },
+        "prefix": {
+          "default": "ITEM",
+          "maxLength": 16,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "labels"
+      ],
+      "type": "object"
+    },
+    "input_schema_source": "containers/label-normalizer-canary/schemas/input.json",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "duplicate_count": {
+          "maximum": 49,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "input_count": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "duplicate_of": {
+                "maximum": 48,
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "identifier": {
+                "pattern": "^[A-Z0-9]+_[A-Z0-9]+(?:_[A-Z0-9]+)*$",
+                "type": "string"
+              },
+              "index": {
+                "maximum": 49,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "original": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "index",
+              "original",
+              "identifier",
+              "duplicate_of"
+            ],
+            "type": "object"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        },
+        "unique_count": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "input_count",
+        "unique_count",
+        "duplicate_count"
+      ],
+      "type": "object"
+    },
+    "output_schema_source": "containers/label-normalizer-canary/schemas/output.json",
+    "phases": [
+      {
+        "id": "validate",
+        "label": "Validating bounded labels"
+      },
+      {
+        "id": "normalize",
+        "label": "Normalizing identifiers"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "label-normalizer-canary",
+    "ui": {
+      "fields": {
+        "labels": {
+          "rows": 8,
+          "widget": "textarea"
+        },
+        "prefix": {
+          "widget": "text"
+        }
+      },
+      "order": [
+        "labels",
+        "prefix"
+      ]
+    }
+  },
+  "runtime": {
+    "artifact": null,
+    "container_slug": "label-normalizer-canary",
+    "default_endpoint": "https://omo-space--cognition-label-normalizer-canary-api.modal.run",
+    "endpoint_env": "LABEL_NORMALIZER_CANARY_MODAL_URL",
+    "input_adapters": [],
+    "input_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        },
+        "prefix": {
+          "default": "ITEM",
+          "maxLength": 16,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "labels"
+      ],
+      "type": "object"
+    },
+    "kind": "modal-hosted",
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "duplicate_count": {
+          "maximum": 49,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "input_count": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "duplicate_of": {
+                "maximum": 48,
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "identifier": {
+                "pattern": "^[A-Z0-9]+_[A-Z0-9]+(?:_[A-Z0-9]+)*$",
+                "type": "string"
+              },
+              "index": {
+                "maximum": 49,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "original": {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "index",
+              "original",
+              "identifier",
+              "duplicate_of"
+            ],
+            "type": "object"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        },
+        "unique_count": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "input_count",
+        "unique_count",
+        "duplicate_count"
+      ],
+      "type": "object"
+    },
+    "protocol": "owner-scoped-async-v1",
+    "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+    "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+    "reviewed_source_sha256": "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a",
+    "run_price_cents": 10,
+    "slug": "label-normalizer-canary"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "modal-hosted",
+    "reason": "worker_executor_contract_not_satisfied",
+    "recommended": "modal-hosted",
+    "requested": "auto"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 0.0,
+    "max_tokens": 0,
+    "model": "native-builder",
+    "name": "Label Normalizer Canary",
+    "run_price_usd": 0.1,
+    "slug": "label-normalizer-canary",
+    "system_prompt": "Execute the reviewed deterministic build-analysis pipeline."
+  }
+}

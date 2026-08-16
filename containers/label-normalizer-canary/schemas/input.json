@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "labels": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "type": "array"
+    },
+    "prefix": {
+      "default": "ITEM",
+      "maxLength": 16,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "labels"
+  ],
+  "type": "object"
+}

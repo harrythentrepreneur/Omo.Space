@@ -1556,3 +1556,42 @@ def test_oss_publish_push_failure_fails_closed(monkeypatch, tmp_path: Path) -> N
     assert local.stdout.strip() == "release(oss-test-skill): v1.2.3 oss publish"
     remote_log = subprocess.run(["git", "--git-dir", str(remote), "rev-list", "--count", "HEAD"], check=True, capture_output=True, text=True)
     assert remote_log.stdout.strip() == "1"
+
+
+def test_release_worktree_commit_uses_scoped_git_identity(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[list[str]] = []
+
+    def runner(command, cwd=None, text=True):
+        commands.append(list(command))
+        if command[:2] == ["git", "rev-parse"]:
+            return "a" * 40
+        return ""
+
+    monkeypatch.setattr(
+        process,
+        "copy_allowlisted_release_paths",
+        lambda _slug, _destination: ["site/deploy/worker.js"],
+    )
+    adapter = process.GitHubReleaseAdapter(
+        command_runner=runner,
+        scratch_root=tmp_path / "release-scratch",
+    )
+
+    _worktree, head_sha = adapter._prepare_worktree(
+        "omo-release/sub_test00000000000000000000000000000000-slug",
+        "slug",
+    )
+
+    assert head_sha == "a" * 40
+    commit_index = next(index for index, command in enumerate(commands) if command[:2] == ["git", "-c"])
+    assert commands[commit_index] == [
+        "git",
+        "-c",
+        "user.name=Omo Trusted Release",
+        "-c",
+        "user.email=omo-trusted-release@users.noreply.github.com",
+        "commit",
+        "-m",
+        "Release slug",
+    ]

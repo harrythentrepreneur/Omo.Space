@@ -22,6 +22,87 @@ def load_host():
     return module
 
 
+def test_compiler_gate_excludes_only_tests_without_their_prerequisites(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    host = load_host()
+    fixture_root = tmp_path / "packages" / "skill-to-modal" / "tests" / "fixtures"
+    fixture_root.mkdir(parents=True)
+    for filename in (
+        "hardening-final-rerun.json",
+        "semantic-adapter-real-runs.json",
+        "semantic-adapter-inputs.json",
+    ):
+        (fixture_root / filename).write_text("{}", encoding="utf-8")
+
+    available_modules = {
+        "tools.render.tabular",
+        "tools.render.video",
+        "tools.render.charts",
+        "PIL",
+    }
+    seen_roots: list[Path] = []
+
+    def fake_module_available(module_name: str, root: Path) -> bool:
+        seen_roots.append(root)
+        return module_name in available_modules
+
+    monkeypatch.setattr(host, "_module_available", fake_module_available)
+
+    assert host.unavailable_compiler_test_names(tmp_path) == ()
+    assert seen_roots and all(root == tmp_path for root in seen_roots)
+    assert "-k" not in host.compiler_gate_test_command(tmp_path)
+
+    (fixture_root / "semantic-adapter-inputs.json").unlink()
+    semantic_only = set(host.unavailable_compiler_test_names(tmp_path))
+    assert semantic_only == {
+        "test_copy_revision_replays_recorded_good_output_with_contract_evidence",
+        "test_indexed_facts_replays_recorded_paraphrases_with_valid_indexes",
+        "test_quoted_risk_review_replays_disclaimer_wording_and_source_quotes",
+        "test_source_referenced_notes_allow_normalized_dates_and_paraphrases",
+        "test_invoice_arithmetic_replays_correct_values_despite_nullable_header_shape",
+    }
+
+    (fixture_root / "semantic-adapter-inputs.json").write_text("{}", encoding="utf-8")
+    (fixture_root / "hardening-final-rerun.json").unlink()
+    hardening_only = set(host.unavailable_compiler_test_names(tmp_path))
+    assert hardening_only == {
+        "test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png",
+        "test_final_rerun_copy_fixtures_reconcile_claims_and_edit_pairs",
+        "test_final_rerun_budget_fixtures_allow_only_recomputed_derived_numbers",
+    }
+
+    (fixture_root / "hardening-final-rerun.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        host,
+        "_module_available",
+        lambda module_name, _root: module_name
+        in {"tools.render.tabular", "tools.render.video", "PIL"},
+    )
+    chart_only = set(host.unavailable_compiler_test_names(tmp_path))
+    assert chart_only == {
+        "test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png",
+        "test_tabular_hosted_submit_run_result_executes_bounded_program_and_returns_artifact",
+    }
+
+    monkeypatch.setattr(host, "_module_available", lambda _module_name, _root: False)
+    resource_only = set(host.unavailable_compiler_test_names(tmp_path))
+    assert resource_only == {
+        "test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png",
+        "test_generic_domain_orchestrator_resolves_and_runs_stats_only_contracts",
+        "test_domain_orchestrator_code_path_is_identical_and_rejects_ungrounded_numbers",
+        "test_tabular_hosted_submit_run_result_executes_bounded_program_and_returns_artifact",
+        "test_generated_bundle_imports_public_fetch_and_tabular_modules_and_runs_offline",
+        "test_generated_video_binding_smoke_and_typed_domain_transitions",
+    }
+
+    command = host.compiler_gate_test_command(tmp_path)
+    expression = command[command.index("-k") + 1]
+    assert "not test_parse_skill_requires_and_returns_frontmatter" not in expression
+    assert str(tmp_path / "packages" / "skill-to-modal" / "tests") in command
+    assert str(tmp_path / "tools" / "host-skill" / "tests") in command
+
+
 host = load_host()
 PROFILE_PATH = ROOT / "packages" / "skill-to-modal" / "profiles" / "facebook-ads-copywriter.json"
 SKILL_PATH = ROOT / "packages" / "facebook-ads-copywriter" / "SKILL.md"

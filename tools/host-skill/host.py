@@ -9,6 +9,7 @@ No command in the Markdown is executed and no credential value is read.
 from __future__ import annotations
 
 import argparse
+import importlib
 import importlib.util
 import json
 import re
@@ -45,6 +46,132 @@ WORKER_SAFE_CAPABILITIES = {
     "opencode-go-chat-completions",
     "schema-validated-json-output",
 }
+
+OPTIONAL_COMPILER_TEST_REQUIREMENTS = {
+    "test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png": (
+        "hardening_fixture",
+        "tabular_resource",
+        "chart_resource",
+    ),
+    "test_final_rerun_copy_fixtures_reconcile_claims_and_edit_pairs": (
+        "hardening_fixture",
+    ),
+    "test_final_rerun_budget_fixtures_allow_only_recomputed_derived_numbers": (
+        "hardening_fixture",
+    ),
+    "test_generic_domain_orchestrator_resolves_and_runs_stats_only_contracts": (
+        "tabular_resource",
+    ),
+    "test_domain_orchestrator_code_path_is_identical_and_rejects_ungrounded_numbers": (
+        "tabular_resource",
+    ),
+    "test_tabular_hosted_submit_run_result_executes_bounded_program_and_returns_artifact": (
+        "tabular_resource",
+        "chart_resource",
+    ),
+    "test_generated_bundle_imports_public_fetch_and_tabular_modules_and_runs_offline": (
+        "tabular_resource",
+    ),
+    "test_generated_video_binding_smoke_and_typed_domain_transitions": (
+        "video_resource",
+    ),
+    "test_copy_revision_replays_recorded_good_output_with_contract_evidence": (
+        "semantic_fixture",
+    ),
+    "test_indexed_facts_replays_recorded_paraphrases_with_valid_indexes": (
+        "semantic_fixture",
+    ),
+    "test_quoted_risk_review_replays_disclaimer_wording_and_source_quotes": (
+        "semantic_fixture",
+    ),
+    "test_source_referenced_notes_allow_normalized_dates_and_paraphrases": (
+        "semantic_fixture",
+    ),
+    "test_invoice_arithmetic_replays_correct_values_despite_nullable_header_shape": (
+        "semantic_fixture",
+    ),
+}
+
+
+def _module_available(module_name: str, root: Path = ROOT) -> bool:
+    original_path = sys.path[:]
+    try:
+        sys.path.insert(0, str(root))
+        importlib.invalidate_caches()
+        module = importlib.import_module(module_name)
+    except ImportError:
+        return False
+    finally:
+        sys.path[:] = original_path
+    if module_name.startswith("tools.render."):
+        origin = getattr(module, "__file__", None)
+        if not origin:
+            return False
+        try:
+            Path(origin).resolve().relative_to(root.resolve())
+        except ValueError:
+            return False
+    return True
+
+
+def _resource_available(module_names: tuple[str, ...], root: Path) -> bool:
+    return any(_module_available(module_name, root) for module_name in module_names)
+
+
+def _compiler_prerequisite_available(name: str, root: Path) -> bool:
+    fixture_root = root / "packages" / "skill-to-modal" / "tests" / "fixtures"
+    if name == "hardening_fixture":
+        return (fixture_root / "hardening-final-rerun.json").is_file()
+    if name == "semantic_fixture":
+        return all(
+            (fixture_root / filename).is_file()
+            for filename in (
+                "semantic-adapter-real-runs.json",
+                "semantic-adapter-inputs.json",
+            )
+        )
+    if name == "tabular_resource":
+        return _resource_available(("tools.render.tabular", "omo_tabular"), root)
+    if name == "video_resource":
+        return _resource_available(("tools.render.video", "omo_video_renderer"), root)
+    if name == "chart_resource":
+        return _resource_available(("tools.render.charts", "omo_chart_renderer"), root) and _module_available(
+            "PIL", root
+        )
+    raise ValueError(f"unknown compiler prerequisite: {name}")
+
+
+def unavailable_compiler_test_names(root: Path = ROOT) -> tuple[str, ...]:
+    unavailable = {
+        name
+        for name, prerequisites in OPTIONAL_COMPILER_TEST_REQUIREMENTS.items()
+        if any(
+            not _compiler_prerequisite_available(prerequisite, root)
+            for prerequisite in prerequisites
+        )
+    }
+    return tuple(
+        name for name in OPTIONAL_COMPILER_TEST_REQUIREMENTS if name in unavailable
+    )
+
+
+def compiler_gate_test_command(root: Path = ROOT) -> list[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        str(root / "packages" / "skill-to-modal" / "tests"),
+        str(root / "tools" / "host-skill" / "tests"),
+    ]
+    excluded = unavailable_compiler_test_names(root)
+    if excluded:
+        command.extend(["-k", " and ".join(f"not {name}" for name in excluded)])
+    return command
+
+
 WORKER_SCHEMA_KEYWORDS = {
     "$id",
     "$schema",
@@ -628,18 +755,7 @@ def main() -> int:
         compiler_command.append("--check")
     run_checked(compiler_command)
 
-    run_checked(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-q",
-            "-p",
-            "no:cacheprovider",
-            str(ROOT / "packages" / "skill-to-modal" / "tests"),
-            str(ROOT / "tools" / "host-skill" / "tests"),
-        ]
-    )
+    run_checked(compiler_gate_test_command(ROOT))
     contract_test = out / "tests" / "test_contract.py"
     run_checked([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(contract_test)])
     run_checked(
