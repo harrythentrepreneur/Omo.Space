@@ -32,6 +32,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
+- RECONCILED WITH origin/main (2026-08-16T13:26Z): fetched the remote and merged 27 coordinator commits into our local main (merge base `696ffc6`, zero text conflicts). The remote brought: the label-normalizer-canary RELEASE chain (#94-#111 — the first chargeable run-manifest `site/run-manifests/label-normalizer-canary.json` released through the creator-builder pipeline), Reddit research #90 (`research/REDDIT-AI-SEO-STRATEGY.MD`, buyer/creator/marketplace-sentiment sources + mining scripts), GitHub skill-scout #88 (`scripts/github-skill-scout.py`), image style system #84 (`research/social-assets/style-sheet/` + three signature posts), OSS everything-free strategy, and credential-strategy restore #93. The coordinator's own GOAL.md on the remote is STALE — it predates their own 27 commits and still claims "exact $0.99 book slug not identified," which our pilot-book-correction already disproved; the merged GOAL.md carries our corrected state. Integration bug found and fixed this tick: the coordinator's new `label-normalizer-canary` profile was unpinned — probed its kind (`schema_only`), added it to `_EXISTING_PROFILE_KINDS`. Verified merged tree: compiler suite 58/1 (sole fail = pre-existing ffmpeg env gate), decodable-book-maker container 14/14, label-normalizer-canary container 5/5, catalog.js parses with all 14 visible slugs + our six humanized copy strings preserved. NO push performed — origin/main still lacks our 9 local commits (pilot-book runtime, vocabulary machinery, fixtures, template); the coordinator must pull/merge our branch to land the decodable-book-maker supply-side work upstream.
 - Builder breadth BUILDABLE #1: the six generic contract-evidence adapters (`semantic.grounded_numeric_copy`, `semantic.exact_field_projection`, `semantic.constraint_coverage`, `semantic.policy_requirement_coverage`, `semantic.rule_based_classification`, `semantic.placeholder_glossary_enforcement`) are implemented as shape+promise selectors in `semantic_evidence_spec` plus `_<kind>_semantic_diff` evaluators and dispatcher branches in the generated runtime template (2026-08-16). Compiler suite 51/52 green (sole failure = pre-existing ffmpeg version gate); 5 new fixture-only tests cover right-needle replay, 10 distinct wrong-needle tokens, selector fail-closed without a reviewed contract, and an all-18-profile no-reclassification pin (0 new container drift measured). Nothing was committed for containers, pushed, deployed, or sent; Codex sol review was unavailable (OpenAI 401 in cron session) so verification is direct generated-runtime evidence.
 - State: production payment loop is LIVE (per the marketplace dev agent's session, 2026-08-12) — the additive Neon schema is applied (all 12 tables), the three live Worker secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, NEON_DATABASE_URL) are set, and a Woven checkout returned a real Stripe Checkout URL. The local release state now has a reversible 14-listing whitelist: the existing four listings, nine ready education tools, and the ready $5/run Skill.md loader; the coordinator still owns the production push.
 - Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit, fast signup-grant visibility, live secrets/routes, request-safe Neon access, 10/10 unauthenticated live canary, checkout orphan-session expiry, 24-listing honesty audit, four text-free phonics marketplace thumbnails, and 12 locally compiled/tested/priced PhonicsMaker workflow bundles.
@@ -242,28 +243,31 @@ third-party corpora in this repo, and web tooling is unavailable in this cron
 profile. So the five cumulative stage vocabularies + sight-word list are strictly
 a Harry decision — do not self-invent word lists.
 
-Priority order:
+Priority order (updated after the origin/main reconciliation):
 1. WAIT for Harry to supply or sign off the five reviewed cumulative stage
-   vocabularies + the reviewed sight-word list (or name another reviewed source —
-   the fastest path: copy the word bank PhonicsMaker's own decodable-books tooling
-   already trusts, or name that resource and we adopt it verbatim). A fill-in
+   vocabularies + the reviewed sight-word list (fastest path: copy the word bank
+   PhonicsMaker's own decodable-books tooling already trusts). The fill-in
    template (exact JSON contract, five enum keys, cumulative rule, validation
    rules, post-landing checklist) is ready at
-   marketing/pilot-book-vocabulary-template.md so the gate is a 5-minute job.
-   When the content lands: bind it as `reviewed_spec.vocabulary` (provenance:
-   reviewed) in packages/skill-to-modal/profiles/decodable-book-maker.json,
-   regenerate the container, re-run the whole_book_vocabulary fixture needles
-   against the real lists, and flip can_submit. The machinery needs no further
-   work. Deployment separately still needs the coordinator push and Harry's
-   live-change approval.
-2. WAIT for Harry's explicit approval of `semantic-recovery-provider-proof-001`;
+   marketing/pilot-book-vocabulary-template.md. When the content lands: bind it
+   as `reviewed_spec.vocabulary` (provenance: reviewed) in
+   packages/skill-to-modal/profiles/decodable-book-maker.json, regenerate the
+   container, re-run the whole_book_vocabulary fixture needles against the real
+   lists, and flip can_submit. The machinery needs no further work.
+2. COORDINATOR/HARRY: pull or merge our local branch (9 commits ahead of
+   origin/main's merge base, now reconciled on top of origin/main at 694f0de) so
+   the decodable-book-maker runtime, vocabulary normalizer, fixtures, and
+   template land upstream — origin/main currently binds PILOT_BOOK_BUILDER_PATH
+   to decodable-book-maker with zero local runtime. We cannot push from this
+   profile.
+3. WAIT for Harry's explicit approval of `semantic-recovery-provider-proof-001`;
    then run the 14-case USD 0.10-capped proof (hard stop before approval — do not run).
-3. Wait for the coordinator push of the loader/catalog/listing and Harry's
-   approvals for `japanese-modal-deploy-001`, the pilot magic-link deploy, and the
-   social X identity gate; do not push from this profile.
-No churn this cycle; the single concrete action was preparing the
-founder-ready vocabulary fill-in template (marketing/pilot-book-vocabulary-
-template.md) and re-verifying live state: OSS decodable-book-maker manifest
-still v1.0.0 @ $0.99 with no data files, coordinator's 14-card catalog push has
-not landed (live catalog.js still serves 222 slugs), git clean.
-Status: waiting on Harry for the reviewed vocabulary content (template ready).
+4. Wait for Harry's approvals for `japanese-modal-deploy-001`, the pilot
+   magic-link deploy, and the social X identity gate; do not push from this
+   profile.
+No churn this cycle; the single concrete action was reconciling our local
+pilot-book work onto the coordinator's 27 new commits (merge + pin fix +
+verification), with zero text conflicts and the pre-existing ffmpeg gate as the
+only red test.
+Status: waiting on Harry for the reviewed vocabulary content (template ready);
+local branch reconciled with origin/main and verified green.

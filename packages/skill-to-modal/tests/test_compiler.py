@@ -1482,6 +1482,7 @@ _EXISTING_PROFILE_KINDS = {
     "grapheme-to-phoneme-converter": "profile_semantic_normalizers",
     "illustrated-decodable-story-maker": "schema_only",
     "japanese-style-story-video": "schema_only",
+    "label-normalizer-canary": "schema_only",
     "phoneme-counter": "profile_semantic_normalizers",
     "phonics-list-generator": "profile_semantic_normalizers",
     "phonics-reading-error-coach": "schema_only",
