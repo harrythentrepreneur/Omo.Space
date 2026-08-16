@@ -1,0 +1,51 @@
+{
+  "allowlist": [
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:dcd9a39e71f7cf2925ddf11d718af6cf36808363f425c40fc337f1be1fe0d391",
+  "decision": "approved",
+  "execution_kind": "skill_builder",
+  "generated": {
+    "dependencies": [],
+    "files": [],
+    "honest_limits": [],
+    "packages": [],
+    "policy": [],
+    "resources": {},
+    "runtime_steps": [],
+    "tests": [],
+    "tool_bindings": []
+  },
+  "needs": [],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [],
+  "skill_owned_resources": [
+    {
+      "covers_artifact_kinds": [],
+      "covers_operations": [
+        "label_normalizer.fixture_contract",
+        "label_normalizer.normalize",
+        "label_normalizer.validate"
+      ],
+      "digest": "sha256:0af44fa620b2405246067424fe2502a2715a577773f7a674cfedf7fb8b7d3d2c",
+      "generated_files": [
+        "resources/__init__.py"
+      ],
+      "id": "deterministic_label_normalizer_v1",
+      "reviewed_source_sha256": "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a",
+      "slug": "label-normalizer-canary",
+      "version": "1.0.0"
+    }
+  ],
+  "slug": "label-normalizer-canary",
+  "source_sha256": "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a",
+  "workflow_blockers": []
+}

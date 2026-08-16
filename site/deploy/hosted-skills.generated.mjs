@@ -1293,6 +1293,117 @@ export const HOSTED_MODAL_SKILL_ROWS = [
     }
   ],
   [
+    "label-normalizer-canary",
+    {
+      "artifact": null,
+      "container_slug": "label-normalizer-canary",
+      "default_endpoint": "https://omo-space--cognition-label-normalizer-canary-api.modal.run",
+      "endpoint_env": "LABEL_NORMALIZER_CANARY_MODAL_URL",
+      "input_adapters": [],
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "labels": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "prefix": {
+            "default": "ITEM",
+            "maxLength": 16,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "labels"
+        ],
+        "type": "object"
+      },
+      "kind": "modal-hosted",
+      "output_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "duplicate_count": {
+            "maximum": 49,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "input_count": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "duplicate_of": {
+                  "maximum": 48,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "identifier": {
+                  "pattern": "^[A-Z0-9]+_[A-Z0-9]+(?:_[A-Z0-9]+)*$",
+                  "type": "string"
+                },
+                "index": {
+                  "maximum": 49,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "original": {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "index",
+                "original",
+                "identifier",
+                "duplicate_of"
+              ],
+              "type": "object"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "unique_count": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "input_count",
+          "unique_count",
+          "duplicate_count"
+        ],
+        "type": "object"
+      },
+      "protocol": "owner-scoped-async-v1",
+      "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
+      "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
+      "reviewed_source_sha256": "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a",
+      "run_price_cents": 10,
+      "slug": "label-normalizer-canary"
+    }
+  ],
+  [
     "phoneme-counter",
     {
       "container_slug": "phoneme-counter",
@@ -2958,6 +3069,15 @@ export const HOSTED_SERVER_CATALOG_ROWS = [
     "native-media",
     0,
     "Execute the reviewed server-owned native media pipeline."
+  ],
+  [
+    "label-normalizer-canary",
+    "Label Normalizer Canary",
+    0.0,
+    0.1,
+    "native-builder",
+    0,
+    "Execute the reviewed deterministic build-analysis pipeline."
   ],
   [
     "phoneme-counter",

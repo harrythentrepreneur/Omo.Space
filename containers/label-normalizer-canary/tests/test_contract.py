@@ -1,0 +1,118 @@
+"""Offline contract tests for the compiler-owned deterministic canary runtime."""
+
+from __future__ import annotations
+
+import asyncio
+import importlib.util
+import json
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+from jsonschema import Draft202012Validator
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CASES = json.loads((ROOT / "tests" / "cases.json").read_text(encoding="utf-8"))
+
+
+def _load_module():
+    spec = importlib.util.spec_from_file_location("label_normalizer_canary_modal_app", ROOT / "modal_app.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+modal_app = _load_module()
+INPUT_SCHEMA = json.loads((ROOT / "schemas" / "input.json").read_text(encoding="utf-8"))
+OUTPUT_SCHEMA = json.loads((ROOT / "schemas" / "output.json").read_text(encoding="utf-8"))
+
+
+def _route(web, path: str):
+    return next(route for route in web.routes if route.path == path)
+
+
+def test_schema_and_positive_fixtures_are_exact() -> None:
+    Draft202012Validator.check_schema(INPUT_SCHEMA)
+    Draft202012Validator.check_schema(OUTPUT_SCHEMA)
+    cases = [
+        CASES["happy_path"],
+        {
+            "input": {"labels": ["Blue---Sky", "Room__7"]},
+            "output": {
+                "items": [
+                    {"index": 0, "original": "Blue---Sky", "identifier": "ITEM_BLUE_SKY", "duplicate_of": None},
+                    {"index": 1, "original": "Room__7", "identifier": "ITEM_ROOM_7", "duplicate_of": None},
+                ],
+                "input_count": 2,
+                "unique_count": 2,
+                "duplicate_count": 0,
+            },
+        },
+    ]
+    for case in cases:
+        Draft202012Validator(INPUT_SCHEMA).validate(case["input"])
+        expected = case["output"]
+        actual = modal_app.execute_workflow(case["input"])
+        Draft202012Validator(OUTPUT_SCHEMA).validate(actual)
+        assert actual == expected
+
+
+def test_negative_fixtures_fail_with_typed_reasons() -> None:
+    for case in CASES["negative_cases"]:
+        with pytest.raises(Exception) as error:
+            modal_app.execute_workflow(case["input"])
+        assert case["reason"] in str(error.value)
+
+
+def test_repeated_valid_request_is_semantically_identical() -> None:
+    payload = CASES["happy_path"]["input"]
+    assert modal_app.execute_workflow(payload) == modal_app.execute_workflow(payload)
+
+
+def test_owner_scoped_async_surface_requires_owner_and_returns_result() -> None:
+    observed: list[dict] = []
+    expected = modal_app.execute_workflow(CASES["happy_path"]["input"])
+    web = modal_app.create_fastapi_app(
+        spawn_runner=lambda envelope: observed.append(envelope) or "fc-label-canary-test",
+        lookup_result=lambda _call_id: expected,
+    )
+    submit = _route(web, "/v1/runs").endpoint
+    with pytest.raises(Exception) as error:
+        asyncio.run(submit(CASES["happy_path"]["input"], None))
+    assert getattr(error.value, "status_code", None) == 422
+    accepted = asyncio.run(submit(CASES["happy_path"]["input"], "canary-owner"))
+    assert accepted["status"] == "accepted"
+    assert accepted["call_id"] == "fc-label-canary-test"
+    observed_envelope = observed[0]
+    assert observed_envelope["owner_id"] == "canary-owner"
+    query = parse_qs(urlparse(accepted["result_url"]).query)
+    assert query["call_id"] == ["fc-label-canary-test"]
+    access_token = query["access_token"][0]
+    assert len(access_token) >= 32
+
+    # A fresh FastAPI app instance represents another Modal API container.
+    # Poll identity must be derived from the signed URL material, not memory.
+    other_container = modal_app.create_fastapi_app(lookup_result=lambda _call_id: expected)
+    poll = _route(other_container, "/v1/runs/{run_id}").endpoint
+    completed = asyncio.run(
+        poll(accepted["run_id"], "fc-label-canary-test", access_token, "canary-owner")
+    )
+    assert completed == expected
+    with pytest.raises(Exception) as wrong_owner:
+        asyncio.run(
+            poll(accepted["run_id"], "fc-label-canary-test", access_token, "other-owner")
+        )
+    assert getattr(wrong_owner.value, "status_code", None) == 404
+
+
+def test_runtime_is_fixed_and_does_not_load_creator_source() -> None:
+    source = (ROOT / "modal_app.py").read_text(encoding="utf-8")
+    assert "SKILL.md" not in source
+    assert "subprocess" not in source
+    assert "urllib" not in source
+    assert "modal.Secret" not in source
+    assert "runs: dict" not in source
+    assert "_run_id(owner_id, access_token)" in source
+    assert "@modal.asgi_app(requires_proxy_auth=True)" in source

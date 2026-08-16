@@ -1,0 +1,135 @@
+{
+  "artifacts": [],
+  "description": "Normalize a bounded list of human labels into deterministic uppercase identifiers, preserving order and reporting duplicates. Designed as a safe end-to-end Omo hosting canary with exact fixture outputs and no provider requirements.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{run_id}"
+  },
+  "form": [
+    {
+      "field": "labels",
+      "widget": "textarea"
+    },
+    {
+      "field": "prefix",
+      "widget": "text"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+      },
+      "prefix": {
+        "default": "ITEM",
+        "maxLength": 16,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9]+$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "labels"
+    ],
+    "type": "object"
+  },
+  "name": "label-normalizer-canary",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "duplicate_count": {
+        "maximum": 49,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "input_count": {
+        "maximum": 50,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "duplicate_of": {
+              "maximum": 48,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "identifier": {
+              "pattern": "^[A-Z0-9]+_[A-Z0-9]+(?:_[A-Z0-9]+)*$",
+              "type": "string"
+            },
+            "index": {
+              "maximum": 49,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "original": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "index",
+            "original",
+            "identifier",
+            "duplicate_of"
+          ],
+          "type": "object"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+      },
+      "unique_count": {
+        "maximum": 50,
+        "minimum": 1,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "input_count",
+      "unique_count",
+      "duplicate_count"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled_deterministic_canary",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "label-normalizer-canary",
+  "source_sha256": "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a",
+  "version": "1.0.0"
+}
