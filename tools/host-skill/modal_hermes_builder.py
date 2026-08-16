@@ -32,6 +32,11 @@ DISPATCH_LEASE_SECONDS = 7200
 SAFE_FAILURE_STAGES = {
     "checkout", "processor_import", "claim", "source_validation",
     "private_handoff", "hermes", "trusted_release", "release_evidence",
+    "trusted_compile", "trusted_register", "trusted_check", "worker_contracts",
+    "release_issue_lookup", "release_issue_create", "release_worktree",
+    "release_push", "release_pr_lookup", "release_pr_create", "release_pr_view",
+    "release_merge", "modal_deploy", "worker_dependencies", "worker_deploy",
+    "worker_smoke",
 }
 
 ID_RE = re.compile(r"^sub_[A-Za-z0-9_-]{8,100}$")
@@ -404,7 +409,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             )
             if agent.returncode != 0:
                 repository.set_status(submission_id, "failed", "build_or_deploy_failed")
-                result = _safe_result("failed", dispatch_id, submission_id, returncode=agent.returncode)
+                result = _safe_result("failed", dispatch_id, submission_id, returncode=agent.returncode, stage=stage)
             else:
                 stage = "trusted_release"
                 # Hermes has exited. Only the trusted parent now receives
@@ -428,6 +433,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                     result = _safe_result(
                         "failed", dispatch_id, submission_id, returncode=0,
                         reason=str(processed.get("failure_code") or "trusted_release_failed"),
+                        stage=str(processed.get("failure_stage") or "trusted_release"),
                     )
                     dispatches[dispatch_id] = {**result, "started_at": now, "finished_at": int(time.time())}
                     return result
