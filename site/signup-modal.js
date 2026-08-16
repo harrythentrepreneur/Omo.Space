@@ -114,6 +114,16 @@
   function redirectTarget() {
     var slug = activeOpenTarget;
     var destination = activeDestination;
+    var pilotToken = '';
+    try {
+      var pilotParams = new URLSearchParams(window.location.search);
+      if (/(^|\/)pilot-claim(?:\.html)?\/?$/.test(window.location.pathname)) {
+        pilotToken = String(pilotParams.get('token') || '').trim();
+      }
+    } catch (error) {}
+    if (/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(pilotToken) && pilotToken.length <= 4096) {
+      return '/pilot-claim.html?token=' + encodeURIComponent(pilotToken);
+    }
     if (!slug) {
       try { slug = validOpenTarget(new URLSearchParams(window.location.search).get('open')); } catch (error) {}
     }

@@ -15,6 +15,7 @@
 #   /api/me                (balance + api key + usage for the dashboard)
 #   /api/topup             (Stripe Checkout for credit top-ups)
 #   /api/clerk-webhook     (user.created → $5 signup grant)
+#   /api/pilot/claim       (signed pilot link verification + authenticated 99-cent grant)
 #
 # To attach a custom domain instead of the workers.dev URL, either:
 #   a) Dashboard: Workers & Pages → cognition-demos → Settings → Domains & Routes
@@ -58,6 +59,11 @@ crons = ["*/1 * * * *"]
 # database_name = "omo-balances"
 # database_id = "PASTE_D1_DATABASE_ID_HERE"
 
+# Pilot links also require a separate HMAC secret (32+ random bytes):
+#   npx wrangler secret put PILOT_MAGIC_LINK_SECRET
+# Keep issuance server-side with generate-pilot-link.mjs; never expose this
+# secret or add a public token-minting route.
+
 [vars]
 LLM_BASE_URL = "https://opencode.ai/zen/go/v1"
 LLM_MODEL = "deepseek-v4-flash"
@@ -66,6 +72,9 @@ MIN_TOPUP_USD = "5"
 MAX_TOPUP_USD = "1000"
 CLERK_CLOCK_SKEW_SECONDS = "5"
 RUN_RESERVATION_TTL_SECONDS = "300"
+PILOT_GRANT_CENTS = "99"
+# Set only after the coordinator verifies the exact live PhonicsMaker book slug:
+# PILOT_BOOK_BUILDER_PATH = "/run.html?slug=REVIEWED-LIVE-BOOK-SLUG"
 OMO_SUPPORT_BROKER_URL = "https://cognition.cv/omo-support-api/v1/chat"
 OMO_BUILDER_MODAL_URL = "https://omo-space--omo-hermes-builder-dispatch.modal.run"
 OMO_BUILDER_BASE_REVISION = "d67311a3c5d44ba46502b2fc8c1c6956b2f1e7e3"

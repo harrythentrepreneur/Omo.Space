@@ -125,7 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_run_progress_user_updated
 CREATE TABLE IF NOT EXISTS credits_ledger (
   event_id      TEXT PRIMARY KEY,             -- signup:…, run:…, stripe:…
   user_id       TEXT NOT NULL,
-  kind          TEXT NOT NULL,                -- signup_grant|run_debit|run_refund|topup
+  kind          TEXT NOT NULL,                -- signup_grant|pilot_grant|run_debit|run_refund|topup
   amount_cents  INTEGER NOT NULL,             -- signed balance delta
   balance_cents INTEGER NOT NULL,             -- balance after transition
   reference_id  TEXT NOT NULL,
@@ -134,6 +134,24 @@ CREATE TABLE IF NOT EXISTS credits_ledger (
 
 CREATE INDEX IF NOT EXISTS idx_credits_ledger_user_created
   ON credits_ledger (user_id, created_at DESC);
+
+-- Signed pilot links are registered before Clerk signup so user.created and
+-- browser redemption share one idempotency key. Only keyed HMAC/SHA-256 digests are
+-- stored; recipient email addresses and bearer tokens never enter the DB.
+CREATE TABLE IF NOT EXISTS pilot_claims (
+  event_id      TEXT PRIMARY KEY,              -- signup:pilot-<sha256(token)>
+  email_hash    TEXT NOT NULL,                 -- hmac-sha256(normalized recipient email)
+  cohort        TEXT NOT NULL,
+  grant_cents   INTEGER NOT NULL CHECK (grant_cents > 0),
+  expires_at    INTEGER NOT NULL,               -- Unix seconds
+  user_id       TEXT,
+  state         TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'applied')),
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pilot_claims_email_pending
+  ON pilot_claims (email_hash, state, expires_at);
 
 CREATE TABLE IF NOT EXISTS stripe_events (
   event_id     TEXT PRIMARY KEY,              -- Stripe evt_… webhook event

@@ -13,6 +13,7 @@
 //   GET/POST /api/me                   → {balance, api_key, currency, runs} for the dashboard
 //   POST /api/topup                    → Stripe Checkout + signed top-up fulfillment
 //   POST /api/clerk-webhook            → Clerk webhook: user.created → $5 signup grant
+//   GET/POST /api/pilot/claim          → verify/redeem a signed pilot free-book grant
 //   POST /api/internal/submissions/schema → build-worker schema introspection
 //   POST /api/internal/submissions/migrate → temporary build-worker schema migration
 //
@@ -31,6 +32,11 @@
 //   BALANCE_KEY_SECRET — optional extra entropy for deterministic API keys;
 //                       falls back to LLM_API_KEY, then a dev constant.
 //   SIGNUP_GRANT_USD  — optional override of the $5 signup grant (tests).
+//   PILOT_MAGIC_LINK_SECRET — HMAC secret for pilot claim tokens (SECRET,
+//                       at least 32 bytes; never exposed to the browser).
+//   PILOT_GRANT_CENTS — expected signed pilot grant; defaults to 99 cents.
+//   PILOT_BOOK_BUILDER_PATH — same-origin path returned after a successful
+//                       claim; required for redemption and must be reviewed.
 //   NEON_DATABASE_URL — pooled Neon Postgres connection string (recommended).
 //   DEMELLO_MODAL_BEARER — private Modal API bearer (SECRET, required for the
 //                       japanese-style-story-video runner).
@@ -63,6 +69,7 @@
 // model in ./cost-model.mjs sets the per-run price (5x markup, $0.10 floor).
 import { Pool, neon } from '@neondatabase/serverless';
 import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts, MIN_TOPUP_USD } from './balance.mjs';
+import { PilotTokenError, verifyPilotToken } from './pilot-magic.mjs';
 import { runPrice, llmWorkflow } from './cost-model.mjs';
 import { handleMcpRequest } from './mcp-server.mjs';
 import { HOSTED_WORKER_SKILL_ROWS, HOSTED_MODAL_SKILL_ROWS, HOSTED_SERVER_CATALOG_ROWS } from './hosted-skills.generated.mjs';
@@ -315,6 +322,7 @@ const ROUTES = {
   '/api/me': { handler: handleMe, methods: ['GET', 'POST'] }, // dashboard: balance + api key + usage
   '/api/topup': { handler: handleTopup }, // Stripe Checkout: {user_id, amount_usd}
   '/api/clerk-webhook': { handler: handleClerkWebhook }, // user.created → $5 grant
+  '/api/pilot/claim': { handler: handlePilotClaim, methods: ['GET', 'POST'] }, // signed 99-cent pilot grant
 };
 
 async function handleSupportChat(request, env) {
@@ -2925,6 +2933,24 @@ async function handleClerkWebhook(request, env) {
 
   const userId = String(body.data.id);
   if (!validUserId(userId)) return json({ error: 'invalid user id' }, 400, cors());
+  const pendingPilot = await pendingPilotClaimForClerkUser(env, body.data);
+  if (pendingPilot) {
+    const pilotResult = await applyPilotGrant(env, {
+      eventId: pendingPilot.event_id,
+      userId,
+      grantCents: Number(pendingPilot.grant_cents),
+      cohort: pendingPilot.cohort,
+    });
+    const record = (await getUserRecord(env, userId)).record;
+    return json({
+      ok: true,
+      granted: pilotResult.applied,
+      pilot_granted: pilotResult.applied,
+      user_id: userId,
+      balance: (record.balance_cents / 100).toFixed(2),
+      balance_cents: record.balance_cents,
+    }, 200, cors());
+  }
   const { record, created } = await getUserRecord(env, userId);
   return json({
     ok: true,
@@ -2933,6 +2959,252 @@ async function handleClerkWebhook(request, env) {
     balance: (record.balance_cents / 100).toFixed(2),
     balance_cents: record.balance_cents,
   }, 200, cors());
+}
+
+// ── Route: pilot free-book claim ──────────────────────────────────────────
+// GET verifies a bearer link without consuming it. POST requires a verified
+// Clerk session and atomically credits the token exactly once. The ledger ID
+// contains only a SHA-256 token digest, never the recipient email or bearer.
+
+async function handlePilotClaim(request, env, url) {
+  const token = String((url.searchParams && url.searchParams.get('token')) || '').trim();
+  if (!env.PILOT_MAGIC_LINK_SECRET || String(env.PILOT_MAGIC_LINK_SECRET).length < 32) {
+    return pilotClaimError('pilot_secret_not_configured', 503, 'This free-book link is not available yet.');
+  }
+
+  let payload;
+  try {
+    payload = await verifyPilotToken(token, env.PILOT_MAGIC_LINK_SECRET);
+  } catch (error) {
+    if (error instanceof PilotTokenError && error.code === 'pilot_token_expired') {
+      return pilotClaimError(error.code, 410, 'This free-book link has expired. Ask for a fresh link.');
+    }
+    return pilotClaimError('pilot_token_invalid', 400, 'This free-book link is not valid.');
+  }
+
+  const expectedGrant = boundedInt(env.PILOT_GRANT_CENTS, 1, 10000, 99);
+  if (payload.grant_cents !== expectedGrant) {
+    return pilotClaimError('pilot_grant_mismatch', 400, 'This free-book link has the wrong grant amount.');
+  }
+  const eventId = await pilotGrantEventId(token);
+  if (await pilotGrantAlreadyApplied(env, eventId)) {
+    return pilotClaimError('pilot_token_reused', 409, 'This free-book link has already been claimed.');
+  }
+  await registerPilotClaim(env, eventId, payload);
+
+  if (request.method === 'GET') {
+    return json({
+      ok: true,
+      status: 'ready_to_claim',
+      grant_cents: payload.grant_cents,
+      cohort: payload.cohort,
+      requires_authentication: true,
+      message: 'Your free book is ready. Sign in or create your account to add it to your balance.',
+    }, 200, cors(request, env));
+  }
+
+  const auth = await authenticateAccount(request, env, false);
+  if (!auth.ok) {
+    return pilotClaimError(auth.error, auth.status, 'Sign in or create your account to claim your free book.');
+  }
+  const continueUrl = pilotBookBuilderPath(env);
+  if (!continueUrl) {
+    return pilotClaimError('pilot_builder_not_configured', 503, 'The free-book builder is not available yet.');
+  }
+  const result = await applyPilotGrant(env, {
+    eventId,
+    userId: auth.userId,
+    grantCents: payload.grant_cents,
+    cohort: payload.cohort,
+  });
+  if (!result.applied) {
+    return pilotClaimError('pilot_token_reused', 409, 'This free-book link has already been claimed.');
+  }
+  return json({
+    ok: true,
+    status: 'claimed',
+    grant_cents: payload.grant_cents,
+    balance_cents: result.balance_cents,
+    cohort: payload.cohort,
+    continue_url: continueUrl,
+    message: 'Your free book is now in your balance.',
+  }, 200, cors(request, env));
+}
+
+function pilotClaimError(error, status, message) {
+  return json({ ok: false, error, message }, status, cors());
+}
+
+function pilotBookBuilderPath(env) {
+  const configured = String(env.PILOT_BOOK_BUILDER_PATH || '').trim();
+  if (/^\/run\.html\?slug=[a-z0-9][a-z0-9-]{0,100}$/.test(configured)) return configured;
+  return '';
+}
+
+async function pilotGrantEventId(token) {
+  return `signup:pilot-${await sha256Hex(token)}`;
+}
+
+async function pilotGrantAlreadyApplied(env, eventId) {
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-pilot-ledger-exists-v1',
+      'SELECT event_id FROM credits_ledger WHERE event_id = $1',
+      [eventId],
+    ));
+    return result.rowCount > 0;
+  }
+  if (databaseKind(env) === 'd1') {
+    return !!(await env.BALANCE_DB.prepare('SELECT event_id FROM credits_ledger WHERE event_id = ?').bind(eventId).first());
+  }
+  return mockLedger.has(eventId);
+}
+
+async function registerPilotClaim(env, eventId, payload) {
+  const now = new Date().toISOString();
+  const emailHash = await pilotEmailHash(payload.email, env.PILOT_MAGIC_LINK_SECRET);
+  const values = [eventId, emailHash, payload.cohort, payload.grant_cents, payload.exp, 'pending', now, now];
+  if (databaseKind(env) === 'neon') {
+    await getNeonPool(env).query(prepared(
+      'omo-pilot-claim-register-v1',
+      'INSERT INTO pilot_claims (event_id, email_hash, cohort, grant_cents, expires_at, state, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (event_id) DO NOTHING',
+      values,
+    ));
+    return;
+  }
+  if (databaseKind(env) === 'd1') {
+    await env.BALANCE_DB.prepare('INSERT OR IGNORE INTO pilot_claims (event_id, email_hash, cohort, grant_cents, expires_at, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(...values).run();
+    return;
+  }
+  if (!mockPilotClaims.has(eventId)) {
+    mockPilotClaims.set(eventId, {
+      event_id: eventId, email_hash: emailHash, cohort: payload.cohort,
+      grant_cents: payload.grant_cents, expires_at: payload.exp,
+      state: 'pending', user_id: null, created_at: now, updated_at: now,
+    });
+  }
+}
+
+async function pendingPilotClaimForClerkUser(env, clerkUser) {
+  const addresses = Array.isArray(clerkUser && clerkUser.email_addresses) ? clerkUser.email_addresses : [];
+  const now = Math.floor(Date.now() / 1000);
+  for (const entry of addresses) {
+    const email = normalizeBuyerEmail(entry && entry.email_address);
+    if (!email) continue;
+    const emailHash = await pilotEmailHash(email, env.PILOT_MAGIC_LINK_SECRET);
+    let row = null;
+    if (databaseKind(env) === 'neon') {
+      const result = await getNeonPool(env).query(prepared(
+        'omo-pilot-claim-by-email-v1',
+        "SELECT event_id, cohort, grant_cents FROM pilot_claims WHERE email_hash = $1 AND state = 'pending' AND expires_at > $2 ORDER BY expires_at ASC LIMIT 1",
+        [emailHash, now],
+      ));
+      row = result.rows[0] || null;
+    } else if (databaseKind(env) === 'd1') {
+      row = await env.BALANCE_DB.prepare("SELECT event_id, cohort, grant_cents FROM pilot_claims WHERE email_hash = ? AND state = 'pending' AND expires_at > ? ORDER BY expires_at ASC LIMIT 1").bind(emailHash, now).first();
+    } else {
+      row = Array.from(mockPilotClaims.values())
+        .filter((claim) => claim.email_hash === emailHash && claim.state === 'pending' && claim.expires_at > now)
+        .sort((left, right) => left.expires_at - right.expires_at)[0] || null;
+    }
+    if (row) return row;
+  }
+  return null;
+}
+
+async function pilotEmailHash(email, secret) {
+  const digest = await hmacSha256(
+    new TextEncoder().encode(String(secret)),
+    `omo-pilot-email-v1\u0000${email}`,
+  );
+  return bytesToHex(digest);
+}
+
+async function applyPilotGrant(env, claim) {
+  const now = new Date().toISOString();
+  const apiKey = apiKeyFor(claim.userId, balanceSecret(env));
+  const apiKeyHash = await sha256Hex(apiKey);
+  const referenceId = `pilot:${claim.cohort}`;
+
+  if (databaseKind(env) === 'neon') {
+    const client = await getNeonPool(env).connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(prepared(
+        'omo-pilot-user-create-v1',
+        'INSERT INTO users (user_id, balance_cents, api_key, created_at) VALUES ($1, 0, $2, $3) ON CONFLICT (user_id) DO NOTHING',
+        [claim.userId, apiKeyHash, now],
+      ));
+      const inserted = await client.query(prepared(
+        'omo-pilot-ledger-claim-v1',
+        'INSERT INTO credits_ledger (event_id, user_id, kind, amount_cents, balance_cents, reference_id, created_at) VALUES ($1, $2, $3, $4, 0, $5, $6) ON CONFLICT (event_id) DO NOTHING RETURNING event_id',
+        [claim.eventId, claim.userId, 'pilot_grant', claim.grantCents, referenceId, now],
+      ));
+      if (!inserted.rowCount) {
+        await client.query('COMMIT');
+        return { applied: false };
+      }
+      const updated = await client.query(prepared(
+        'omo-pilot-user-credit-v1',
+        'UPDATE users SET balance_cents = balance_cents + $1 WHERE user_id = $2 RETURNING balance_cents',
+        [claim.grantCents, claim.userId],
+      ));
+      await client.query(prepared(
+        'omo-pilot-ledger-balance-v1',
+        'UPDATE credits_ledger SET balance_cents = $1 WHERE event_id = $2',
+        [updated.rows[0].balance_cents, claim.eventId],
+      ));
+      await client.query(prepared(
+        'omo-pilot-claim-applied-v1',
+        "UPDATE pilot_claims SET state = 'applied', user_id = $1, updated_at = $2 WHERE event_id = $3 AND state = 'pending'",
+        [claim.userId, now, claim.eventId],
+      ));
+      await client.query(prepared(
+        'omo-api-key-upsert-v1',
+        'INSERT INTO api_keys (key_hash, user_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET key_hash = EXCLUDED.key_hash',
+        [apiKeyHash, claim.userId, now],
+      ));
+      await client.query('COMMIT');
+      return { applied: true, balance_cents: updated.rows[0].balance_cents };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) {}
+      throw error;
+    } finally {
+      await client.release();
+    }
+  }
+
+  if (databaseKind(env) === 'd1') {
+    const results = await env.BALANCE_DB.batch([
+      env.BALANCE_DB.prepare('INSERT OR IGNORE INTO users (user_id, balance_cents, api_key, created_at) VALUES (?, 0, ?, ?)').bind(claim.userId, apiKeyHash, now),
+      env.BALANCE_DB.prepare('INSERT OR IGNORE INTO credits_ledger (event_id, user_id, kind, amount_cents, balance_cents, reference_id, created_at) VALUES (?, ?, ?, ?, -1, ?, ?)').bind(claim.eventId, claim.userId, 'pilot_grant', claim.grantCents, referenceId, now),
+      env.BALANCE_DB.prepare('UPDATE users SET balance_cents = balance_cents + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM credits_ledger WHERE event_id = ? AND balance_cents = -1)').bind(claim.grantCents, claim.userId, claim.eventId),
+      env.BALANCE_DB.prepare('UPDATE credits_ledger SET balance_cents = (SELECT balance_cents FROM users WHERE user_id = ?) WHERE event_id = ? AND balance_cents = -1').bind(claim.userId, claim.eventId),
+      env.BALANCE_DB.prepare("UPDATE pilot_claims SET state = 'applied', user_id = ?, updated_at = ? WHERE event_id = ? AND state = 'pending'").bind(claim.userId, now, claim.eventId),
+      env.BALANCE_DB.prepare('INSERT INTO api_keys (key_hash, user_id, created_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET key_hash = excluded.key_hash').bind(apiKeyHash, claim.userId, now),
+    ]);
+    const applied = !!(results[1] && results[1].meta && results[1].meta.changes);
+    if (!applied) return { applied: false };
+    const record = await env.BALANCE_DB.prepare('SELECT balance_cents FROM users WHERE user_id = ?').bind(claim.userId).first();
+    return { applied: true, balance_cents: record.balance_cents };
+  }
+
+  if (mockLedger.has(claim.eventId)) return { applied: false };
+  let record = mockUsers.get(claim.userId);
+  if (!record) {
+    record = { balance_cents: 0, api_key: apiKey, created_at: now };
+    mockUsers.set(claim.userId, record);
+  }
+  record.balance_cents += claim.grantCents;
+  mockApiKeys.set(apiKeyHash, claim.userId);
+  mockLedgerEntry(claim.eventId, claim.userId, 'pilot_grant', claim.grantCents, record.balance_cents, referenceId, now);
+  const registered = mockPilotClaims.get(claim.eventId);
+  if (registered) {
+    registered.state = 'applied';
+    registered.user_id = claim.userId;
+    registered.updated_at = now;
+  }
+  return { applied: true, balance_cents: record.balance_cents };
 }
 
 // ── Balance store (Neon → D1 → in-memory mock) ─────────────────────────────
@@ -2951,6 +3223,7 @@ const mockRunRequests = new Map();
 const mockRunProgress = new Map();
 const mockPendingTopups = new Map();
 const mockPurchases = new Map();
+const mockPilotClaims = new Map();
 const mockPurchaseEvents = new Set();
 const mockWaitlist = new Map();
 const mockSubmissions = new Map();

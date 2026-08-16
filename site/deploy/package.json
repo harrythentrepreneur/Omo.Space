@@ -2,6 +2,10 @@
   "name": "omo-credits-worker",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test:pilot": "node test-pilot-magic.mjs && node test-router.mjs",
+    "pilot:link": "node generate-pilot-link.mjs"
+  },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0"
   }

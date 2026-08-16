@@ -12,6 +12,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { signPilotToken } from './pilot-magic.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clerkFrontendApi = 'example.clerk.accounts.dev';
@@ -78,6 +79,7 @@ function stripModule(p) {
 }
 const prelude = stripModule('balance.mjs') + '\n'
   + stripModule('cost-model.mjs') + '\n'
+  + stripModule('pilot-magic.mjs') + '\n'
   + stripModule('hosted-skills.generated.mjs') + '\n';
 const workerSrc = fs.readFileSync(path.join(here, 'worker.js'), 'utf8').replace(/^import .*$/gm, '');
 const cjs = prelude + workerSrc.replace('export default', 'const __workerExport =');
@@ -336,13 +338,16 @@ function check(name, cond) {
 check('Neon: Worker never caches request-bound Pool I/O in module scope',
   !workerSrc.includes('let neonPool') &&
   workerSrc.includes("neon(url, { fullResults: true })") &&
-  (workerSrc.match(/await client\.release\(\)/g) || []).length === 7);
+  (workerSrc.match(/await client\.release\(\)/g) || []).length === 8);
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
 const creditsSource = fs.readFileSync(path.join(here, '..', 'credits.js'), 'utf8');
 const indexSource = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
 const runPageSource = fs.readFileSync(path.join(here, '..', 'run.html'), 'utf8');
+const pilotClaimPageSource = fs.readFileSync(path.join(here, '..', 'pilot-claim.html'), 'utf8');
+const pilotClaimClientSource = fs.readFileSync(path.join(here, '..', 'pilot-claim.js'), 'utf8');
+const signupModalSource = fs.readFileSync(path.join(here, '..', 'signup-modal.js'), 'utf8');
 const sellSource = fs.readFileSync(path.join(here, '..', 'sell.html'), 'utf8');
 const hostSource = fs.readFileSync(path.join(here, '..', 'host.html'), 'utf8');
 const uploadSource = fs.readFileSync(path.join(here, '..', 'upload.js'), 'utf8');
@@ -363,6 +368,12 @@ const canonical = (value) => Array.isArray(value)
     ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]))
     : value;
 check('account client: dashboard uses the shared Clerk-authenticated /api/me balance', dashboardSource.includes('<script src="credits.js"></script>') && dashboardSource.includes('window.OmoCredits.getBalance') && creditsSource.includes("fetch(apiBase() + '/api/me'") && creditsSource.includes("Authorization: 'Bearer ' + token"));
+check('pilot landing: preserves the signed bearer through Clerk auth, then redeems with the session token',
+  pilotClaimPageSource.includes('pilot-claim.js') &&
+  pilotClaimClientSource.includes("window.Clerk.session.getToken()") &&
+  pilotClaimClientSource.includes("method: 'POST'") &&
+  pilotClaimClientSource.includes("Authorization: 'Bearer '") &&
+  signupModalSource.includes("return '/pilot-claim.html?token=' + encodeURIComponent(pilotToken)"));
 check('dashboard: cloud-run network errors never fall back to a mock after POST', (dashboardSource.match(/startMockVideoRun\(form, product\);/g) || []).length === 1 && dashboardSource.includes('The submission outcome is unknown') && dashboardSource.includes('Reconcile run'));
 check('dashboard: terminal 5xx run states are handled before indefinite retry', dashboardSource.includes("terminalStatus === 'failed' || terminalStatus === 'refunded'") && dashboardSource.includes("status === 'failed' || status === 'refunded'"));
 check('billing: server top-ups post to /api/topup with Clerk bearer + persistent idempotency', billingSource.includes("fetch(apiBase() + '/api/topup'") && billingSource.includes("Authorization: 'Bearer ' + token") && billingSource.includes("'Idempotency-Key': topupKey") && billingSource.includes('omo_topup_attempt_v1'));
@@ -472,7 +483,7 @@ check('router: GET returns 405', get.status === 405);
 // Unknown route → 404
 const nf = await worker.fetch(mkReq('POST', '/api/nope', {}), env);
 const nfBody = await nf.json();
-check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 12 && nfBody.routes.includes('/api/support/chat'));
+check('router: unknown route returns 404 + routes list', nf.status === 404 && Array.isArray(nfBody.routes) && nfBody.routes.length === 13 && nfBody.routes.includes('/api/support/chat') && nfBody.routes.includes('/api/pilot/claim'));
 
 // Public waitlist signup: normalized insert, validation, and duplicate replay.
 const waitlistAddedResponse = await worker.fetch(mkReq('POST', '/api/waitlist', {
@@ -1584,6 +1595,58 @@ const r1 = await worker.fetch(mkReq('POST', '/api/ugc-script-studio', { product:
 const r2 = await worker.fetch(mkReq('POST', '/api/ugc-script-studio', { product: 'pillowcase' }), kvEnv);
 check('caps: first call allowed, second returns 429', r1.status === 200 && r2.status === 429);
 
+// ── /api/pilot/claim (signed, expiring, authenticated, idempotent) ────────
+
+const pilotSecret = 'fixture-only-pilot-secret-32-bytes-minimum';
+const pilotEnv = {
+  ...realEnv,
+  PILOT_MAGIC_LINK_SECRET: pilotSecret,
+  PILOT_BOOK_BUILDER_PATH: '/run.html?slug=fixture-phonics-book',
+};
+const pilotNow = Math.floor(Date.now() / 1000);
+const pilotToken = await signPilotToken({
+  email: 'pilot-teacher@example.com', cohort: 'pilot-200', grant_cents: 99, exp: pilotNow + 300,
+}, pilotSecret);
+const pilotPath = `/api/pilot/claim?token=${encodeURIComponent(pilotToken)}`;
+const pilotReadyResponse = await worker.fetch(mkReq('GET', pilotPath, {}), pilotEnv);
+const pilotReady = await pilotReadyResponse.json();
+check('pilot claim: valid token verifies without consuming the grant',
+  pilotReadyResponse.status === 200 && pilotReady.status === 'ready_to_claim' && pilotReady.grant_cents === 99);
+
+const pilotMissingAuthResponse = await worker.fetch(mkReq('POST', pilotPath, {}), pilotEnv);
+const pilotMissingAuth = await pilotMissingAuthResponse.json();
+check('pilot claim: redemption requires a verified Clerk session',
+  pilotMissingAuthResponse.status === 401 && pilotMissingAuth.error === 'authentication_required');
+
+const pilotClerkToken = await clerkToken('user_pilot_claim');
+const pilotHeaders = { Authorization: `Bearer ${pilotClerkToken}`, Origin: 'https://omo.space' };
+const pilotClaimedResponse = await worker.fetch(mkReq('POST', pilotPath, {}, pilotHeaders), pilotEnv);
+const pilotClaimed = await pilotClaimedResponse.json();
+const pilotBalanceResponse = await worker.fetch(mkReq('GET', '/api/me', {}, pilotHeaders), pilotEnv);
+const pilotBalance = await pilotBalanceResponse.json();
+check('pilot claim: finalized email promise lands exactly 99 cents in a fresh balance',
+  pilotClaimedResponse.status === 200 && pilotClaimed.status === 'claimed' &&
+  pilotClaimed.grant_cents === 99 && pilotClaimed.balance_cents === 99 && pilotBalance.balance_cents === 99);
+
+const pilotReplayResponse = await worker.fetch(mkReq('POST', pilotPath, {}, pilotHeaders), pilotEnv);
+const pilotReplay = await pilotReplayResponse.json();
+const pilotBalanceAfterReplay = await (await worker.fetch(mkReq('GET', '/api/me', {}, pilotHeaders), pilotEnv)).json();
+check('pilot claim: token reuse is typed and never double-grants',
+  pilotReplayResponse.status === 409 && pilotReplay.error === 'pilot_token_reused' && pilotBalanceAfterReplay.balance_cents === 99);
+
+const pilotInvalidResponse = await worker.fetch(mkReq('POST', '/api/pilot/claim?token=v1.invalid.invalid', {}, pilotHeaders), pilotEnv);
+const pilotInvalid = await pilotInvalidResponse.json();
+check('pilot claim: invalid signature returns a typed error',
+  pilotInvalidResponse.status === 400 && pilotInvalid.error === 'pilot_token_invalid');
+
+const expiredPilotToken = await signPilotToken({
+  email: 'expired-teacher@example.com', cohort: 'pilot-200', grant_cents: 99, exp: pilotNow - 1,
+}, pilotSecret);
+const pilotExpiredResponse = await worker.fetch(mkReq('POST', `/api/pilot/claim?token=${encodeURIComponent(expiredPilotToken)}`, {}, pilotHeaders), pilotEnv);
+const pilotExpired = await pilotExpiredResponse.json();
+check('pilot claim: expired token returns a typed error without a grant',
+  pilotExpiredResponse.status === 410 && pilotExpired.error === 'pilot_token_expired' && pilotBalanceAfterReplay.balance_cents === 99);
+
 // ── /api/me (dashboard: balance + api key + usage, mock store) ────────────
 
 const me1 = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_111', {}), env)).json();
@@ -1991,6 +2054,21 @@ const topupReplayBody = await topupReplay.json();
 check('topup webhook: signed fulfillment applies once and event/session replay cannot double credit', topupWebhook.status === 200 && topupWebhookBody.ok === true && topupWebhookBody.applied === true && topupWebhookBody.user_id === 'user_111' && topupReplay.status === 200 && topupReplayBody.ok === true && topupReplayBody.applied === false && topupReplayBody.balance_cents === topupWebhookBody.balance_cents);
 
 // ── /api/clerk-webhook (user.created → $5 grant) ──────────────────────────
+
+const pilotWebhookEnv = { ...env, PILOT_MAGIC_LINK_SECRET: pilotSecret };
+const pilotWebhookToken = await signPilotToken({
+  email: 'webhook-pilot@example.com', cohort: 'pilot-200', grant_cents: 99, exp: pilotNow + 300,
+}, pilotSecret);
+const pilotWebhookPath = `/api/pilot/claim?token=${encodeURIComponent(pilotWebhookToken)}`;
+await worker.fetch(mkReq('GET', pilotWebhookPath, {}), pilotWebhookEnv);
+const pilotWh = await (await worker.fetch(mkReq('POST', '/api/clerk-webhook', {
+  type: 'user.created', data: { id: 'user_clerk_pilot', email_addresses: [{ email_address: 'webhook-pilot@example.com' }] },
+}), pilotWebhookEnv)).json();
+const pilotWhBalance = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_clerk_pilot', {}), pilotWebhookEnv)).json();
+const pilotWhReplay = await worker.fetch(mkReq('GET', pilotWebhookPath, {}), pilotWebhookEnv);
+check('webhook: pending pilot signup receives 99 cents instead of racing the legacy $5 grant',
+  pilotWh.ok === true && pilotWh.pilot_granted === true && pilotWh.balance_cents === 99 &&
+  pilotWhBalance.balance_cents === 99 && pilotWhReplay.status === 409);
 
 const wh1 = await (await worker.fetch(mkReq('POST', '/api/clerk-webhook', { type: 'user.created', data: { id: 'user_clerk1', email_addresses: [{ email_address: 'a@b.co' }] } }), env)).json();
 check('webhook: user.created grants $5', wh1.ok === true && wh1.granted === true && wh1.balance === '5.00' && wh1.balance_cents === 500);
