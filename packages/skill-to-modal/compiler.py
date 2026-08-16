@@ -878,23 +878,27 @@ def skill_owned_resource_manifest(profile: dict[str, Any]) -> list[dict[str, Any
         "version": resource["version"],
         "source_digests": source_digests,
     }
-    return [
-        {
-            "id": profile["skill_owned_resource"],
-            "slug": resource["slug"],
-            "version": resource["version"],
-            "digest": "sha256:" + sha256_text(canonical_json(digest_payload)),
-            "generated_files": sorted(
-                [
-                    *source_digests,
-                    "resources/__init__.py",
-                    *resource.get("package_init_files", []),
-                ]
-            ),
-            "covers_operations": sorted(resource["covers_operations"]),
-            "covers_artifact_kinds": sorted(resource["covers_artifact_kinds"]),
-        }
-    ]
+    reviewed_source_sha256 = resource.get("source_sha256")
+    if reviewed_source_sha256:
+        digest_payload["reviewed_source_sha256"] = reviewed_source_sha256
+    manifest_entry: dict[str, Any] = {
+        "id": profile["skill_owned_resource"],
+        "slug": resource["slug"],
+        "version": resource["version"],
+        "digest": "sha256:" + sha256_text(canonical_json(digest_payload)),
+        "generated_files": sorted(
+            [
+                *source_digests,
+                "resources/__init__.py",
+                *resource.get("package_init_files", []),
+            ]
+        ),
+        "covers_operations": sorted(resource["covers_operations"]),
+        "covers_artifact_kinds": sorted(resource["covers_artifact_kinds"]),
+    }
+    if reviewed_source_sha256:
+        manifest_entry["reviewed_source_sha256"] = reviewed_source_sha256
+    return [manifest_entry]
 
 
 def skill_owned_resource_files(profile: dict[str, Any]) -> dict[str, str | bytes]:

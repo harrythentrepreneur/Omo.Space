@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import uuid
+import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
@@ -25,6 +25,8 @@ LOCAL_ROOT = Path(__file__).resolve().parent
 IMAGE_ROOT = Path("/root/label_normalizer_canary")
 OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{1,199}$")
 RUN_RE = re.compile(r"^run-[0-9a-f]{32}$")
+CALL_RE = re.compile(r"^fc-[A-Za-z0-9_-]{2,197}$")
+TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{32,200}$")
 
 
 class WorkflowNotReady(RuntimeError):
@@ -64,9 +66,11 @@ def _owner(value: str) -> str:
     return value
 
 
-def _run_id(owner_id: str) -> str:
+def _run_id(owner_id: str, access_token: str) -> str:
     owner = _owner(owner_id)
-    digest = hashlib.sha256(("omo-label-normalizer-v1\0" + owner + "\0" + uuid.uuid4().hex).encode()).hexdigest()
+    if not isinstance(access_token, str) or not TOKEN_RE.fullmatch(access_token):
+        raise OwnerScopeError("ACCESS_TOKEN_INVALID")
+    digest = hashlib.sha256(("omo-label-normalizer-v1\0" + owner + "\0" + access_token).encode()).hexdigest()
     return "run-" + digest[:32]
 
 
@@ -133,18 +137,35 @@ def create_fastapi_app(
     *,
     ready_override: bool | None = None,
 ) -> Any:
-    from fastapi import Body, FastAPI, Header, HTTPException
+    from fastapi import Body, FastAPI, Header, HTTPException, Query
     from fastapi.responses import JSONResponse
     from jsonschema import ValidationError
 
     web = FastAPI(title="label-normalizer-canary", version=PROFILE_VERSION)
-    runs: dict[str, dict[str, str]] = {}
 
     def default_spawn(envelope: dict[str, Any]) -> str:
         return run_workflow.spawn(envelope).object_id
 
     def default_lookup(call_id: str) -> dict[str, Any]:
         return modal.FunctionCall.from_id(call_id).get(timeout=0)
+
+    def verify_poll_identity(
+        run_id: str,
+        call_id: str,
+        access_token: str,
+        owner_header: str | None,
+    ) -> str:
+        try:
+            owner_id = _owner(owner_header or "")
+            if (
+                not RUN_RE.fullmatch(run_id)
+                or not CALL_RE.fullmatch(call_id)
+                or run_id != _run_id(owner_id, access_token)
+            ):
+                raise OwnerScopeError("RUN_OWNER_MISMATCH")
+            return owner_id
+        except OwnerScopeError as exc:
+            raise HTTPException(status_code=404, detail="run_not_found") from exc
 
     spawn = spawn_runner or default_spawn
     lookup = lookup_result or default_lookup
@@ -163,25 +184,27 @@ def create_fastapi_app(
         can_submit = state["can_submit"] if ready_override is None else ready_override
         if not can_submit:
             return JSONResponse({"status": "not_ready", "error": {"code": "WORKFLOW_NOT_READY", "blockers": state["blockers"]}}, status_code=503)
-        run_id = _run_id(owner_id)
+        access_token = secrets.token_urlsafe(32)
+        run_id = _run_id(owner_id, access_token)
         call_id = spawn({"input": body, "owner_id": owner_id, "run_id": run_id})
-        runs[run_id] = {"owner_id": owner_id, "call_id": call_id}
-        return {"run_id": run_id, "call_id": call_id, "status": "accepted", "result_url": f"/v1/runs/{run_id}"}
+        return {
+            "run_id": run_id,
+            "call_id": call_id,
+            "status": "accepted",
+            "status_url": f"/v1/runs/{run_id}/status?call_id={call_id}&access_token={access_token}",
+            "result_url": f"/v1/runs/{run_id}?call_id={call_id}&access_token={access_token}",
+        }
 
     @web.get("/v1/runs/{run_id}")
     async def poll(
         run_id: str,
+        call_id: str = Query(..., min_length=4, max_length=200),
+        access_token: str = Query(..., min_length=32, max_length=200),
         x_omo_owner_id: str | None = Header(default=None, alias="X-Omo-Owner-Id"),
     ) -> Any:
+        verify_poll_identity(run_id, call_id, access_token, x_omo_owner_id)
         try:
-            owner_id = _owner(x_omo_owner_id or "")
-        except OwnerScopeError as exc:
-            raise HTTPException(status_code=404, detail="run_not_found") from exc
-        record = runs.get(run_id)
-        if not RUN_RE.fullmatch(run_id) or not record or record["owner_id"] != owner_id:
-            raise HTTPException(status_code=404, detail="run_not_found")
-        try:
-            result = lookup(record["call_id"])
+            result = lookup(call_id)
         except TimeoutError:
             return JSONResponse({"run_id": run_id, "status": "running"}, status_code=202)
         validate_instance(result, "output.json")
