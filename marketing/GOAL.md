@@ -32,6 +32,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
+- Builder breadth BUILDABLE #1: the six generic contract-evidence adapters (`semantic.grounded_numeric_copy`, `semantic.exact_field_projection`, `semantic.constraint_coverage`, `semantic.policy_requirement_coverage`, `semantic.rule_based_classification`, `semantic.placeholder_glossary_enforcement`) are implemented as shape+promise selectors in `semantic_evidence_spec` plus `_<kind>_semantic_diff` evaluators and dispatcher branches in the generated runtime template (2026-08-16). Compiler suite 51/52 green (sole failure = pre-existing ffmpeg version gate); 5 new fixture-only tests cover right-needle replay, 10 distinct wrong-needle tokens, selector fail-closed without a reviewed contract, and an all-18-profile no-reclassification pin (0 new container drift measured). Nothing was committed for containers, pushed, deployed, or sent; Codex sol review was unavailable (OpenAI 401 in cron session) so verification is direct generated-runtime evidence.
 - State: production payment loop is LIVE (per the marketplace dev agent's session, 2026-08-12) — the additive Neon schema is applied (all 12 tables), the three live Worker secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, NEON_DATABASE_URL) are set, and a Woven checkout returned a real Stripe Checkout URL. The local release state now has a reversible 14-listing whitelist: the existing four listings, nine ready education tools, and the ready $5/run Skill.md loader; the coordinator still owns the production push.
 - Done: marketing plan (sol), payment-loop spec + pilot email, loop harness, payment-loop gap audit, fast signup-grant visibility, live secrets/routes, request-safe Neon access, 10/10 unauthenticated live canary, checkout orphan-session expiry, 24-listing honesty audit, four text-free phonics marketplace thumbnails, and 12 locally compiled/tested/priced PhonicsMaker workflow bundles.
 - Social-post skill proof: the validated `omo-social-media-post` Hermes skill is installed in the Omo profile with eight synthesized layouts, three exact custom themes, X/IG/FB presets, honest caption templates, and Codex/API `gpt-image-2` paths. Its first real X post is a visually verified 1600x900 Woven binary comparison under `research/social-assets/sample-posts/woven-whatsapp-keepsake/`; nothing was posted or sent.
@@ -195,15 +196,16 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-The compiler suite is now green and reproducible from git (46/47; the only
-failure is the pre-existing ffmpeg version environment gate). Resume builder
-breadth: implement the ranked BUILDABLE #1 — the six generic semantic
-contract-evidence adapters (`semantic.grounded_numeric_copy`,
-`semantic.exact_field_projection`, `semantic.constraint_coverage`,
-`semantic.policy_requirement_coverage`, `semantic.rule_based_classification`,
-`semantic.placeholder_glossary_enforcement`) as shape+promise selectors in
-`semantic_evidence_spec` plus `_<kind>_semantic_diff` evaluators in the
-generated executor and dispatcher entries, fixture-proven with the restored
-right-needle/wrong-needle pattern at zero provider cost. Separately, wait for
-Harry's explicit approvals on `japanese-modal-deploy-001`, the pilot magic-link
-deploy, and the social X identity gate; do not push from this profile.
+The compiler suite is green and reproducible from git (51/52; the only failure
+is the pre-existing ffmpeg version environment gate). BUILDABLE #1 (six generic
+semantic contract-evidence adapters) is implemented and fixture-proven; #2/#3
+(domain orchestrators, data-analysis routing) were completed in earlier rounds.
+Next: reconstruct the seven REAL semantic-blocked staged sources lost with /tmp
+(code-documentation, email-drafting, logo-design, privacy-policy-drafting,
+proposal-generation, ticket-triage, translation) as reviewed local contracts
+and fixture-run each through its matching new adapter (zero provider cost),
+then mark each resolved blocker HOSTED-or-typed in `research/one-shot-rounds.md`.
+Any provider proof after that is gated on Harry's explicit spend approval.
+Separately, wait for Harry's explicit approvals on `japanese-modal-deploy-001`,
+the pilot magic-link deploy, and the social X identity gate; the coordinator
+owns the loader/catalog/listing push; do not push from this profile.
