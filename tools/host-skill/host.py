@@ -51,6 +51,7 @@ OPTIONAL_COMPILER_TEST_REQUIREMENTS = {
     "test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png": (
         "hardening_fixture",
         "tabular_resource",
+        "chart_resource",
     ),
     "test_final_rerun_copy_fixtures_reconcile_claims_and_edit_pairs": (
         "hardening_fixture",
@@ -66,6 +67,7 @@ OPTIONAL_COMPILER_TEST_REQUIREMENTS = {
     ),
     "test_tabular_hosted_submit_run_result_executes_bounded_program_and_returns_artifact": (
         "tabular_resource",
+        "chart_resource",
     ),
     "test_generated_bundle_imports_public_fetch_and_tabular_modules_and_runs_offline": (
         "tabular_resource",
@@ -91,16 +93,29 @@ OPTIONAL_COMPILER_TEST_REQUIREMENTS = {
 }
 
 
-def _module_available(module_name: str) -> bool:
+def _module_available(module_name: str, root: Path = ROOT) -> bool:
+    original_path = sys.path[:]
     try:
-        importlib.import_module(module_name)
+        sys.path.insert(0, str(root))
+        importlib.invalidate_caches()
+        module = importlib.import_module(module_name)
     except ImportError:
         return False
+    finally:
+        sys.path[:] = original_path
+    if module_name.startswith("tools.render."):
+        origin = getattr(module, "__file__", None)
+        if not origin:
+            return False
+        try:
+            Path(origin).resolve().relative_to(root.resolve())
+        except ValueError:
+            return False
     return True
 
 
-def _resource_available(module_names: tuple[str, ...]) -> bool:
-    return any(_module_available(module_name) for module_name in module_names)
+def _resource_available(module_names: tuple[str, ...], root: Path) -> bool:
+    return any(_module_available(module_name, root) for module_name in module_names)
 
 
 def _compiler_prerequisite_available(name: str, root: Path) -> bool:
@@ -116,9 +131,13 @@ def _compiler_prerequisite_available(name: str, root: Path) -> bool:
             )
         )
     if name == "tabular_resource":
-        return _resource_available(("tools.render.tabular", "omo_tabular"))
+        return _resource_available(("tools.render.tabular", "omo_tabular"), root)
     if name == "video_resource":
-        return _resource_available(("tools.render.video", "omo_video_renderer"))
+        return _resource_available(("tools.render.video", "omo_video_renderer"), root)
+    if name == "chart_resource":
+        return _resource_available(("tools.render.charts", "omo_chart_renderer"), root) and _module_available(
+            "PIL", root
+        )
     raise ValueError(f"unknown compiler prerequisite: {name}")
 
 

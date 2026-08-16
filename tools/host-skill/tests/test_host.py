@@ -35,14 +35,22 @@ def test_compiler_gate_excludes_only_tests_without_their_prerequisites(
     ):
         (fixture_root / filename).write_text("{}", encoding="utf-8")
 
-    available_modules = {"tools.render.tabular", "tools.render.video"}
-    monkeypatch.setattr(
-        host,
-        "_module_available",
-        lambda module_name: module_name in available_modules,
-    )
+    available_modules = {
+        "tools.render.tabular",
+        "tools.render.video",
+        "tools.render.charts",
+        "PIL",
+    }
+    seen_roots: list[Path] = []
+
+    def fake_module_available(module_name: str, root: Path) -> bool:
+        seen_roots.append(root)
+        return module_name in available_modules
+
+    monkeypatch.setattr(host, "_module_available", fake_module_available)
 
     assert host.unavailable_compiler_test_names(tmp_path) == ()
+    assert seen_roots and all(root == tmp_path for root in seen_roots)
     assert "-k" not in host.compiler_gate_test_command(tmp_path)
 
     (fixture_root / "semantic-adapter-inputs.json").unlink()
@@ -65,7 +73,19 @@ def test_compiler_gate_excludes_only_tests_without_their_prerequisites(
     }
 
     (fixture_root / "hardening-final-rerun.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(host, "_module_available", lambda _module_name: False)
+    monkeypatch.setattr(
+        host,
+        "_module_available",
+        lambda module_name, _root: module_name
+        in {"tools.render.tabular", "tools.render.video", "PIL"},
+    )
+    chart_only = set(host.unavailable_compiler_test_names(tmp_path))
+    assert chart_only == {
+        "test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png",
+        "test_tabular_hosted_submit_run_result_executes_bounded_program_and_returns_artifact",
+    }
+
+    monkeypatch.setattr(host, "_module_available", lambda _module_name, _root: False)
     resource_only = set(host.unavailable_compiler_test_names(tmp_path))
     assert resource_only == {
         "test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png",
