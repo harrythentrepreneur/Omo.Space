@@ -52,6 +52,21 @@ SKILL_OWNED_RESOURCE_TEMPLATES: dict[str, dict[str, Any]] = {
         "package_init_files": [],
         "source_files": {},
     },
+    "deterministic_label_normalizer_v1": {
+        "slug": "label-normalizer-canary",
+        "execution_kind": "skill_builder",
+        "version": "1.0.0",
+        "template": "label-normalizer-canary",
+        "source_sha256": "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a",
+        "covers_operations": [
+            "label_normalizer.validate",
+            "label_normalizer.normalize",
+            "label_normalizer.fixture_contract",
+        ],
+        "covers_artifact_kinds": [],
+        "package_init_files": [],
+        "source_files": {},
+    },
     "japanese_procedural_sumi_e_v1": {
         "slug": "japanese-style-story-video",
         "execution_kind": "sample_media_pipeline",
@@ -6224,6 +6239,12 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
     if ready and execution_kind not in ALLOWED_EXECUTION_KINDS:
         raise ValueError("only allowlisted execution kinds may be ready")
     owned_resource = skill_owned_resource_template(effective_profile)
+    if (
+        owned_resource is not None
+        and owned_resource.get("source_sha256")
+        and owned_resource["source_sha256"] != source_hash
+    ):
+        raise ValueError("skill-owned resource source does not match reviewed canary")
     if ready and readiness["blockers"]:
         raise ValueError("ready profiles cannot retain readiness blockers")
     if ready and not effective_profile.get("live") and owned_resource is None:

@@ -1,0 +1,332 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "capabilities": [],
+  "cost_drivers": [
+    "Bounded CPU and memory for deterministic normalization",
+    "Strict fixture and negative contract tests",
+    "No provider calls or external effects"
+  ],
+  "execution_kind": "skill_builder",
+  "form": [
+    {
+      "field": "labels",
+      "widget": "textarea"
+    },
+    {
+      "field": "prefix",
+      "widget": "text"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "labels": [
+        "  Green Apple  ",
+        "green-apple",
+        "Class 2B"
+      ],
+      "prefix": "item"
+    },
+    "output": {
+      "duplicate_count": 1,
+      "input_count": 3,
+      "items": [
+        {
+          "duplicate_of": null,
+          "identifier": "ITEM_GREEN_APPLE",
+          "index": 0,
+          "original": "  Green Apple  "
+        },
+        {
+          "duplicate_of": 0,
+          "identifier": "ITEM_GREEN_APPLE",
+          "index": 1,
+          "original": "green-apple"
+        },
+        {
+          "duplicate_of": null,
+          "identifier": "ITEM_CLASS_2B",
+          "index": 2,
+          "original": "Class 2B"
+        }
+      ],
+      "unique_count": 2
+    }
+  },
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+      },
+      "prefix": {
+        "default": "ITEM",
+        "maxLength": 16,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9]+$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "labels"
+    ],
+    "type": "object"
+  },
+  "inputs": [
+    "labels: 1–50 bounded strings",
+    "prefix: optional ASCII identifier prefix"
+  ],
+  "marketplace": {
+    "catalog_managed": false,
+    "category": "ops",
+    "cover": null,
+    "demo_cap": "CPU-only deterministic canary; zero provider calls",
+    "deployment": {
+      "default_endpoint": "https://omo-space--cognition-label-normalizer-canary-api.modal.run",
+      "endpoint_env": "LABEL_NORMALIZER_CANARY_MODAL_URL"
+    },
+    "description": "Normalize a bounded list of human labels into deterministic uppercase identifiers, preserving order and reporting duplicates.",
+    "emoji": "🧪",
+    "example_in": "Green Apple · green-apple · Class 2B",
+    "example_out": [
+      "ITEM_GREEN_APPLE",
+      "ITEM_CLASS_2B",
+      "duplicate index evidence"
+    ],
+    "examples": [
+      {
+        "caption": "Exact deterministic normalization fixture",
+        "id": "label-normalizer-canary",
+        "input": {
+          "labels": [
+            "  Green Apple  ",
+            "green-apple",
+            "Class 2B"
+          ],
+          "prefix": "item"
+        },
+        "output_preview": "Three ordered identifiers with one duplicate.",
+        "title": "Label Normalizer Canary"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "labels: 1–50 bounded strings",
+      "prefix: optional ASCII identifier prefix"
+    ],
+    "maker": "Omo",
+    "maker_name": "Omo Studio",
+    "niche": "developer-tools",
+    "outputs": [
+      "ordered identifiers",
+      "duplicate indexes and counts"
+    ],
+    "phases": [
+      {
+        "id": "validate",
+        "label": "Validating bounded labels"
+      },
+      {
+        "id": "normalize",
+        "label": "Normalizing identifiers"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 0,
+    "price_own": 0,
+    "promise": "Normalize bounded labels into deterministic uppercase identifiers.",
+    "runtime_preference": "modal-hosted",
+    "slug": "label-normalizer-canary",
+    "tags": [
+      "deterministic",
+      "text",
+      "canary",
+      "testing"
+    ],
+    "title": "Label Normalizer Canary",
+    "ui": {
+      "fields": {
+        "labels": {
+          "rows": 8,
+          "widget": "textarea"
+        },
+        "prefix": {
+          "widget": "text"
+        }
+      },
+      "order": [
+        "labels",
+        "prefix"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-16"
+  },
+  "name": "label-normalizer-canary",
+  "negative_cases": [
+    {
+      "id": "empty-labels",
+      "input": {
+        "labels": []
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "invalid-label",
+      "input": {
+        "labels": [
+          "---"
+        ]
+      },
+      "reason": "INVALID_LABEL"
+    },
+    {
+      "id": "bad-prefix",
+      "input": {
+        "labels": [
+          "valid"
+        ],
+        "prefix": "bad prefix"
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "extra": true,
+        "labels": [
+          "valid"
+        ]
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ],
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "duplicate_count": {
+        "maximum": 49,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "input_count": {
+        "maximum": 50,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "duplicate_of": {
+              "maximum": 48,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "identifier": {
+              "pattern": "^[A-Z0-9]+_[A-Z0-9]+(?:_[A-Z0-9]+)*$",
+              "type": "string"
+            },
+            "index": {
+              "maximum": 49,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "original": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "index",
+            "original",
+            "identifier",
+            "duplicate_of"
+          ],
+          "type": "object"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+      },
+      "unique_count": {
+        "maximum": 50,
+        "minimum": 1,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "input_count",
+      "unique_count",
+      "duplicate_count"
+    ],
+    "type": "object"
+  },
+  "outputs": [
+    "ordered normalized identifiers",
+    "duplicate indexes and counts"
+  ],
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "deterministic_canary",
+    "estimates": [
+      {
+        "guard_cost_usd": 0.02,
+        "notes": [
+          "Fixed CPU-only deterministic canary; zero provider calls."
+        ],
+        "tier": "deterministic_canary",
+        "workflow": {
+          "steps": []
+        }
+      }
+    ],
+    "notes": [
+      "No provider, network, credential, subprocess, or persistent-storage access."
+    ],
+    "quote_status": "modeled_deterministic_canary",
+    "unpriced_costs": []
+  },
+  "prompts": {},
+  "readiness": {
+    "blockers": [],
+    "can_submit": true
+  },
+  "required_env_names": [],
+  "resources": {
+    "cpu": 0.25,
+    "max_containers": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 30
+  },
+  "runtime_preference": "modal-hosted",
+  "skill_owned_resource": "deterministic_label_normalizer_v1",
+  "slug": "label-normalizer-canary",
+  "steps": [
+    {
+      "id": "normalize",
+      "operation": "label_normalizer.normalize",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "version": "1.0.0"
+}

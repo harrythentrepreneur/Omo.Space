@@ -938,6 +938,8 @@ def direct_modal_canary(slug: str, profile_path: Path, timeout_seconds: int = 24
         "Modal-Key": token_id,
         "Modal-Secret": token_secret,
     }
+    if profile.get("skill_owned_resource"):
+        headers["X-Omo-Owner-Id"] = "omo-release-canary"
     preflight = urllib.request.Request(endpoint + "/openapi.json", headers=headers, method="GET")
     try:
         with urllib.request.urlopen(preflight, timeout=30) as response:
