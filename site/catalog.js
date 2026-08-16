@@ -1161,8 +1161,8 @@ window.OMO_CATALOG = [
     "maker": "de Mello",
     "makerName": "de Mello Studio",
     "version": "v1.1.0 · 2026-08-15",
-    "demoCap": "Ready hosted lane: bundled 10-second sample only",
-    "desc": "Turn the reviewed 10-second sample into a deterministic Japanese-style drawing animation. The hosted lane is deliberately pinned to sample-demello-10s until arbitrary-audio provider benchmarks and pre-spend controls pass. It loads the reviewed transcript, plans semantic ink-drawing beats, renders procedural sumi-e frames, then delivers a validated portrait MP4 with owner-scoped artifacts.",
+    "demoCap": "Hosted run: bundled 10-second sample → vertical ink-drawing MP4",
+    "desc": "Turn the bundled 10-second sample into a Japanese-style ink-drawing animation — a vertical MP4, ready to share. The hosted helper currently runs only with the bundled sample while wider audio support is tested; anything outside that scope comes back with a clear explanation instead of a broken result.",
     "cover": "covers/japanese-style-story-video.svg",
     "upvotes": 118,
     "inputs": [
@@ -1240,7 +1240,7 @@ window.OMO_CATALOG = [
     "makerName": "Woven Studio",
     "version": "v1.0.0 · 2026-08-11",
     "demoCap": "Hosted run: WhatsApp export ZIP or story fields to a beautiful PDF keepsake",
-    "desc": "Upload a WhatsApp export ZIP or share your story fields directly. Woven derives a factual relationship brief, writes a warm chaptered story, and delivers a beautiful PDF keepsake for $0.40. Markdown and the page plan remain available; unparseable or oversized ZIPs return typed blockers.",
+    "desc": "Upload a WhatsApp export ZIP or share your story fields directly. Woven reads the real moments, writes a warm chaptered story, and delivers a beautiful PDF keepsake for $0.40 — with the Markdown and page plan included. If a file can't be read or is too large, you get a clear explanation instead of a broken result.",
     "cover": "covers/woven-relationship-book-maker.svg",
     "images": [
       "covers/woven-2-chapters.webp",
@@ -1305,7 +1305,7 @@ window.OMO_CATALOG = [
     "category": "content",
     "cover": "covers/meta-ads-analyser.svg",
     "demoCap": "Hosted run: 3 ad variants + test plan",
-    "desc": "Give Omo verified product facts, the offer, audience, objective, tone, and proof points. The hosted Facebook Ads Copywriter returns three distinct ad angles with primary text, headlines, descriptions, calls to action, testing notes, and compliance flags without inventing claims.",
+    "desc": "Give Omo verified product facts, the offer, audience, objective, tone, and proof points. The hosted Facebook Ads Copywriter returns three distinct ad angles with primary text, headlines, descriptions, calls to action, testing notes, and compliance warnings — all grounded in the facts you provide.",
     "emoji": "📣",
     "exampleIn": "Northstar skillet · free shipping this week · busy home cooks · sales · warm",
     "exampleOut": [
@@ -4489,7 +4489,7 @@ window.OMO_CATALOG = [
     "category": "business",
     "cover": "covers/meta-ads-analyser.svg",
     "demoCap": "Hosted run: evidence-backed feedback themes and actions",
-    "desc": "Turn 3\u2013100 supplied customer comments into distinct themes, exact supporting quotes, priorities, and practical next actions while keeping embedded instructions untrusted and avoiding invented customer claims.",
+    "desc": "Turn 3–100 customer comments into clear themes with exact supporting quotes, priorities, and practical next actions — grounded only in what your customers actually said.",
     "emoji": "\ud83d\udd0e",
     "exampleIn": "Northstar Notes \u00b7 five customer comments \u00b7 product improvement",
     "exampleOut": [
@@ -7325,7 +7325,7 @@ window.OMO_CATALOG = [
       "chargeable": true,
       "active": true,
       "upvotes": 0,
-      "desc": "Submit one bounded SKILL.md plus an explicit machine-readable contract. Omo treats it as hostile text, builds the smallest reviewed profile, compiles it with the canonical compiler, validates one fixture, and prices the candidate from the canonical cost model. V1 makes no provider call, does not deploy the generated candidate, and does not claim semantic proof. Unsupported capabilities and unknown costs return typed blockers.",
+      "desc": "Submit one SKILL.md plus a machine-readable contract. Omo treats your file as data — it never executes it — then builds, compiles, and fixture-checks a hostable workflow and prices it per run. Current version: no provider calls, nothing is deployed automatically, and unsupported capabilities or unknown costs come back as clear, specific reasons.",
       "inputs": [
         "skill_md: required Markdown, 1–20,000 characters, treated as data and never executed",
         "name: optional display-name hint; source frontmatter remains the identity",
