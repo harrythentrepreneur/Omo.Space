@@ -66,8 +66,9 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Fixture baseline repair: the three semantic test fixtures (`semantic-adapter-real-runs.json`, `semantic-adapter-inputs.json`, `hardening-final-rerun.json`) were never tracked in git and were lost with /tmp, which made the committed compiler suite fail 15/47 on a fresh checkout. They are reconstructed as clearly-labeled DETERMINISTIC SYNTHETIC fixtures (same contract shapes, evidence kinds, and mutation needles; explicitly NOT recorded provider runs; provenance field + README) and committed, so the suite is reproducible from git: 46/47 pass, sole failure = `test_generated_video_binding_smoke_and_typed_domain_transitions`, the pre-existing ffmpeg 8.0.1-vs-8.1.2 environment gate documented since issue-63. Test env: /tmp/issue8-venv (pytest+jsonschema+modal+fastapi+pypdf+pillow+reportlab).
 - BATCH30 semantic-blocker reconstruction: the seven real `REAL_RUN_SEMANTIC_FAILED` staged sources lost with /tmp (code-documentation, email-drafting, logo-design, privacy-policy-drafting, proposal-generation, ticket-triage, translation) are reconstructed as reviewed local contracts in `packages/skill-to-modal/tests/fixtures/batch30-recovered-adapters.json` (provenance-labeled synthetic). All seven compile through the canonical compiler and the generated runtimes select exactly the matching `semantic.contract_evidence_adapters/v1` adapter (code-documentation & translation → constraint_coverage; email-drafting → exact_field_projection; logo-design → placeholder_glossary_enforcement; privacy-policy-drafting → policy_requirement_coverage; proposal-generation → grounded_numeric_copy; ticket-triage → rule_based_classification). Replay: 7/7 right needles pass, 7/7 wrong needles fail closed with typed markers; compiler suite 54/55 green (sole failure = pre-existing ffmpeg 8.0.1-vs-8.1.2 environment gate); zero provider calls or spend.
 - Storefront copy pass: all 14 `OMO_VISIBLE_SLUGS` listings were audited; the six worst buyer-facing strings (japanese-style-story-video desc+demoCap, woven, customer-feedback-theme-finder, facebook-ads-copywriter, skill-md-to-hosted-workflow) were rewritten into result-first human copy with every factual/price/honesty claim preserved (catalog.js only). `node --check` PASS, catalog parses as JSON (121 listings), `test_published_catalog` 1/1, diff clean. No deploy/push/send/spend.
+- Pilot-book slug finding (2026-08-16): the catalog's ONLY book-maker is `illustrated-decodable-story-maker` (cover + 6–21 illustrated pages + PDF promised). Verified locally: container exists (`containers/illustrated-decodable-story-maker/` with modal_app.py, tests, pricing-report), but `chargeable:false`, catalog state `Coming soon`/`active:false`, NO run-manifest in `site/run-manifests/`, NOT in `OMO_VISIBLE_SLUGS`, and its pricing report models `display_price_usd: 1.62` (8 image-gen steps + llm) — not $0.99. So the magic-link release's "exact active $0.99 PhonicsMaker book slug" is absent because the book workflow itself is NOT released, and its modeled floor ($1.62) conflicts with the pilot email's $0.99 promise; a price/scope decision on the pilot book (or a cheaper book path) sits with Harry, not the coordinator's slug hunt.
 - Next: (1) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (2) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (3) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (4) move Omo onto its own Stripe account; (5) rotate the live sk exposed in chat; (6) after Harry's explicit production approval, configure the reviewed live pilot-book slug, apply the additive pilot schema, set the magic-link secret, and deploy the Worker/static bridge; (7) run the 20 pilot canaries; (8) obtain Harry's explicit approval before any pilot email send.
-- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval. The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); the exact active $0.99 PhonicsMaker book slug is not identified and the local magic-link release is not deployed; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
+- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval (formally proposed as `semantic-recovery-provider-proof-001`). The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); the pilot-book slug blocker is now TYPED (see finding above: book is unreleased + modeled $1.62 floor vs the $0.99 email promise — needs Harry's price/scope call) and the local magic-link release is not deployed; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
 
 ## Metrics (live)
 
@@ -172,6 +173,23 @@ the three original capability-blocked candidates remain typed. Full evidence is
 `/tmp/batch-proof-2/real-runs.json`; no deploy, push, commit, catalog change, or
 production mutation occurred.
 
+### PROPOSAL — semantic-recovery-provider-proof-001 (awaiting Harry, opened 2026-08-16)
+
+Approve this exact spend action: run one bounded fresh-provider proof of the
+seven SEMANTIC-RECOVERED skills (code-documentation, email-drafting,
+logo-design, privacy-policy-drafting, proposal-generation, ticket-triage,
+translation) so each can be marked HOSTED on real evidence instead of fixture
+replay. Shape: 14 cases (2 per skill: right-needle contract + wrong-needle
+contract), hard-capped at exactly 14 OpenCode Go calls and USD 0.10 total,
+process-only loading of the already-authorized `OPENCODE_GO_API_KEY` (the same
+secret-loading pattern Harry approved in `batch30-sensitive-egress-001`), no
+retry, no print/persist of prompts, outputs, or credential material, and
+mode-0600 evidence written only under `/tmp/semantic-recovery-proof/`. The
+semantic layer is done (adapters 7/7 right + 7/7 wrong on recovered contracts;
+compiler suite 54/55). No deploy, push, commit, catalog change, external
+message, or other production mutation is included. Do not run before approval —
+this is the hard-stop boundary.
+
 ### PROPOSAL — semantic-adapter-provider-credential-001 (awaiting Harry)
 
 Approve this exact secret-loading action: internally source
@@ -206,12 +224,20 @@ deterministic synthetic fixtures, and replay 7/7 right + 7/7 wrong needles on
 the reconstructed BATCH30 contracts (compiler suite 54/55, only the pre-existing
 ffmpeg environment gate fails).
 
-Storefront copy audit completed (2026-08-16): the 14 visible listings' buyer-facing copy now reads result-first and human; remember to re-run the pass if a catalog regeneration rewrites generated listings. Next options, in priority order:
-1. Request Harry's explicit spend approval for one bounded fresh-provider proof
-   run (14 cases, capped at USD 0.10) of the seven reconstructed skills so each
-   can be marked HOSTED on real evidence, not just fixture replay.
-2. Wait for the coordinator push of the loader/catalog/listing and Harry's
+Storefront copy audit completed (2026-08-16). This tick (2026-08-16): formalized the provider-proof ask as PROPOSAL
+`semantic-recovery-provider-proof-001` and typed the pilot-book blocker (book
+unreleased, $1.62 modeled floor vs $0.99 email promise — Harry's price/scope
+call). Next options, in priority order:
+1. WAIT for Harry's explicit approval of `semantic-recovery-provider-proof-001`;
+   then run the 14-case USD 0.10-capped proof so the seven recovered skills can
+   be marked HOSTED on real evidence, not just fixture replay (hard stop before
+   approval — do not run).
+2. Surface the pilot-book price/scope conflict to Harry: the $0.99 book promise
+   has no released workflow (only `illustrated-decodable-story-maker` at a $1.62
+   modeled floor, fail-closed). Decide: reprice/re-scope the pilot book, or pick
+   a cheaper book path, or adjust the email promise before the coordinator binds
+   the slug.
+3. Wait for the coordinator push of the loader/catalog/listing and Harry's
    approvals for `japanese-modal-deploy-001`, the pilot magic-link deploy, and
    the social X identity gate; do not push from this profile.
-Any provider proof before approval is a hard stop; do not churn the semantic
-layer further this cycle.
+No churn this cycle beyond the two written artifacts.
