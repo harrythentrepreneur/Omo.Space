@@ -1276,6 +1276,153 @@ def test_http_repository_get_maps_404_to_none_and_rejects_leaky_detail(monkeypat
         raise AssertionError("leaky detail schema should fail closed")
 
 
+def test_http_repository_resume_merged_release_posts_only_exact_merge_sha(monkeypatch) -> None:
+    process = load_process_submissions()
+    calls: list[dict] = []
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def read(self):
+            return json.dumps({
+                "ok": True,
+                "id": "sub_12345678",
+                "status": "ready_for_deploy",
+            }).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        calls.append({
+            "url": request.full_url,
+            "method": request.get_method(),
+            "headers": dict(request.header_items()),
+            "body": request.data.decode("utf-8"),
+            "timeout": timeout,
+        })
+        return Response()
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", fake_urlopen)
+    repo = process.HttpSubmissionRepository("https://omo.space", "secret-token")
+    merge_sha = "c" * 40
+
+    repo.resume_merged_release("sub_12345678", merge_sha)
+
+    assert calls[0]["url"] == "https://omo.space/api/internal/submissions/sub_12345678/resume-merged-release"
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["headers"]["Authorization"] == "Bearer secret-token"
+    assert json.loads(calls[0]["body"]) == {"merge_sha": merge_sha}
+    assert calls[0]["timeout"] == process.HTTP_TIMEOUT_SECONDS
+
+    try:
+        repo.resume_merged_release("sub_12345678", "bad")
+    except ValueError as error:
+        assert "merge SHA" in str(error)
+    else:
+        raise AssertionError("invalid merge SHA should fail before the request")
+
+
+def test_http_repository_resume_merged_release_rejects_invalid_success_envelope(monkeypatch) -> None:
+    process = load_process_submissions()
+
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def read(self):
+            return json.dumps({
+                "ok": True,
+                "id": "sub_other0000",
+                "status": "ready_for_deploy",
+            }).encode("utf-8")
+
+    monkeypatch.setattr(process.urllib.request, "urlopen", lambda request, timeout: Response())
+    repo = process.HttpSubmissionRepository("https://omo.space", "secret-token")
+
+    with pytest.raises(RuntimeError, match="recovery was rejected"):
+        repo.resume_merged_release("sub_12345678", "c" * 40)
+
+
+def test_main_resume_merged_release_derives_sha_from_authoritative_detail(monkeypatch) -> None:
+    process = load_process_submissions()
+    submission_id = "sub_12345678"
+    merge_sha = "c" * 40
+    calls: list[tuple[str, str]] = []
+    outputs: list[dict] = []
+
+    class Repository:
+        def get(self, requested_id):
+            assert requested_id == submission_id
+            return {
+                "id": submission_id,
+                "status": "failed",
+                "release_phase": "merged_verified",
+                "release_merge_sha": merge_sha,
+            }
+        def resume_merged_release(self, requested_id, requested_sha):
+            calls.append((requested_id, requested_sha))
+        def close(self):
+            return None
+
+    class Args:
+        dry_run = None
+        deploy = False
+        prepare_release = False
+        id = None
+        export_review = None
+        review_dir = None
+        mark_deployed = None
+        merge_verified_release = None
+        resume_merged_release = submission_id
+        deploy_merged_release = None
+
+    monkeypatch.setattr(process, "parse_args", lambda: Args())
+    monkeypatch.setattr(process, "repository_from_env", lambda _environ: Repository())
+    monkeypatch.setattr(process, "output", outputs.append)
+
+    assert process.main() == 0
+    assert calls == [(submission_id, merge_sha)]
+    assert outputs == [{"id": submission_id, "status": "ready_for_deploy", "release_phase": "merged_verified"}]
+
+
+@pytest.mark.parametrize("row", [
+    {"status": "ready_for_deploy", "release_phase": "merged_verified", "release_merge_sha": "c" * 40},
+    {"status": "failed", "release_phase": "pr_open", "release_merge_sha": "c" * 40},
+    {"status": "failed", "release_phase": "merged_verified", "release_merge_sha": "bad"},
+])
+def test_main_resume_merged_release_rejects_invalid_authoritative_state(monkeypatch, row) -> None:
+    process = load_process_submissions()
+    submission_id = "sub_12345678"
+    calls: list[tuple[str, str]] = []
+
+    class Repository:
+        def get(self, requested_id):
+            assert requested_id == submission_id
+            return {"id": submission_id, **row}
+        def resume_merged_release(self, requested_id, requested_sha):
+            calls.append((requested_id, requested_sha))
+        def close(self):
+            return None
+
+    class Args:
+        dry_run = None
+        deploy = False
+        prepare_release = False
+        id = None
+        export_review = None
+        review_dir = None
+        mark_deployed = None
+        merge_verified_release = None
+        resume_merged_release = submission_id
+        deploy_merged_release = None
+
+    monkeypatch.setattr(process, "parse_args", lambda: Args())
+    monkeypatch.setattr(process, "repository_from_env", lambda _environ: Repository())
+
+    with pytest.raises(RuntimeError, match="not a failed merge-verified release"):
+        process.main()
+    assert calls == []
+
+
 def test_claim_sql_is_atomic_and_returns_only_processor_fields() -> None:
     process = load_process_submissions()
 
