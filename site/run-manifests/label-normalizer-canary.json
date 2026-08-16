@@ -1,0 +1,149 @@
+{
+  "chargeable": true,
+  "container_slug": "label-normalizer-canary",
+  "examples": [
+    {
+      "caption": "Exact deterministic normalization fixture",
+      "id": "label-normalizer-canary",
+      "input": {
+        "labels": [
+          "  Green Apple  ",
+          "green-apple",
+          "Class 2B"
+        ],
+        "prefix": "item"
+      },
+      "output_preview": "Three ordered identifiers with one duplicate.",
+      "title": "Label Normalizer Canary"
+    }
+  ],
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+      },
+      "prefix": {
+        "default": "ITEM",
+        "maxLength": 16,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9]+$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "labels"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/label-normalizer-canary/schemas/input.json",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "duplicate_count": {
+        "maximum": 49,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "input_count": {
+        "maximum": 50,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "items": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "duplicate_of": {
+              "maximum": 48,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "identifier": {
+              "pattern": "^[A-Z0-9]+_[A-Z0-9]+(?:_[A-Z0-9]+)*$",
+              "type": "string"
+            },
+            "index": {
+              "maximum": 49,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "original": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "index",
+            "original",
+            "identifier",
+            "duplicate_of"
+          ],
+          "type": "object"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+      },
+      "unique_count": {
+        "maximum": 50,
+        "minimum": 1,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "input_count",
+      "unique_count",
+      "duplicate_count"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/label-normalizer-canary/schemas/output.json",
+  "phases": [
+    {
+      "id": "validate",
+      "label": "Validating bounded labels"
+    },
+    {
+      "id": "normalize",
+      "label": "Normalizing identifiers"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "label-normalizer-canary",
+  "ui": {
+    "fields": {
+      "labels": {
+        "rows": 8,
+        "widget": "textarea"
+      },
+      "prefix": {
+        "widget": "text"
+      }
+    },
+    "order": [
+      "labels",
+      "prefix"
+    ]
+  }
+}

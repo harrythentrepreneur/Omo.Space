@@ -1,0 +1,75 @@
+{
+  "happy_path": {
+    "input": {
+      "labels": [
+        "  Green Apple  ",
+        "green-apple",
+        "Class 2B"
+      ],
+      "prefix": "item"
+    },
+    "output": {
+      "duplicate_count": 1,
+      "input_count": 3,
+      "items": [
+        {
+          "duplicate_of": null,
+          "identifier": "ITEM_GREEN_APPLE",
+          "index": 0,
+          "original": "  Green Apple  "
+        },
+        {
+          "duplicate_of": 0,
+          "identifier": "ITEM_GREEN_APPLE",
+          "index": 1,
+          "original": "green-apple"
+        },
+        {
+          "duplicate_of": null,
+          "identifier": "ITEM_CLASS_2B",
+          "index": 2,
+          "original": "Class 2B"
+        }
+      ],
+      "unique_count": 2
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "empty-labels",
+      "input": {
+        "labels": []
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "invalid-label",
+      "input": {
+        "labels": [
+          "---"
+        ]
+      },
+      "reason": "INVALID_LABEL"
+    },
+    {
+      "id": "bad-prefix",
+      "input": {
+        "labels": [
+          "valid"
+        ],
+        "prefix": "bad prefix"
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "extra": true,
+        "labels": [
+          "valid"
+        ]
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ]
+}

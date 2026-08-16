@@ -1,0 +1,31 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "Bounded CPU and memory for deterministic normalization",
+    "Strict fixture and negative contract tests",
+    "No provider calls or external effects"
+  ],
+  "description": "Normalize a bounded list of human labels into deterministic uppercase identifiers, preserving order and reporting duplicates. Designed as a safe end-to-end Omo hosting canary with exact fixture outputs and no provider requirements.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "label-normalizer-canary",
+  "parsed_workflow_steps": [],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "normalize",
+      "operation": "label_normalizer.normalize",
+      "provider": "local",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "label-normalizer-canary",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a"
+  },
+  "unresolved": []
+}
