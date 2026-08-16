@@ -66,9 +66,9 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Fixture baseline repair: the three semantic test fixtures (`semantic-adapter-real-runs.json`, `semantic-adapter-inputs.json`, `hardening-final-rerun.json`) were never tracked in git and were lost with /tmp, which made the committed compiler suite fail 15/47 on a fresh checkout. They are reconstructed as clearly-labeled DETERMINISTIC SYNTHETIC fixtures (same contract shapes, evidence kinds, and mutation needles; explicitly NOT recorded provider runs; provenance field + README) and committed, so the suite is reproducible from git: 46/47 pass, sole failure = `test_generated_video_binding_smoke_and_typed_domain_transitions`, the pre-existing ffmpeg 8.0.1-vs-8.1.2 environment gate documented since issue-63. Test env: /tmp/issue8-venv (pytest+jsonschema+modal+fastapi+pypdf+pillow+reportlab).
 - BATCH30 semantic-blocker reconstruction: the seven real `REAL_RUN_SEMANTIC_FAILED` staged sources lost with /tmp (code-documentation, email-drafting, logo-design, privacy-policy-drafting, proposal-generation, ticket-triage, translation) are reconstructed as reviewed local contracts in `packages/skill-to-modal/tests/fixtures/batch30-recovered-adapters.json` (provenance-labeled synthetic). All seven compile through the canonical compiler and the generated runtimes select exactly the matching `semantic.contract_evidence_adapters/v1` adapter (code-documentation & translation → constraint_coverage; email-drafting → exact_field_projection; logo-design → placeholder_glossary_enforcement; privacy-policy-drafting → policy_requirement_coverage; proposal-generation → grounded_numeric_copy; ticket-triage → rule_based_classification). Replay: 7/7 right needles pass, 7/7 wrong needles fail closed with typed markers; compiler suite 54/55 green (sole failure = pre-existing ffmpeg 8.0.1-vs-8.1.2 environment gate); zero provider calls or spend.
 - Storefront copy pass: all 14 `OMO_VISIBLE_SLUGS` listings were audited; the six worst buyer-facing strings (japanese-style-story-video desc+demoCap, woven, customer-feedback-theme-finder, facebook-ads-copywriter, skill-md-to-hosted-workflow) were rewritten into result-first human copy with every factual/price/honesty claim preserved (catalog.js only). `node --check` PASS, catalog parses as JSON (121 listings), `test_published_catalog` 1/1, diff clean. No deploy/push/send/spend.
-- Pilot-book slug finding (2026-08-16): the catalog's ONLY book-maker is `illustrated-decodable-story-maker` (cover + 6–21 illustrated pages + PDF promised). Verified locally: container exists (`containers/illustrated-decodable-story-maker/` with modal_app.py, tests, pricing-report), but `chargeable:false`, catalog state `Coming soon`/`active:false`, NO run-manifest in `site/run-manifests/`, NOT in `OMO_VISIBLE_SLUGS`, and its pricing report models `display_price_usd: 1.62` (8 image-gen steps + llm) — not $0.99. So the magic-link release's "exact active $0.99 PhonicsMaker book slug" is absent because the book workflow itself is NOT released, and its modeled floor ($1.62) conflicts with the pilot email's $0.99 promise; a price/scope decision on the pilot book (or a cheaper book path) sits with Harry, not the coordinator's slug hunt.
-- Next: (1) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (2) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (3) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (4) move Omo onto its own Stripe account; (5) rotate the live sk exposed in chat; (6) after Harry's explicit production approval, configure the reviewed live pilot-book slug, apply the additive pilot schema, set the magic-link secret, and deploy the Worker/static bridge; (7) run the 20 pilot canaries; (8) obtain Harry's explicit approval before any pilot email send.
-- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval (formally proposed as `semantic-recovery-provider-proof-001`). The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); the pilot-book slug blocker is now TYPED (see finding above: book is unreleased + modeled $1.62 floor vs the $0.99 email promise — needs Harry's price/scope call) and the local magic-link release is not deployed; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
+- Pilot-book slug finding SUPERSEDED (2026-08-16): the previous tick typed the pilot-book blocker as "no released $0.99 book; the only book-maker is illustrated-decodable-story-maker at a $1.62 floor; a price/scope decision sits with Harry." Live verification THIS tick proves that finding WRONG: `decodable-book-maker` v1.0.0 @ $0.99/run EXISTS and is OSS-published (live manifest from github.com/omo-space/skills: hosted_run_price_usd 0.99, source_sha256 d01ae61d577c1555b1b32761b15ea7c08c4c5fe1203756d18132a77bcb8785d7; reviewed contract = 5 cumulative phonics stages, theme, optional child_name -> multi-page PDF book + decodability report + signed artifact URL), and Harry ALREADY settled the price/scope by binding `PILOT_BOOK_BUILDER_PATH="/run.html?slug=decodable-book-maker"` with `PILOT_GRANT_CENTS="99"` in `site/deploy/wrangler.toml` (commit 44879e2, 2026-08-16 04:33Z, an ancestor of this loop's own commit 35b514f). The genuine gap is the LOCAL HOSTED RUNTIME: no profile in packages/skill-to-modal/profiles/, no containers/decodable-book-maker/, no run-manifest, no catalog row, absent from OMO_VISIBLE_SLUGS (verified via git log --all and catalog grep). The OSS publish came from a different checkout; this repo has no decodable-book-maker source of truth. So the typed blocker changes from "Harry price/scope call" to "reconstruct the local hosted runtime from the published reviewed contract (fetch OSS SKILL.md/manifest, author the profile, compile fixture-only) — no spend, no deploy, no Harry needed for the local build."
+- Next: (1) reconstruct the local decodable-book-maker runtime (fetch the published OSS SKILL.md + manifest as the reviewed contract, author packages/skill-to-modal/profiles/decodable-book-maker.json, compile + fixture-test through the canonical compiler — a multi-step build, so split across ticks; deployment of it still needs the coordinator push and Harry's live-change approval); (2) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (3) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (4) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (5) move Omo onto its own Stripe account; (6) rotate the live sk exposed in chat; (7) after Harry's explicit production approval, set the magic-link secret and deploy the Worker/static bridge (the slug is now bound, so the remaining pilot-deploy steps are approval-gated, not slug-hunted); (8) run the 20 pilot canaries; (9) obtain Harry's explicit approval before any pilot email send.
+- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval (formally proposed as `semantic-recovery-provider-proof-001`). The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); pilot-book slug is RESOLVED (bound to decodable-book-maker @ $0.99) but its LOCAL HOSTED RUNTIME is missing and must be rebuilt from the published contract; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
 
 ## Metrics (live)
 
@@ -216,28 +216,29 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-BUILDABLE #1 is complete and now proven against all seven real semantic-blocked
-skills: the generic adapters (grounded_numeric_copy, exact_field_projection,
-constraint_coverage, policy_requirement_coverage, rule_based_classification,
-placeholder_glossary_enforcement) are committed in the compiler, verified by
-deterministic synthetic fixtures, and replay 7/7 right + 7/7 wrong needles on
-the reconstructed BATCH30 contracts (compiler suite 54/55, only the pre-existing
-ffmpeg environment gate fails).
+BUILDABLE #1 is complete (generic semantic adapters, 7/7 right + 7/7 wrong needles,
+compiler 54/55, sole pre-existing ffmpeg env gate).
 
-Storefront copy audit completed (2026-08-16). This tick (2026-08-16): formalized the provider-proof ask as PROPOSAL
-`semantic-recovery-provider-proof-001` and typed the pilot-book blocker (book
-unreleased, $1.62 modeled floor vs $0.99 email promise — Harry's price/scope
-call). Next options, in priority order:
-1. WAIT for Harry's explicit approval of `semantic-recovery-provider-proof-001`;
-   then run the 14-case USD 0.10-capped proof so the seven recovered skills can
-   be marked HOSTED on real evidence, not just fixture replay (hard stop before
-   approval — do not run).
-2. Surface the pilot-book price/scope conflict to Harry: the $0.99 book promise
-   has no released workflow (only `illustrated-decodable-story-maker` at a $1.62
-   modeled floor, fail-closed). Decide: reprice/re-scope the pilot book, or pick
-   a cheaper book path, or adjust the email promise before the coordinator binds
-   the slug.
+PILOT-BOOK CORRECTION (this tick, 2026-08-16): the previous tick's "no $0.99 book
+exists / Harry must decide price" finding was WRONG. Verified live:
+`decodable-book-maker` v1.0.0 @ $0.99/run is published on github.com/omo-space/skills
+(manifest fetched: hosted_run_price_usd 0.99, source_sha256 d01ae61d…), and Harry
+already bound `PILOT_BOOK_BUILDER_PATH="/run.html?slug=decodable-book-maker"` +
+`PILOT_GRANT_CENTS="99"` in wrangler.toml (commit 44879e2, before the last tick).
+The real gap is the MISSING LOCAL HOSTED RUNTIME (no profile/container/run-manifest/
+catalog row in this repo on any branch). Priority order:
+1. BUILD (no Harry needed, no spend, no deploy): reconstruct the local
+   decodable-book-maker runtime — fetch the published OSS SKILL.md + manifest as the
+   reviewed contract, author packages/skill-to-modal/profiles/decodable-book-maker.json
+   (model it on decodable-sentence-creator.json's shape), compile + fixture-test
+   through the canonical compiler; a multi-step build to split across ticks (fetch
+   contract -> author profile -> compile -> fixture-run -> pricing-report ->
+   run-manifest/catalog row). Deployment of it still needs the coordinator push and
+   Harry's live-change approval, separately.
+2. WAIT for Harry's explicit approval of `semantic-recovery-provider-proof-001`;
+   then run the 14-case USD 0.10-capped proof (hard stop before approval — do not run).
 3. Wait for the coordinator push of the loader/catalog/listing and Harry's
-   approvals for `japanese-modal-deploy-001`, the pilot magic-link deploy, and
-   the social X identity gate; do not push from this profile.
-No churn this cycle beyond the two written artifacts.
+   approvals for `japanese-modal-deploy-001`, the pilot magic-link deploy, and the
+   social X identity gate; do not push from this profile.
+No churn this cycle; the single concrete action was the live-verified correction of
+the pilot-book blocker.
