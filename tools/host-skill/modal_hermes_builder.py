@@ -21,6 +21,7 @@ SECRET_NAME = "omo-hermes-builder"
 DISPATCH_STORE = "omo-hermes-builder-dispatches"
 HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
+PYTEST_VERSION = "8.4.0"
 DEFAULT_MODEL = "minimax-m2.7"
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "88df29188fe94d9b8c942e6b3936a7f7d6aade2d"
@@ -58,6 +59,7 @@ image = (
         f"hermes-agent=={HERMES_VERSION}",
         "anthropic==0.87.0",
         f"modal=={MODAL_VERSION}",
+        f"pytest=={PYTEST_VERSION}",
     )
 )
 dispatches = modal.Dict.from_name(DISPATCH_STORE, create_if_missing=True)
