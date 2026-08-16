@@ -32,6 +32,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
+- CANDIDATE VOCAB DRAFT DONE (2026-08-16T17:2xZ, this tick): upstream re-checked — origin/main 0 behind / 18 ahead (all 18 ours), no new coordinator commits since the 16:51Z audit (only a deleted already-merged remote branch feat/issue-84-image-style-system). To cut the #1 gate cost, the loop drafted a fully machine-validated CANDIDATE vocabulary at `research/candidate-vocabulary.json` (+ review doc `research/candidate-vocabulary-draft.md` + validator `research/validate-candidate-vocabulary.py`): 92 sight words = the canonical Dolch pre-primer+primer lists fetched LIVE from Wikipedia this tick (diff-verified 0 extra / 0 missing), and 50/96/132/186/261 cumulative stage words from standard short-vowel CVC word families + common digraphs (sh/ch/th/ck/wh) — no blends, no r-controlled, no long vowels, exactly one vowel per word, no duplicates, all lowercase, cumulative property PASS. `provenance: candidate-unreviewed` so the compiler selector rejects it fail-closed (schema_only) — it CANNOT bind or flip can_submit by accident; only Harry's explicit `approve candidate vocabulary` reply lets the loop flip to reviewed, bind, regen, and flip. NOT PhonicsMaker's proprietary bank (unreachable); Harry's own bank still takes priority per the template. Metrics unchanged 0/0/0. No spend, send, deploy, push, or secret access.
 - WAITING + FULL REF AUDIT (2026-08-16T16:51Z, this tick): fetched all refs and dated every remote branch — origin/main 0 behind / 17 ahead (all 17 ours: 15 prior + merge c97d43f + reconcile fef8f38 from the 16:02Z tick); the newest coordinator commit anywhere is fix/resume-merged-release (15:44Z), already merged and verified last tick; ancestry checks confirm clerk-login-button-state (Aug-12), issue-81-trusted-release, and the label-normalizer-canary release branch are all ancestors of HEAD — nothing unmerged, no new Harry/coordinator input since 16:02Z. Clean tree. All remaining gates Harry/coordinator-owned: reviewed vocabulary content, coordinator pull of our 17 commits, approvals (semantic-recovery-provider-proof-001, japanese-modal-deploy-001, magic-link deploy, social X gate). Metrics unchanged 0/0/0. No spend, send, deploy, push, or secret access.
 - VERIFY + WAITING (2026-08-16T15:30Z, this tick): upstream re-verified unchanged since the 15:04Z hunt — `git fetch` 0 behind / 13 ahead (all 13 ours), no new Harry/coordinator commits. Integrity check on our committed pilot-book chain: profile, generated container, template, hunt evidence all tracked; the vocabulary fixture IS committed at `packages/skill-to-modal/tests/fixtures/vocabulary-book-normalizer.json` (5f0a556 — resolved a false alarm from a wrong-path lookup). Fresh evidence: `pytest -k vocabulary` = 3 passed / 56 deselected from the committed tree, so the recorded 57/58 compiler-suite claim's vocabulary portion still holds. No new buildable exists; every remaining gate is Harry/coordinator-owned. Metrics unchanged 0/0/0. No spend, send, deploy, push, or secret access.
 - VOCAB-SOURCE-HUNT DONE (2026-08-16T15:0xZ, this tick): the "no reviewed word-bank exists" blocker is now verified at CONTENT level across all 102 folders of omo-space/skills (deep clone + grep of every SKILL.md: zero static word banks; the 8 vocabulary-mentioning skills are all procedural generators; decodable-book-maker/SKILL.md explicitly demands a "compiler-owned vocabulary" + "reviewed sight-word list" and ships neither — the contract expects the platform to own it). GitHub public search for `phonicsmaker` repos: total_count 0. phonicsmaker.com is unreachable behind a Vercel Security Checkpoint (curl 429, r.jina.ai returns the checkpoint shell, real browser lands on an empty checkpoint, no subdomains resolve, phonicsmaker.vercel.app 404). Web archives/search engines all rate-limited or bot-walled this tick (wayback 429, DDG/Bing shells, Google 403). Evidence and a re-check ritual are recorded in `research/decodable-vocabulary-source-hunt.md`. TWO LOOP CORRECTIONS: (1) the "web tooling unavailable" claim applies ONLY to the Firecrawl `web_search`/`web_extract` backend — raw curl (raw.githubusercontent 200) and the browser tool DO work in cron, so a named-URL fetch is now provably buildable; (2) Harry's unblock cost dropped: paste the word bank his own PhonicsMaker tooling trusts into the template, OR name any URL and the loop will fetch it via curl, bind it as reviewed_spec.vocabulary, regenerate, and flip can_submit (machinery already done, fixture-proven 3/3). No spend, send, deploy, push, or secret access.
@@ -256,7 +257,7 @@ Priority order (updated after the origin/main reconciliation and the vocab sourc
    own contract demands a "compiler-owned vocabulary", i.e. it expects the
    platform to own the lists), GitHub public `phonicsmaker` repos = 0, and
    phonicsmaker.com is unreachable behind a Vercel Security Checkpoint (curl
-   429, browser checkpoint, no subdomains). Two unblocks for Harry: (a)
+   429, browser checkpoint, no subdomains). Three unblocks for Harry: (a)
    fastest — paste the word bank his own PhonicsMaker decodable-books tooling
    already trusts into marketing/pilot-book-vocabulary-template.md; (b) name
    any public URL and the loop will fetch it via curl, bind it as
@@ -265,7 +266,14 @@ Priority order (updated after the origin/main reconciliation and the vocab sourc
    container, re-run the whole_book_vocabulary fixture needles against the
    real lists, and flip can_submit — the machinery needs no further work and
    a named-URL fetch works from cron (only the Firecrawl web_search backend is
-   unavailable; raw curl and the browser tool both work).
+   unavailable; raw curl and the browser tool both work); (c) NEW this tick —
+   review and reply `approve candidate vocabulary` (after any edits) to adopt
+   the machine-validated CANDIDATE at `research/candidate-vocabulary.json`
+   (92 sight words = live-fetched canonical Dolch pre-primer+primer, diff-
+   verified; 50/96/132/186/261 cumulative CVC+digraph stage words; provenance
+   `candidate-unreviewed` so it is fail-closed and cannot bind by accident;
+   validator `research/validate-candidate-vocabulary.py` PASS; review doc
+   `research/candidate-vocabulary-draft.md`).
 2. COORDINATOR/HARRY: pull or merge our local branch (12 commits ahead of
    origin/main's merge base, reconciled on top of origin/main) so the
    decodable-book-maker runtime, vocabulary normalizer, fixtures, and

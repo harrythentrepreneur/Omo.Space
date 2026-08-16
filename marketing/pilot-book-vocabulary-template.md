@@ -85,5 +85,12 @@ scope). Copy the word bank your decodable-books tooling already trusts into
 the five arrays, bump the sight list, and reply — that IS the reviewed source.
 Alternative: name the existing PhonicsMaker resource that holds these lists and
 we adopt it verbatim as `provenance: reviewed`.
+**Time-saver option (2026-08-16):** a fully machine-validated CANDIDATE draft
+(sourced from the canonical Dolch pre-primer+primer lists and standard CVC
+word families, `provenance: candidate-unreviewed` so it is fail-closed and
+cannot bind by accident) is ready at `research/candidate-vocabulary.json` with
+the review doc at `research/candidate-vocabulary-draft.md`. Reply `approve
+candidate vocabulary` to adopt it (after any edits you make), and the loop
+binds/regenerates/flips. Your own bank still takes priority if you have one.
 
 Status: AWAITING HARRY (2026-08-16). No words in this file are real content.
