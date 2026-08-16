@@ -16,11 +16,15 @@ def load_builder():
     return module
 
 
-def test_modal_image_includes_pinned_pytest_for_trusted_gates() -> None:
+def test_modal_image_includes_trusted_gate_dependencies() -> None:
     builder = load_builder()
     source = SCRIPT.read_text(encoding="utf-8")
     assert builder.PYTEST_VERSION == "8.4.0"
+    assert builder.JSONSCHEMA_VERSION == "4.26.0"
+    assert builder.FASTAPI_VERSION == "0.109.0"
     assert 'f"pytest=={PYTEST_VERSION}"' in source
+    assert 'f"jsonschema=={JSONSCHEMA_VERSION}"' in source
+    assert 'f"fastapi=={FASTAPI_VERSION}"' in source
 
 
 def test_job_identity_is_exact_and_source_scoped() -> None:
