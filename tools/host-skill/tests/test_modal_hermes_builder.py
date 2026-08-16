@@ -16,6 +16,13 @@ def load_builder():
     return module
 
 
+def test_modal_image_includes_pinned_pytest_for_trusted_gates() -> None:
+    builder = load_builder()
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert builder.PYTEST_VERSION == "8.4.0"
+    assert 'f"pytest=={PYTEST_VERSION}"' in source
+
+
 def test_job_identity_is_exact_and_source_scoped() -> None:
     builder = load_builder()
     submission_id = "sub_abcdefgh12345678"
