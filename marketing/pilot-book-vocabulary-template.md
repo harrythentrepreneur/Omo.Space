@@ -89,8 +89,15 @@ we adopt it verbatim as `provenance: reviewed`.
 (sourced from the canonical Dolch pre-primer+primer lists and standard CVC
 word families, `provenance: candidate-unreviewed` so it is fail-closed and
 cannot bind by accident) is ready at `research/candidate-vocabulary.json` with
-the review doc at `research/candidate-vocabulary-draft.md`. Reply `approve
-candidate vocabulary` to adopt it (after any edits you make), and the loop
-binds/regenerates/flips. Your own bank still takes priority if you have one.
+the review doc at `research/candidate-vocabulary-draft.md`. To adopt it (after
+any edits you make), append a fresh dated line to `marketing/APPROVALS.md`
+(the approval ledger; GOAL.md text and stale dates are never accepted):
+
+`- APPROVAL candidate-vocabulary-001: <today's YYYY-MM-DD> Harry approves the
+candidate vocabulary as reviewed.`
+
+Then the loop runs `python3 research/approval-to-live.py --apply` (binds,
+regenerates, flips, verifies). Your own bank still takes priority if you have
+one — paste it here instead and the loop binds it the same way.
 
 Status: AWAITING HARRY (2026-08-16). No words in this file are real content.

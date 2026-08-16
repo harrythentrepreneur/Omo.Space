@@ -5,8 +5,9 @@ Provenance rule (hard): the candidate file starts with
 `provenance: candidate-unreviewed`. Binding means writing `reviewed_spec` into
 the profile with provenance flipped to `reviewed`. That is a founder decision —
 this script REFUSES --apply unless the candidate is still candidate-unreviewed
-and prints a loud gate. The growth loop invokes --apply ONLY after Harry's
-explicit `approve candidate vocabulary` reply is recorded in GOAL.md.
+and prints a loud gate. The growth loop invokes --apply ONLY after Harry appends
+a fresh dated line `- APPROVAL candidate-vocabulary-001: <YYYY-MM-DD>` to the
+marketing/APPROVALS.md ledger (a file this loop never writes).
 
 --apply performs ONLY the local profile edit (additive, reversible in git). It
 does NOT regenerate containers, run provider calls, flip can_submit, deploy, or
@@ -127,10 +128,39 @@ def main() -> int:
         print("run-manifest + catalog row (deploy still coordinator/Harry-gated).")
         return 0
 
-    # --apply is APPROVAL-GATED: requires the loop to have recorded Harry's reply.
-    goal = (ROOT / "marketing/GOAL.md").read_text(encoding="utf-8")
-    if "approve candidate vocabulary" not in goal:
-        return fail("Harry's explicit approval is not recorded in GOAL.md — refusing to bind")
+    # --apply is APPROVAL-GATED: requires a FRESH dated approval line in the
+    # APPROVALS LEDGER (marketing/APPROVALS.md) — a file this loop NEVER writes.
+    # Checking GOAL.md instead is INSUFFICIENT (found twice on 2026-08-16: the
+    # bare phrase also appears there as instructional text, and a marker written
+    # into GOAL.md as an instruction matched a substring gate). Doc text never
+    # counts as approval, and a stale date (doc copy) is rejected too.
+    from datetime import date, timedelta
+
+    approvals = ROOT / "marketing/APPROVALS.md"
+    try:
+        ledger_text = approvals.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return fail("approvals ledger marketing/APPROVALS.md does not exist — refusing to bind")
+    today = date.today()
+    valid = {today - timedelta(days=d) for d in range(0, 4)} | {today + timedelta(days=1)}
+    marker = "- APPROVAL candidate-vocabulary-001:"
+    approved = False
+    for line in ledger_text.splitlines():
+        if not line.startswith(marker):
+            continue
+        stamp = line[len(marker):].strip().split()[0] if line[len(marker):].strip() else ""
+        try:
+            if date.fromisoformat(stamp) in valid:
+                approved = True
+                break
+        except ValueError:
+            continue
+    if not approved:
+        return fail(
+            "a FRESH dated approval line (`- APPROVAL candidate-vocabulary-001: "
+            "<YYYY-MM-DD>`) is NOT in marketing/APPROVALS.md — refusing to bind. "
+            "GOAL.md/doc text and stale dates do NOT count as approval."
+        )
     profile["reviewed_spec"] = patch
     PROFILE.write_text(json.dumps(profile, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"BOUND: wrote reviewed_spec into {PROFILE}")

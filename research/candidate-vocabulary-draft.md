@@ -51,12 +51,20 @@ compiler expects as `reviewed_spec.vocabulary`).
 
 ## What Harry needs to do (two options)
 
-- **(a) Fastest:** reply `approve candidate vocabulary` — the loop flips
-  provenance to `reviewed`, binds it into
-  `packages/skill-to-modal/profiles/decodable-book-maker.json`, regenerates the
-  container, re-runs the whole_book_vocabulary right/wrong needles against the
-  real lists, and flips `can_submit`. (You can edit the JSON first — add/remove
-  words — and reply `approve candidate vocabulary after my edits`.)
+- **(a) Fastest:** append a fresh dated line to `marketing/APPROVALS.md`:
+
+  `- APPROVAL candidate-vocabulary-001: <today's YYYY-MM-DD> Harry approves the
+  candidate vocabulary as reviewed.`
+
+  (You can edit `research/candidate-vocabulary.json` first — add/remove words —
+  then append the line.) The loop then runs `python3 research/approval-to-live.py
+  --apply`: flips provenance to `reviewed`, binds it into
+  `packages/skill-to-modal/profiles/decodable-book-maker.json`, flips
+  `can_submit`, regenerates the container, re-runs the whole_book_vocabulary
+  right/wrong needles against the real lists, repins the test, and verifies the
+  suite. NOTE: GOAL.md/doc text and stale dates are NOT accepted — after three
+  gate false-positive incidents on 2026-08-16, both the bind and orchestrator
+  gates require the fresh dated line in the ledger only.
 - **(b) Preferred if you have it:** paste the word bank your own PhonicsMaker
   decodable-books tooling trusts into
   `marketing/pilot-book-vocabulary-template.md`, per the template's fastest path.

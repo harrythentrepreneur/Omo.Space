@@ -32,6 +32,8 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
+- APPROVAL GATE REBUILT + ORCHESTRATOR SHIPPED (2026-08-16T19:5xZ, this tick) — with a FULLY DISCLOSED three-incident hardening story. The loop built `research/approval-to-live.py` (turnkey post-approval chain: BIND reviewed_spec → FLIP can_submit → REGEN container → REAL-list needles → PIN whole_book_vocabulary → verify suite), dry-run verified 4/4 on the REAL candidate: selector fires whole_book_vocabulary on the real profile; right needle (18-token stage-1 book from real stage-1+sight words + child name) → 0 review words, 100% within-stage, 1 name occurrence; `dinosaur` → `$:semantic_review_words(dinosaur)`; unknown stage → `$:semantic_unknown_stage`. The needle step needs `can_submit=true` — the compiler only wires semantic machinery into READY runtimes (line 2624), a fact the dry-run probe surfaced and the orchestrator now encodes (FLIP before REGEN). DURING VERIFICATION the gate failed THREE times, each caught and reverted by the loop (all six mutated files restored to committed state each time; verified `can_submit:false`, pin `schema_only`, container clean): (1) a naive substring check for "approve candidate vocabulary" passed because GOAL.md contains that phrase AS INSTRUCTIONS (3×) — applied without approval; (2) hardening to a marker string failed because the marker I had just written INTO GOAL.md as an instruction matched; (3) an APPROVALS.md ledger I created with an EXAMPLE line matched the gate reading that ledger. ROOT-CAUSE FIX: the gate now reads ONLY `marketing/APPROVALS.md` — a ledger the loop NEVER writes, with no marker anywhere in it — and requires a FRESH date (`- APPROVAL candidate-vocabulary-001: <YYYY-MM-DD>`, valid window today±3/+1), so doc text, stale doc copies, and prose mentions can never satisfy it. `--selftest` proves all four paths: missing ledger refuse / prose mention refuse / stale date refuse / fresh dated line accept. Post-fix verification: selftest 4/4 PASS, dry-run 4/4 PASS zero writes, BOTH `--apply` paths REFUSE with EXIT=1 and zero writes, compiler suite vocabulary+existing_profiles 4/4. Both `research/bind-candidate-vocabulary.py` (the earlier latent bug is fixed too) and the new orchestrator share the identical ledger gate. No deploy, push, send, spend, or secret access occurred; the full incident record is in STATE_LOG.md (2026-08-16T19:5xZ).
+
 - BIND-PATH HARDENED (2026-08-16T18:3xZ, this tick): proved the candidate is actually bind-ready by running the REAL decodable-book-maker profile through the compiler selector with the exact bind patch. Found and fixed TWO real selector gaps the 57/58 suite could not see (the fixture tests proved the machinery on a reduced synthetic book+decodability shape built on the facebook-ads-copywriter base profile, not on the real profile's schemas): (1) the selector demanded exactly one string output field, but the real profile's `live.model_output_schema` has `title` + `book` — the book-field rule now identifies the long-form story field by name (book/story/text/content) or maxLength>=500; (2) the decodability report exists ONLY in the full `output_schema` (the runtime synthesizes it), never in `model_output_schema` — the selector now reads both schemas merged. Fixture tests updated to own `output_schema` (they inherited the fb-ads base profile whose >=500-char string fields polluted book-field selection → schema_only). Evidence: vocabulary+no-reclassification subset 4/4 PASS; full-suite failures byte-identical to the pre-change baseline (8 pre-existing env failures in this cron session — the recorded 57/58 was measured in a different env; the failing 8 are tabular/domain/video/final-rerun, untouched by this change); in-memory probe of the REAL profile with the bind patch applied fires `whole_book_vocabulary` (stage_field=phonics_stage, book_field=book, decodability_field=decodability, name_field=child_name, 5 stages, 92 sight words); bind dry-run PASS. NEW turnkey artifact: `research/bind-candidate-vocabulary.py` — dry-run by default, prints the exact `reviewed_spec` patch; `--apply` is gated (refuses unless the candidate is still `candidate-unreviewed` AND Harry's `approve candidate vocabulary` reply is recorded in GOAL.md) and writes ONLY the profile `reviewed_spec` (no regen, no can_submit flip, no deploy). The approval→live path is now one command instead of a 4-step manual checklist, and it serves all three Harry unblock options (approve candidate / paste own bank / name a URL — any of them lands in the same `reviewed_spec.vocabulary` shape the dry-run proves). Still no bind, no regen, no flip, no spend, send, deploy, push, or secret access.
 
 - CANDIDATE VOCAB DRAFT DONE (2026-08-16T17:2xZ, this tick): upstream re-checked — origin/main 0 behind / 18 ahead (all 18 ours), no new coordinator commits since the 16:51Z audit (only a deleted already-merged remote branch feat/issue-84-image-style-system). To cut the #1 gate cost, the loop drafted a fully machine-validated CANDIDATE vocabulary at `research/candidate-vocabulary.json` (+ review doc `research/candidate-vocabulary-draft.md` + validator `research/validate-candidate-vocabulary.py`): 92 sight words = the canonical Dolch pre-primer+primer lists fetched LIVE from Wikipedia this tick (diff-verified 0 extra / 0 missing), and 50/96/132/186/261 cumulative stage words from standard short-vowel CVC word families + common digraphs (sh/ch/th/ck/wh) — no blends, no r-controlled, no long vowels, exactly one vowel per word, no duplicates, all lowercase, cumulative property PASS. `provenance: candidate-unreviewed` so the compiler selector rejects it fail-closed (schema_only) — it CANNOT bind or flip can_submit by accident; only Harry's explicit `approve candidate vocabulary` reply lets the loop flip to reviewed, bind, regen, and flip. NOT PhonicsMaker's proprietary bank (unreachable); Harry's own bank still takes priority per the template. Metrics unchanged 0/0/0. No spend, send, deploy, push, or secret access.
@@ -269,20 +271,26 @@ Priority order (updated after the origin/main reconciliation and the vocab sourc
    real lists, and flip can_submit — the machinery needs no further work and
    a named-URL fetch works from cron (only the Firecrawl web_search backend is
    unavailable; raw curl and the browser tool both work); (c) NEW this tick —
-   review and reply `approve candidate vocabulary` (after any edits) to adopt
-   the machine-validated CANDIDATE at `research/candidate-vocabulary.json`
+   approve the machine-validated CANDIDATE at `research/candidate-vocabulary.json`
    (92 sight words = live-fetched canonical Dolch pre-primer+primer, diff-
    verified; 50/96/132/186/261 cumulative CVC+digraph stage words; provenance
    `candidate-unreviewed` so it is fail-closed and cannot bind by accident;
    validator `research/validate-candidate-vocabulary.py` PASS; review doc
- `research/candidate-vocabulary-draft.md`). The bind path is now
- dry-run-verified END-TO-END against the real profile: `research/
- bind-candidate-vocabulary.py` proves the exact `reviewed_spec` patch
- (constraints + vocabulary with provenance flipped) makes the compiler
- select `whole_book_vocabulary` on decodable-book-maker — one command
- from approval to bound profile (regen + fixture needles + can_submit
- flip follow in the same tick). All three unblock options land in this
- same shape.
+   `research/candidate-vocabulary-draft.md`). TO APPROVE, APPEND A FRESH
+   DATED LINE TO marketing/APPROVALS.md (the approval ledger the loop never
+   writes — GOAL.md/doc text and stale dates are NEVER accepted, by design
+   after three gate false-positive incidents on 2026-08-16):
+   `- APPROVAL candidate-vocabulary-001: <today's YYYY-MM-DD> Harry approves
+   the candidate vocabulary as reviewed.` The bind path is now dry-run-verified
+   END-TO-END against the real profile AND the real lists: `research/
+   approval-to-live.py` proves the exact `reviewed_spec` patch makes the
+   compiler select `whole_book_vocabulary` on decodable-book-maker and that
+   the generated runtime's real-list needles pass (0 review words / dinosaur
+   flagged / unknown stage typed) — one command
+   (`python3 research/approval-to-live.py --apply`) from approval to a bound,
+   regenerated, flipped, pin-updated, suite-verified profile. Same gate in
+   `research/bind-candidate-vocabulary.py`. All three unblock options land in
+   this same shape.
 2. COORDINATOR/HARRY: pull or merge our local branch (12 commits ahead of
    origin/main's merge base, reconciled on top of origin/main) so the
    decodable-book-maker runtime, vocabulary normalizer, fixtures, and
