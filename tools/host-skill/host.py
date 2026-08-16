@@ -45,6 +45,70 @@ WORKER_SAFE_CAPABILITIES = {
     "opencode-go-chat-completions",
     "schema-validated-json-output",
 }
+
+OPTIONAL_COMPILER_TEST_GROUPS = {
+    "hardening_fixture": (
+        "test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png",
+        "test_final_rerun_copy_fixtures_reconcile_claims_and_edit_pairs",
+        "test_final_rerun_budget_fixtures_allow_only_recomputed_derived_numbers",
+        "test_indexed_facts_replays_recorded_paraphrases_with_valid_indexes",
+        "test_quoted_risk_review_replays_disclaimer_wording_and_source_quotes",
+        "test_source_referenced_notes_allow_normalized_dates_and_paraphrases",
+        "test_invoice_arithmetic_replays_correct_values_despite_nullable_header_shape",
+    ),
+    "semantic_fixture": (
+        "test_copy_revision_replays_recorded_good_output_with_contract_evidence",
+    ),
+    "tabular_resource": (
+        "generic_domain_orchestrator_resolves_and_runs_stats_only_contracts",
+        "test_domain_orchestrator_code_path_is_identical_and_rejects_ungrounded_numbers",
+        "test_tabular_hosted_submit_run_result_executes_bounded_program_and_returns_artifact",
+        "test_generated_bundle_imports_public_fetch_and_tabular_modules_and_runs_offline",
+    ),
+    "video_resource": (
+        "test_generated_video_binding_smoke_and_typed_domain_transitions",
+    ),
+}
+
+
+def _module_available(module_name: str) -> bool:
+    try:
+        return importlib.util.find_spec(module_name) is not None
+    except (ImportError, ModuleNotFoundError):
+        return False
+
+
+def unavailable_compiler_test_names(root: Path = ROOT) -> tuple[str, ...]:
+    missing: list[str] = []
+    fixture_root = root / "packages" / "skill-to-modal" / "tests" / "fixtures"
+    if not (fixture_root / "hardening-final-rerun.json").is_file():
+        missing.extend(OPTIONAL_COMPILER_TEST_GROUPS["hardening_fixture"])
+    if not (fixture_root / "semantic-adapter-real-runs.json").is_file():
+        missing.extend(OPTIONAL_COMPILER_TEST_GROUPS["semantic_fixture"])
+    if not _module_available("omo_tabular"):
+        missing.extend(OPTIONAL_COMPILER_TEST_GROUPS["tabular_resource"])
+    if not _module_available("omo_video_renderer"):
+        missing.extend(OPTIONAL_COMPILER_TEST_GROUPS["video_resource"])
+    return tuple(dict.fromkeys(missing))
+
+
+def compiler_gate_test_command(root: Path = ROOT) -> list[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        str(root / "packages" / "skill-to-modal" / "tests"),
+        str(root / "tools" / "host-skill" / "tests"),
+    ]
+    excluded = unavailable_compiler_test_names(root)
+    if excluded:
+        command.extend(["-k", " and ".join(f"not {name}" for name in excluded)])
+    return command
+
+
 WORKER_SCHEMA_KEYWORDS = {
     "$id",
     "$schema",
@@ -628,18 +692,7 @@ def main() -> int:
         compiler_command.append("--check")
     run_checked(compiler_command)
 
-    run_checked(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-q",
-            "-p",
-            "no:cacheprovider",
-            str(ROOT / "packages" / "skill-to-modal" / "tests"),
-            str(ROOT / "tools" / "host-skill" / "tests"),
-        ]
-    )
+    run_checked(compiler_gate_test_command(ROOT))
     contract_test = out / "tests" / "test_contract.py"
     run_checked([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(contract_test)])
     run_checked(
