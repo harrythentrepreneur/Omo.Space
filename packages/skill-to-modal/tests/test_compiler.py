@@ -40,6 +40,9 @@ SEMANTIC_INPUTS_PATH = SEMANTIC_REPLAY_PATH.with_name("semantic-adapter-inputs.j
 HARDENING_FIXTURE_PATH = SEMANTIC_REPLAY_PATH.with_name(
     "hardening-final-rerun.json"
 )
+BATCH30_RECOVERED_PATH = SEMANTIC_REPLAY_PATH.with_name(
+    "batch30-recovered-adapters.json"
+)
 
 
 def test_parse_skill_requires_and_returns_frontmatter() -> None:
@@ -1679,6 +1682,102 @@ def test_structural_selector_preserves_grounded_copy_budget_and_education_classe
         "normalizers": ["phoneme_containment"],
         "version": 1,
     }
+
+
+def _batch30_recovered_runtime(tmp_path: Path, slug: str):
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    entry = next(item for item in fixture["skills"] if item["slug"] == slug)
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = entry["slug"]
+    profile["name"] = entry["slug"]
+    profile["input_schema"] = _fixture_schema(entry["input"])
+    profile["live"]["model_output_schema"] = _fixture_schema(entry["semantic_projection"])
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = entry["reviewed_spec"]
+    runtime_path = tmp_path / (profile["slug"] + ".py")
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + profile["slug"].replace("-", "_"), runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    return runtime, entry
+
+
+def test_batch30_recovered_semantic_blockers_select_matching_adapter_kind(
+    tmp_path: Path,
+) -> None:
+    """Each of the seven BATCH30 REAL_RUN_SEMANTIC_FAILED contracts must
+    select its matching generic contract-evidence adapter (BUILDABLE #1)."""
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    assert fixture["provenance"]  # synthetic reconstruction, not provider output
+    expected_kinds = {
+        "code-documentation": "constraint_coverage",
+        "email-drafting": "exact_field_projection",
+        "logo-design": "placeholder_glossary_enforcement",
+        "privacy-policy-drafting": "policy_requirement_coverage",
+        "proposal-generation": "grounded_numeric_copy",
+        "ticket-triage": "rule_based_classification",
+        "translation": "constraint_coverage",
+    }
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == expected_kinds[entry["slug"]]
+
+
+def test_batch30_recovered_semantic_blockers_replay_right_needles(tmp_path: Path) -> None:
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        output = json.loads(json.dumps(entry["semantic_projection"]))
+        diff = runtime._semantic_validation_diff(output, entry["input"])
+        assert diff == "", f"{entry['slug']}: {diff}"
+
+
+def test_batch30_recovered_semantic_blockers_flag_wrong_needles(tmp_path: Path) -> None:
+    wrong_needles = {
+        "code-documentation": (
+            lambda output: output["docs"].pop(0),
+            "$.docs:semantic_coverage(expected=2,actual=1)",
+        ),
+        "email-drafting": (
+            lambda output: output.update({"greeting": "Hi there,"}),
+            "$.greeting:semantic_projection",
+        ),
+        "logo-design": (
+            lambda output: output.update(
+                {"brief": "Lumen gets a [brand] mark with your logo here."}
+            ),
+            "$:semantic_placeholder",
+        ),
+        "privacy-policy-drafting": (
+            lambda output: output["sections"].pop(3),
+            "$.sections:semantic_requirement_uncovered(expected=1)",
+        ),
+        "proposal-generation": (
+            lambda output: output.update(
+                {"proposal": output["proposal"] + " for 5200 USD"}
+            ),
+            "$:semantic_invented_number",
+        ),
+        "ticket-triage": (
+            lambda output: output.update({"category": "access"}),
+            "$.category:semantic_rule_match",
+        ),
+        "translation": (
+            lambda output: output["translations"].pop(0),
+            "$.translations:semantic_coverage(expected=2,actual=1)",
+        ),
+    }
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        output = json.loads(json.dumps(entry["semantic_projection"]))
+        mutate, needle = wrong_needles[entry["slug"]]
+        mutate(output)
+        diff = runtime._semantic_validation_diff(output, entry["input"])
+        assert needle in diff, f"{entry['slug']}: expected {needle} in {diff}"
 
 
 def test_generated_repair_is_schema_driven_and_wrapper_allows_one_retry(tmp_path: Path) -> None:

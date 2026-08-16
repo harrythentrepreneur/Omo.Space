@@ -64,8 +64,9 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Storefront visibility: every storefront render and direct-detail surface now uses a reversible 14-slug whitelist containing the existing four listings, nine education tools, and `skill-md-to-hosted-workflow`. The loader's local prerender exposes only its live $5/run CTA and honest fixture-only/no-provider limitations; public static activation still requires the coordinator-owned push.
 - SEO sitemap visibility: the prerender generator reads `OMO_VISIBLE_SLUGS` at build time, so `site/sitemap.xml` contains the 14 visible workflow slugs plus seven core pages; all 222 prerendered workflow directories remain on disk.
 - Fixture baseline repair: the three semantic test fixtures (`semantic-adapter-real-runs.json`, `semantic-adapter-inputs.json`, `hardening-final-rerun.json`) were never tracked in git and were lost with /tmp, which made the committed compiler suite fail 15/47 on a fresh checkout. They are reconstructed as clearly-labeled DETERMINISTIC SYNTHETIC fixtures (same contract shapes, evidence kinds, and mutation needles; explicitly NOT recorded provider runs; provenance field + README) and committed, so the suite is reproducible from git: 46/47 pass, sole failure = `test_generated_video_binding_smoke_and_typed_domain_transitions`, the pre-existing ffmpeg 8.0.1-vs-8.1.2 environment gate documented since issue-63. Test env: /tmp/issue8-venv (pytest+jsonschema+modal+fastapi+pypdf+pillow+reportlab).
+- BATCH30 semantic-blocker reconstruction: the seven real `REAL_RUN_SEMANTIC_FAILED` staged sources lost with /tmp (code-documentation, email-drafting, logo-design, privacy-policy-drafting, proposal-generation, ticket-triage, translation) are reconstructed as reviewed local contracts in `packages/skill-to-modal/tests/fixtures/batch30-recovered-adapters.json` (provenance-labeled synthetic). All seven compile through the canonical compiler and the generated runtimes select exactly the matching `semantic.contract_evidence_adapters/v1` adapter (code-documentation & translation → constraint_coverage; email-drafting → exact_field_projection; logo-design → placeholder_glossary_enforcement; privacy-policy-drafting → policy_requirement_coverage; proposal-generation → grounded_numeric_copy; ticket-triage → rule_based_classification). Replay: 7/7 right needles pass, 7/7 wrong needles fail closed with typed markers; compiler suite 54/55 green (sole failure = pre-existing ffmpeg 8.0.1-vs-8.1.2 environment gate); zero provider calls or spend.
 - Next: (1) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (2) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (3) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (4) move Omo onto its own Stripe account; (5) rotate the live sk exposed in chat; (6) after Harry's explicit production approval, configure the reviewed live pilot-book slug, apply the additive pilot schema, set the magic-link secret, and deploy the Worker/static bridge; (7) run the 20 pilot canaries; (8) obtain Harry's explicit approval before any pilot email send.
-- Blockers: the public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); the exact active $0.99 PhonicsMaker book slug is not identified and the local magic-link release is not deployed; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
+- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval. The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); the exact active $0.99 PhonicsMaker book slug is not identified and the local magic-link release is not deployed; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
 
 ## Metrics (live)
 
@@ -196,16 +197,18 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-The compiler suite is green and reproducible from git (51/52; the only failure
-is the pre-existing ffmpeg version environment gate). BUILDABLE #1 (six generic
-semantic contract-evidence adapters) is implemented and fixture-proven; #2/#3
-(domain orchestrators, data-analysis routing) were completed in earlier rounds.
-Next: reconstruct the seven REAL semantic-blocked staged sources lost with /tmp
-(code-documentation, email-drafting, logo-design, privacy-policy-drafting,
-proposal-generation, ticket-triage, translation) as reviewed local contracts
-and fixture-run each through its matching new adapter (zero provider cost),
-then mark each resolved blocker HOSTED-or-typed in `research/one-shot-rounds.md`.
-Any provider proof after that is gated on Harry's explicit spend approval.
-Separately, wait for Harry's explicit approvals on `japanese-modal-deploy-001`,
-the pilot magic-link deploy, and the social X identity gate; the coordinator
-owns the loader/catalog/listing push; do not push from this profile.
+BUILDABLE #1 is complete and now proven against all seven real semantic-blocked
+skills: the generic adapters (grounded_numeric_copy, exact_field_projection,
+constraint_coverage, policy_requirement_coverage, rule_based_classification,
+placeholder_glossary_enforcement) are committed in the compiler, verified by
+deterministic synthetic fixtures, and replay 7/7 right + 7/7 wrong needles on
+the reconstructed BATCH30 contracts (compiler suite 54/55, only the pre-existing
+ffmpeg environment gate fails). Next options, in priority order:
+1. Request Harry's explicit spend approval for one bounded fresh-provider proof
+   run (14 cases, capped at USD 0.10) of the seven reconstructed skills so each
+   can be marked HOSTED on real evidence, not just fixture replay.
+2. Wait for the coordinator push of the loader/catalog/listing and Harry's
+   approvals for `japanese-modal-deploy-001`, the pilot magic-link deploy, and
+   the social X identity gate; do not push from this profile.
+Any provider proof before approval is a hard stop; do not churn the semantic
+layer further this cycle.

@@ -754,3 +754,29 @@ Verdict: `FINAL-HARDENED-2`.
   with allowlisted runtimes, bounded filesystem/process/CPU/memory/time, and
   network off by default.”; image-generation provider — “Approve a bounded
   image-generation provider and process-only loading of its API key.”
+
+## 2026-08-16 — BATCH30 semantic-blocker reconstruction through generic adapters
+
+- Mode: deterministic fixture-only replay. The seven real BATCH30 staged
+  sources (code-documentation, email-drafting, logo-design,
+  privacy-policy-drafting, proposal-generation, ticket-triage, translation)
+  were lost with /tmp, so each is reconstructed as a reviewed local contract
+  in `packages/skill-to-modal/tests/fixtures/batch30-recovered-adapters.json`
+  (provenance-labeled synthetic; NOT recorded provider outputs).
+- Selection: all seven contracts compile through the canonical compiler and
+  the generated runtimes select exactly the matching adapter for
+  `semantic.contract_evidence_adapters/v1`: code-documentation and translation
+  → `constraint_coverage`; email-drafting → `exact_field_projection`;
+  logo-design → `placeholder_glossary_enforcement`; privacy-policy-drafting →
+  `policy_requirement_coverage`; proposal-generation →
+  `grounded_numeric_copy`; ticket-triage → `rule_based_classification`.
+- Replay: 7/7 right needles produce an empty semantic diff (contract-satisfying
+  outputs pass); 7/7 wrong needles are flagged with typed fail-closed markers
+  (coverage mismatch, projection drift, invented number, invalid/rule-violating
+  classification label, placeholder token).
+- Verification: compiler suite 54/55 green from git; sole failure is the
+  pre-existing ffmpeg 8.0.1-vs-8.1.2 environment gate. Zero provider calls,
+  zero spend, no deploy, push, commit of containers, or external action.
+- Verdict: the seven `REAL_RUN_SEMANTIC_FAILED` blockers are RESOLVED at the
+  semantic layer (each now has a matching contract-evidence gate); fresh
+  provider proof per skill is still gated on Harry's explicit spend approval.
