@@ -1366,7 +1366,19 @@ class GitHubReleaseAdapter:
         if not copied:
             raise RuntimeError("release allowlist matched no files")
         self._run(["git", "add", *copied], cwd=worktree)
-        self._run(["git", "commit", "-m", f"Release {slug}"], cwd=worktree)
+        self._run(
+            [
+                "git",
+                "-c",
+                "user.name=Omo Trusted Release",
+                "-c",
+                "user.email=omo-trusted-release@users.noreply.github.com",
+                "commit",
+                "-m",
+                f"Release {slug}",
+            ],
+            cwd=worktree,
+        )
         head_sha = str(self._run(["git", "rev-parse", "HEAD"], cwd=worktree)).strip().lower()
         if not SAFE_GIT_SHA_RE.fullmatch(head_sha):
             raise RuntimeError("invalid release head SHA")
