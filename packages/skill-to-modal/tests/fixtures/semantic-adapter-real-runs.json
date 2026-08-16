@@ -1,0 +1,113 @@
+{
+  "provenance": "deterministic synthetic reconstruction 2026-08-16; original recorded-run fixtures were lost with /tmp and are not recoverable; not a recorded provider output",
+  "cases": [
+    {
+      "slug": "copy-editing",
+      "input_sha256": "b398b88004645ce0ea0257fcd614f88350fa10ad91e295219e5b48dcf46ed144",
+      "output_sha256": "3c2128f6c3a1d60e198a3168f3b807400013bf08d562d0a48b4b47b9683325c8",
+      "output": {
+        "revised_copy": "Start with the Team plan today. Setup takes five minutes, and your first invoice receives the 20% launch discount at checkout.",
+        "unsupported_claims": [],
+        "edits": [
+          {
+            "before": "Choose the Team plan today.",
+            "after": "Start with the Team plan today.",
+            "rationale": "Lead with the action verb."
+          },
+          {
+            "before": "Your first invoice receives a 20% launch discount at checkout.",
+            "after": "Your first invoice receives the 20% launch discount at checkout.",
+            "rationale": "Tighten phrasing."
+          }
+        ]
+      }
+    },
+    {
+      "slug": "internal-comms",
+      "input_sha256": "a995fae875d09caf814b1b68066d10a6fd0f456c0208691626f4c656ebd461ce",
+      "output_sha256": "3a8e39a76d693ddccfc507fda1142c5e905bdb40f3b97fd572ea575e3961e17a",
+      "output": {
+        "fact_indexes_used": [
+          0,
+          1,
+          2
+        ],
+        "key_points": [
+          "Office closes at 5 PM on Fridays",
+          "New expense policy starts Monday",
+          "Remote workers join the weekly call"
+        ]
+      }
+    },
+    {
+      "slug": "contract-review",
+      "input_sha256": "411abf560d9b5b10f4e1e780177a64c21117356901c903096bf8feb1c9dd8c36",
+      "output_sha256": "71cd7792b093c3f27a5feb9c6b7524c0c1ca06ca8c096a0a9d0d55887e0a1bf0",
+      "output": {
+        "obligations": [
+          {
+            "source_quote": "The vendor shall provide support within 24 hours",
+            "obligation": "Provide support within 24 hours"
+          }
+        ],
+        "risks": [
+          {
+            "source_quote": "Payment terms are net 30 days",
+            "risk": "Net-30 payment terms"
+          }
+        ],
+        "disclaimer": "This review summarizes the supplied language and is not legal advice."
+      }
+    },
+    {
+      "slug": "note-taking",
+      "input_sha256": "971312f67ae23a0c1ba962758d167e80b6b3462d9f60ffa25137c1fb4fc857ae",
+      "output_sha256": "5f0d8b5f66d3ade33bba07743f7bc736194fa48df9c267300730cc4a23d97487",
+      "output": {
+        "summary": "Draft delivery due Monday 2026-08-18",
+        "decisions": [
+          "Budget concern raised for next quarter"
+        ],
+        "open_questions": [
+          "Will the draft budget be final?"
+        ],
+        "action_items": [
+          {
+            "source_quote": "Alice will deliver the draft by Monday 2026-08-18",
+            "due_date": "2026-08-18",
+            "owner": "Alice"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "invoice-processing",
+      "input_sha256": "f43f6cef5dfbe17a6dad54814d909d0d93cff26eb59141237c81bbc4735c4e06",
+      "output_sha256": "1928f77cd0100ce29ad4635188a3aae7ee64f89c54942d7561d0413c19f1f03c",
+      "output": {
+        "line_items": [
+          {
+            "description": "Widget",
+            "quantity": 2,
+            "unit_price": 10.0,
+            "amount": 20.0
+          },
+          {
+            "description": "Gadget",
+            "quantity": 3,
+            "unit_price": 5.0,
+            "amount": 15.0
+          }
+        ],
+        "subtotal": 35.0,
+        "tax": 3.5,
+        "shipping": 4.5,
+        "discount": 2.0,
+        "total": 41.0,
+        "arithmetic_check": "pass",
+        "due_date": "",
+        "po_reference": ""
+      }
+    }
+  ]
+}

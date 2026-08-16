@@ -1,0 +1,22 @@
+{
+  "provenance": "deterministic synthetic reconstruction 2026-08-16; original recorded-run fixtures were lost with /tmp and are not recoverable; not a recorded provider output",
+  "copy-editing": {
+    "copy": "Choose the Team plan today. Setup takes five minutes. Your first invoice receives a 20% launch discount at checkout."
+  },
+  "internal-comms": {
+    "facts": [
+      "The office closes at 5 PM on Fridays.",
+      "The new expense policy starts Monday.",
+      "Remote workers join the weekly call."
+    ]
+  },
+  "contract-review": {
+    "contract_text": "The vendor shall provide support within 24 hours. Payment terms are net 30 days. Either party may terminate with 14 days written notice."
+  },
+  "note-taking": {
+    "raw_notes": "Meeting on 2026-08-15. Alice will deliver the draft by Monday 2026-08-18. Bob raised the budget concern for next quarter."
+  },
+  "invoice-processing": {
+    "invoice_text": "Widget: quantity 2 at 10.00, amount 20.00\nGadget: quantity 3 at 5.00, amount 15.00\nsubtotal: 35.00\ntax: 3.50\nshipping: 4.50\ndiscount: 2.00\ntotal: 41.00"
+  }
+}

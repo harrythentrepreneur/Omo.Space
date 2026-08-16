@@ -62,6 +62,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Storefront cleanup: the separate catalog browser, homepage promo/link, projection data, stale 100-item inventory, and import tooling are removed; listing, dashboard, workflow, run, nav, library, host tooling, and MCP reads now converge on the single catalog without changing Worker auth or payment wiring.
 - Storefront visibility: every storefront render and direct-detail surface now uses a reversible 14-slug whitelist containing the existing four listings, nine education tools, and `skill-md-to-hosted-workflow`. The loader's local prerender exposes only its live $5/run CTA and honest fixture-only/no-provider limitations; public static activation still requires the coordinator-owned push.
 - SEO sitemap visibility: the prerender generator reads `OMO_VISIBLE_SLUGS` at build time, so `site/sitemap.xml` contains the 14 visible workflow slugs plus seven core pages; all 222 prerendered workflow directories remain on disk.
+- Fixture baseline repair: the three semantic test fixtures (`semantic-adapter-real-runs.json`, `semantic-adapter-inputs.json`, `hardening-final-rerun.json`) were never tracked in git and were lost with /tmp, which made the committed compiler suite fail 15/47 on a fresh checkout. They are reconstructed as clearly-labeled DETERMINISTIC SYNTHETIC fixtures (same contract shapes, evidence kinds, and mutation needles; explicitly NOT recorded provider runs; provenance field + README) and committed, so the suite is reproducible from git: 46/47 pass, sole failure = `test_generated_video_binding_smoke_and_typed_domain_transitions`, the pre-existing ffmpeg 8.0.1-vs-8.1.2 environment gate documented since issue-63. Test env: /tmp/issue8-venv (pytest+jsonschema+modal+fastapi+pypdf+pillow+reportlab).
 - Next: (1) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (2) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (3) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (4) move Omo onto its own Stripe account; (5) rotate the live sk exposed in chat; (6) after Harry's explicit production approval, configure the reviewed live pilot-book slug, apply the additive pilot schema, set the magic-link secret, and deploy the Worker/static bridge; (7) run the 20 pilot canaries; (8) obtain Harry's explicit approval before any pilot email send.
 - Blockers: the public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); the exact active $0.99 PhonicsMaker book slug is not identified and the local magic-link release is not deployed; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
 
@@ -194,10 +195,15 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-First obtain approval for `loader-modal-redeploy-002` and finish the blocked
-direct loader canary. For builder breadth, implement the reusable semantic evidence adapters for the
-remaining schema-valid skills; the tabular domain orchestrator family and
-data-analysis endpoint routing are fixture-complete. Founder-desk holds remain
-the bounded search backend key, isolated safe-exec design, and image-generation
-provider approval. Separately, wait for Harry's explicit approval of
-`japanese-modal-deploy-001`; do not push from this profile.
+The compiler suite is now green and reproducible from git (46/47; the only
+failure is the pre-existing ffmpeg version environment gate). Resume builder
+breadth: implement the ranked BUILDABLE #1 — the six generic semantic
+contract-evidence adapters (`semantic.grounded_numeric_copy`,
+`semantic.exact_field_projection`, `semantic.constraint_coverage`,
+`semantic.policy_requirement_coverage`, `semantic.rule_based_classification`,
+`semantic.placeholder_glossary_enforcement`) as shape+promise selectors in
+`semantic_evidence_spec` plus `_<kind>_semantic_diff` evaluators in the
+generated executor and dispatcher entries, fixture-proven with the restored
+right-needle/wrong-needle pattern at zero provider cost. Separately, wait for
+Harry's explicit approvals on `japanese-modal-deploy-001`, the pilot magic-link
+deploy, and the social X identity gate; do not push from this profile.
