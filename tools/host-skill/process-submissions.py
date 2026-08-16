@@ -129,6 +129,51 @@ HOSTED_AUTH_REMEDIATIONS = {
     ),
 }
 
+# R4 — open-source publish gate: every FREE released slug publishes its public
+# contract (SKILL.md + LICENSE + manifest.json) to github.com/omo-space/skills
+# under skills/<slug>/. Download is free (MIT); the paid product stays the
+# hosted run on omo.space (research/oss-publish-spec.md, oss/POLICY.md).
+OSS_REPO_URL = "https://github.com/omo-space/skills"
+OSS_REPO_LOCAL = ROOT / ".." / "oss-publish" / "skills"
+OSS_SKILL_REL = "skills/{slug}"
+OSS_POLICY_URL = "https://github.com/omo-space/skills/blob/main/POLICY.md"
+OSS_PREMIUM_EXCLUSIONS = {
+    # The ONE premium exception (oss/POLICY.md): the flagship Phonics Book
+    # Maker, whose SKILL.md is sold for $400, must NEVER be published. The
+    # founder made woven-relationship-book-maker and everything else free.
+    "illustrated-decodable-story-maker",
+}
+OSS_PUBLISH_REMEDIATIONS = {
+    "oss_publish_clone_failed": (
+        "R4 could not clone/fetch the omo-space/skills publish checkout. Restore "
+        "network and push access to github.com/omo-space/skills, then rerun the "
+        "release promotion from R4."
+    ),
+    "oss_publish_prepare_failed": (
+        "R4 could not build the public artifacts (SKILL.md + LICENSE + manifest) "
+        "for the released slug. Confirm containers/<slug>/source/SKILL.md, "
+        "manifest.json, and pricing-report.json exist in the verified release "
+        "tree, then rerun the release promotion from R4."
+    ),
+    "oss_publish_commit_failed": (
+        "R4 could not commit skills/<slug> in the omo-space/skills checkout. "
+        "Inspect the checkout state, then rerun the release promotion from R4."
+    ),
+    "oss_publish_push_failed": (
+        "R4 could not push the publish commit to github.com/omo-space/skills main. "
+        "Confirm the publisher has push access to the omo-space/skills repo, then "
+        "rerun the release promotion from R4."
+    ),
+}
+OSS_POLICY_HEADER = (
+    "> **Omo open source.** This `SKILL.md` is published under the MIT License per the\n"
+    "> [Omo open-source policy]({policy}). Download and reuse it freely; to run it\n"
+    "> without setup, use the hosted run on [omo.space](https://omo.space) — pay per\n"
+    "> run, no subscription.\n"
+).format(policy=OSS_POLICY_URL)
+OSS_PUBLISH_MECHANISM = "R4 oss publish gate (research/oss-publish-spec.md)"
+OSS_GIT_IDENTITY = ("Omo OSS Publisher", "oss@omo.space")
+
 
 class ReleaseBlocker(RuntimeError):
     """Typed, resumable release blocker safe to return as a verdict."""
@@ -167,6 +212,15 @@ class StagedCalledProcessError(subprocess.CalledProcessError):
             raise ValueError("invalid failure stage")
         super().__init__(error.returncode, f"<{stage}>", output=None, stderr=None)
         self.stage = stage
+
+
+class OssPublishBlocker(ReleaseBlocker):
+    """Typed, fail-closed blocker for the R4 open-source publish gate."""
+
+    def __init__(self, code: str):
+        if code not in OSS_PUBLISH_REMEDIATIONS:
+            raise ValueError("invalid oss publish blocker")
+        super().__init__(code, "R4", OSS_PUBLISH_REMEDIATIONS[code])
 
 
 def _load_host_module() -> Any:
@@ -1474,6 +1528,253 @@ def prepare_reviewed_release(skill_path: Path, slug: str, profile_path: Path, se
         run_checked_at_stage(["node", script], WORKER_ROOT, "worker_contracts")
 
 
+def _oss_frontmatter_and_body(md: str) -> tuple[str, str]:
+    """Return (frontmatter text incl. --- fences, body text after the closer)."""
+    lines = md.splitlines(keepends=True)
+    close_idx = None
+    seen = 0
+    for index, line in enumerate(lines):
+        if line.strip() == "---":
+            seen += 1
+            if seen == 2:
+                close_idx = index
+                break
+    if close_idx is None:
+        return "", md
+    return "".join(lines[: close_idx + 1]), "".join(lines[close_idx + 1 :])
+
+
+def _oss_with_policy_header(md: str) -> str:
+    """Insert the OSS policy header once, immediately after the frontmatter."""
+    frontmatter, body = _oss_frontmatter_and_body(md)
+    if "Omo open source" in body[:200]:
+        return md  # idempotent: header already present
+    return frontmatter + "\n" + OSS_POLICY_HEADER + "\n" + body.lstrip("\n")
+
+
+def _oss_section(md: str, *headings: str) -> str | None:
+    for heading in headings:
+        match = re.search(rf"^##\s+{re.escape(heading)}\s*$([\s\S]*?)(?=^##\s|\Z)", md, re.M)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def _oss_bullets(text: str | None) -> list[str]:
+    if not text:
+        return []
+    return [line.strip()[2:].strip() for line in text.splitlines() if line.strip().startswith("- ")]
+
+
+def _oss_summary(text: str | None) -> str:
+    if not text:
+        return ""
+    flat = " ".join(text.split())
+    return flat[:180] + ("…" if len(flat) > 180 else "")
+
+
+def _oss_git(repo_dir: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(repo_dir), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _oss_git_or_raise(result: subprocess.CompletedProcess) -> None:
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, result.args)
+
+
+def ensure_oss_repo_checkout(repo_dir: Path, repo_url: str) -> None:
+    """Clone or refresh the dedicated omo-space/skills publish checkout."""
+    if (repo_dir / ".git").exists():
+        _oss_git_or_raise(_oss_git(repo_dir, "pull", "--ff-only", "origin", "main"))
+    else:
+        repo_dir.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["git", "clone", repo_url, str(repo_dir)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+
+def _oss_commit_args(repo_dir: Path) -> list[str]:
+    name = _oss_git(repo_dir, "config", "user.name").stdout.strip()
+    email = _oss_git(repo_dir, "config", "user.email").stdout.strip()
+    if name and email:
+        return []
+    publisher_name, publisher_email = OSS_GIT_IDENTITY
+    return ["-c", f"user.name={publisher_name}", "-c", f"user.email={publisher_email}"]
+
+
+def _oss_generated_readme(name: str, description: str, run_price: float | None) -> str:
+    price_str = f"${run_price:.2f}" if run_price is not None else "see omo.space"
+    return (
+        "[![Omo](../../assets/logo.svg)](https://omo.space) · [All Omo Skills](../../README.md)\n\n"
+        f"# {name}\n\nWhat this does: {description}\n\nOmo price: **{price_str} per run**.\n\n"
+        "| Run it on Omo (one click) | Run it yourself (bring API keys + infrastructure per the SKILL.md) |\n"
+        "| --- | --- |\n"
+        "| [omo.space](https://omo.space) | [SKILL.md](SKILL.md) |\n"
+    )
+
+
+def build_oss_release_artifacts(slug: str, source_root: Path, repo_dir: Path) -> dict[str, bytes]:
+    """Build the public SKILL.md (with policy header), LICENSE, README, and manifest.
+
+    Reads the verified release tree only: containers/<slug>/source/SKILL.md
+    (the compiled live contract), container manifest.json (version), and
+    pricing-report.json (hosted run price). No private container internals
+    (modal_app, hosted-profile, provider credentials) are ever published.
+    """
+    container = source_root / "containers" / slug
+    skill_source = container / "source" / "SKILL.md"
+    if not skill_source.exists():
+        raise RuntimeError(f"missing oss publish source for {slug}")
+    skill_md = skill_source.read_text(encoding="utf-8")
+
+    container_manifest: dict[str, Any] = {}
+    container_manifest_path = container / "manifest.json"
+    if container_manifest_path.exists():
+        try:
+            container_manifest = json.loads(container_manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            container_manifest = {}
+    pricing: dict[str, Any] = {}
+    pricing_path = container / "pricing-report.json"
+    if pricing_path.exists():
+        try:
+            pricing = json.loads(pricing_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pricing = {}
+
+    per_skill_license = source_root / "oss" / slug / "LICENSE"
+    license_path = per_skill_license if per_skill_license.exists() else repo_dir / "LICENSE"
+    if not license_path.exists():
+        raise RuntimeError(f"missing license source for {slug}")
+    license_text = license_path.read_text(encoding="utf-8")
+
+    readme_path = source_root / "oss" / slug / "README.md"
+    if readme_path.exists():
+        readme_text = readme_path.read_text(encoding="utf-8")
+    else:
+        description = str(container_manifest.get("description") or "").strip()
+        if not description:
+            description_match = re.search(r"^description:\s*(.+)$", skill_md, re.M)
+            description = description_match.group(1).strip() if description_match else "A hosted Omo workflow."
+        if not description.endswith("."):
+            description += "."
+        name = str(container_manifest.get("name") or "").strip()
+        if not name or name == slug:
+            name = slug.replace("-", " ").title()
+        readme_text = _oss_generated_readme(name, description, pricing.get("display_price_usd"))
+
+    version = str(container_manifest.get("version") or "0.1.0")
+    name = str(container_manifest.get("name") or "").strip()
+    if not name or name == slug:
+        name = slug.replace("-", " ").title()
+    run_price = pricing.get("display_price_usd")
+
+    inputs = _oss_bullets(_oss_section(skill_md, "Inputs", "Input contract", "Input"))
+    if not inputs:
+        workflow = _oss_section(skill_md, "Workflow")
+        if workflow:
+            first_step = re.search(r"1\.\s+\*\*(.+?)\*\*\s*:?\s*([^\n]+)", workflow)
+            if first_step:
+                inputs = [f"{first_step.group(1).rstrip(': ').strip()}: {first_step.group(2).strip()[:160]}"]
+    output_section = _oss_section(skill_md, "Output contract", "Outputs", "Output")
+    outputs = _oss_bullets(output_section) or ([_oss_summary(output_section)] if output_section else [])
+
+    published_skill = _oss_with_policy_header(skill_md)
+    manifest = {
+        "slug": slug,
+        "name": name,
+        "version": version,
+        "license": "MIT",
+        "policy": OSS_POLICY_URL,
+        "hosted_run_price_usd": run_price,
+        "inputs": inputs,
+        "outputs": outputs,
+        "source_sha256": sha256_bytes(published_skill.encode("utf-8")),
+        "publish_mechanism": OSS_PUBLISH_MECHANISM,
+    }
+    return {
+        "SKILL.md": published_skill.encode("utf-8"),
+        "LICENSE": license_text.encode("utf-8"),
+        "README.md": readme_text.encode("utf-8"),
+        "manifest.json": (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
+    }
+
+
+def publish_oss_release(slug: str, source_root: Path, environ: dict[str, str] | None = None) -> dict[str, Any]:
+    """Publish one released FREE slug to github.com/omo-space/skills (R4 gate).
+
+    Premium slugs (OSS_PREMIUM_EXCLUSIONS) return ``excluded_premium`` and
+    never publish. The publish is idempotent: an identical re-release produces
+    byte-identical artifacts and no new commit. Any clone/prepare/commit/push
+    failure raises a typed OssPublishBlocker so the release fails closed.
+    """
+    environ = environ if environ is not None else os.environ
+    if slug in OSS_PREMIUM_EXCLUSIONS:
+        return {"status": "excluded_premium", "slug": slug}
+    if not SAFE_SLUG_RE.fullmatch(slug):
+        raise OssPublishBlocker("oss_publish_prepare_failed")
+    repo_dir = Path(str(environ.get("OMO_OSS_REPO_DIR") or "").strip() or OSS_REPO_LOCAL)
+    repo_url = str(environ.get("OMO_OSS_REPO_URL") or "").strip() or OSS_REPO_URL
+    if repo_dir.resolve() in (ROOT.resolve(), ROOT.resolve().parent):
+        raise OssPublishBlocker("oss_publish_prepare_failed")
+    try:
+        ensure_oss_repo_checkout(repo_dir, repo_url)
+    except subprocess.CalledProcessError as error:
+        raise OssPublishBlocker("oss_publish_clone_failed") from error
+    try:
+        artifacts = build_oss_release_artifacts(slug, source_root, repo_dir)
+        manifest = json.loads(artifacts["manifest.json"])
+    except (RuntimeError, json.JSONDecodeError) as error:
+        raise OssPublishBlocker("oss_publish_prepare_failed") from error
+    try:
+        target_dir = repo_dir / OSS_SKILL_REL.format(slug=slug)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for filename, content in artifacts.items():
+            (target_dir / filename).write_bytes(content)
+        _oss_git_or_raise(_oss_git(repo_dir, "add", "-A", f"skills/{slug}"))
+        unchanged = _oss_git(repo_dir, "diff", "--cached", "--quiet")
+        if unchanged.returncode == 0:
+            return {
+                "status": "up_to_date",
+                "slug": slug,
+                "version": manifest["version"],
+                "source_sha256": manifest["source_sha256"],
+            }
+        if unchanged.returncode != 1:
+            raise subprocess.CalledProcessError(unchanged.returncode, unchanged.args)
+    except OSError as error:
+        raise OssPublishBlocker("oss_publish_prepare_failed") from error
+    except subprocess.CalledProcessError as error:
+        raise OssPublishBlocker("oss_publish_prepare_failed") from error
+    message = f"release({slug}): v{manifest['version']} oss publish"
+    try:
+        _oss_git_or_raise(
+            _oss_git(repo_dir, *_oss_commit_args(repo_dir), "commit", "-m", message)
+        )
+    except subprocess.CalledProcessError as error:
+        raise OssPublishBlocker("oss_publish_commit_failed") from error
+    try:
+        _oss_git_or_raise(_oss_git(repo_dir, "push", "origin", "HEAD:main"))
+    except subprocess.CalledProcessError as error:
+        raise OssPublishBlocker("oss_publish_push_failed") from error
+    head = _oss_git(repo_dir, "rev-parse", "HEAD")
+    return {
+        "status": "published",
+        "slug": slug,
+        "version": manifest["version"],
+        "commit": head.stdout.strip(),
+        "source_sha256": manifest["source_sha256"],
+    }
+
+
 def deploy_merged_release(
     skill_path: Path,
     slug: str,
@@ -1514,6 +1815,10 @@ def deploy_merged_release(
     run_checked(["npm", "ci"], worker_deploy_root)
     deploy_evidence = deploy_worker_registry(worker_deploy_root)
     smoke_evidence = smoke_live_worker_registry([slug])
+    if slug in OSS_PREMIUM_EXCLUSIONS:
+        oss_evidence: dict[str, Any] = {"status": "excluded_premium", "slug": slug}
+    else:
+        oss_evidence = publish_oss_release(slug, release_root)
     return {
         **verified,
         "release_phase": "promoted",
@@ -1521,6 +1826,7 @@ def deploy_merged_release(
             "R1": registry_evidence,
             "R2": deploy_evidence,
             "R3": smoke_evidence,
+            "R4": oss_evidence,
             "status": "live",
             "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         },

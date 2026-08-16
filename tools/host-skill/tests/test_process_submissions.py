@@ -246,6 +246,13 @@ def test_deploy_merged_release_runs_deploy_only_after_verified_merge(monkeypatch
         "smoke_live_worker_registry",
         lambda slugs: {"status": "passed", "slugs": {slugs[0]: {"status": 401, "error": "authentication_required"}}},
     )
+    oss_publishes: list[tuple[str, Path]] = []
+    monkeypatch.setattr(
+        process,
+        "publish_oss_release",
+        lambda slug, source_root, environ=None: oss_publishes.append((slug, source_root))
+        or {"status": "published", "slug": slug, "version": "0.1.0", "source_sha256": "f" * 64},
+    )
     profile_path = write_profile(tmp_path, "modal-hosted")
     release = {
         "submission_id": "sub_verifieddeploy000000000002",
@@ -270,6 +277,8 @@ def test_deploy_merged_release_runs_deploy_only_after_verified_merge(monkeypatch
     assert result["release_gates"]["status"] == "live"
     assert result["release_gates"]["R1"]["slug_counts"] == {"facebook-ads-copywriter": 1}
     assert result["release_gates"]["R3"]["slugs"]["facebook-ads-copywriter"]["status"] == 401
+    assert result["release_gates"]["R4"]["status"] == "published"
+    assert oss_publishes == [("facebook-ads-copywriter", process.ROOT)]
     assert any("modal deploy" in command for command in flattened)
     assert "npm ci" in flattened
     assert any("wrangler@4.123.0 deploy" in command for command in flattened)
@@ -302,6 +311,13 @@ def test_deploy_merged_release_uses_verified_checkout_when_adapter_provides_one(
         "smoke_live_worker_registry",
         lambda slugs: {"status": "passed", "slugs": {slugs[0]: {"status": 401, "error": "authentication_required"}}},
     )
+    oss_publishes: list[tuple[str, Path]] = []
+    monkeypatch.setattr(
+        process,
+        "publish_oss_release",
+        lambda slug, source_root, environ=None: oss_publishes.append((slug, source_root))
+        or {"status": "published", "slug": slug, "version": "0.1.0", "source_sha256": "f" * 64},
+    )
     dirty_profile = write_profile(tmp_path, "worker-native")
     release = {
         "selected_runtime": "worker-native",
@@ -322,6 +338,8 @@ def test_deploy_merged_release_uses_verified_checkout_when_adapter_provides_one(
     result = process.deploy_merged_release(SKILL_PATH, "facebook-ads-copywriter", dirty_profile, release, Adapter())
 
     assert result["release_phase"] == "promoted"
+    assert result["release_gates"]["R4"]["status"] == "published"
+    assert oss_publishes == [("facebook-ads-copywriter", release_root)]
     assert commands == [
         (["npm", "ci"], release_root / "site" / "deploy"),
         (["npx", "wrangler@4.123.0", "deploy"], release_root / "site" / "deploy"),
@@ -1285,3 +1303,256 @@ def test_claim_sql_is_atomic_and_returns_only_processor_fields() -> None:
     repo._extras = object()
 
     assert repo.claim() is None
+
+
+# --- R4 open-source publish gate -------------------------------------------
+
+
+def make_oss_source_root(tmp_path: Path, slug: str = "oss-test-skill", version: str = "1.2.3", price: float = 0.1) -> Path:
+    source_root = tmp_path / "source-root"
+    container = source_root / "containers" / slug
+    (container / "source").mkdir(parents=True)
+    (container / "source" / "SKILL.md").write_text(
+        "---\n"
+        f"name: {slug}\n"
+        "description: An OSS test skill.\n"
+        "---\n"
+        "\n"
+        f"# {slug.replace('-', ' ').title()}\n"
+        "\n"
+        "A short description of what this does.\n"
+        "\n"
+        "## Inputs\n"
+        "\n"
+        "- `word`: one English word, 1-80 characters.\n"
+        "- `dialect`: `en-US` or `en-GB`.\n"
+        "\n"
+        "## Workflow\n"
+        "\n"
+        "1. **Validate:** Reject bad input before a provider call.\n"
+        "\n"
+        "## Output contract\n"
+        "\n"
+        "- Return one JSON object with `run_id` and `usage`.\n",
+        encoding="utf-8",
+    )
+    (container / "manifest.json").write_text(
+        json.dumps({"name": "OSS Test Skill", "version": version, "description": "An OSS test skill."}),
+        encoding="utf-8",
+    )
+    (container / "pricing-report.json").write_text(json.dumps({"display_price_usd": price}), encoding="utf-8")
+    return source_root
+
+
+def make_oss_remote(tmp_path: Path) -> tuple[Path, Path]:
+    remote = tmp_path / "oss-remote.git"
+    subprocess.run(["git", "init", "--bare", "--initial-branch=main", str(remote)], check=True, capture_output=True)
+    seed = tmp_path / "oss-seed"
+    seed.mkdir()
+    (seed / "LICENSE").write_text("MIT License\n\nCopyright (c) 2026 Omo\n", encoding="utf-8")
+    (seed / "README.md").write_text("# Omo Skills\n\nFree skill.md files.\n", encoding="utf-8")
+    subprocess.run(["git", "init", "--initial-branch=main"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(seed), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(seed), "-c", "user.name=Seed", "-c", "user.email=seed@example.com", "commit", "-m", "seed"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "-C", str(seed), "remote", "add", "origin", str(remote)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(seed), "push", "-u", "origin", "main"], check=True, capture_output=True)
+    checkout = tmp_path / "oss-checkout"
+    subprocess.run(["git", "clone", str(remote), str(checkout)], check=True, capture_output=True)
+    return remote, checkout
+
+
+def oss_env(remote: Path, checkout: Path) -> dict[str, str]:
+    return {"OMO_OSS_REPO_DIR": str(checkout), "OMO_OSS_REPO_URL": str(remote)}
+
+
+def test_oss_publish_publishes_artifacts_and_pushes(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source_root = make_oss_source_root(tmp_path)
+    remote, checkout = make_oss_remote(tmp_path)
+
+    result = process.publish_oss_release("oss-test-skill", source_root, oss_env(remote, checkout))
+
+    assert result["status"] == "published"
+    assert result["slug"] == "oss-test-skill"
+    assert result["version"] == "1.2.3"
+    assert result["commit"]
+    target = checkout / "skills" / "oss-test-skill"
+    assert (target / "SKILL.md").exists()
+    published = (target / "SKILL.md").read_text(encoding="utf-8")
+    assert published.startswith("---\n")
+    assert "Omo open source" in published  # policy header inserted after frontmatter
+    assert "`word`: one English word" in published
+    assert (target / "LICENSE").read_text(encoding="utf-8").startswith("MIT License")
+    assert "omo.space" in (target / "README.md").read_text(encoding="utf-8")
+    assert "**$0.10 per run**" in (target / "README.md").read_text(encoding="utf-8")
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["slug"] == "oss-test-skill"
+    assert manifest["version"] == "1.2.3"
+    assert manifest["license"] == "MIT"
+    assert manifest["policy"] == process.OSS_POLICY_URL
+    assert manifest["hosted_run_price_usd"] == 0.1
+    assert manifest["inputs"] == ["`word`: one English word, 1-80 characters.", "`dialect`: `en-US` or `en-GB`."]
+    assert manifest["outputs"] == ["Return one JSON object with `run_id` and `usage`."]
+    assert manifest["source_sha256"] == process.sha256_bytes(published.encode("utf-8"))
+    assert manifest["publish_mechanism"] == process.OSS_PUBLISH_MECHANISM
+    head = subprocess.run(
+        ["git", "-C", str(checkout), "log", "-1", "--format=%s"], check=True, capture_output=True, text=True
+    )
+    assert head.stdout.strip() == "release(oss-test-skill): v1.2.3 oss publish"
+    remote_head = subprocess.run(
+        ["git", "--git-dir", str(remote), "log", "-1", "--format=%H"], check=True, capture_output=True, text=True
+    )
+    assert remote_head.stdout.strip() == result["commit"]  # push landed
+
+
+def test_oss_publish_excluded_premium_never_publishes(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source_root = make_oss_source_root(tmp_path, slug="illustrated-decodable-story-maker")
+    remote, checkout = make_oss_remote(tmp_path)
+
+    result = process.publish_oss_release("illustrated-decodable-story-maker", source_root, oss_env(remote, checkout))
+
+    assert result == {"status": "excluded_premium", "slug": "illustrated-decodable-story-maker"}
+    assert not (checkout / "skills" / "illustrated-decodable-story-maker").exists()
+    log = subprocess.run(["git", "-C", str(checkout), "rev-list", "--count", "HEAD"], check=True, capture_output=True, text=True)
+    assert log.stdout.strip() == "1"  # seed only; the flagship was never committed
+
+
+def test_oss_publish_release_gate_excludes_premium_without_publishing(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[list[str]] = []
+    monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append(list(command)))
+    monkeypatch.setattr(
+        process,
+        "verify_generated_worker_registry",
+        lambda slugs, worker_root=process.WORKER_ROOT: {"status": "passed", "slug_counts": {slugs[0]: 1}},
+    )
+    monkeypatch.setattr(process, "deploy_worker_registry", lambda worker_root=process.WORKER_ROOT: {"status": "deployed"})
+    monkeypatch.setattr(
+        process,
+        "smoke_live_worker_registry",
+        lambda slugs, base_url=process.LIVE_WORKER_BASE_URL, timeout_seconds=process.HTTP_TIMEOUT_SECONDS: {
+            "status": "passed",
+            "slugs": {slugs[0]: {"status": 401, "error": "authentication_required"}},
+        },
+    )
+    monkeypatch.setattr(
+        process,
+        "publish_oss_release",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("premium must never reach the publish function")),
+    )
+    profile_path = write_profile(tmp_path, "worker-native")
+    release = {
+        "submission_id": "sub_verifieddeploy000000000009",
+        "slug": "illustrated-decodable-story-maker",
+        "selected_runtime": "worker-native",
+        "source_sha256": "a" * 64,
+        "artifact_hash": "b" * 64,
+        "head_sha": "c" * 40,
+        "merge_sha": "d" * 40,
+        "verified_merge_sha": "d" * 40,
+        "release_phase": "merged_verified",
+    }
+
+    class Adapter:
+        def verify_merged_release(self, release_metadata):
+            return release_metadata
+
+    result = process.deploy_merged_release(
+        SKILL_PATH, "illustrated-decodable-story-maker", profile_path, release, Adapter()
+    )
+
+    assert result["release_gates"]["R4"] == {"status": "excluded_premium", "slug": "illustrated-decodable-story-maker"}
+
+
+def test_oss_publish_idempotent_release_is_noop_and_changes_republish(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source_root = make_oss_source_root(tmp_path)
+    remote, checkout = make_oss_remote(tmp_path)
+
+    first = process.publish_oss_release("oss-test-skill", source_root, oss_env(remote, checkout))
+    assert first["status"] == "published"
+
+    second = process.publish_oss_release("oss-test-skill", source_root, oss_env(remote, checkout))
+    assert second["status"] == "up_to_date"
+    assert second["source_sha256"] == first["source_sha256"]
+    log1 = subprocess.run(["git", "-C", str(checkout), "rev-list", "--count", "HEAD"], check=True, capture_output=True, text=True)
+    assert log1.stdout.strip() == "2"  # seed + publish; identical re-release adds no commit
+
+    skill_path = source_root / "containers" / "oss-test-skill" / "source" / "SKILL.md"
+    skill_path.write_text(skill_path.read_text(encoding="utf-8") + "\n## Changelog\n\n- v1.3.0 tweak.\n", encoding="utf-8")
+    third = process.publish_oss_release("oss-test-skill", source_root, oss_env(remote, checkout))
+    assert third["status"] == "published"
+    assert third["source_sha256"] != second["source_sha256"]
+    assert "v1.3.0 tweak" in (checkout / "skills" / "oss-test-skill" / "SKILL.md").read_text(encoding="utf-8")
+    log2 = subprocess.run(["git", "-C", str(checkout), "rev-list", "--count", "HEAD"], check=True, capture_output=True, text=True)
+    assert log2.stdout.strip() == "3"  # one new commit for the changed release
+
+
+def test_oss_publish_clone_failure_fails_closed(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source_root = make_oss_source_root(tmp_path)
+    env = {
+        "OMO_OSS_REPO_DIR": str(tmp_path / "missing-checkout"),
+        "OMO_OSS_REPO_URL": str(tmp_path / "missing-remote.git"),
+    }
+    try:
+        process.publish_oss_release("oss-test-skill", source_root, env)
+    except process.OssPublishBlocker as blocker:
+        assert blocker.code == "oss_publish_clone_failed"
+        assert blocker.gate == "R4"
+        assert "omo-space/skills" in blocker.remediation
+    else:
+        raise AssertionError("clone failure must fail closed with a typed blocker")
+
+
+def test_oss_publish_commit_failure_fails_closed(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source_root = make_oss_source_root(tmp_path)
+    remote, checkout = make_oss_remote(tmp_path)
+    real_oss_git = process._oss_git
+
+    def failing_commit(repo_dir, *args):
+        if "commit" in args:
+            return subprocess.CompletedProcess(["git", "commit"], 128, "fatal: identity missing", "")
+        return real_oss_git(repo_dir, *args)
+
+    monkeypatch.setattr(process, "_oss_git", failing_commit)
+    try:
+        process.publish_oss_release("oss-test-skill", source_root, oss_env(remote, checkout))
+    except process.OssPublishBlocker as blocker:
+        assert blocker.code == "oss_publish_commit_failed"
+        assert blocker.gate == "R4"
+    else:
+        raise AssertionError("commit failure must fail closed with a typed blocker")
+
+
+def test_oss_publish_push_failure_fails_closed(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    source_root = make_oss_source_root(tmp_path)
+    remote, checkout = make_oss_remote(tmp_path)
+    real_oss_git = process._oss_git
+
+    def failing_push(repo_dir, *args):
+        if "push" in args:
+            return subprocess.CompletedProcess(["git", "push"], 128, "fatal: unable to access", "")
+        return real_oss_git(repo_dir, *args)
+
+    monkeypatch.setattr(process, "_oss_git", failing_push)
+    try:
+        process.publish_oss_release("oss-test-skill", source_root, oss_env(remote, checkout))
+    except process.OssPublishBlocker as blocker:
+        assert blocker.code == "oss_publish_push_failed"
+        assert blocker.gate == "R4"
+        assert "omo-space/skills" in blocker.remediation
+    else:
+        raise AssertionError("push failure must fail closed with a typed blocker")
+    # the local commit exists (resumable) but the remote never advanced
+    local = subprocess.run(["git", "-C", str(checkout), "log", "-1", "--format=%s"], check=True, capture_output=True, text=True)
+    assert local.stdout.strip() == "release(oss-test-skill): v1.2.3 oss publish"
+    remote_log = subprocess.run(["git", "--git-dir", str(remote), "rev-list", "--count", "HEAD"], check=True, capture_output=True, text=True)
+    assert remote_log.stdout.strip() == "1"
