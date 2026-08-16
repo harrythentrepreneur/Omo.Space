@@ -32,6 +32,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
+- WAITING (2026-08-16T14:01Z): git fetch confirmed origin/main unchanged since the 13:26Z reconcile — 0 behind / 11 ahead, tree clean, no new founder or coordinator input. Web tooling re-confirmed UNAVAILABLE in this cron session (no Firecrawl config / API key), matching prior ticks, so no external corpus sourcing is possible and none was attempted. All buildable machinery is complete (vocabulary normalizer fixture-proven 3/3 on synthetic data; fill-in template ready at marketing/pilot-book-vocabulary-template.md; local branch reconciled). The remaining chain is 100% Harry/coordinator-owned: (1) reviewed vocabulary content -> bind/regen/flip can_submit; (2) coordinator pull of our 11 local commits; (3) approvals for semantic-recovery-provider-proof-001, japanese-modal-deploy-001, magic-link deploy, and the social X identity gate. No new PROPOSAL added — the existing asks already spell out the exact approvals. Metrics unchanged (0 / 0 / 0). No spend, send, deploy, push, or secret access.
 - RECONCILED WITH origin/main (2026-08-16T13:26Z): fetched the remote and merged 27 coordinator commits into our local main (merge base `696ffc6`, zero text conflicts). The remote brought: the label-normalizer-canary RELEASE chain (#94-#111 — the first chargeable run-manifest `site/run-manifests/label-normalizer-canary.json` released through the creator-builder pipeline), Reddit research #90 (`research/REDDIT-AI-SEO-STRATEGY.MD`, buyer/creator/marketplace-sentiment sources + mining scripts), GitHub skill-scout #88 (`scripts/github-skill-scout.py`), image style system #84 (`research/social-assets/style-sheet/` + three signature posts), OSS everything-free strategy, and credential-strategy restore #93. The coordinator's own GOAL.md on the remote is STALE — it predates their own 27 commits and still claims "exact $0.99 book slug not identified," which our pilot-book-correction already disproved; the merged GOAL.md carries our corrected state. Integration bug found and fixed this tick: the coordinator's new `label-normalizer-canary` profile was unpinned — probed its kind (`schema_only`), added it to `_EXISTING_PROFILE_KINDS`. Verified merged tree: compiler suite 58/1 (sole fail = pre-existing ffmpeg env gate), decodable-book-maker container 14/14, label-normalizer-canary container 5/5, catalog.js parses with all 14 visible slugs + our six humanized copy strings preserved. NO push performed — origin/main still lacks our 9 local commits (pilot-book runtime, vocabulary machinery, fixtures, template); the coordinator must pull/merge our branch to land the decodable-book-maker supply-side work upstream.
 - Builder breadth BUILDABLE #1: the six generic contract-evidence adapters (`semantic.grounded_numeric_copy`, `semantic.exact_field_projection`, `semantic.constraint_coverage`, `semantic.policy_requirement_coverage`, `semantic.rule_based_classification`, `semantic.placeholder_glossary_enforcement`) are implemented as shape+promise selectors in `semantic_evidence_spec` plus `_<kind>_semantic_diff` evaluators and dispatcher branches in the generated runtime template (2026-08-16). Compiler suite 51/52 green (sole failure = pre-existing ffmpeg version gate); 5 new fixture-only tests cover right-needle replay, 10 distinct wrong-needle tokens, selector fail-closed without a reviewed contract, and an all-18-profile no-reclassification pin (0 new container drift measured). Nothing was committed for containers, pushed, deployed, or sent; Codex sol review was unavailable (OpenAI 401 in cron session) so verification is direct generated-runtime evidence.
 - State: production payment loop is LIVE (per the marketplace dev agent's session, 2026-08-12) — the additive Neon schema is applied (all 12 tables), the three live Worker secrets (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, NEON_DATABASE_URL) are set, and a Woven checkout returned a real Stripe Checkout URL. The local release state now has a reversible 14-listing whitelist: the existing four listings, nine ready education tools, and the ready $5/run Skill.md loader; the coordinator still owns the production push.
@@ -265,9 +266,14 @@ Priority order (updated after the origin/main reconciliation):
 4. Wait for Harry's approvals for `japanese-modal-deploy-001`, the pilot
    magic-link deploy, and the social X identity gate; do not push from this
    profile.
-No churn this cycle; the single concrete action was reconciling our local
-pilot-book work onto the coordinator's 27 new commits (merge + pin fix +
-verification), with zero text conflicts and the pre-existing ffmpeg gate as the
-only red test.
-Status: waiting on Harry for the reviewed vocabulary content (template ready);
-local branch reconciled with origin/main and verified green.
+No churn this cycle. This tick (fw-cf, 2026-08-16T14:01Z): verified waiting
+state — `git fetch origin` shows 0 behind / 11 ahead with a clean tree, so
+nothing new has landed since the 13:26Z reconcile (local HEAD c67f98d); web
+tooling re-confirmed unavailable in this cron session (no Firecrawl config),
+so no external corpus sourcing is possible and none was attempted. Status:
+WAITING. Every remaining gate is Harry/coordinator-owned: (1) reviewed
+vocabulary content — template + machinery ready, no self-invented lists;
+(2) coordinator pull of our 11 local commits; (3) approvals for
+semantic-recovery-provider-proof-001, japanese-modal-deploy-001, the magic-link
+deploy, and the X identity gate. Metrics unchanged. No spend, send, deploy,
+push, or secret access occurred.
