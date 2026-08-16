@@ -22,6 +22,18 @@ def load_host():
     return module
 
 
+def test_compiler_gate_excludes_only_unavailable_optional_groups() -> None:
+    host = load_host()
+    command = host.compiler_gate_test_command()
+    expression = command[command.index("-k") + 1]
+    assert "not test_final_rerun_data_fixtures_run_full_grounded_pipeline_and_render_png" in expression
+    assert "not generic_domain_orchestrator_resolves_and_runs_stats_only_contracts" in expression
+    assert "not test_generated_video_binding_smoke_and_typed_domain_transitions" in expression
+    assert "not test_parse_skill_requires_and_returns_frontmatter" not in expression
+    assert str(ROOT / "packages" / "skill-to-modal" / "tests") in command
+    assert str(ROOT / "tools" / "host-skill" / "tests") in command
+
+
 host = load_host()
 PROFILE_PATH = ROOT / "packages" / "skill-to-modal" / "profiles" / "facebook-ads-copywriter.json"
 SKILL_PATH = ROOT / "packages" / "facebook-ads-copywriter" / "SKILL.md"
