@@ -2197,3 +2197,130 @@ def test_check_mode_reports_drift_without_writing(tmp_path: Path) -> None:
     assert list(tmp_path.iterdir()) == []
     assert compiler.write_or_check(files, tmp_path, check=False) == 0
     assert compiler.write_or_check(files, tmp_path, check=True) == 0
+
+
+VOCABULARY_FIXTURE_PATH = SEMANTIC_REPLAY_PATH.with_name("vocabulary-book-normalizer.json")
+
+_VOCABULARY_REVIEWED_PROMISES = (
+    "every child-visible title, heading, and prose word must pass the selected "
+    "stage vocabulary or the reviewed sight-word list"
+)
+
+
+def _vocabulary_book_runtime(tmp_path: Path):
+    """Generate a decodable-book-shaped runtime wired with a SYNTHETIC
+    vocabulary resource and return (runtime, fixture). The vocabulary is
+    clearly-labeled test data for machinery proof only — never reviewed
+    PhonicsMaker content."""
+    fixture = json.loads(VOCABULARY_FIXTURE_PATH.read_text(encoding="utf-8"))
+    assert fixture["provenance"]
+    vocabulary = fixture["vocabulary"]
+    stages = vocabulary["stages"]
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "vocabulary-book-normalizer"
+    profile["name"] = profile["slug"]
+    profile["input_schema"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "phonics_stage": {"type": "string", "enum": sorted(stages)},
+            "theme": {"type": "string"},
+            "child_name": {
+                "type": "string",
+                "description": "Optional. A child's name; the sole special-word exception.",
+            },
+        },
+        "required": ["phonics_stage", "theme"],
+    }
+    profile["live"]["model_output_schema"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "book": {"type": "string"},
+            "decodability": {
+                "type": "object",
+                "properties": {
+                    "word_counts": {"type": "object"},
+                    "review_words": {"type": "array"},
+                    "sight_words": {"type": "array"},
+                },
+            },
+        },
+        "required": ["book"],
+    }
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = {
+        "constraints": [_VOCABULARY_REVIEWED_PROMISES],
+        "vocabulary": vocabulary,
+    }
+    runtime_path = tmp_path / (profile["slug"] + ".py")
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + profile["slug"].replace("-", "_"), runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == "whole_book_vocabulary"
+    return runtime, fixture
+
+
+def test_vocabulary_book_normalizer_selects_kind_only_with_reviewed_vocabulary() -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["input_schema"] = {
+        "type": "object",
+        "properties": {
+            "phonics_stage": {"type": "string", "enum": ["short-a-cvc"]},
+            "theme": {"type": "string"},
+        },
+    }
+    profile["live"]["model_output_schema"] = {
+        "type": "object",
+        "properties": {
+            "book": {"type": "string"},
+            "decodability": {"type": "object", "properties": {
+                "word_counts": {}, "review_words": {}, "sight_words": {},
+            }},
+        },
+    }
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = {
+        "constraints": [_VOCABULARY_REVIEWED_PROMISES],
+        "vocabulary": {
+            "provenance": "draft",
+            "stages": {"short-a-cvc": ["cat", "hat"]},
+            "sight_words": ["the"],
+        },
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "schema_only"
+    profile["reviewed_spec"]["vocabulary"]["provenance"] = "reviewed"
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "whole_book_vocabulary"
+    del profile["reviewed_spec"]["vocabulary"]
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "schema_only"
+
+
+def test_vocabulary_book_normalizer_replays_right_needle(tmp_path: Path) -> None:
+    runtime, fixture = _vocabulary_book_runtime(tmp_path)
+    case = fixture["cases"][0]
+    payload = case["input"]
+    output = {"book": case["book"]}
+    normalized = runtime._semantic_normalize(json.loads(json.dumps(output)), payload)
+    diff = runtime._semantic_validation_diff(normalized, payload)
+    assert diff == "", diff
+    report = normalized["decodability"]
+    assert report["stage"] == "short-a-cvc"
+    assert report["word_counts"]["review"] == 0
+    assert report["review_words"] == []
+    assert report["within_stage_percent"] == 100.0
+    assert report["sight_words"] == case["expected_sight_words"]
+    assert report["name_occurrences"] == case["expected_name_occurrences"]
+    assert report["word_counts"]["total"] == report["word_counts"]["decodable"] + report["word_counts"]["sight"] + report["word_counts"]["review"] + report["name_occurrences"]
+
+
+def test_vocabulary_book_normalizer_flags_wrong_needles(tmp_path: Path) -> None:
+    runtime, fixture = _vocabulary_book_runtime(tmp_path)
+    for case in fixture["cases"][1:]:
+        payload = case["input"]
+        output = {"book": case["book"]}
+        diff = runtime._semantic_validation_diff(json.loads(json.dumps(output)), payload)
+        assert case["expect_diff_contains"] in diff, f"{case['id']}: {diff}"

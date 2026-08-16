@@ -68,8 +68,9 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Storefront copy pass: all 14 `OMO_VISIBLE_SLUGS` listings were audited; the six worst buyer-facing strings (japanese-style-story-video desc+demoCap, woven, customer-feedback-theme-finder, facebook-ads-copywriter, skill-md-to-hosted-workflow) were rewritten into result-first human copy with every factual/price/honesty claim preserved (catalog.js only). `node --check` PASS, catalog parses as JSON (121 listings), `test_published_catalog` 1/1, diff clean. No deploy/push/send/spend.
 - Pilot-book slug finding SUPERSEDED (2026-08-16): the previous tick typed the pilot-book blocker as "no released $0.99 book; the only book-maker is illustrated-decodable-story-maker at a $1.62 floor; a price/scope decision sits with Harry." Live verification THIS tick proves that finding WRONG: `decodable-book-maker` v1.0.0 @ $0.99/run EXISTS and is OSS-published (live manifest from github.com/omo-space/skills: hosted_run_price_usd 0.99, source_sha256 d01ae61d577c1555b1b32761b15ea7c08c4c5fe1203756d18132a77bcb8785d7; reviewed contract = 5 cumulative phonics stages, theme, optional child_name -> multi-page PDF book + decodability report + signed artifact URL), and Harry ALREADY settled the price/scope by binding `PILOT_BOOK_BUILDER_PATH="/run.html?slug=decodable-book-maker"` with `PILOT_GRANT_CENTS="99"` in `site/deploy/wrangler.toml` (commit 44879e2, 2026-08-16 04:33Z, an ancestor of this loop's own commit 35b514f). The genuine gap is the LOCAL HOSTED RUNTIME: no profile in packages/skill-to-modal/profiles/, no containers/decodable-book-maker/, no run-manifest, no catalog row, absent from OMO_VISIBLE_SLUGS (verified via git log --all and catalog grep). The OSS publish came from a different checkout; this repo has no decodable-book-maker source of truth. So the typed blocker changes from "Harry price/scope call" to "reconstruct the local hosted runtime from the published reviewed contract (fetch OSS SKILL.md/manifest, author the profile, compile fixture-only) — no spend, no deploy, no Harry needed for the local build."
 - Pilot-book runtime half-DONE (2026-08-16, this tick): the local profile `packages/skill-to-modal/profiles/decodable-book-maker.json` is authored from the verified published contract and compiled through the canonical compiler into `containers/decodable-book-maker/`. The generated bundle is coherent and fail-closed: `book_pdf` artifact with signed persistence routed (reportlab+pypdf image packages), input schema = 5 cumulative stage enum + bounded theme + optional child_name, output schema = title/book/page_plan/decodability/artifact/artifact_url/usage, source SHA-256 d01ae61d recorded. Readiness is honestly `can_submit=false` with ONE typed blocker `DECODABILITY_VOCABULARY_MISSING` surfaced in both capability-manifest and manifest: the reviewed contract demands a compiler-owned stage vocabulary + reviewed sight-word list recomputed deterministically with zero review words in a runnable result, and no such vocabulary resource exists in this repo or the OSS twin (which publishes only SKILL.md/manifest/README/LICENSE), nor does the compiler have a whole-book vocabulary normalizer kind. Compiler suite 54/55 green (sole failure = the pre-existing ffmpeg 8.0.1-vs-8.1.2 env gate, unchanged), the new container's network-disabled contract tests pass 14/14, and `_EXISTING_PROFILE_KINDS` gained `decodable-book-maker: schema_only` so the 19-profile no-reclassification test passes. Local run-manifest/catalog row and any deployment remain not done (need the vocabulary gate + coordinator push + Harry's live-change approval respectively).
-- Next: (1) author the deterministic stage-vocabulary + reviewed sight-word list as a compiler-owned resource (source: PhonicsMaker's reviewed inventory in the OSS repo or Harry signs off a reviewed list; no vocabulary resource exists anywhere yet) and add a whole-book vocabulary normalizer kind to the compiler so decodable-book-maker can flip can_submit, then regenerate its container and fixture-test right/wrong needles; (2) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (3) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (4) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (5) move Omo onto its own Stripe account; (6) rotate the live sk exposed in chat; (7) after Harry's explicit production approval, set the magic-link secret and deploy the Worker/static bridge (the slug is now bound, so the remaining pilot-deploy steps are approval-gated, not slug-hunted); (8) run the 20 pilot canaries; (9) obtain Harry's explicit approval before any pilot email send.
-- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval (formally proposed as `semantic-recovery-provider-proof-001`). The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); pilot-book slug is RESOLVED (bound to decodable-book-maker @ $0.99) and its LOCAL HOSTED RUNTIME is authored + compiled fail-closed with the single typed `DECODABILITY_VOCABULARY_MISSING` gate (no compiler-owned stage vocabulary/sight-word list exists in this repo or the OSS twin — needs a reviewed vocabulary source, then the normalizer build; can_submit flips only then); existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
+- Vocabulary normalizer MACHINERY DONE (2026-08-16, this tick): the compiler gained the `semantic.whole_book_vocabulary/v1` kind — a selector in `semantic_evidence_spec` that fires ONLY when `reviewed_spec.vocabulary` carries `provenance: reviewed`, exact stage-enum match, one book string field, and a decodability object exposing word_counts/review_words/sight_words; plus a deterministic whole-book token classifier (stage-vocab / sight / name-exception / review slots) with decodability-report recompute wired into the generated runtime (`_whole_book_vocabulary_scan` + semantic diff + `_semantic_normalize` hook + dispatcher branch). Proven 3/3 fixture tests on a clearly-labeled SYNTHETIC vocabulary (`tests/fixtures/vocabulary-book-normalizer.json`, provenance-documented, NOT reviewed content): right needle (stage-1 book with name exception -> 100% within-stage, zero review words, exact recomputed report), out-of-stage word -> `$:semantic_review_words`, unknown stage -> `$:semantic_unknown_stage`; plus a fail-closed selector test (draft provenance -> schema_only, reviewed -> whole_book_vocabulary, absent vocabulary -> schema_only). Compiler suite 57/58 green = recorded 54/55 baseline + 3 new tests (sole fail = pre-existing ffmpeg gate); no-reclassification pin holds; profile blocker detail updated to reflect machinery done. The ONLY remaining gap is the REVIEWED CONTENT, verified this tick to exist nowhere: OSS twin ships no data files per skill, all 95+ PhonicsMaker inventory skills are procedural generators with no static word bank, no third-party corpora in repo — so the five stage vocabularies + sight-word list are strictly a Harry decision. No container regen yet, no commit of containers, no push/deploy/spend/send/credential access.
+- Next: (1) get the REVIEWED vocabulary content from Harry — the five cumulative stage vocabularies + sight-word list (verified this tick: no reviewed word-list source exists in the OSS twin, which publishes only SKILL.md/README/LICENSE/manifest per skill, nor in any of the 95+ PhonicsMaker inventory skills, which are procedural generators with no static word bank, nor anywhere else in this repo; web tooling unavailable in cron) — then bind it as `reviewed_spec.vocabulary` in the decodable-book-maker profile, regenerate the container, and flip can_submit; the whole_book_vocabulary normalizer kind is DONE and fixture-proven 3/3 on synthetic data, so content binding is the only remaining machinery-gate step; (2) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (3) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (4) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (5) move Omo onto its own Stripe account; (6) rotate the live sk exposed in chat; (7) after Harry's explicit production approval, set the magic-link secret and deploy the Worker/static bridge (the slug is now bound, so the remaining pilot-deploy steps are approval-gated, not slug-hunted); (8) run the 20 pilot canaries; (9) obtain Harry's explicit approval before any pilot email send.
+- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval (formally proposed as `semantic-recovery-provider-proof-001`). The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); pilot-book slug is RESOLVED (bound to decodable-book-maker @ $0.99) and its LOCAL HOSTED RUNTIME is authored + compiled fail-closed with the single typed `DECODABILITY_VOCABULARY_MISSING` gate, now narrowed to CONTENT ONLY: the whole_book_vocabulary normalizer kind is done (fixture-proven on labeled synthetic vocabulary, selector fail-closed without a reviewed resource) and the only missing piece is the five reviewed cumulative stage vocabularies + sight-word list, which is strictly a Harry decision (no reviewed word-bank exists in the OSS twin or the PhonicsMaker inventory, verified this tick); existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
 
 ## Metrics (live)
 
@@ -217,30 +218,36 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-BUILDABLE #1 is complete (generic semantic adapters, 7/7 right + 7/7 wrong needles,
-compiler, sole pre-existing ffmpeg env gate).
+BUILDABLE #1 remains complete (generic semantic adapters, 7/7 right + 7/7 wrong
+needles). VOCABULARY-NORMALIZER MACHINERY is now DONE (this tick, 2026-08-16):
+the compiler gained the `semantic.whole_book_vocabulary/v1` kind — selector in
+`semantic_evidence_spec` (fires only on a `reviewed_spec.vocabulary` resource with
+`provenance: reviewed`, exact stage-enum match, one book string, decodability
+object with word_counts/review_words/sight_words) plus a deterministic whole-book
+token classifier (`_whole_book_vocabulary_scan` + `_…semantic_diff` + normalize
+hook + dispatcher) that recomputes the decodability report and fails closed on
+review words. Fixture-proven 3/3 + 1 selector test on clearly-labeled SYNTHETIC
+vocabulary (`tests/fixtures/vocabulary-book-normalizer.json`, provenance-doc, NOT
+reviewed content). Compiler suite 57/58 = recorded baseline 54/55 + 3 new tests
+(sole failure = pre-existing ffmpeg 8.0.1-vs-8.1.2 env gate); no-reclassification
+pin holds; decodable-book-maker profile blocker detail updated (machinery done,
+content-only gate).
 
-PILOT-BOOK RUNTIME (this tick, 2026-08-16): the local profile
-`packages/skill-to-modal/profiles/decodable-book-maker.json` is authored from the
-live-verified published contract (source_sha256 d01ae61d…) and compiled through the
-canonical compiler into `containers/decodable-book-maker/` (book_pdf artifact,
-title/book/page_plan/decodability/artifact outputs, run.txt stage-safe prompt,
-$0.99 reviewed OSS price preserved). It is FAIL-CLOSED by design with the single
-typed blocker `DECODABILITY_VOCABULARY_MISSING`: the contract demands a
-compiler-owned stage vocabulary + reviewed sight-word list, recomputed
-deterministically, zero review words in a runnable result — and no such vocabulary
-resource exists in this repo or the OSS twin (which publishes only SKILL.md/
-manifest/README/LICENSE), nor does the compiler have a whole-book vocabulary
-normalizer kind. Compiler suite 54/55 green (sole failure = pre-existing ffmpeg
-8.0.1-vs-8.1.2 env gate); the new container's network-disabled contract tests pass
-14/14; `_EXISTING_PROFILE_KINDS` gained `decodable-book-maker: schema_only`.
+REMAINING BLOCKER — REVIEWED CONTENT ONLY: no reviewed word-list source exists
+anywhere, verified exhaustively this tick: the OSS twin publishes only
+SKILL.md/README/LICENSE/manifest per skill (no data files), all 95+ PhonicsMaker
+inventory skills are procedural generators with no static word bank, no
+third-party corpora in this repo, and web tooling is unavailable in this cron
+profile. So the five cumulative stage vocabularies + sight-word list are strictly
+a Harry decision — do not self-invent word lists.
+
 Priority order:
-1. BUILD (no Harry needed, no spend, no deploy): author the deterministic stage
-   vocabulary + reviewed sight-word list as a compiler-owned resource and add a
-   whole-book vocabulary normalizer kind to the compiler so decodable-book-maker can
-   flip can_submit; then regenerate + fixture-test right/wrong needles. The
-   vocabulary source must be reviewed content (PhonicsMaker's own inventory in the
-   OSS repo, or Harry signs off a reviewed list) — do not self-invent word lists.
+1. WAIT for Harry to supply or sign off the five reviewed cumulative stage
+   vocabularies + the reviewed sight-word list (or name another reviewed source).
+   When it lands: bind it as `reviewed_spec.vocabulary` (provenance: reviewed) in
+   packages/skill-to-modal/profiles/decodable-book-maker.json, regenerate the
+   container, re-run the whole_book_vocabulary fixture needles against the real
+   lists, and flip can_submit. The machinery needs no further work.
    Deployment separately still needs the coordinator push and Harry's live-change
    approval.
 2. WAIT for Harry's explicit approval of `semantic-recovery-provider-proof-001`;
@@ -248,5 +255,7 @@ Priority order:
 3. Wait for the coordinator push of the loader/catalog/listing and Harry's
    approvals for `japanese-modal-deploy-001`, the pilot magic-link deploy, and the
    social X identity gate; do not push from this profile.
-No churn this cycle; the single concrete action was the local reconstruction of the
-decodable-book-maker runtime (profile + fail-closed compiled container + test pin).
+No churn this cycle; the single concrete action was building and fixture-proving
+the whole_book_vocabulary normalizer machinery (selector + deterministic
+classifier + runtime recompute + 3 tests), narrowing the pilot-book blocker to
+content-only.

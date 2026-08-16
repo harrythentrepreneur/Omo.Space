@@ -1,0 +1,52 @@
+{
+  "provenance": "deterministic synthetic reconstruction 2026-08-16; right-needle/wrong-needle fixtures for the whole_book_vocabulary semantic-evidence kind (semantic.whole_book_vocabulary/v1). The vocabulary lists here are SYNTHETIC TEST DATA for exercising the compiler/runtime machinery ONLY — they are NOT reviewed PhonicsMaker content and must NEVER be treated as the reviewed stage vocabularies. Reviewed content is a founder gate per GOAL.md; until Harry supplies/signs off real lists, decodable-book-maker stays can_submit=false.",
+  "vocabulary": {
+    "provenance": "reviewed",
+    "stages": {
+      "short-a-cvc": ["a", "am", "an", "at", "bad", "bag", "bat", "can", "cat", "dad", "fan", "fat", "gap", "had", "ham", "hat", "jam", "lap", "mad", "map", "mat", "nap", "pan", "pad", "rag", "ran", "rat", "sad", "sat", "tab", "van", "wag"],
+      "short-a-plus-short-i-cvc": ["a", "am", "an", "at", "bad", "bag", "bat", "big", "bin", "can", "cat", "dad", "dig", "dim", "din", "fan", "fat", "fin", "fit", "gap", "had", "ham", "hat", "hid", "him", "hit", "jam", "kid", "lap", "lid", "mad", "map", "mat", "nap", "pan", "pad", "pig", "pin", "rag", "ran", "rat", "rib", "rid", "rim", "sad", "sat", "sit", "six", "tab", "tin", "tip", "van", "wag", "wig", "win"],
+      "short-a-i-o-cvc": ["a", "am", "an", "at", "bad", "bag", "bat", "big", "bin", "box", "can", "cat", "cod", "cop", "dad", "dig", "dim", "din", "dog", "dot", "fan", "fat", "fin", "fit", "fox", "gap", "got", "had", "ham", "hat", "hid", "him", "hit", "hog", "hop", "hot", "jam", "kid", "lap", "lid", "log", "lot", "mad", "map", "mat", "mop", "nap", "not", "pan", "pad", "pig", "pin", "pod", "pop", "rag", "ran", "rat", "rib", "rid", "rim", "rob", "rod", "sad", "sat", "sit", "six", "sob", "tab", "tin", "tip", "top", "van", "wag", "wig", "win"],
+      "mixed-short-vowel-cvc": ["a", "am", "an", "at", "bad", "bag", "bat", "bed", "beg", "bet", "big", "bin", "box", "bug", "bus", "but", "can", "cat", "cod", "cop", "cot", "cup", "cut", "dad", "den", "dig", "dim", "din", "dog", "dot", "fan", "fat", "fed", "fin", "fit", "fox", "fun", "gap", "got", "gum", "gun", "had", "ham", "hat", "hen", "hid", "him", "hit", "hog", "hop", "hot", "hum", "hut", "jam", "jet", "kid", "lap", "led", "leg", "lid", "log", "lot", "mad", "map", "mat", "mop", "mud", "mug", "nap", "net", "not", "nut", "pan", "pad", "peg", "pen", "pet", "pig", "pin", "pod", "pop", "rag", "ran", "rat", "red", "rib", "rid", "rim", "rob", "rod", "run", "sad", "sat", "set", "sit", "six", "sob", "sun", "tab", "ten", "tin", "tip", "top", "tub", "van", "wag", "web", "wet", "wig", "win"],
+      "mixed-cvc-plus-common-digraphs": ["a", "am", "an", "at", "bad", "bag", "bat", "bed", "beg", "bet", "big", "bin", "box", "bug", "bus", "but", "can", "cat", "chap", "chat", "chin", "chip", "cod", "cop", "cot", "cup", "cut", "dad", "den", "dig", "dim", "din", "dog", "dot", "fan", "fat", "fed", "fin", "fit", "fox", "fun", "gap", "got", "gum", "gun", "had", "ham", "hat", "hen", "hid", "him", "hit", "hog", "hop", "hot", "hum", "hut", "jam", "jet", "kid", "lap", "led", "leg", "lid", "log", "lot", "mad", "map", "mat", "mop", "mud", "mug", "nap", "net", "not", "nut", "pan", "pad", "peg", "pen", "pet", "pig", "pin", "pod", "pop", "rag", "ran", "rat", "red", "rib", "rid", "rim", "rob", "rod", "run", "sad", "sat", "set", "ship", "shop", "shot", "shut", "sick", "sip", "sit", "six", "sob", "sun", "tab", "ten", "thin", "tin", "tip", "top", "tub", "van", "wag", "web", "wet", "when", "wig", "win", "wish", "with"]
+    },
+    "sight_words": ["the", "a", "is", "to", "of", "and", "in", "on", "for", "was", "with", "are", "as", "he", "she", "they", "we", "you", "have", "has", "his", "her", "it", "up", "down", "look", "see", "like", "come", "said", "there", "here", "go", "no", "yes", "so", "not", "but", "one", "two"]
+  },
+  "cases": [
+    {
+      "id": "right-needle-stage1-name-exception",
+      "input": {
+        "phonics_stage": "short-a-cvc",
+        "theme": "A cat and a hat",
+        "child_name": "Sam"
+      },
+      "book": "# The Cat and the Hat\n\nSam has a cat. The cat is fat.\n\nSam can nap in the hat. The cat can nap in the hat.\n\nSam and the cat nap. A cat is on the hat!\n",
+      "expected_review_words": [],
+      "expected_within_stage_percent": 100.0,
+      "expected_sight_words": ["and", "has", "in", "is", "on", "the"],
+      "expected_name_occurrences": 3,
+      "expect_diff": ""
+    },
+    {
+      "id": "wrong-needle-out-of-stage-word",
+      "input": {
+        "phonics_stage": "short-a-cvc",
+        "theme": "A dinosaur visit",
+        "child_name": ""
+      },
+      "book": "# The Dinosaur\n\n## The Big Dinosaur\n\nThe dinosaur is big. The cat naps.\n",
+      "expected_review_words": ["big", "dinosaur", "naps"],
+      "expect_diff_contains": "semantic_review_words"
+    },
+    {
+      "id": "wrong-needle-unknown-stage",
+      "input": {
+        "phonics_stage": "long-vowel-cvc",
+        "theme": "A cat",
+        "child_name": ""
+      },
+      "book": "# A Cat\n\nA cat can nap.\n",
+      "expected_review_words": [],
+      "expect_diff_contains": "semantic_unknown_stage"
+    }
+  ]
+}

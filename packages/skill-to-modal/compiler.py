@@ -2145,6 +2145,69 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
             "version": 1,
         }
 
+    # whole_book_vocabulary: every child-visible book word must belong to the
+    # selected stage's reviewed cumulative vocabulary or the reviewed
+    # sight-word list (optional name is the sole special exception), enforced
+    # deterministically by recomputing the decodability report from the
+    # delivered text. Fires ONLY when the reviewed contract supplies a
+    # vocabulary resource with reviewed provenance; profiles without one stay
+    # schema_only (fail closed) exactly as before.
+    vocabulary = reviewed.get("vocabulary")
+    stages = vocabulary.get("stages") if isinstance(vocabulary, dict) else None
+    sight_words = vocabulary.get("sight_words") if isinstance(vocabulary, dict) else None
+    provenance = vocabulary.get("provenance") if isinstance(vocabulary, dict) else None
+    stage_fields = [
+        name
+        for name, schema in input_properties.items()
+        if _schema_type_is(schema, "string")
+        and isinstance(schema.get("enum"), list)
+        and isinstance(stages, dict)
+        and {str(item) for item in schema["enum"]} == set(stages)
+    ]
+    book_fields = [
+        name for name, schema in output_properties.items() if _schema_type_is(schema, "string")
+    ]
+    decodability_fields = [
+        name
+        for name, schema in output_properties.items()
+        if isinstance(schema, dict) and isinstance(schema.get("properties"), dict)
+        and {"word_counts", "review_words", "sight_words"} <= set(schema["properties"])
+    ]
+    if (
+        len(stage_fields) == 1
+        and len(book_fields) == 1
+        and len(decodability_fields) == 1
+        and isinstance(stages, dict)
+        and isinstance(sight_words, list)
+        and sight_words
+        and isinstance(provenance, str)
+        and provenance.casefold() == "reviewed"
+        and (
+            "stage vocabulary" in promises
+            or "every child-visible" in promises
+            or "sight-word list" in promises
+            or "no review words" in promises
+        )
+    ):
+        return {
+            "kind": "whole_book_vocabulary",
+            "stage_field": stage_fields[0],
+            "book_field": book_fields[0],
+            "decodability_field": decodability_fields[0],
+            "name_field": next(
+                (
+                    name
+                    for name, schema in input_properties.items()
+                    if isinstance(schema, dict)
+                    and "exception" in str(schema.get("description") or "")
+                ),
+                "",
+            ),
+            "stages": {str(key): [str(item) for item in value] for key, value in stages.items()},
+            "sight_words": [str(item) for item in sight_words],
+            "version": 1,
+        }
+
     return {"kind": "schema_only", "version": 1}
 
 
@@ -5376,6 +5439,78 @@ def _placeholder_glossary_enforcement_semantic_diff(
     return details
 
 
+def _whole_book_vocabulary_scan(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> tuple[list[dict[str, int]], dict[str, int]]:
+    """Deterministic token classification of the delivered book.
+
+    Returns (tokens, totals): every word token with its class slot
+    (decodable / sight / name / review) plus per-class occurrence counts.
+    The optional child name is the sole special exception and counts into
+    its own slot, never as stage-decodable.
+    """
+    spec = SEMANTIC_EVIDENCE_SPEC
+    stage = str(payload.get(spec.get("stage_field") or "") or "")
+    book = str(generated.get(spec.get("book_field")) or "")
+    name = str(payload.get(spec.get("name_field") or "") or "").strip().casefold()
+    stage_words = set(spec.get("stages", {}).get(stage, []))
+    sight_set = set(spec.get("sight_words", []))
+    tokens: list[dict[str, int]] = []
+    totals: dict[str, int] = {"decodable": 0, "sight": 0, "name": 0, "review": 0, "total": 0}
+    words = re.findall(r"[A-Za-z']+", book.casefold())
+    for word in words:
+        totals["total"] += 1
+        if name and word == name:
+            totals["name"] += 1
+            tokens.append({"word": word, "slot": "name"})
+            continue
+        if word in stage_words:
+            totals["decodable"] += 1
+            tokens.append({"word": word, "slot": "decodable"})
+            continue
+        if word in sight_set:
+            totals["sight"] += 1
+            tokens.append({"word": word, "slot": "sight"})
+            continue
+        totals["review"] += 1
+        tokens.append({"word": word, "slot": "review"})
+    return tokens, totals
+
+
+def _whole_book_vocabulary_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    details: list[str] = []
+    spec = SEMANTIC_EVIDENCE_SPEC
+    stage = str(payload.get(spec.get("stage_field") or "") or "")
+    if stage not in spec.get("stages", {}):
+        details.append("$:semantic_unknown_stage")
+        return details
+    tokens, totals = _whole_book_vocabulary_scan(generated, payload)
+    if totals["review"]:
+        review_words = sorted({str(item["word"]) for item in tokens if item["slot"] == "review"})
+        details.append("$:semantic_review_words(" + ",".join(review_words[:8]) + ")")
+    within = round(100.0 * (totals["total"] - totals["review"]) / totals["total"], 1) if totals["total"] else 0.0
+    report = {
+        "dialect": "en-US",
+        "stage": stage,
+        "word_counts": {
+            "total": totals["total"],
+            "decodable": totals["decodable"],
+            "sight": totals["sight"],
+            "review": totals["review"],
+        },
+        "sight_words": sorted({str(item["word"]) for item in tokens if item["slot"] == "sight"}),
+        "name_occurrences": totals["name"],
+        "within_stage_percent": within,
+        "review_words": sorted({str(item["word"]) for item in tokens if item["slot"] == "review"}),
+    }
+    field = str(spec.get("decodability_field") or "")
+    if field:
+        generated[field] = report
+    return details
+
+
 def _contract_evidence_validation_diff(
     generated: dict[str, Any], payload: dict[str, Any]
 ) -> list[str]:
@@ -5413,6 +5548,8 @@ def _contract_evidence_validation_diff(
         return _rule_based_classification_semantic_diff(generated, payload)
     if kind == "placeholder_glossary_enforcement":
         return _placeholder_glossary_enforcement_semantic_diff(generated, payload)
+    if kind == "whole_book_vocabulary":
+        return _whole_book_vocabulary_semantic_diff(generated, payload)
     return []
 
 
@@ -5420,6 +5557,8 @@ def _semantic_normalize(
     generated: dict[str, Any], payload: dict[str, Any]
 ) -> dict[str, Any]:
     _normalize_contract_evidence(generated)
+    if SEMANTIC_EVIDENCE_SPEC.get("kind") == "whole_book_vocabulary":
+        _whole_book_vocabulary_semantic_diff(generated, payload)
     if isinstance(SEMANTIC_NORMALIZERS.get("digraph_spans"), dict):
         generated["occurrences"] = _reviewed_digraph_occurrences(payload, generated)
         generated["summary"] = list(
