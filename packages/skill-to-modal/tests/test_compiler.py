@@ -2262,6 +2262,11 @@ def _vocabulary_book_runtime(tmp_path: Path):
         },
         "required": ["book"],
     }
+    # The whole_book_vocabulary selector reads BOTH schemas (the LLM output and
+    # the final result schema), so the fixture must own output_schema too —
+    # otherwise the inherited base profile's fields pollute book/decodability
+    # selection and the synthetic book shape fails to select.
+    profile["output_schema"] = profile["live"]["model_output_schema"]
     profile["semantic_normalizers"] = {}
     profile["reviewed_spec"] = {
         "constraints": [_VOCABULARY_REVIEWED_PROMISES],
@@ -2297,6 +2302,10 @@ def test_vocabulary_book_normalizer_selects_kind_only_with_reviewed_vocabulary()
             }},
         },
     }
+    # Own output_schema too — the selector reads both schemas (see
+    # _vocabulary_book_runtime); without this, the inherited base profile's
+    # string fields break the exactly-one-book-field selection.
+    profile["output_schema"] = profile["live"]["model_output_schema"]
     profile["semantic_normalizers"] = {}
     profile["reviewed_spec"] = {
         "constraints": [_VOCABULARY_REVIEWED_PROMISES],

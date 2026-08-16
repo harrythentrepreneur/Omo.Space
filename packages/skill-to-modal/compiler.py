@@ -1792,7 +1792,13 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(live, dict):
         return {"kind": "schema_only", "version": 1}
     input_properties = profile.get("input_schema", {}).get("properties", {})
-    output_properties = live.get("model_output_schema", {}).get("properties", {})
+    # Whole-book evidence reads BOTH schemas: the LLM's model_output_schema AND
+    # the full output_schema, because runtime-synthesized fields (e.g. a
+    # recomputed decodability report) live only in the final result schema.
+    output_properties = {
+        **profile.get("output_schema", {}).get("properties", {}),
+        **live.get("model_output_schema", {}).get("properties", {}),
+    }
     if not isinstance(input_properties, dict) or not isinstance(output_properties, dict):
         return {"kind": "schema_only", "version": 1}
     promises = _reviewed_semantic_promises(profile)
@@ -2184,7 +2190,13 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
         and {str(item) for item in schema["enum"]} == set(stages)
     ]
     book_fields = [
-        name for name, schema in output_properties.items() if _schema_type_is(schema, "string")
+        name
+        for name, schema in output_properties.items()
+        if _schema_type_is(schema, "string")
+        and (
+            name in {"book", "story", "text", "content"}
+            or (schema.get("maxLength") or 0) >= 500
+        )
     ]
     decodability_fields = [
         name
