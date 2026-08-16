@@ -924,6 +924,19 @@ def test_skill_owned_resource_is_slug_locked() -> None:
         compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
 
 
+def test_label_normalizer_resource_manifest_attests_reviewed_source() -> None:
+    profile = json.loads(
+        (ROOT / "packages" / "skill-to-modal" / "profiles" / "label-normalizer-canary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest = compiler.skill_owned_resource_manifest(profile)
+    assert manifest[0]["reviewed_source_sha256"] == (
+        "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a"
+    )
+    assert manifest[0]["digest"].startswith("sha256:")
+
+
 def test_loader_owned_resource_compiles_to_secret_free_builder_surface(tmp_path: Path) -> None:
     slug = "skill-md-to-hosted-workflow"
     skill_path = ROOT / "containers" / slug / "source" / "SKILL.md"

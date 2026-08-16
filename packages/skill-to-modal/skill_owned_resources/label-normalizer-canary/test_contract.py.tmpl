@@ -6,6 +6,7 @@ import asyncio
 import importlib.util
 import json
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -84,12 +85,25 @@ def test_owner_scoped_async_surface_requires_owner_and_returns_result() -> None:
     accepted = asyncio.run(submit(CASES["happy_path"]["input"], "canary-owner"))
     assert accepted["status"] == "accepted"
     assert accepted["call_id"] == "fc-label-canary-test"
-    assert observed[0]["owner_id"] == "canary-owner"
-    poll = _route(web, "/v1/runs/{run_id}").endpoint
-    completed = asyncio.run(poll(accepted["run_id"], "canary-owner"))
+    observed_envelope = observed[0]
+    assert observed_envelope["owner_id"] == "canary-owner"
+    query = parse_qs(urlparse(accepted["result_url"]).query)
+    assert query["call_id"] == ["fc-label-canary-test"]
+    access_token = query["access_token"][0]
+    assert len(access_token) >= 32
+
+    # A fresh FastAPI app instance represents another Modal API container.
+    # Poll identity must be derived from the signed URL material, not memory.
+    other_container = modal_app.create_fastapi_app(lookup_result=lambda _call_id: expected)
+    poll = _route(other_container, "/v1/runs/{run_id}").endpoint
+    completed = asyncio.run(
+        poll(accepted["run_id"], "fc-label-canary-test", access_token, "canary-owner")
+    )
     assert completed == expected
     with pytest.raises(Exception) as wrong_owner:
-        asyncio.run(poll(accepted["run_id"], "other-owner"))
+        asyncio.run(
+            poll(accepted["run_id"], "fc-label-canary-test", access_token, "other-owner")
+        )
     assert getattr(wrong_owner.value, "status_code", None) == 404
 
 
@@ -99,4 +113,6 @@ def test_runtime_is_fixed_and_does_not_load_creator_source() -> None:
     assert "subprocess" not in source
     assert "urllib" not in source
     assert "modal.Secret" not in source
+    assert "runs: dict" not in source
+    assert "_run_id(owner_id, access_token)" in source
     assert "@modal.asgi_app(requires_proxy_auth=True)" in source
