@@ -92,6 +92,7 @@ def validate_job_identity(submission_id: str, slug: str, source_sha256: str, dis
         or not SHA_RE.fullmatch(str(source_sha256))
         or not DISPATCH_RE.fullmatch(str(dispatch_id))
         or not REVISION_RE.fullmatch(str(base_revision))
+        or str(base_revision) != ALLOWED_BASE_REVISION
         or dispatch_id != expected_dispatch_id(submission_id, source_sha256, base_revision)
     ):
         raise ValueError("invalid builder job identity")
