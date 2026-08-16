@@ -89,13 +89,18 @@
   var errorMessage = document.getElementById('auth-error');
   var switchCopy = document.getElementById('auth-switch-copy');
   var switchButton = document.getElementById('auth-switch');
+  var verificationTitle = document.getElementById('auth-verification-title');
+  var verificationCopy = verificationView && verificationView.querySelector('.auth-modal__verification-copy');
   var code = document.getElementById('auth-code');
+  var codeLabel = verificationForm && verificationForm.querySelector('label[for="auth-code"]');
   var verifyButton = document.getElementById('auth-verify');
   var verificationEmail = document.getElementById('auth-verification-email');
   var verificationError = document.getElementById('auth-verification-error');
   var resendButton = document.getElementById('auth-resend');
+  var resendRow = resendButton && resendButton.parentNode;
   var mode = 'signup';
   var busy = false;
+  var activeVerification = null;
   var lastFocused = null;
   var activeOpenTarget = '';
   var activeDestination = '';
@@ -171,7 +176,12 @@
     var formValid = emailIsValid() && passwordIsValid();
     if (mode === 'signup') formValid = formValid && nameIsValid(firstName) && nameIsValid(lastName);
     submitButton.disabled = busy || !formValid;
-    verifyButton.disabled = busy || !/^\d{6}$/.test(code.value.trim());
+    var verificationCode = code.value.trim();
+    var strategy = activeVerification && activeVerification.strategy;
+    var codeValid = /^(?:email_code|phone_code|totp)$/.test(strategy || '')
+      ? /^\d{6}$/.test(verificationCode)
+      : verificationCode.length > 0;
+    verifyButton.disabled = busy || !activeVerification || activeVerification.requiresCode === false || !codeValid;
   }
 
   function setMode(nextMode) {
@@ -198,6 +208,7 @@
     activeOpenTarget = validOpenTarget(options && options.open);
     activeDestination = options && options.destination === 'run' ? 'run' : '';
     setMode(nextMode || 'signup');
+    activeVerification = null;
     formView.hidden = false;
     verificationView.hidden = true;
     modal.hidden = false;
@@ -213,6 +224,7 @@
     document.body.classList.remove('auth-modal-open');
     setMessage(errorMessage, '');
     setMessage(verificationError, '');
+    activeVerification = null;
     if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
   }
 
@@ -325,19 +337,201 @@
     });
   }
 
-  function incompleteSignIn(result) {
-    var status = result && result.status;
-    var message = 'Sign-in needs another step before it can finish.';
-    if (status === 'needs_second_factor') {
-      message = 'This account uses two-step verification. Complete the extra verification step to continue.';
-    } else if (status === 'needs_first_factor') {
-      message = 'This account needs a different verification method before sign-in can finish.';
-    } else if (status === 'needs_new_password') {
-      message = 'This account needs a new password before sign-in can finish.';
+  function verificationFactor(result) {
+    var nextStep = result && result.nextStep;
+    var nextVerification = nextStep && nextStep.verification;
+    if (nextVerification && nextVerification.strategy) return nextVerification;
+
+    var factors = (result && result.supportedSecondFactors) ||
+      (nextStep && nextStep.supportedSecondFactors) || [];
+    if (!Array.isArray(factors)) factors = [factors];
+    var preferred = ['email_code', 'phone_code', 'totp', 'backup_code', 'email_link'];
+    var normalized = factors.map(function (factor) {
+      return typeof factor === 'string' ? { strategy: factor } : factor;
+    }).filter(function (factor) { return factor && factor.strategy; });
+    for (var index = 0; index < preferred.length; index += 1) {
+      var match = normalized.filter(function (factor) { return factor.strategy === preferred[index]; })[0];
+      if (match) return match;
     }
-    var error = new Error(message);
-    error.code = 'sign_in_' + (status || 'incomplete');
+    return normalized[0] || null;
+  }
+
+  function readableStrategy(strategy) {
+    var labels = {
+      email_code: 'email code',
+      phone_code: 'text-message code',
+      totp: 'authenticator-app code',
+      backup_code: 'backup code',
+      email_link: 'email-link'
+    };
+    return labels[strategy] || String(strategy || 'additional').replace(/_/g, ' ');
+  }
+
+  function signInStateError(result) {
+    var status = String((result && result.status) || 'unknown');
+    var nextStep = result && result.nextStep;
+    var factor = verificationFactor(result);
+    var strategy = factor && factor.strategy;
+    var description = nextStep && (nextStep.description || nextStep.message);
+    if (!description && nextStep && nextStep.verification) {
+      description = nextStep.verification.description || nextStep.verification.message;
+    }
+    var detail = description || (strategy ? readableStrategy(strategy) + ' verification' : 'Clerk status "' + status + '"');
+    if (window.console && typeof window.console.error === 'function') {
+      window.console.error('[Omo auth] Unhandled Clerk sign-in state', {
+        status: status,
+        strategy: strategy || null,
+        resultKeys: result && typeof result === 'object' ? Object.keys(result) : [],
+        nextStepKeys: nextStep && typeof nextStep === 'object' ? Object.keys(nextStep) : []
+      });
+    }
+    var error = new Error('Sign-in is waiting for ' + detail + ' (status: ' + status + ').');
+    error.code = 'sign_in_' + status;
     return error;
+  }
+
+  function setVerificationCopy(prefix, destination, suffix) {
+    if (!verificationCopy) return;
+    verificationCopy.textContent = prefix;
+    if (destination) {
+      var strong = document.createElement('strong');
+      strong.id = 'auth-verification-email';
+      strong.textContent = destination;
+      verificationCopy.appendChild(strong);
+      verificationEmail = strong;
+    }
+    if (suffix) verificationCopy.appendChild(document.createTextNode(suffix));
+  }
+
+  function showVerificationView(details) {
+    var strategy = details.strategy || 'verification_code';
+    var destination = details.destination || '';
+    var requiresCode = strategy !== 'email_link';
+    activeVerification = {
+      kind: details.kind,
+      strategy: strategy,
+      factor: details.factor || { strategy: strategy },
+      controller: details.controller,
+      signIn: details.signIn || null,
+      requiresCode: requiresCode
+    };
+
+    verificationTitle.textContent = 'Verify your account';
+    codeLabel.textContent = 'Verification code';
+    verifyButton.textContent = 'Verify';
+    verifyButton.dataset.defaultLabel = 'Verify';
+    code.inputMode = 'text';
+    code.minLength = 1;
+    code.maxLength = 128;
+    code.parentNode.hidden = !requiresCode;
+    verifyButton.hidden = !requiresCode;
+    resendRow.hidden = !/^(?:email_code|phone_code|email_link)$/.test(strategy);
+
+    if (strategy === 'email_code') {
+      verificationTitle.textContent = 'Check your email';
+      setVerificationCopy('Enter the verification code sent to ', destination || email.value.trim(), '.');
+      codeLabel.textContent = 'Email verification code';
+      verifyButton.textContent = 'Verify email';
+      verifyButton.dataset.defaultLabel = 'Verify email';
+      code.inputMode = 'numeric';
+      code.minLength = 6;
+      code.maxLength = 6;
+    } else if (strategy === 'phone_code') {
+      verificationTitle.textContent = 'Check your phone';
+      setVerificationCopy(
+        destination ? 'Enter the verification code sent by text message to ' : 'Enter the verification code sent by text message.',
+        destination,
+        destination ? '.' : ''
+      );
+      codeLabel.textContent = 'Text-message code';
+      verifyButton.textContent = 'Verify phone';
+      verifyButton.dataset.defaultLabel = 'Verify phone';
+      code.inputMode = 'numeric';
+      code.minLength = 6;
+      code.maxLength = 6;
+    } else if (strategy === 'totp') {
+      setVerificationCopy('Enter the 6-digit code from your authenticator app.');
+      codeLabel.textContent = 'Authenticator code';
+      code.inputMode = 'numeric';
+      code.minLength = 6;
+      code.maxLength = 6;
+    } else if (strategy === 'backup_code') {
+      verificationTitle.textContent = 'Use a backup code';
+      setVerificationCopy('Enter one of the backup codes saved for this account.');
+      codeLabel.textContent = 'Backup code';
+    } else if (strategy === 'email_link') {
+      verificationTitle.textContent = 'Check your email';
+      setVerificationCopy('Open the verification link sent to ', destination || email.value.trim(), '.');
+    } else {
+      setVerificationCopy('Enter the code required for ' + readableStrategy(strategy) + ' verification.');
+    }
+
+    formView.hidden = true;
+    verificationView.hidden = false;
+    card.setAttribute('aria-labelledby', 'auth-verification-title');
+    card.removeAttribute('aria-describedby');
+    code.value = '';
+    setMessage(verificationError, '');
+    updateValidity();
+    (requiresCode ? code : resendButton).focus();
+  }
+
+  function methodOwner(primary, fallback, methodNames) {
+    var candidates = [primary, fallback];
+    for (var candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
+      var candidate = candidates[candidateIndex];
+      for (var methodIndex = 0; candidate && methodIndex < methodNames.length; methodIndex += 1) {
+        if (typeof candidate[methodNames[methodIndex]] === 'function') {
+          return { owner: candidate, method: candidate[methodNames[methodIndex]] };
+        }
+      }
+    }
+    return null;
+  }
+
+  function factorDestination(factor) {
+    return factor.safeIdentifier || factor.emailAddress || factor.phoneNumber || '';
+  }
+
+  function prepareSignInVerification(signIn, result, factor) {
+    var strategy = factor.strategy;
+    if (!/^(?:email_code|phone_code|email_link)$/.test(strategy)) return Promise.resolve(result);
+    var preparer = methodOwner(result, signIn, ['prepareSecondFactorVerification', 'prepareSecondFactor']);
+    if (!preparer) return Promise.reject(new Error('Clerk could not prepare ' + readableStrategy(strategy) + ' verification.'));
+    var params = { strategy: strategy };
+    if (factor.emailAddressId) params.emailAddressId = factor.emailAddressId;
+    if (factor.phoneNumberId) params.phoneNumberId = factor.phoneNumberId;
+    try {
+      return Promise.resolve(preparer.method.call(preparer.owner, params));
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  function finishSignIn(result) {
+    close();
+    return activateSession(result);
+  }
+
+  function handleSignInStatus(signIn, result) {
+    if (result && result.status === 'complete') return finishSignIn(result);
+    var status = result && result.status;
+    if (status === 'needs_verification' || status === 'needs_second_factor' || status === 'needs_client_trust') {
+      var factor = verificationFactor(result);
+      if (!factor) throw signInStateError(result);
+      return prepareSignInVerification(signIn, result, factor).then(function (prepared) {
+        var controller = methodOwner(prepared, signIn, ['attemptSecondFactorVerification', 'attemptSecondFactor']);
+        showVerificationView({
+          kind: 'signin',
+          strategy: factor.strategy,
+          factor: factor,
+          destination: factorDestination(factor),
+          controller: controller,
+          signIn: signIn
+        });
+      });
+    }
+    throw signInStateError(result);
   }
 
   function submitDemo(kind) {
@@ -361,15 +555,12 @@
       })).then(function (result) {
         if (result && result.status === 'complete' && result.createdSessionId) return activateSession(result);
         return Promise.resolve(signUp.prepareEmailAddressVerification({ strategy: 'email_code' })).then(function () {
-          verificationEmail.textContent = email.value.trim();
-          formView.hidden = true;
-          verificationView.hidden = false;
-          card.setAttribute('aria-labelledby', 'auth-verification-title');
-          card.removeAttribute('aria-describedby');
-          code.value = '';
-          setMessage(verificationError, '');
-          updateValidity();
-          code.focus();
+          showVerificationView({
+            kind: 'signup',
+            strategy: 'email_code',
+            destination: email.value.trim(),
+            controller: signUp
+          });
         });
       });
     });
@@ -384,8 +575,7 @@
         identifier: email.value.trim(),
         password: password.value
       })).then(function (result) {
-        if (!result || result.status !== 'complete') throw incompleteSignIn(result);
-        return activateSession(result);
+        return handleSignInStatus(signIn, result);
       });
     });
   }
@@ -414,16 +604,34 @@
   function handleVerification(event) {
     event.preventDefault();
     if (busy || verifyButton.disabled) return;
-    var signUp = clerkSignUp();
-    if (!signUp || typeof signUp.attemptEmailAddressVerification !== 'function') {
+    var verification = activeVerification;
+    if (!verification) {
       setMessage(verificationError, 'The verification session expired. Please close this popup and sign up again.');
+      return;
+    }
+
+    var attempt;
+    var params;
+    if (verification.kind === 'signup') {
+      var signUp = verification.controller || clerkSignUp();
+      if (signUp && typeof signUp.attemptEmailAddressVerification === 'function') {
+        attempt = { owner: signUp, method: signUp.attemptEmailAddressVerification };
+        params = { code: code.value.trim() };
+      }
+    } else {
+      attempt = verification.controller;
+      params = { strategy: verification.strategy, code: code.value.trim() };
+    }
+    if (!attempt || typeof attempt.method !== 'function') {
+      setMessage(verificationError, 'Clerk could not continue ' + readableStrategy(verification.strategy) + ' verification. Please close this popup and try again.');
       return;
     }
 
     verificationError.style.color = '';
     setMessage(verificationError, '');
     setBusy(true, verifyButton, 'Verifying…');
-    Promise.resolve(signUp.attemptEmailAddressVerification({ code: code.value.trim() })).then(function (result) {
+    Promise.resolve(attempt.method.call(attempt.owner, params)).then(function (result) {
+      if (verification.kind === 'signin') return handleSignInStatus(attempt.owner, result);
       if (!result || result.status !== 'complete') throw new Error('Email verification is not complete yet.');
       return activateSession(result);
     }).catch(function (error) {
@@ -434,12 +642,33 @@
   }
 
   function resendCode() {
-    var signUp = clerkSignUp();
-    if (!signUp || typeof signUp.prepareEmailAddressVerification !== 'function') return;
+    var verification = activeVerification;
+    if (!verification) return;
     resendButton.disabled = true;
     setMessage(verificationError, '');
-    Promise.resolve(signUp.prepareEmailAddressVerification({ strategy: 'email_code' })).then(function () {
-      setMessage(verificationError, 'A new code is on its way.');
+    var request;
+    if (verification.kind === 'signup') {
+      var signUp = verification.controller || clerkSignUp();
+      if (!signUp || typeof signUp.prepareEmailAddressVerification !== 'function') {
+        request = Promise.reject(new Error('Clerk could not resend the email verification code.'));
+      } else {
+        request = signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      }
+    } else {
+      var factor = verification.factor || { strategy: verification.strategy };
+      var controller = verification.signIn || (verification.controller && verification.controller.owner);
+      request = prepareSignInVerification(controller, controller, factor);
+    }
+    Promise.resolve(request).then(function (prepared) {
+      if (verification.kind === 'signin') {
+        verification.signIn = prepared || verification.signIn;
+        verification.controller = methodOwner(
+          prepared,
+          verification.signIn,
+          ['attemptSecondFactorVerification', 'attemptSecondFactor']
+        ) || verification.controller;
+      }
+      setMessage(verificationError, verification.strategy === 'email_link' ? 'A new verification link is on its way.' : 'A new code is on its way.');
       verificationError.style.color = '#476f60';
     }).catch(function (error) {
       verificationError.style.color = '';
