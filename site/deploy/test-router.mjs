@@ -12,7 +12,9 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { signPilotToken } from './pilot-magic.mjs';
+
+globalThis.crypto ??= webcrypto;
+const { signPilotToken } = await import('./pilot-magic.mjs');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clerkFrontendApi = 'example.clerk.accounts.dev';
