@@ -32,6 +32,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
+- VOCAB-SOURCE-HUNT DONE (2026-08-16T15:0xZ, this tick): the "no reviewed word-bank exists" blocker is now verified at CONTENT level across all 102 folders of omo-space/skills (deep clone + grep of every SKILL.md: zero static word banks; the 8 vocabulary-mentioning skills are all procedural generators; decodable-book-maker/SKILL.md explicitly demands a "compiler-owned vocabulary" + "reviewed sight-word list" and ships neither — the contract expects the platform to own it). GitHub public search for `phonicsmaker` repos: total_count 0. phonicsmaker.com is unreachable behind a Vercel Security Checkpoint (curl 429, r.jina.ai returns the checkpoint shell, real browser lands on an empty checkpoint, no subdomains resolve, phonicsmaker.vercel.app 404). Web archives/search engines all rate-limited or bot-walled this tick (wayback 429, DDG/Bing shells, Google 403). Evidence and a re-check ritual are recorded in `research/decodable-vocabulary-source-hunt.md`. TWO LOOP CORRECTIONS: (1) the "web tooling unavailable" claim applies ONLY to the Firecrawl `web_search`/`web_extract` backend — raw curl (raw.githubusercontent 200) and the browser tool DO work in cron, so a named-URL fetch is now provably buildable; (2) Harry's unblock cost dropped: paste the word bank his own PhonicsMaker tooling trusts into the template, OR name any URL and the loop will fetch it via curl, bind it as reviewed_spec.vocabulary, regenerate, and flip can_submit (machinery already done, fixture-proven 3/3). No spend, send, deploy, push, or secret access.
 - WAITING (2026-08-16T14:01Z): git fetch confirmed origin/main unchanged since the 13:26Z reconcile — 0 behind / 11 ahead, tree clean, no new founder or coordinator input. Web tooling re-confirmed UNAVAILABLE in this cron session (no Firecrawl config / API key), matching prior ticks, so no external corpus sourcing is possible and none was attempted. All buildable machinery is complete (vocabulary normalizer fixture-proven 3/3 on synthetic data; fill-in template ready at marketing/pilot-book-vocabulary-template.md; local branch reconciled). The remaining chain is 100% Harry/coordinator-owned: (1) reviewed vocabulary content -> bind/regen/flip can_submit; (2) coordinator pull of our 11 local commits; (3) approvals for semantic-recovery-provider-proof-001, japanese-modal-deploy-001, magic-link deploy, and the social X identity gate. No new PROPOSAL added — the existing asks already spell out the exact approvals. Metrics unchanged (0 / 0 / 0). No spend, send, deploy, push, or secret access.
 - RECONCILED WITH origin/main (2026-08-16T13:26Z): fetched the remote and merged 27 coordinator commits into our local main (merge base `696ffc6`, zero text conflicts). The remote brought: the label-normalizer-canary RELEASE chain (#94-#111 — the first chargeable run-manifest `site/run-manifests/label-normalizer-canary.json` released through the creator-builder pipeline), Reddit research #90 (`research/REDDIT-AI-SEO-STRATEGY.MD`, buyer/creator/marketplace-sentiment sources + mining scripts), GitHub skill-scout #88 (`scripts/github-skill-scout.py`), image style system #84 (`research/social-assets/style-sheet/` + three signature posts), OSS everything-free strategy, and credential-strategy restore #93. The coordinator's own GOAL.md on the remote is STALE — it predates their own 27 commits and still claims "exact $0.99 book slug not identified," which our pilot-book-correction already disproved; the merged GOAL.md carries our corrected state. Integration bug found and fixed this tick: the coordinator's new `label-normalizer-canary` profile was unpinned — probed its kind (`schema_only`), added it to `_EXISTING_PROFILE_KINDS`. Verified merged tree: compiler suite 58/1 (sole fail = pre-existing ffmpeg env gate), decodable-book-maker container 14/14, label-normalizer-canary container 5/5, catalog.js parses with all 14 visible slugs + our six humanized copy strings preserved. NO push performed — origin/main still lacks our 9 local commits (pilot-book runtime, vocabulary machinery, fixtures, template); the coordinator must pull/merge our branch to land the decodable-book-maker supply-side work upstream.
 - Builder breadth BUILDABLE #1: the six generic contract-evidence adapters (`semantic.grounded_numeric_copy`, `semantic.exact_field_projection`, `semantic.constraint_coverage`, `semantic.policy_requirement_coverage`, `semantic.rule_based_classification`, `semantic.placeholder_glossary_enforcement`) are implemented as shape+promise selectors in `semantic_evidence_spec` plus `_<kind>_semantic_diff` evaluators and dispatcher branches in the generated runtime template (2026-08-16). Compiler suite 51/52 green (sole failure = pre-existing ffmpeg version gate); 5 new fixture-only tests cover right-needle replay, 10 distinct wrong-needle tokens, selector fail-closed without a reviewed contract, and an all-18-profile no-reclassification pin (0 new container drift measured). Nothing was committed for containers, pushed, deployed, or sent; Codex sol review was unavailable (OpenAI 401 in cron session) so verification is direct generated-runtime evidence.
@@ -73,7 +74,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Vocabulary normalizer MACHINERY DONE (2026-08-16, this tick): the compiler gained the `semantic.whole_book_vocabulary/v1` kind — a selector in `semantic_evidence_spec` that fires ONLY when `reviewed_spec.vocabulary` carries `provenance: reviewed`, exact stage-enum match, one book string field, and a decodability object exposing word_counts/review_words/sight_words; plus a deterministic whole-book token classifier (stage-vocab / sight / name-exception / review slots) with decodability-report recompute wired into the generated runtime (`_whole_book_vocabulary_scan` + semantic diff + `_semantic_normalize` hook + dispatcher branch). Proven 3/3 fixture tests on a clearly-labeled SYNTHETIC vocabulary (`tests/fixtures/vocabulary-book-normalizer.json`, provenance-documented, NOT reviewed content): right needle (stage-1 book with name exception -> 100% within-stage, zero review words, exact recomputed report), out-of-stage word -> `$:semantic_review_words`, unknown stage -> `$:semantic_unknown_stage`; plus a fail-closed selector test (draft provenance -> schema_only, reviewed -> whole_book_vocabulary, absent vocabulary -> schema_only). Compiler suite 57/58 green = recorded 54/55 baseline + 3 new tests (sole fail = pre-existing ffmpeg gate); no-reclassification pin holds; profile blocker detail updated to reflect machinery done. The ONLY remaining gap is the REVIEWED CONTENT, verified this tick to exist nowhere: OSS twin ships no data files per skill, all 95+ PhonicsMaker inventory skills are procedural generators with no static word bank, no third-party corpora in repo — so the five stage vocabularies + sight-word list are strictly a Harry decision. No container regen yet, no commit of containers, no push/deploy/spend/send/credential access.
 - Gate-friction reduction (2026-08-16, this tick): `marketing/pilot-book-vocabulary-template.md` now gives Harry a fill-in-the-blank JSON (exact five stage enum keys, cumulative rule, sight-word list, validation rules, and the post-landing regen/reverify/flip checklist); verified this tick that nothing else changed — git log clean since 5f0a556, live catalog.js still serves all 222 prerendered slugs (coordinator's 14-card push has NOT landed), and the OSS decodable-book-maker manifest remains live and unchanged at skills/decodable-book-maker/manifest.json (v1.0.0 @ $0.99, folder ships only SKILL.md/README/LICENSE/manifest — no data files, so content is still strictly a Harry decision). No external send, spend, deploy, push, or credential access occurred.
 - Next: (1) get the REVIEWED vocabulary content from Harry — the five cumulative stage vocabularies + sight-word list (verified this tick: no reviewed word-list source exists in the OSS twin, which publishes only SKILL.md/README/LICENSE/manifest per skill, nor in any of the 95+ PhonicsMaker inventory skills, which are procedural generators with no static word bank, nor anywhere else in this repo; web tooling unavailable in cron; fill-in template ready at marketing/pilot-book-vocabulary-template.md) — then bind it as `reviewed_spec.vocabulary` in the decodable-book-maker profile, regenerate the container, and flip can_submit; the whole_book_vocabulary normalizer kind is DONE and fixture-proven 3/3 on synthetic data, so content binding is the only remaining machinery-gate step; (2) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (3) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (4) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (5) move Omo onto its own Stripe account; (6) rotate the live sk exposed in chat; (7) after Harry's explicit production approval, set the magic-link secret and deploy the Worker/static bridge (the slug is now bound, so the remaining pilot-deploy steps are approval-gated, not slug-hunted); (8) run the 20 pilot canaries; (9) obtain Harry's explicit approval before any pilot email send.
-- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval (formally proposed as `semantic-recovery-provider-proof-001`). The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); pilot-book slug is RESOLVED (bound to decodable-book-maker @ $0.99) and its LOCAL HOSTED RUNTIME is authored + compiled fail-closed with the single typed `DECODABILITY_VOCABULARY_MISSING` gate, now narrowed to CONTENT ONLY: the whole_book_vocabulary normalizer kind is done (fixture-proven on labeled synthetic vocabulary, selector fail-closed without a reviewed resource) and the only missing piece is the five reviewed cumulative stage vocabularies + sight-word list, which is strictly a Harry decision (no reviewed word-bank exists in the OSS twin or the PhonicsMaker inventory, verified this tick); existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
+- Blockers: the seven semantic-blocked skills are RESOLVED at the semantic layer; fresh provider proof per skill awaits Harry's explicit spend approval (formally proposed as `semantic-recovery-provider-proof-001`). The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); pilot-book slug is RESOLVED (bound to decodable-book-maker @ $0.99) and its LOCAL HOSTED RUNTIME is authored + compiled fail-closed with the single typed `DECODABILITY_VOCABULARY_MISSING` gate, now narrowed to CONTENT ONLY: the whole_book_vocabulary normalizer kind is done (fixture-proven on labeled synthetic vocabulary, selector fail-closed without a reviewed resource) and the only missing piece is the five reviewed cumulative stage vocabularies + sight-word list, which is strictly a Harry decision — now verified at CONTENT level this tick that no reviewed word-bank exists anywhere public (all 102 OSS skill files grepped: zero static word banks, only procedural generators; GitHub public repos matching `phonicsmaker` = 0; phonicsmaker.com unreachable behind a Vercel Security Checkpoint; archives/search engines rate-limited/bot-walled). Harry's fastest unblock: paste the word bank his own PhonicsMaker decodable-books tooling trusts into `marketing/pilot-book-vocabulary-template.md`, or name any URL — the loop can now fetch a named URL via curl and bind/regenerate/flip (general network access works in cron; only the Firecrawl web_search backend is unavailable). Full evidence: `research/decodable-vocabulary-source-hunt.md`. Existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
 
 ## Metrics (live)
 
@@ -244,36 +245,44 @@ third-party corpora in this repo, and web tooling is unavailable in this cron
 profile. So the five cumulative stage vocabularies + sight-word list are strictly
 a Harry decision — do not self-invent word lists.
 
-Priority order (updated after the origin/main reconciliation):
+Priority order (updated after the origin/main reconciliation and the vocab source-hunt):
 1. WAIT for Harry to supply or sign off the five reviewed cumulative stage
-   vocabularies + the reviewed sight-word list (fastest path: copy the word bank
-   PhonicsMaker's own decodable-books tooling already trusts). The fill-in
-   template (exact JSON contract, five enum keys, cumulative rule, validation
-   rules, post-landing checklist) is ready at
-   marketing/pilot-book-vocabulary-template.md. When the content lands: bind it
-   as `reviewed_spec.vocabulary` (provenance: reviewed) in
+   vocabularies + the reviewed sight-word list. CONTENT-LEVEL VERIFIED this
+   tick (research/decodable-vocabulary-source-hunt.md): no reviewed word-bank
+   exists anywhere public — all 102 omo-space/skills SKILL.md files grepped
+   (zero static word banks, only procedural generators; decodable-book-maker's
+   own contract demands a "compiler-owned vocabulary", i.e. it expects the
+   platform to own the lists), GitHub public `phonicsmaker` repos = 0, and
+   phonicsmaker.com is unreachable behind a Vercel Security Checkpoint (curl
+   429, browser checkpoint, no subdomains). Two unblocks for Harry: (a)
+   fastest — paste the word bank his own PhonicsMaker decodable-books tooling
+   already trusts into marketing/pilot-book-vocabulary-template.md; (b) name
+   any public URL and the loop will fetch it via curl, bind it as
+   `reviewed_spec.vocabulary` (provenance: reviewed) in
    packages/skill-to-modal/profiles/decodable-book-maker.json, regenerate the
-   container, re-run the whole_book_vocabulary fixture needles against the real
-   lists, and flip can_submit. The machinery needs no further work.
-2. COORDINATOR/HARRY: pull or merge our local branch (9 commits ahead of
-   origin/main's merge base, now reconciled on top of origin/main at 694f0de) so
-   the decodable-book-maker runtime, vocabulary normalizer, fixtures, and
-   template land upstream — origin/main currently binds PILOT_BOOK_BUILDER_PATH
-   to decodable-book-maker with zero local runtime. We cannot push from this
-   profile.
+   container, re-run the whole_book_vocabulary fixture needles against the
+   real lists, and flip can_submit — the machinery needs no further work and
+   a named-URL fetch works from cron (only the Firecrawl web_search backend is
+   unavailable; raw curl and the browser tool both work).
+2. COORDINATOR/HARRY: pull or merge our local branch (12 commits ahead of
+   origin/main's merge base, reconciled on top of origin/main) so the
+   decodable-book-maker runtime, vocabulary normalizer, fixtures, and
+   template land upstream. We cannot push from this profile.
 3. WAIT for Harry's explicit approval of `semantic-recovery-provider-proof-001`;
    then run the 14-case USD 0.10-capped proof (hard stop before approval — do not run).
 4. Wait for Harry's approvals for `japanese-modal-deploy-001`, the pilot
    magic-link deploy, and the social X identity gate; do not push from this
    profile.
-No churn this cycle. This tick (fw-cf, 2026-08-16T14:01Z): verified waiting
-state — `git fetch origin` shows 0 behind / 11 ahead with a clean tree, so
-nothing new has landed since the 13:26Z reconcile (local HEAD c67f98d); web
-tooling re-confirmed unavailable in this cron session (no Firecrawl config),
-so no external corpus sourcing is possible and none was attempted. Status:
-WAITING. Every remaining gate is Harry/coordinator-owned: (1) reviewed
-vocabulary content — template + machinery ready, no self-invented lists;
-(2) coordinator pull of our 11 local commits; (3) approvals for
-semantic-recovery-provider-proof-001, japanese-modal-deploy-001, the magic-link
-deploy, and the X identity gate. Metrics unchanged. No spend, send, deploy,
-push, or secret access occurred.
+No churn this cycle. This tick (vocab-source-hunt, 2026-08-16T15:0xZ):
+content-level source hunt performed over the curl/browser channel (which DOES
+work in cron — only Firecrawl web_search is unconfigured): deep-cloned all
+102 OSS skill folders and grepped every SKILL.md (zero embedded word banks),
+GitHub public `phonicsmaker` repo search = total_count 0, phonicsmaker.com
+behind Vercel checkpoint (429 curl, empty-page checkpoint in browser, no
+resolving subdomains), wayback 429 / DDG-Bing shells / Google 403. Result:
+no reviewed vocabulary source is publicly fetchable; the gate remains a
+Harry decision, now with a lower-cost unblock (paste or named-URL). Evidence
+committed at research/decodable-vocabulary-source-hunt.md; `git fetch origin`
+0 behind / 12 ahead with a clean tree. Status: WAITING on Harry/
+coordinator-owned gates; metrics unchanged. No spend, send, deploy, push, or
+secret access occurred.
