@@ -1,0 +1,231 @@
+{
+  "$id": "https://omo.space/schemas/decodable-book-maker/output.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "content_type": {
+          "const": "application/pdf"
+        },
+        "filename": {
+          "maxLength": 160,
+          "minLength": 5,
+          "pattern": "^[^/]+\\.pdf$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "pdf"
+        },
+        "object_key": {
+          "maxLength": 320,
+          "minLength": 16,
+          "type": "string"
+        },
+        "page_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "role": {
+          "const": "book"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "role",
+        "object_key",
+        "filename",
+        "content_type",
+        "bytes",
+        "sha256",
+        "page_count"
+      ],
+      "type": "object"
+    },
+    "artifact_url": {
+      "description": "Short-lived signed download URL for the finished PDF.",
+      "maxLength": 1000,
+      "minLength": 16,
+      "type": "string"
+    },
+    "book": {
+      "description": "The stage-safe story in Markdown with at least three sections.",
+      "maxLength": 12000,
+      "minLength": 120,
+      "title": "Story book",
+      "type": "string"
+    },
+    "decodability": {
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "const": "en-US"
+        },
+        "name_occurrences": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "review_words": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sight_words": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "stage": {
+          "enum": [
+            "short-a-cvc",
+            "short-a-plus-short-i-cvc",
+            "short-a-i-o-cvc",
+            "mixed-short-vowel-cvc",
+            "mixed-cvc-plus-common-digraphs"
+          ]
+        },
+        "within_stage_percent": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "word_counts": {
+          "additionalProperties": false,
+          "properties": {
+            "decodable": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "review": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sight": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "total": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "total",
+            "decodable",
+            "sight",
+            "review"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "dialect",
+        "stage",
+        "word_counts",
+        "sight_words",
+        "name_occurrences",
+        "within_stage_percent",
+        "review_words"
+      ],
+      "title": "Deterministic decodability report",
+      "type": "object"
+    },
+    "page_plan": {
+      "description": "The PDF-ready page sequence.",
+      "items": {
+        "maxLength": 360,
+        "minLength": 8,
+        "type": "string"
+      },
+      "maxItems": 14,
+      "minItems": 3,
+      "title": "Page plan",
+      "type": "array"
+    },
+    "run_id": {
+      "minLength": 8,
+      "title": "Run ID",
+      "type": "string"
+    },
+    "status": {
+      "const": "completed"
+    },
+    "title": {
+      "maxLength": 120,
+      "minLength": 3,
+      "title": "Book title",
+      "type": "string"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "estimated_cost_usd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "llm_calls": {
+          "maximum": 2,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "const": "opencode-go"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_cost_usd"
+      ],
+      "title": "Provider usage",
+      "type": "object"
+    },
+    "workflow_version": {
+      "const": "decodable-book-maker@1.0.0"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "workflow_version",
+    "title",
+    "book",
+    "page_plan",
+    "decodability",
+    "artifact",
+    "artifact_url",
+    "usage"
+  ],
+  "title": "Completed decodable PDF book",
+  "type": "object"
+}

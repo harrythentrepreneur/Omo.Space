@@ -1,0 +1,613 @@
+{
+  "apt_packages": [],
+  "artifact": {
+    "cover_colors": {
+      "playful": "#E8643B",
+      "classic": "#3E6B8F",
+      "warm": "#B45F4A"
+    },
+    "filename": "decodable-book.pdf",
+    "footer": "PhonicsMaker | A decodable reading book",
+    "signed_url_ttl_seconds": 3600,
+    "signing_key_env": "LLM_API_KEY",
+    "subtitle": "A stage-safe story for early readers",
+    "type": "book_pdf",
+    "volume_name": "omo-decodable-book-artifacts"
+  },
+  "artifacts": [],
+  "capabilities": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output",
+    "deterministic-book-pdf",
+    "signed-persisted-artifact-delivery"
+  ],
+  "cost_drivers": [
+    "One DeepSeek V4 Flash drafting call with a 2,200-token output ceiling",
+    "Modal CPU, deterministic ReportLab composition, immutable artifact persistence, request latency, and schema-invalid provider retries",
+    "The $0.99 buyer quote is the reviewed OSS price; the staging guard covers provider call plus render"
+  ],
+  "execution_kind": "single_llm",
+  "form": [
+    {
+      "field": "phonics_stage",
+      "widget": "select"
+    },
+    {
+      "field": "theme",
+      "widget": "textarea"
+    },
+    {
+      "field": "child_name",
+      "widget": "text"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "child_name": "Sam",
+      "phonics_stage": "short-a-cvc",
+      "theme": "A cat and a hat"
+    },
+    "output": {
+      "artifact": {
+        "bytes": 9210,
+        "content_type": "application/pdf",
+        "filename": "decodable-book.pdf",
+        "kind": "pdf",
+        "object_key": "runs/run-fixture-decodable-book-maker/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/decodable-book.pdf",
+        "page_count": 6,
+        "role": "book",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "artifact_url": "/v1/artifacts/run-fixture-decodable-book-maker/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/decodable-book.pdf?expires=1700003600&signature=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "book": "# The Cat and the Hat\n\n## Sam and the Cat\n\nSam has a cat. The cat is fat.\n\n## The Hat\n\nSam can put the hat on the cat. The cat can nap in the hat.\n\n## The End\n\nThe cat and Sam nap. What a good day!\n",
+      "decodability": {
+        "dialect": "en-US",
+        "name_occurrences": 3,
+        "review_words": [],
+        "sight_words": [
+          "the",
+          "a",
+          "is"
+        ],
+        "stage": "short-a-cvc",
+        "within_stage_percent": 100.0,
+        "word_counts": {
+          "decodable": 24,
+          "review": 0,
+          "sight": 3,
+          "total": 27
+        }
+      },
+      "page_plan": [
+        "Cover — The Cat and the Hat",
+        "Page 2 — Sam and the cat",
+        "Pages 3–4 — The hat on the cat",
+        "Final page — Sam and the cat nap"
+      ],
+      "run_id": "run-fixture-decodable-book-maker",
+      "status": "completed",
+      "title": "The Cat and the Hat",
+      "usage": {
+        "completion_tokens": 420,
+        "estimated_cost_usd": 0.00009,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 480,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "decodable-book-maker@1.0.0"
+    }
+  },
+  "input_schema": {
+    "$id": "https://omo.space/schemas/decodable-book-maker/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Select one reviewed cumulative phonics stage, give a bounded theme as inspiration, and optionally a child's name as the sole special-word exception.",
+    "properties": {
+      "child_name": {
+        "description": "Optional. A child's name; the sole special-word exception and counted separately from decodable and sight words.",
+        "examples": [
+          "Sam"
+        ],
+        "maxLength": 40,
+        "minLength": 1,
+        "title": "Child's name (optional)",
+        "type": "string"
+      },
+      "phonics_stage": {
+        "description": "The reviewed cumulative phonics stage the whole book must stay within.",
+        "enum": [
+          "short-a-cvc",
+          "short-a-plus-short-i-cvc",
+          "short-a-i-o-cvc",
+          "mixed-short-vowel-cvc",
+          "mixed-cvc-plus-common-digraphs"
+        ],
+        "title": "Phonics stage",
+        "type": "string"
+      },
+      "theme": {
+        "description": "Inspiration for the plot, not permission to introduce vocabulary beyond the selected stage. Very early stages may adapt it to a fluent stage-safe motif.",
+        "examples": [
+          "A cat and a hat"
+        ],
+        "maxLength": 160,
+        "minLength": 3,
+        "title": "Theme",
+        "type": "string"
+      }
+    },
+    "required": [
+      "phonics_stage",
+      "theme"
+    ],
+    "title": "Decodable book brief",
+    "type": "object"
+  },
+  "live": {
+    "api_key_env": "LLM_API_KEY",
+    "base_url_env": "LLM_BASE_URL",
+    "default_base_url": "https://opencode.ai/zen/go/v1",
+    "default_model": "deepseek-v4-flash",
+    "max_tokens": 2200,
+    "modal_secret_name": "omo-skill-providers",
+    "model_env": "LLM_MODEL",
+    "model_output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "book": {
+          "maxLength": 12000,
+          "minLength": 120,
+          "type": "string"
+        },
+        "page_plan": {
+          "items": {
+            "maxLength": 360,
+            "minLength": 8,
+            "type": "string"
+          },
+          "maxItems": 14,
+          "minItems": 3,
+          "type": "array"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 3,
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "book",
+        "page_plan"
+      ],
+      "type": "object"
+    },
+    "prompt": "run.txt",
+    "provider": "opencode-go",
+    "temperature": 0.4,
+    "timeout_seconds": 120
+  },
+  "marketplace": {
+    "category": "education",
+    "cover": null,
+    "demo_cap": "Hosted run: one stage + a theme to a decodable PDF book",
+    "deployment": {
+      "default_endpoint": "https://omo-space--cognition-decodable-book-maker-api.modal.run",
+      "endpoint_env": "DECODABLE_BOOK_MAKER_MODAL_URL"
+    },
+    "description": "Turn one phonics stage and a theme into a short decodable story book — a real multi-page PDF with a deterministic decodability report. Every child-visible word stays inside the selected stage or the reviewed sight-word list.",
+    "emoji": "📖",
+    "example_in": "short-a CVC · a cat and a hat",
+    "example_out": [
+      "A stage-safe story book with title, sections, and page plan",
+      "A decodability report with word counts and no review words"
+    ],
+    "examples": [
+      {
+        "caption": "Reviewed fixture",
+        "id": "reviewed-fixture",
+        "input": {
+          "child_name": "Sam",
+          "phonics_stage": "short-a-cvc",
+          "theme": "A cat and a hat"
+        },
+        "output_preview": "A stage-safe book with no review words",
+        "title": "The Cat and the Hat"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "phonics_stage: one of five reviewed cumulative stages",
+      "theme: bounded plot inspiration",
+      "child_name: optional sole special-word exception"
+    ],
+    "maker": "PhonicsMaker",
+    "maker_name": "PhonicsMaker",
+    "niche": "phonics",
+    "outputs": [
+      "title, book, page_plan: reviewed book source",
+      "decodability: deterministic report with no review words",
+      "artifact_url: signed PDF download"
+    ],
+    "phases": [
+      {
+        "id": "running",
+        "label": "Writing your decodable book"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 6,
+    "price_own": 24,
+    "promise": "Make a stage-safe decodable story book as a PDF.",
+    "slug": "decodable-book-maker",
+    "tags": [
+      "education",
+      "phonics",
+      "books",
+      "teachers"
+    ],
+    "title": "Decodable Book Maker",
+    "ui": {
+      "fields": {
+        "child_name": {
+          "widget": "text"
+        },
+        "phonics_stage": {
+          "widget": "select"
+        },
+        "theme": {
+          "widget": "textarea"
+        }
+      },
+      "order": [
+        "phonics_stage",
+        "theme",
+        "child_name"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-16"
+  },
+  "name": "decodable-book-maker",
+  "negative_cases": [
+    {
+      "id": "missing-stage",
+      "input": {
+        "theme": "A cat and a hat"
+      },
+      "reason": "phonics_stage is required"
+    },
+    {
+      "id": "unknown-stage",
+      "input": {
+        "phonics_stage": "long-vowel-cvc",
+        "theme": "A cat and a hat"
+      },
+      "reason": "phonics_stage must be one of the five reviewed cumulative stages"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "child_name": "Sam",
+        "phonics_stage": "short-a-cvc",
+        "theme": "A cat and a hat",
+        "illustrations": true
+      },
+      "reason": "unknown fields fail closed"
+    },
+    {
+      "id": "theme-too-short",
+      "input": {
+        "phonics_stage": "short-a-cvc",
+        "theme": "x"
+      },
+      "reason": "theme requires useful detail"
+    },
+    {
+      "id": "empty-child-name",
+      "input": {
+        "child_name": "",
+        "phonics_stage": "short-a-cvc",
+        "theme": "A cat and a hat"
+      },
+      "reason": "child_name is optional but must be a real name when supplied"
+    }
+  ],
+  "output_schema": {
+    "$id": "https://omo.space/schemas/decodable-book-maker/output.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "artifact": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "const": "application/pdf"
+          },
+          "filename": {
+            "const": "decodable-book.pdf"
+          },
+          "kind": {
+            "const": "pdf"
+          },
+          "object_key": {
+            "minLength": 8,
+            "type": "string"
+          },
+          "page_count": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "role": {
+            "const": "book"
+          },
+          "sha256": {
+            "minLength": 64,
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "kind",
+          "bytes",
+          "sha256",
+          "page_count",
+          "object_key",
+          "role"
+        ],
+        "title": "PDF artifact descriptor",
+        "type": "object"
+      },
+      "artifact_url": {
+        "minLength": 8,
+        "title": "Signed artifact URL",
+        "type": "string"
+      },
+      "book": {
+        "description": "The stage-safe story in Markdown with at least three sections.",
+        "maxLength": 12000,
+        "minLength": 120,
+        "title": "Story book",
+        "type": "string"
+      },
+      "decodability": {
+        "additionalProperties": false,
+        "properties": {
+          "dialect": {
+            "const": "en-US"
+          },
+          "name_occurrences": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "review_words": {
+            "items": {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sight_words": {
+            "items": {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stage": {
+            "enum": [
+              "short-a-cvc",
+              "short-a-plus-short-i-cvc",
+              "short-a-i-o-cvc",
+              "mixed-short-vowel-cvc",
+              "mixed-cvc-plus-common-digraphs"
+            ]
+          },
+          "within_stage_percent": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "word_counts": {
+            "additionalProperties": false,
+            "properties": {
+              "decodable": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "review": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sight": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "decodable",
+              "sight",
+              "review"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "dialect",
+          "stage",
+          "word_counts",
+          "sight_words",
+          "name_occurrences",
+          "within_stage_percent",
+          "review_words"
+        ],
+        "title": "Deterministic decodability report",
+        "type": "object"
+      },
+      "page_plan": {
+        "description": "The PDF-ready page sequence.",
+        "items": {
+          "maxLength": 360,
+          "minLength": 8,
+          "type": "string"
+        },
+        "maxItems": 14,
+        "minItems": 3,
+        "title": "Page plan",
+        "type": "array"
+      },
+      "run_id": {
+        "minLength": 8,
+        "title": "Run ID",
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "title": {
+        "maxLength": 120,
+        "minLength": 3,
+        "title": "Book title",
+        "type": "string"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "title": "Provider usage",
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "decodable-book-maker@1.0.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "title",
+      "book",
+      "page_plan",
+      "decodability",
+      "artifact",
+      "artifact_url",
+      "usage"
+    ],
+    "title": "Completed decodable PDF book",
+    "type": "object"
+  },
+  "pricing": {
+    "chargeable": false,
+    "default_tier": "hosted_run",
+    "estimates": [
+      {
+        "guard_cost_usd": 0.0,
+        "notes": [
+          "One bounded schema-validated drafting call plus deterministic PDF render and artifact persistence."
+        ],
+        "tier": "hosted_run",
+        "workflow": {
+          "steps": [
+            {
+              "estimated_input_tokens": 1200,
+              "max_output_tokens": 2200,
+              "model": "deepseek-v4-flash",
+              "role": "draft",
+              "type": "llm"
+            }
+          ]
+        }
+      }
+    ],
+    "notes": [
+      "The reviewed OSS price is $0.99/run (manifest hosted_run_price_usd 0.99).",
+      "chargeable is false while the deterministic vocabulary gate is unapproved; flip after fixture proof."
+    ],
+    "quote_status": "modeled",
+    "unpriced_costs": []
+  },
+  "prompts": {
+    "run.txt": "You write a short decodable early-reader story book for one reviewed cumulative phonics stage. Dialect is en-US only. Stage vocabulary is the hard boundary: every child-visible title, heading, and prose word must be decodable within the selected stage's reviewed cumulative vocabulary or appear on the reviewed sight-word list, except the optional child's name, which is the sole special-word exception and is never represented as stage-decodable. The theme is inspiration only, not permission to introduce out-of-stage vocabulary; very early stages may adapt the theme to a fluent stage-safe motif and omit topic words the child has not reached. Keep at least three story sections and enough prose for a useful short book. Do not claim diagnosis, intervention, curriculum alignment, grade mastery, or suitability for any particular learner. Do not deliver a draft that still contains out-of-stage words; adapt the motif instead of deleting words into broken prose. Return exactly one JSON object with keys title (string), book (Markdown string with at least three sections), and page_plan (array of 3-14 concise strings). Do not include markdown fences or commentary outside the JSON object."
+  },
+  "readiness": {
+    "blockers": [
+      {
+        "code": "DECODABILITY_VOCABULARY_MISSING",
+        "detail": "The reviewed OSS contract requires every child-visible word to pass a compiler-owned stage vocabulary plus a reviewed sight-word list, recomputed deterministically, and a runnable result must contain no review words. No such vocabulary resource exists in this repo or in the OSS twin (which publishes only SKILL.md, manifest.json, README, LICENSE), and the compiler has no vocabulary-based normalizer kind for whole-book enforcement. Resume: author the five cumulative stage vocabularies + reviewed sight-word list from PhonicsMaker's reviewed inventory (or Harry supplies them), add a deterministic vocabulary normalizer to the runtime template, fixture-test right/wrong needles, then flip can_submit. The paper price ($0.99) and schemas are reviewed and stay fixed."
+      }
+    ],
+    "can_submit": false
+  },
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "resources": {
+    "cpu": 1.0,
+    "max_containers": 4,
+    "memory_mb": 512,
+    "timeout_seconds": 180
+  },
+  "semantic_normalizers": {},
+  "slug": "decodable-book-maker",
+  "steps": [
+    {
+      "id": "draft",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "version": "1.0.0"
+}

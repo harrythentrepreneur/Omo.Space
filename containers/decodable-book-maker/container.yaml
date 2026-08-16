@@ -1,0 +1,64 @@
+spec_version: cognition.container/v1
+name: "decodable-book-maker"
+slug: decodable-book-maker
+version: "1.0.0"
+status: not-ready
+generated:
+  compiler: skill-to-modal/0.6.0
+  hand_edit_allowed: false
+source:
+  kind: vendored-skill-md
+  path: source/SKILL.md
+  sha256: d01ae61d577c1555b1b32761b15ea7c08c4c5fe1203756d18132a77bcb8785d7
+image:
+  base: debian-slim
+  python: "3.12"
+  packages:
+    - modal==1.5.0
+    - fastapi==0.109.0
+    - jsonschema==4.26.0
+    - pypdf==5.7.0
+    - reportlab==4.4.3
+resources:
+  cpu: 1.0
+  memory_mb: 512
+  timeout_seconds: 180
+  min_containers: 0
+  max_containers: 4
+endpoint:
+  mode: async_job
+  submit_path: /v1/runs
+  result_path: /v1/runs/{call_id}
+  auth: modal_proxy_token
+  invalid_input_status: 422
+  not_ready_status: 503
+readiness:
+  can_submit: false
+  execution_kind: single_llm
+  blockers:
+    - code: DECODABILITY_VOCABULARY_MISSING
+      detail: "The reviewed OSS contract requires every child-visible word to pass a compiler-owned stage vocabulary plus a reviewed sight-word list, recomputed deterministically, and a runnable result must contain no review words. No such vocabulary resource exists in this repo or in the OSS twin (which publishes only SKILL.md, manifest.json, README, LICENSE), and the compiler has no vocabulary-based normalizer kind for whole-book enforcement. Resume: author the five cumulative stage vocabularies + reviewed sight-word list from PhonicsMaker's reviewed inventory (or Harry supplies them), add a deterministic vocabulary normalizer to the runtime template, fixture-test right/wrong needles, then flip can_submit. The paper price ($0.99) and schemas are reviewed and stay fixed."
+required_env_names:
+  - LLM_API_KEY
+  - LLM_BASE_URL
+  - LLM_MODEL
+artifact:
+  type: book_pdf
+  volume_name: "omo-decodable-book-artifacts"
+  delivery: signed_expiring_modal_download_route
+steps:
+  - id: draft
+    type: llm
+    operation: "chat.completions.strict_json"
+    readiness: ready
+    provider: opencode-go
+    system_prompt: prompts/run.txt
+input_schema: schemas/input.json
+output_schema: schemas/output.json
+frontend_manifest: manifest.json
+capability_manifest: capability-manifest.json
+pricing_report: pricing-report.json
+tests:
+  contract: tests/test_contract.py
+  cases: tests/cases.json
+  network_allowed: false

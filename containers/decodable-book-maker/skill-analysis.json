@@ -1,0 +1,54 @@
+{
+  "artifact": {
+    "cover_colors": {
+      "classic": "#3E6B8F",
+      "playful": "#E8643B",
+      "warm": "#B45F4A"
+    },
+    "filename": "decodable-book.pdf",
+    "footer": "PhonicsMaker | A decodable reading book",
+    "signed_url_ttl_seconds": 3600,
+    "signing_key_env": "LLM_API_KEY",
+    "subtitle": "A stage-safe story for early readers",
+    "type": "book_pdf",
+    "volume_name": "omo-decodable-book-artifacts"
+  },
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash drafting call with a 2,200-token output ceiling",
+    "Modal CPU, deterministic ReportLab composition, immutable artifact persistence, request latency, and schema-invalid provider retries",
+    "The $0.99 buyer quote is the reviewed OSS price; the staging guard covers provider call plus render"
+  ],
+  "description": "Make a reviewed en-US decodable phonics story and deliver it as a multi-page PDF book.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "decodable-book-maker",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "draft",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "decodable-book-maker",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "d01ae61d577c1555b1b32761b15ea7c08c4c5fe1203756d18132a77bcb8785d7"
+  },
+  "unresolved": [
+    {
+      "code": "DECODABILITY_VOCABULARY_MISSING",
+      "detail": "The reviewed OSS contract requires every child-visible word to pass a compiler-owned stage vocabulary plus a reviewed sight-word list, recomputed deterministically, and a runnable result must contain no review words. No such vocabulary resource exists in this repo or in the OSS twin (which publishes only SKILL.md, manifest.json, README, LICENSE), and the compiler has no vocabulary-based normalizer kind for whole-book enforcement. Resume: author the five cumulative stage vocabularies + reviewed sight-word list from PhonicsMaker's reviewed inventory (or Harry supplies them), add a deterministic vocabulary normalizer to the runtime template, fixture-test right/wrong needles, then flip can_submit. The paper price ($0.99) and schemas are reviewed and stay fixed."
+    }
+  ]
+}

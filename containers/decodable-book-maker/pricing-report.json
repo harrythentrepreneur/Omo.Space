@@ -1,0 +1,38 @@
+{
+  "chargeable": false,
+  "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
+  "default_tier": "hosted_run",
+  "display_price_usd": 0.1,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 0.1,
+      "detail": [
+        {
+          "cost_usd": 0.00109,
+          "qty": 1,
+          "step": "llm(draft)"
+        }
+      ],
+      "guard_cost_usd": 0.0,
+      "guarded_price_floor_usd": 0.1,
+      "modeled_cost_usd": 0.00109,
+      "notes": [
+        "One bounded schema-validated drafting call plus deterministic PDF render and artifact persistence."
+      ],
+      "pricing_cost_usd": 0.00109,
+      "tier": "hosted_run"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "measured_evidence": [],
+  "notes": [
+    "The reviewed OSS price is $0.99/run (manifest hosted_run_price_usd 0.99).",
+    "chargeable is false while the deterministic vocabulary gate is unapproved; flip after fixture proof."
+  ],
+  "quote_status": "modeled",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model.mjs",
+  "unpriced_costs": []
+}

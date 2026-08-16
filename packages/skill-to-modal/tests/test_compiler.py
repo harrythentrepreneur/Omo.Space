@@ -1463,6 +1463,7 @@ _EXISTING_PROFILE_KINDS = {
     "audio-symbolic-animation": "schema_only",
     "customer-feedback-theme-finder": "schema_only",
     "decodable-sentence-creator": "profile_semantic_normalizers",
+    "decodable-book-maker": "schema_only",
     "digraph-spotter": "profile_semantic_normalizers",
     "facebook-ads-copywriter": "schema_only",
     "grapheme-to-phoneme-converter": "profile_semantic_normalizers",

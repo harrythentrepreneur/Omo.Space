@@ -1,0 +1,103 @@
+{
+  "happy_path": {
+    "input": {
+      "child_name": "Sam",
+      "phonics_stage": "short-a-cvc",
+      "theme": "A cat and a hat"
+    },
+    "output": {
+      "artifact": {
+        "bytes": 9210,
+        "content_type": "application/pdf",
+        "filename": "decodable-book.pdf",
+        "kind": "pdf",
+        "object_key": "runs/run-fixture-decodable-book-maker/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/decodable-book.pdf",
+        "page_count": 6,
+        "role": "book",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "artifact_url": "/v1/artifacts/run-fixture-decodable-book-maker/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/decodable-book.pdf?expires=1700003600&signature=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "book": "# The Cat and the Hat\n\n## Sam and the Cat\n\nSam has a cat. The cat is fat.\n\n## The Hat\n\nSam can put the hat on the cat. The cat can nap in the hat.\n\n## The End\n\nThe cat and Sam nap. What a good day!\n",
+      "decodability": {
+        "dialect": "en-US",
+        "name_occurrences": 3,
+        "review_words": [],
+        "sight_words": [
+          "the",
+          "a",
+          "is"
+        ],
+        "stage": "short-a-cvc",
+        "within_stage_percent": 100.0,
+        "word_counts": {
+          "decodable": 24,
+          "review": 0,
+          "sight": 3,
+          "total": 27
+        }
+      },
+      "page_plan": [
+        "Cover — The Cat and the Hat",
+        "Page 2 — Sam and the cat",
+        "Pages 3–4 — The hat on the cat",
+        "Final page — Sam and the cat nap"
+      ],
+      "run_id": "run-fixture-decodable-book-maker",
+      "status": "completed",
+      "title": "The Cat and the Hat",
+      "usage": {
+        "completion_tokens": 420,
+        "estimated_cost_usd": 9e-05,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 480,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "decodable-book-maker@1.0.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-stage",
+      "input": {
+        "theme": "A cat and a hat"
+      },
+      "reason": "phonics_stage is required"
+    },
+    {
+      "id": "unknown-stage",
+      "input": {
+        "phonics_stage": "long-vowel-cvc",
+        "theme": "A cat and a hat"
+      },
+      "reason": "phonics_stage must be one of the five reviewed cumulative stages"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "child_name": "Sam",
+        "illustrations": true,
+        "phonics_stage": "short-a-cvc",
+        "theme": "A cat and a hat"
+      },
+      "reason": "unknown fields fail closed"
+    },
+    {
+      "id": "theme-too-short",
+      "input": {
+        "phonics_stage": "short-a-cvc",
+        "theme": "x"
+      },
+      "reason": "theme requires useful detail"
+    },
+    {
+      "id": "empty-child-name",
+      "input": {
+        "child_name": "",
+        "phonics_stage": "short-a-cvc",
+        "theme": "A cat and a hat"
+      },
+      "reason": "child_name is optional but must be a real name when supplied"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "$id": "https://omo.space/schemas/decodable-book-maker/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Select one reviewed cumulative phonics stage, give a bounded theme as inspiration, and optionally a child's name as the sole special-word exception.",
+  "properties": {
+    "child_name": {
+      "description": "Optional. A child's name; the sole special-word exception and counted separately from decodable and sight words.",
+      "examples": [
+        "Sam"
+      ],
+      "maxLength": 40,
+      "minLength": 1,
+      "title": "Child's name (optional)",
+      "type": "string"
+    },
+    "phonics_stage": {
+      "description": "The reviewed cumulative phonics stage the whole book must stay within.",
+      "enum": [
+        "short-a-cvc",
+        "short-a-plus-short-i-cvc",
+        "short-a-i-o-cvc",
+        "mixed-short-vowel-cvc",
+        "mixed-cvc-plus-common-digraphs"
+      ],
+      "title": "Phonics stage",
+      "type": "string"
+    },
+    "theme": {
+      "description": "Inspiration for the plot, not permission to introduce vocabulary beyond the selected stage. Very early stages may adapt it to a fluent stage-safe motif.",
+      "examples": [
+        "A cat and a hat"
+      ],
+      "maxLength": 160,
+      "minLength": 3,
+      "title": "Theme",
+      "type": "string"
+    }
+  },
+  "required": [
+    "phonics_stage",
+    "theme"
+  ],
+  "title": "Decodable book brief",
+  "type": "object"
+}

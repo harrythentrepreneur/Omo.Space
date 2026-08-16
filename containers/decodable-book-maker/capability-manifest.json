@@ -1,0 +1,108 @@
+{
+  "allowlist": [
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:310f0505628ecf6a3a4b9169910cf8328b2480b88cadd641f972ebc922890642",
+  "decision": "blocked",
+  "execution_kind": "single_llm",
+  "generated": {
+    "dependencies": [
+      {
+        "name": "artifact_store",
+        "status": "available",
+        "version": "1.0.0"
+      }
+    ],
+    "files": [
+      "generated renderer invocation module",
+      "output artifact declaration in workflow manifest"
+    ],
+    "honest_limits": [
+      "deterministic local bytes do not prove hosted storage, authorization, retention, or delivery",
+      "images are not implied; an image-generation step requires a separate capability",
+      "missing artifact_store keeps the overall build blocked even when local rendering passes",
+      "the current shared primitive renders the reviewed keepsake-book schema, not arbitrary HTML/CSS or every PDF layout"
+    ],
+    "packages": [
+      "pypdf",
+      "reportlab"
+    ],
+    "policy": [
+      "record byte length, SHA-256, and page count",
+      "validate MIME and %PDF magic"
+    ],
+    "resources": {
+      "cpu": true,
+      "gpu": false,
+      "network": "false_for_render",
+      "writable_scratch": "bounded_private"
+    },
+    "runtime_steps": [
+      "call tools.render.render_book_pdf",
+      "persist returned bytes through the resolved artifact store",
+      "return an owner-authorized artifact reference, not inline fake content",
+      "validate the omo.book-pdf/v1 manifest"
+    ],
+    "tests": [
+      "artifact metadata, ownership, checksum, and authorized download are verified",
+      "identical reviewed input produces identical PDF bytes",
+      "invalid schema, empty prose, invalid style, and oversize fields fail closed",
+      "valid PDF opens and page count is positive"
+    ],
+    "tool_bindings": [
+      "tools.render.pdf_page_count",
+      "tools.render.render_book_pdf"
+    ]
+  },
+  "needs": [
+    {
+      "contract_pointer": "/artifact",
+      "name": "artifact.render:book_pdf"
+    }
+  ],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output",
+    "deterministic-book-pdf",
+    "signed-persisted-artifact-delivery"
+  ],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [
+    {
+      "honest_limits": [
+        "the current shared primitive renders the reviewed keepsake-book schema, not arbitrary HTML/CSS or every PDF layout",
+        "deterministic local bytes do not prove hosted storage, authorization, retention, or delivery",
+        "images are not implied; an image-generation step requires a separate capability",
+        "missing artifact_store keeps the overall build blocked even when local rendering passes"
+      ],
+      "name": "book_pdf_renderer",
+      "status": "available",
+      "tests": [
+        "identical reviewed input produces identical PDF bytes",
+        "valid PDF opens and page count is positive",
+        "invalid schema, empty prose, invalid style, and oversize fields fail closed",
+        "artifact metadata, ownership, checksum, and authorized download are verified"
+      ],
+      "trigger_evidence": [
+        "/artifact"
+      ],
+      "version": "1.0.0"
+    }
+  ],
+  "skill_owned_resources": [],
+  "slug": "decodable-book-maker",
+  "source_sha256": "d01ae61d577c1555b1b32761b15ea7c08c4c5fe1203756d18132a77bcb8785d7",
+  "workflow_blockers": [
+    {
+      "code": "DECODABILITY_VOCABULARY_MISSING",
+      "detail": "The reviewed OSS contract requires every child-visible word to pass a compiler-owned stage vocabulary plus a reviewed sight-word list, recomputed deterministically, and a runnable result must contain no review words. No such vocabulary resource exists in this repo or in the OSS twin (which publishes only SKILL.md, manifest.json, README, LICENSE), and the compiler has no vocabulary-based normalizer kind for whole-book enforcement. Resume: author the five cumulative stage vocabularies + reviewed sight-word list from PhonicsMaker's reviewed inventory (or Harry supplies them), add a deterministic vocabulary normalizer to the runtime template, fixture-test right/wrong needles, then flip can_submit. The paper price ($0.99) and schemas are reviewed and stay fixed."
+    }
+  ]
+}
