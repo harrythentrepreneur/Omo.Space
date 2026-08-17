@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Activity - Syllable Count</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        /* Header */
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .worksheet-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            margin: 0;
+            color: #444;
+        }
+
+        /* Name Line */
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+
+        .info-line {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            margin-left: 4px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .info-group:first-child {
+            flex: 2;
+            margin-right: 15px;
+        }
+
+        /* Instructions */
+        .instructions {
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+        }
+
+        .instructions-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .phoneme-highlight {
+            font-weight: bold;
+            background-color: #fff3cd;
+            padding: 1px 4px;
+            border: 1px solid #d4a800;
+        }
+
+        /* Example Box */
+        .example-box {
+            background-color: #e8f4e8;
+            border: 2px dashed #2d7d2d;
+            padding: 10px 12px;
+            margin-bottom: 14px;
+        }
+
+        .example-title {
+            font-weight: bold;
+            font-size: 12px;
+            color: #2d7d2d;
+            margin-bottom: 6px;
+        }
+
+        .example-word {
+            font-size: 16px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .example-circles {
+            display: inline-flex;
+            gap: 5px;
+            vertical-align: middle;
+        }
+
+        .example-circle {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: #2d7d2d;
+            display: inline-block;
+        }
+
+        .example-note {
+            font-size: 11px;
+            color: #2d7d2d;
+            font-style: italic;
+            margin-top: 4px;
+        }
+
+        /* Syllable Items */
+        .syllable-list {
+            margin: 10px 0;
+        }
+
+        .syllable-item {
+            display: flex;
+            align-items: center;
+            padding: 9px 12px;
+            margin-bottom: 6px;
+            border: 1.5px solid #333;
+            background-color: #fafafa;
+        }
+
+        .syllable-number {
+            font-weight: bold;
+            font-size: 15px;
+            min-width: 22px;
+            color: #333;
+        }
+
+        .syllable-word {
+            font-size: 16px;
+            font-weight: bold;
+            min-width: 100px;
+        }
+
+        .syllable-circles {
+            display: flex;
+            gap: 6px;
+            margin-left: auto;
+        }
+
+        .syllable-circle {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #333;
+            background-color: #fff;
+        }
+
+        .syllable-count-box {
+            margin-left: 12px;
+            width: 30px;
+            height: 26px;
+            border: 2px solid #333;
+            text-align: center;
+            font-size: 14px;
+            background-color: #fff;
+        }
+
+        .count-label {
+            font-size: 9px;
+            color: #666;
+            text-align: center;
+            margin-left: 12px;
+        }
+
+        /* Score Box */
+        .score-section {
+            text-align: center;
+            margin: 12px 0;
+            padding: 10px;
+            border: 2px solid #333;
+            background-color: #f9f9f9;
+        }
+
+        .score-text {
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        /* Teacher Tip */
+        .teacher-tip {
+            margin-top: 12px;
+            padding: 8px 10px;
+            background-color: #e8f4e8;
+            border-left: 4px solid #2d7d2d;
+            font-size: 11px;
+        }
+
+        .teacher-tip-title {
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #2d7d2d;
+            margin-bottom: 3px;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">📏 Syllable Count</h1>
+            <p class="worksheet-subtitle">Clap and Count the Beats!</p>
+        </div>
+
+        <div class="student-info">
+            <div class="info-group">
+                <span>Name:</span>
+                <span class="info-line"></span>
+            </div>
+            <div class="info-group">
+                <span>Date:</span>
+                <span class="info-line"></span>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <div class="instructions-title">📖 Instructions</div>
+            <p class="instructions-text">
+                Say each word slowly. Clap once for each syllable (beat).
+                Colour in one circle for each clap. Write the number of
+                syllables in the box.
+                All words have the <span class="phoneme-highlight">{{ phoneme_display }}</span> sound!
+            </p>
+        </div>
+
+        <div class="example-box">
+            <div class="example-title">✅ Example</div>
+            <span class="example-word">{{ example_word }}</span>
+            <span class="example-circles">
+                {% for i in range(example_syllables) %}
+                <span class="example-circle"></span>
+                {% endfor %}
+            </span>
+            → <strong>{{ example_syllables }}</strong> syllable{{ "s" if example_syllables != 1 }}
+            <div class="example-note">👏 Clap it out: {{ example_breakdown }}</div>
+        </div>
+
+        <div class="syllable-list">
+            {% for item in words %}
+            <div class="syllable-item">
+                <span class="syllable-number">{{ loop.index }}.</span>
+                <span class="syllable-word">{{ item.word }}</span>
+                <div class="syllable-circles">
+                    {% for i in range(max_syllables) %}
+                    <span class="syllable-circle"></span>
+                    {% endfor %}
+                </div>
+                <div>
+                    <div class="syllable-count-box"></div>
+                    <div class="count-label">beats</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="score-section">
+            <div class="score-text">
+                🏆 I counted the syllables in {{ words|length }} words!
+            </div>
+        </div>
+
+        <div class="teacher-tip">
+            <div class="teacher-tip-title">💡 Parent/Teacher Tip</div>
+            Syllable awareness is a key phonological skill. Have your child place their
+            hand under their chin — it drops once per syllable. You can also tap the table
+            or use counters to make syllables visible and tactile.
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

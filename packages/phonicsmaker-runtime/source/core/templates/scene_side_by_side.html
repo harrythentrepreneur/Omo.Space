@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Storybook - Page {{ loop.index }}</title>
+    <style>
+        @font-face {
+            font-family: '{{ font_family_name }}';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ font_regular_path }}') format('truetype');
+        }
+
+        {% if font_bold_path %}
+        @font-face {
+            font-family: '{{ font_family_name }}';
+            font-weight: 700;
+            font-display: swap;
+            src: url('{{ font_bold_path }}') format('truetype');
+        }
+        {% endif %}
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: {{ css_font_family|safe }};
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+
+        @page {
+            size: A5;
+            margin: 0mm;
+            marks: none;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 148mm;
+                height: 210mm;
+                margin: 0;
+                padding: 0;
+                border: none;
+                border-radius: 0;
+            }
+        }
+
+        .page {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: row;
+            background: #faf8f4;
+        }
+
+        /* ── Page border frame ── */
+        .page::after {
+            content: '';
+            position: absolute;
+            top: 2mm;
+            left: 2mm;
+            right: 2mm;
+            bottom: 2mm;
+            border: 0.5px solid #e8dcc8;
+            border-radius: 2px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* ── Image area: left 45% ── */
+        .image-area {
+            flex: 0 0 45%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .scene-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* ── Vertical separator — warm storybook spine ── */
+        .separator {
+            flex: 0 0 2px;
+            background: linear-gradient(180deg, transparent 3%, #d4b896 15%, #c4956a 50%, #d4b896 85%, transparent 97%);
+        }
+
+        /* ── Text area: right 55% ── */
+        .text-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10mm 7mm;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        .scene-text {
+            font-family: {{ css_font_family|safe }};
+            font-size: {{ scene_font_size }}px;
+            font-weight: 700;
+            color: #1a1a1a;
+            line-height: 1.6;
+            text-align: left;
+            max-width: 100%;
+            width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            letter-spacing: 0.01em;
+            word-spacing: 0.05em;
+        }
+
+        /* Phoneme highlight — soft pill behind matching text */
+        .scene-text .highlight {
+            background: rgba(255, 240, 210, 0.84);
+            border-radius: 6px;
+            padding: 2px 4px;
+            border-bottom: none;
+            box-shadow: 0 3px 0 -1px rgba(212, 149, 107, 0.9);
+        }
+
+        /* Page number — bottom right */
+        .page-number {
+            position: absolute;
+            bottom: 3mm;
+            right: 4mm;
+            font-family: {{ css_font_family|safe }};
+            font-size: 8px;
+            color: #c4b594;
+            letter-spacing: 0.1em;
+        }
+
+        /* Standard codes (Curriculum) footer */
+        .standard-tag {
+            position: absolute;
+            bottom: 3mm;
+            left: 4mm;
+            font-family: {{ css_font_family|safe }};
+            font-size: 8px;
+            color: #9ca3af;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="image-area">
+            <img class="scene-image" src="{{ image_url_resolved }}" alt="Scene Image">
+        </div>
+        <div class="separator"></div>
+        <div class="text-area">
+            <p class="scene-text">{{ scene_text|safe }}</p>
+        </div>
+        {% if standard_codes %}
+        <div class="standard-tag">Audit: {{ standard_codes | join(', ') }}</div>
+        {% endif %}
+        <div class="page-number">{{ loop.index }}</div>
+    </div>
+</body>
+
+</html>

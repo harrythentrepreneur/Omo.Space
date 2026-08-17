@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Download Ready: Your Phonics Story</title>
+    <style>
+        /* Basic reset for paragraphs - good practice */
+        p {
+            margin: 0 0 1em 0;
+            /* Default bottom margin, adjust '1em' as needed */
+        }
+    </style>
+</head>
+<!-- Removed background-color and kept padding on the body style -->
+
+<body style="font-family: sans-serif; font-size: 1rem; line-height: 1.6; margin: 0; padding: 20px;">
+
+    <p>Hi {$name},</p>
+
+    <p>Great news! Your custom phonics story is finished and ready for you.</p>
+
+    <!-- Added slight margin-bottom to separate the instruction from the link -->
+    <p style="margin-bottom: 0.5em;">Click here to get your story:</p>
+    <p style="margin-bottom: 1.5em;"> <!-- Increased margin-bottom after the main link -->
+        <a href="{$download_link}" style="color: #0000EE; text-decoration: underline; font-weight: bold;">Download Your
+            Custom Phonics Story</a>
+        <!-- Simple blue link, bolded for slight emphasis -->
+        <!-- Replace {$download_link} with the actual download URL -->
+    </p>
+
+    <!-- Added slight margin-bottom to separate the instruction from the link -->
+    <p style="margin-bottom: 0.5em;">Inspired to create another? It just takes a moment:</p>
+    <p style="margin-bottom: 1.5em;"> <!-- Increased margin-bottom after the second link -->
+        <a href="https://phonicsmaker.com" style="color: #0000EE; text-decoration: underline;">Make another story
+            now</a>
+        <!-- Matching link style -->
+    </p>
+
+    <p>Enjoy using it with your students!</p>
+
+    <p>Warmly,</p>
+
+    <!-- Added margin-bottom here for spacing before the footer -->
+    <p style="margin-bottom: 2em;">
+        The PhonicsMaker Team
+    </p>
+
+    <!-- Footer section -->
+    <p style="font-size: 0.8em; color: #666666; line-height: 1.4; margin-bottom: 0.5em;">
+        You're receiving this email because you generated a story using PhonicsMaker.
+    </p>
+    <!-- <p style="font-size: 0.8em; color: #666666; line-height: 1.4; margin-bottom: 0;">
+        <a href="{$unsubscribe}" style="color: #111111; text-decoration: underline;">Unsubscribe</a>
+    </p> -->
+
+</body>
+
+</html>

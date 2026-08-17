@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Activity - Word Building</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .worksheet-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            margin: 0;
+            color: #444;
+        }
+
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+
+        .info-line {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            margin-left: 4px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .info-group:first-child {
+            flex: 2;
+            margin-right: 15px;
+        }
+
+        .instructions {
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+        }
+
+        .instructions-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .phoneme-highlight {
+            font-weight: bold;
+            background-color: #fff3cd;
+            padding: 1px 4px;
+            border: 1px solid #d4a800;
+        }
+
+        /* Tile display */
+        .tile-section {
+            text-align: center;
+            margin: 14px 0;
+            padding: 12px;
+            border: 2px solid #333;
+            background-color: #f9f9f9;
+        }
+
+        .tile-label {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        .phoneme-tile {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 40px;
+            border: 3px solid #d4a800;
+            background-color: #fff3cd;
+            font-size: 22px;
+            font-weight: bold;
+            margin: 4px;
+            color: #333;
+        }
+
+        .letter-tile {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border: 2px solid #333;
+            background-color: #e3f2fd;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 3px;
+            color: #333;
+        }
+
+        .plus-sign {
+            font-size: 20px;
+            font-weight: bold;
+            color: #666;
+            margin: 0 6px;
+            vertical-align: middle;
+        }
+
+        /* Writing lines */
+        .writing-section {
+            margin: 14px 0;
+        }
+
+        .writing-label {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .word-lines {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .word-line-item {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            padding: 6px 8px;
+        }
+
+        .line-number {
+            font-size: 13px;
+            color: #666;
+            min-width: 18px;
+        }
+
+        .write-line {
+            border-bottom: 1.5px solid #333;
+            flex: 1;
+            min-height: 22px;
+        }
+
+        /* Score */
+        .score-section {
+            text-align: center;
+            margin: 12px 0;
+            padding: 10px;
+            border: 2px solid #333;
+            background-color: #f9f9f9;
+        }
+
+        .score-text {
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .teacher-tip {
+            margin-top: 12px;
+            padding: 8px 10px;
+            background-color: #e8f4e8;
+            border-left: 4px solid #2d7d2d;
+            font-size: 11px;
+        }
+
+        .teacher-tip-title {
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #2d7d2d;
+            margin-bottom: 3px;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">🧱 Word Building</h1>
+            <p class="worksheet-subtitle">Build Words with Letter Tiles!</p>
+        </div>
+
+        <div class="student-info">
+            <div class="info-group"><span>Name:</span><span class="info-line"></span></div>
+            <div class="info-group"><span>Date:</span><span class="info-line"></span></div>
+        </div>
+
+        <div class="instructions">
+            <div class="instructions-title">📖 Instructions</div>
+            <p class="instructions-text">
+                Use the <span class="phoneme-highlight">{{ phoneme_display }}</span>
+                tile and the letter tiles below to build as many
+                <strong>real words</strong> as you can. Write each word on a line.
+            </p>
+        </div>
+
+        <div class="tile-section">
+            <div class="tile-label">Your Phoneme Tile</div>
+            <span class="phoneme-tile">{{ phoneme_raw }}</span>
+            <br><br>
+            <div class="tile-label">Letter Tiles</div>
+            <div>
+                {% for letter in letter_tiles %}
+                <span class="letter-tile">{{ letter }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="writing-section">
+            <div class="writing-label">Words I Built (target: {{ target_count }}+)</div>
+            <div class="word-lines">
+                {% for i in range(line_count) %}
+                <div class="word-line-item">
+                    <span class="line-number">{{ i + 1 }}.</span>
+                    <span class="write-line"></span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="score-section">
+            <div class="score-text">
+                🏆 I built ______ words with the {{ phoneme_display }} sound!
+            </div>
+        </div>
+
+        <div class="teacher-tip">
+            <div class="teacher-tip-title">💡 Parent/Teacher Tip</div>
+            Word Building is the reverse of decoding — it's encoding/spelling.
+            If your child can build words, they truly understand the phoneme.
+            Use real letter tiles or magnets to make it hands-on. Challenge
+            them to beat their own record!
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

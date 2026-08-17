@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Activity - Answer Key</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        /* Header */
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+
+        .worksheet-title {
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 12px;
+            font-style: italic;
+            margin: 0;
+            color: #666;
+        }
+
+        /* Parent Note */
+        .parent-note {
+            background-color: #fff3cd;
+            border: 2px solid #d4a800;
+            padding: 10px 12px;
+            margin-bottom: 15px;
+            font-size: 11px;
+        }
+
+        .parent-note-title {
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 3px;
+        }
+
+        /* Answer Sections */
+        .answer-section {
+            margin-bottom: 15px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            font-size: 13px;
+            text-transform: uppercase;
+            background-color: #333;
+            color: #fff;
+            padding: 5px 10px;
+            margin-bottom: 8px;
+        }
+
+        .answer-list {
+            padding: 8px 12px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+        }
+
+        .answer-item {
+            font-size: 13px;
+            padding: 4px 0;
+            border-bottom: 1px dotted #ccc;
+        }
+
+        .answer-item:last-child {
+            border-bottom: none;
+        }
+
+        .answer-word {
+            font-weight: bold;
+            display: inline-block;
+            min-width: 60px;
+        }
+
+        .answer-phoneme {
+            background-color: #e8f4e8;
+            padding: 1px 6px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        /* Completion Certificate Mini */
+        .completion-section {
+            margin-top: 20px;
+            border: 3px double #333;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .completion-title {
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .completion-text {
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .completion-name-line {
+            border-bottom: 2px solid #333;
+            width: 70%;
+            margin: 15px auto 5px auto;
+        }
+
+        .completion-label {
+            font-size: 10px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .star-decoration {
+            font-size: 20px;
+            color: #d4a800;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+
+        /* Credit */
+        .generator-credit {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 10px;
+            color: #888;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+
+        .generator-credit a {
+            color: #4a6fa5;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">📋 Answer Key</h1>
+            <p class="worksheet-subtitle">For Parents & Teachers</p>
+        </div>
+
+        <div class="parent-note">
+            <div class="parent-note-title">📝 Note for Grown-Ups</div>
+            Use this page to check your child's work. Celebrate their effort!
+            Focus on progress, not perfection. Every attempt is a step forward.
+        </div>
+
+        {% if has_word_hunt %}
+        <div class="answer-section">
+            <div class="section-title">📚 Word Hunt Answers</div>
+            <div class="answer-list">
+                {% for word in word_hunt_answers %}
+                <div class="answer-item">
+                    ✓ <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_sound_matching %}
+        <div class="answer-section">
+            <div class="section-title">🎯 Sound Matching Answers</div>
+            <div class="answer-list">
+                {% for pair in sound_matching_answers %}
+                <div class="answer-item">
+                    <span class="answer-word">{{ pair.word }}</span> →
+                    <span class="answer-phoneme">{{ pair.phoneme }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_fill_in_blank %}
+        <div class="answer-section">
+            <div class="section-title">✏️ Fill in the Blank Answers</div>
+            <div class="answer-list">
+                {% for item in fill_in_blank_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.full_word }}</span>
+                    (missing: <span class="answer-phoneme">{{ item.answer }}</span>)
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_circle_sound %}
+        <div class="answer-section">
+            <div class="section-title">🔵 Circle the Sound Answers</div>
+            <div class="answer-list">
+                {% for word in circle_sound_answers %}
+                <div class="answer-item">
+                    ✓ <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_word_scramble %}
+        <div class="answer-section">
+            <div class="section-title">🔀 Word Scramble Answers</div>
+            <div class="answer-list">
+                {% for item in word_scramble_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.answer }}</span>
+                    (scrambled: <span class="answer-phoneme">{{ item.scrambled }}</span>)
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_cut_and_sort %}
+        <div class="answer-section">
+            <div class="section-title">✂️ Sort the Words Answers</div>
+            <div class="answer-list">
+                <div class="answer-item" style="font-style: italic; color: #666;">
+                    Words with the sound:
+                </div>
+                {% for word in cut_and_sort_answers %}
+                <div class="answer-item">
+                    ✓ <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_sentence_building %}
+        <div class="answer-section">
+            <div class="section-title">📝 Sentence Building Word Bank</div>
+            <div class="answer-list">
+                <div class="answer-item" style="font-style: italic; color: #666;">
+                    Words provided (sentences are open-ended):
+                </div>
+                {% for word in sentence_building_words %}
+                <div class="answer-item">
+                    • <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_phoneme_spotter %}
+        <div class="answer-section">
+            <div class="section-title">👁️ Phoneme Spotter Answers</div>
+            <div class="answer-list">
+                {% for word in phoneme_spotter_answers %}
+                <div class="answer-item">
+                    ✓ <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_rhyming_pairs %}
+        <div class="answer-section">
+            <div class="section-title">🔗 Rhyming Pairs Answers</div>
+            <div class="answer-list">
+                {% for item in rhyming_pairs_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.word }}</span> →
+                    <span class="answer-phoneme">{{ item.answer }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_phoneme_position %}
+        <div class="answer-section">
+            <div class="section-title">📍 Beginning, Middle, End Answers</div>
+            <div class="answer-list">
+                <div class="answer-item" style="font-style: italic; color: #155724;">
+                    🟢 Beginning:
+                </div>
+                {% for word in phoneme_position_answers.beginning %}
+                <div class="answer-item">
+                    • <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+                <div class="answer-item" style="font-style: italic; color: #856404;">
+                    🟡 Middle:
+                </div>
+                {% for word in phoneme_position_answers.middle %}
+                <div class="answer-item">
+                    • <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+                <div class="answer-item" style="font-style: italic; color: #004085;">
+                    🔵 End:
+                </div>
+                {% for word in phoneme_position_answers.end %}
+                <div class="answer-item">
+                    • <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_sound_swap %}
+        <div class="answer-section">
+            <div class="section-title">🔄 Sound Swap Answers</div>
+            <div class="answer-list">
+                {% for item in sound_swap_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-phoneme">{{ item.original }}</span> →
+                    <span class="answer-word">{{ item.answer }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_syllable_count %}
+        <div class="answer-section">
+            <div class="section-title">📏 Syllable Count Answers</div>
+            <div class="answer-list">
+                {% for item in syllable_count_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.word }}</span>
+                    → <span class="answer-phoneme">{{ item.syllables }} syllable{{ "s" if item.syllables != 1 }}</span>
+                    ({{ item.breakdown }})
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_word_ladder %}
+        <div class="answer-section">
+            <div class="section-title">🪜 Word Ladder Answers</div>
+            <div class="answer-list">
+                {% for ladder in word_ladder_answers %}
+                <div class="answer-item">
+                    Ladder {{ loop.index }}:
+                    {% for word in ladder.rungs %}
+                    <span class="answer-word">{{ word }}</span>{% if not loop.last %} → {% endif %}
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_read_and_draw %}
+        <div class="answer-section">
+            <div class="section-title">🎨 Read & Draw Sentences</div>
+            <div class="answer-list">
+                <div class="answer-item" style="font-style: italic; color: #666;">
+                    Sentences provided (drawings are open-ended):
+                </div>
+                {% for sentence in read_and_draw_sentences %}
+                <div class="answer-item">
+                    {{ loop.index }}. {{ sentence }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_phoneme_count %}
+        <div class="answer-section">
+            <div class="section-title">🔢 Phoneme Count Answers</div>
+            <div class="answer-list">
+                {% for item in phoneme_count_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.word }}</span>
+                    → <span class="answer-phoneme">{{ item.count }} sounds</span>
+                    ({{ item.sounds | join(' - ') }})
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_odd_one_out %}
+        <div class="answer-section">
+            <div class="section-title">🚫 Odd One Out Answers</div>
+            <div class="answer-list">
+                {% for item in odd_one_out_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. Odd word: <span class="answer-word">{{ item.odd }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_missing_sound %}
+        <div class="answer-section">
+            <div class="section-title">✏️ Missing Sound Answers</div>
+            <div class="answer-list">
+                {% for item in missing_sound_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.word }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_real_or_nonsense %}
+        <div class="answer-section">
+            <div class="section-title">✅ Real or Nonsense Answers</div>
+            <div class="answer-list">
+                {% for item in real_or_nonsense_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.word }}</span>
+                    → <span class="answer-phoneme">{{ "Real" if item.is_real else "Nonsense" }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_word_building %}
+        <div class="answer-section">
+            <div class="section-title">🧱 Word Building Possible Words</div>
+            <div class="answer-list">
+                {% for word in word_building_words %}
+                <div class="answer-item">
+                    • <span class="answer-word">{{ word }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_crossword %}
+        <div class="answer-section">
+            <div class="section-title">✝️ Crossword Answers</div>
+            <div class="answer-list">
+                {% for item in crossword_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.answer }}</span>
+                    — {{ item.clue }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_comprehension %}
+        <div class="answer-section">
+            <div class="section-title">Reading Comprehension Answers</div>
+            <div class="answer-list">
+                {% for item in comprehension_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. Q: {{ item.question }}<br>
+                    A: <span class="answer-word">{{ item.answer }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_vocabulary %}
+        <div class="answer-section">
+            <div class="section-title">Vocabulary Builder Answers</div>
+            <div class="answer-list">
+                {% for item in vocabulary_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.word }}</span>
+                    — {{ item.definition }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_synonyms %}
+        <div class="answer-section">
+            <div class="section-title">Synonym Detective Answers</div>
+            <div class="answer-list">
+                {% for item in synonyms_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. <span class="answer-word">{{ item.word }}</span> →
+                    <span class="answer-phoneme">{{ item.synonym }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_inferred_meaning %}
+        <div class="answer-section">
+            <div class="section-title">Reading Between the Lines Answers</div>
+            <div class="answer-list">
+                {% for item in inferred_meaning_answers %}
+                <div class="answer-item">
+                    {{ loop.index }}. Q: {{ item.question }}<br>
+                    A: <span class="answer-word">{{ item.answer }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="completion-section">
+            <div class="star-decoration">⭐ ⭐ ⭐</div>
+            <div class="completion-title">Great Job!</div>
+            <div class="completion-text">
+                You completed all the phonics activities!
+            </div>
+            <div class="completion-name-line"></div>
+            <div class="completion-label">Write your name here</div>
+        </div>
+
+        <div class="generator-credit">
+            Created with ❤️ by <a href="https://phonicsmaker.com">PhonicsMaker.com</a>
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

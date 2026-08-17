@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Activity - Vocabulary Builder</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .worksheet-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            margin: 0;
+            color: #444;
+        }
+
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+
+        .info-line {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            margin-left: 4px;
+            min-width: 50px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .info-group:first-child {
+            flex: 2;
+            margin-right: 15px;
+        }
+
+        .instructions {
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            border-radius: 0;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+        }
+
+        .instructions-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .vocab-card {
+            border: 1.5px solid #333;
+            margin-bottom: 10px;
+            padding: 8px 10px;
+            background-color: #fafafa;
+        }
+
+        .vocab-word {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .vocab-definition {
+            font-size: 12px;
+            color: #444;
+            margin-bottom: 4px;
+            font-style: italic;
+        }
+
+        .vocab-context {
+            font-size: 12px;
+            margin-bottom: 6px;
+            padding-left: 8px;
+            border-left: 3px solid #d4a800;
+            background-color: #fff9e6;
+            padding: 4px 8px;
+        }
+
+        .vocab-context .highlight-word {
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        .vocab-exercise {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .vocab-blank {
+            border-bottom: 1.5px solid #333;
+            display: inline-block;
+            width: 70px;
+            text-align: center;
+        }
+
+        .teacher-tip {
+            margin-top: 10px;
+            padding: 8px 10px;
+            background-color: #e8f4e8;
+            border-left: 4px solid #2d7d2d;
+            font-size: 11px;
+        }
+
+        .teacher-tip-title {
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #2d7d2d;
+            margin-bottom: 3px;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+
+        .corner-decoration {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+        }
+
+        .corner-decoration.top-left {
+            top: 5mm;
+            left: 5mm;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-decoration.top-right {
+            top: 5mm;
+            right: 5mm;
+            border-left: none;
+            border-bottom: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="corner-decoration top-left"></div>
+        <div class="corner-decoration top-right"></div>
+
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">Vocabulary Builder</h1>
+            <p class="worksheet-subtitle">{{ story_title }}</p>
+        </div>
+
+        <div class="student-info">
+            <div class="info-group">
+                <span>Name:</span>
+                <span class="info-line"></span>
+            </div>
+            <div class="info-group">
+                <span>Date:</span>
+                <span class="info-line"></span>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <div class="instructions-title">Instructions</div>
+            <p class="instructions-text">
+                Learn these words from the story. Read the meaning, look at how the
+                word is used in the story, then <strong>fill in the blank</strong> in the new sentence.
+            </p>
+        </div>
+
+        {% for w in words %}
+        <div class="vocab-card">
+            <div class="vocab-word">{{ loop.index }}. {{ w.word }}</div>
+            <div class="vocab-definition">Meaning: {{ w.definition }}</div>
+            <div class="vocab-context">
+                From the story: "{{ w.context_sentence }}"
+            </div>
+            <div class="vocab-exercise">
+                Now you try: {{ w.exercise_sentence }}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="teacher-tip">
+            <div class="teacher-tip-title">Parent/Teacher Tip</div>
+            Ask your child to use each new word in their own sentence.
+            Discuss how the meaning of the word fits the story context.
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

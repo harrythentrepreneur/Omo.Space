@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Activity - Sound Matching</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        /* Header */
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .worksheet-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            margin: 0;
+            color: #444;
+        }
+
+        /* Name Line */
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+
+        .info-line {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            margin-left: 4px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .info-group:first-child {
+            flex: 2;
+            margin-right: 15px;
+        }
+
+        /* Instructions */
+        .instructions {
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            padding: 10px 12px;
+            margin-bottom: 15px;
+        }
+
+        .instructions-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        /* Phoneme Options Display */
+        .phoneme-options {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 12px 0 15px 0;
+        }
+
+        .phoneme-badge {
+            font-size: 18px;
+            font-weight: bold;
+            padding: 6px 14px;
+            border: 2px solid #333;
+            background-color: #fff3cd;
+            text-transform: lowercase;
+        }
+
+        /* Matching Table */
+        .matching-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+
+        .matching-table th {
+            background-color: #333;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .matching-table th:last-child {
+            text-align: center;
+        }
+
+        .matching-table td {
+            padding: 10px 12px;
+            border: 1.5px solid #333;
+            font-size: 15px;
+        }
+
+        .matching-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .word-cell {
+            font-weight: bold;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+        }
+
+        .answer-cell {
+            text-align: center;
+        }
+
+        .answer-boxes {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .answer-box {
+            width: 32px;
+            height: 28px;
+            border: 1.5px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #fafafa;
+            text-transform: lowercase;
+        }
+
+        /* Example Row */
+        .example-row {
+            background-color: #e8f4e8 !important;
+        }
+
+        .example-row .answer-box.correct {
+            background-color: #2d7d2d;
+            color: white;
+        }
+
+        .example-label {
+            font-size: 10px;
+            font-style: italic;
+            color: #2d7d2d;
+        }
+
+        /* Teacher Tip */
+        .teacher-tip {
+            margin-top: 15px;
+            padding: 8px 10px;
+            background-color: #e8f4e8;
+            border-left: 4px solid #2d7d2d;
+            font-size: 11px;
+        }
+
+        .teacher-tip-title {
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #2d7d2d;
+            margin-bottom: 3px;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">🎯 Sound Matching</h1>
+            <p class="worksheet-subtitle">Match the Word to its Sound!</p>
+        </div>
+
+        <div class="student-info">
+            <div class="info-group">
+                <span>Name:</span>
+                <span class="info-line"></span>
+            </div>
+            <div class="info-group">
+                <span>Date:</span>
+                <span class="info-line"></span>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <div class="instructions-title">📖 Instructions</div>
+            <p class="instructions-text">
+                Read each word. Listen for the special sound.
+                Circle or tick the correct sound for each word.
+            </p>
+        </div>
+
+        <div class="phoneme-options">
+            {% for phoneme in phonemes %}
+            <div class="phoneme-badge">{{ phoneme | lower }}</div>
+            {% endfor %}
+        </div>
+
+        <table class="matching-table">
+            <thead>
+                <tr>
+                    <th style="width: 45%;">Word</th>
+                    <th>Which sound do you hear?</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pair in pairs %}
+                <tr>
+                    <td class="word-cell">{{ pair.word }}</td>
+                    <td class="answer-cell">
+                        <div class="answer-boxes">
+                            {% for phoneme in phonemes %}
+                            <div class="answer-box">{{ phoneme | lower }}</div>
+                            {% endfor %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="teacher-tip">
+            <div class="teacher-tip-title">💡 Parent/Teacher Tip</div>
+            Say each word slowly and clearly. Ask your child to repeat it back,
+            stretching the sounds. "Which sound can you hear - {{ phoneme_display }}?"
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Storybook - Page {{ loop.index }}</title>
+    <style>
+        @font-face {
+            font-family: '{{ font_family_name }}';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ font_regular_path }}') format('truetype');
+        }
+
+        {% if font_bold_path %}
+        @font-face {
+            font-family: '{{ font_family_name }}';
+            font-weight: 700;
+            font-display: swap;
+            src: url('{{ font_bold_path }}') format('truetype');
+        }
+        {% endif %}
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: {{ css_font_family|safe }};
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+
+        @page {
+            size: A5;
+            margin: 0mm;
+            marks: none;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 148mm;
+                height: 210mm;
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                border: none;
+                border-radius: 0;
+            }
+        }
+
+        .page {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .scene-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .scene-text {
+            position: absolute;
+            font-family: {{ css_font_family|safe }};
+            font-size: 24px;
+            color: #000;
+            padding: 5px 10px;
+            border-radius: 5px;
+            z-index: 2;
+            transform: translate(-50%, -50%);
+        }
+
+        .scene-text-stroke {
+            position: absolute;
+            font-family: {{ css_font_family|safe }};
+            font-weight: 700;
+            font-size: 24px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            z-index: 1;
+            transform: translate(-50%, -50%);
+            color: white;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-family: {{ css_font_family|safe }};
+            font-size: 9px;
+            color: #888;
+            z-index: 2;
+            background-color: rgba(255, 255, 255, 0.75);
+            padding: 2px 6px;
+            border-radius: 3px;
+            letter-spacing: 0.1em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <img class="scene-image" src="{{ image.image_url }}" alt="Scene Image">
+        <div class="page-number">{{ loop.index }}</div>
+    </div>
+</body>
+
+</html>

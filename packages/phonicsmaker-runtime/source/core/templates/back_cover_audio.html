@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Storybook - Listen Along</title>
+    <style>
+        @font-face {
+            font-family: 'Comic Neue';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/ComicNeue-Regular.ttf') format('truetype');
+        }
+
+        @font-face {
+            font-family: 'Comic Neue';
+            font-weight: 800;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/ComicNeue-Bold.ttf') format('truetype');
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Comic Neue", sans-serif;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+
+        @page {
+            size: A5;
+            margin: 0mm;
+            marks: none;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 148mm;
+                height: 210mm;
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                border: none;
+                border-radius: 0;
+            }
+        }
+
+        .page {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #FFF7E6;
+        }
+
+        /* ── Decorative background elements ── */
+        .bg-circle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.10;
+        }
+
+        .bg-circle-1 {
+            width: 200px;
+            height: 200px;
+            background: #3662e3;
+            top: -50px;
+            right: -40px;
+        }
+
+        .bg-circle-2 {
+            width: 160px;
+            height: 160px;
+            background: #e85d75;
+            bottom: -40px;
+            left: -30px;
+        }
+
+        .bg-circle-3 {
+            width: 120px;
+            height: 120px;
+            background: #3db883;
+            top: 28%;
+            left: -40px;
+        }
+
+        .bg-circle-4 {
+            width: 90px;
+            height: 90px;
+            background: #f5a623;
+            top: 12%;
+            right: 8px;
+        }
+
+        /* ── Floating decorative icons ── */
+        .deco-icon {
+            position: absolute;
+            font-size: 18px;
+            opacity: 0.18;
+        }
+
+        .deco-1 {
+            top: 12%;
+            left: 12%;
+            font-size: 22px;
+            transform: rotate(-15deg);
+        }
+
+        .deco-2 {
+            top: 8%;
+            right: 20%;
+            font-size: 16px;
+            transform: rotate(10deg);
+        }
+
+        .deco-3 {
+            bottom: 18%;
+            right: 8%;
+            font-size: 20px;
+            transform: rotate(-8deg);
+        }
+
+        .deco-4 {
+            bottom: 22%;
+            left: 10%;
+            font-size: 18px;
+            transform: rotate(12deg);
+        }
+
+        .deco-5 {
+            top: 40%;
+            right: 5%;
+            font-size: 14px;
+            transform: rotate(-20deg);
+        }
+
+        /* ── Logo area ── */
+        .logo-strip {
+            position: absolute;
+            top: 10mm;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .logo-img {
+            height: 28px;
+            width: auto;
+        }
+
+        /* ── Content card ── */
+        .content-card {
+            background: #ffffff;
+            border-radius: 22px;
+            padding: 26px 30px 22px;
+            text-align: center;
+            max-width: 84%;
+            width: 84%;
+            box-shadow:
+                0 6px 28px rgba(0, 0, 0, 0.07),
+                0 1.5px 5px rgba(0, 0, 0, 0.04);
+            border: 2px solid rgba(54, 98, 227, 0.10);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Accent bar at top of card */
+        .content-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 55%;
+            height: 4px;
+            background: linear-gradient(90deg, #3662e3, #e85d75, #f5a623);
+            border-radius: 0 0 4px 4px;
+        }
+
+        /* Headphone icon */
+        .icon {
+            font-size: 38px;
+            margin-bottom: 4px;
+            line-height: 1;
+        }
+
+        /* "Listen to This Story!" */
+        .title {
+            font-family: "Comic Neue", sans-serif;
+            font-weight: 800;
+            font-size: 23px;
+            color: #1a1a2e;
+            margin: 0 0 4px 0;
+            line-height: 1.2;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: #6b7280;
+            margin: 0 0 16px 0;
+            line-height: 1.5;
+        }
+
+        .subtitle strong {
+            color: #3662e3;
+        }
+
+        /* ── QR code container ── */
+        .qr-wrapper {
+            display: inline-block;
+            margin: 0 0 10px 0;
+        }
+
+        .qr-container {
+            background: #ffffff;
+            border: 2.5px solid #3662e3;
+            border-radius: 16px;
+            padding: 14px;
+            display: inline-block;
+            position: relative;
+        }
+
+        /* Corner accent on QR border */
+        .qr-container::after {
+            content: '📱';
+            position: absolute;
+            top: -13px;
+            right: -13px;
+            font-size: 20px;
+            background: #FFF7E6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-code {
+            width: 140px;
+            height: 140px;
+            display: block;
+        }
+
+        .scan-label {
+            display: block;
+            font-size: 9px;
+            font-weight: 800;
+            color: #3662e3;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 7px;
+        }
+
+        /* URL text — clean, single-line display */
+        .url-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin: 0 0 14px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        .url-highlight {
+            color: #3662e3;
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        /* Duration badge */
+        .duration-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, #3662e3, #5b8def);
+            color: white;
+            padding: 7px 18px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 800;
+            box-shadow: 0 2px 8px rgba(54, 98, 227, 0.25);
+        }
+
+        /* ── Footer ── */
+        .footer {
+            position: absolute;
+            bottom: 10mm;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 1;
+        }
+
+        .footer-brand {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 800;
+        }
+
+        .footer-brand a {
+            color: #3662e3;
+            text-decoration: none;
+        }
+
+        .footer-tagline {
+            font-size: 9px;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 6mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <!-- Decorative background -->
+        <div class="bg-circle bg-circle-1"></div>
+        <div class="bg-circle bg-circle-2"></div>
+        <div class="bg-circle bg-circle-3"></div>
+        <div class="bg-circle bg-circle-4"></div>
+
+        <!-- Floating decorative icons -->
+        <span class="deco-icon deco-1">🎵</span>
+        <span class="deco-icon deco-2">⭐</span>
+        <span class="deco-icon deco-3">🎶</span>
+        <span class="deco-icon deco-4">✨</span>
+        <span class="deco-icon deco-5">🔊</span>
+
+        <!-- Logo -->
+        <div class="logo-strip">
+            <img class="logo-img" src="{{ static_path }}/images/logo.png" alt="PhonicsMaker">
+        </div>
+
+        <!-- Main card -->
+        <div class="content-card">
+            <div class="icon">🎧</div>
+            <h1 class="title">Listen to This Story!</h1>
+            <p class="subtitle">
+                Scan the code below or visit the link<br>
+                to hear <strong>{{ book_title }}</strong> read aloud
+            </p>
+
+            <div class="qr-wrapper">
+                <div class="qr-container">
+                    <img class="qr-code" src="{{ qr_code_path }}" alt="QR Code - Scan to listen">
+                </div>
+                <span class="scan-label">Scan Me</span>
+            </div>
+
+            <p class="url-text">
+                <span class="url-highlight">{{ display_url or listen_url }}</span>
+            </p>
+
+            {% if total_duration %}
+            <div class="duration-badge">
+                🔊 {{ total_duration }} · {{ num_scenes }} scenes
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-brand">
+                Made with ❤️ by <a href="https://phonicsmaker.com/" target="_blank">PhonicsMaker</a>
+            </div>
+            <div class="footer-tagline">Custom phonics books for every learner</div>
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

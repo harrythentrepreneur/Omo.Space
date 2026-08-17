@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Activity - Crossword</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .worksheet-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            margin: 0;
+            color: #444;
+        }
+
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+
+        .info-line {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            margin-left: 4px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .info-group:first-child {
+            flex: 2;
+            margin-right: 15px;
+        }
+
+        .instructions {
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+        }
+
+        .instructions-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .phoneme-highlight {
+            font-weight: bold;
+            background-color: #fff3cd;
+            padding: 1px 4px;
+            border: 1px solid #d4a800;
+        }
+
+        /* Clues */
+        .clues-section {
+            margin: 10px 0;
+        }
+
+        .clues-columns {
+            display: flex;
+            gap: 16px;
+        }
+
+        .clue-column {
+            flex: 1;
+        }
+
+        .clue-heading {
+            font-weight: bold;
+            font-size: 13px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 3px;
+            margin-bottom: 6px;
+        }
+
+        .clue-item {
+            font-size: 12px;
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+
+        .clue-number {
+            font-weight: bold;
+        }
+
+        /* Simple grid as numbered boxes */
+        .grid-section {
+            margin: 12px 0;
+            text-align: center;
+        }
+
+        .grid-label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 6px;
+        }
+
+        .crossword-word {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 6px;
+        }
+
+        .cw-number {
+            font-weight: bold;
+            font-size: 12px;
+            min-width: 22px;
+            color: #333;
+        }
+
+        .cw-direction {
+            font-size: 10px;
+            color: #666;
+            min-width: 50px;
+        }
+
+        .cw-boxes {
+            display: flex;
+            gap: 2px;
+        }
+
+        .cw-box {
+            width: 26px;
+            height: 26px;
+            border: 2px solid #333;
+            background-color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .cw-box.hint-letter {
+            background-color: #e8f4e8;
+            color: #2d7d2d;
+        }
+
+        .teacher-tip {
+            margin-top: 10px;
+            padding: 8px 10px;
+            background-color: #e8f4e8;
+            border-left: 4px solid #2d7d2d;
+            font-size: 11px;
+        }
+
+        .teacher-tip-title {
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #2d7d2d;
+            margin-bottom: 3px;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">✝️ Crossword</h1>
+            <p class="worksheet-subtitle">Spell the {{ phoneme_display }} Words!</p>
+        </div>
+
+        <div class="student-info">
+            <div class="info-group"><span>Name:</span><span class="info-line"></span></div>
+            <div class="info-group"><span>Date:</span><span class="info-line"></span></div>
+        </div>
+
+        <div class="instructions">
+            <div class="instructions-title">📖 Instructions</div>
+            <p class="instructions-text">
+                Read each clue and write the answer in the boxes.
+                Every answer has the
+                <span class="phoneme-highlight">{{ phoneme_display }}</span> sound!
+                Some letters are given as hints.
+            </p>
+        </div>
+
+        <div class="grid-section">
+            {% for item in clues %}
+            <div class="crossword-word">
+                <span class="cw-number">{{ loop.index }}.</span>
+                <div class="cw-boxes">
+                    {% for cell in item.cells %}
+                    {% if cell.hint %}
+                    <div class="cw-box hint-letter">{{ cell.letter }}</div>
+                    {% else %}
+                    <div class="cw-box"></div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="clues-section">
+            <div class="clue-heading">Clues</div>
+            {% for item in clues %}
+            <div class="clue-item">
+                <span class="clue-number">{{ loop.index }}.</span>
+                {{ item.clue }}
+                ({{ item.word | length }} letters)
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="teacher-tip">
+            <div class="teacher-tip-title">💡 Parent/Teacher Tip</div>
+            Crosswords combine reading comprehension with spelling — two skills
+            in one! If your child can solve the clue but struggles with spelling,
+            help them sound it out one phoneme at a time, then write each sound
+            in order.
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

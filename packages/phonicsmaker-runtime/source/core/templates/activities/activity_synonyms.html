@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Activity - Synonym Detective</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .worksheet-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            margin: 0;
+            color: #444;
+        }
+
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+
+        .info-line {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            margin-left: 4px;
+            min-width: 50px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .info-group:first-child {
+            flex: 2;
+            margin-right: 15px;
+        }
+
+        .instructions {
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            border-radius: 0;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+        }
+
+        .instructions-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin: 10px 0 6px 0;
+            padding-bottom: 4px;
+            border-bottom: 1.5px solid #333;
+        }
+
+        /* Matching Section */
+        .matching-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .matching-word {
+            font-weight: bold;
+            width: 80px;
+            flex-shrink: 0;
+        }
+
+        .matching-arrow {
+            margin: 0 8px;
+            color: #666;
+        }
+
+        .matching-options {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .matching-option {
+            padding: 3px 10px;
+            border: 1.5px solid #333;
+            background-color: #fafafa;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        /* Synonym Pairs Section */
+        .pair-item {
+            margin-bottom: 8px;
+            padding: 6px 10px;
+            border: 1.5px solid #333;
+            background-color: #fafafa;
+        }
+
+        .pair-context {
+            font-size: 12px;
+            margin-bottom: 4px;
+            font-style: italic;
+            color: #444;
+        }
+
+        .pair-context .story-word {
+            font-weight: bold;
+            font-style: normal;
+            text-decoration: underline;
+        }
+
+        .pair-prompt {
+            font-size: 13px;
+        }
+
+        .pair-blank {
+            border-bottom: 1.5px solid #333;
+            display: inline-block;
+            width: 80px;
+            text-align: center;
+        }
+
+        .teacher-tip {
+            margin-top: 10px;
+            padding: 8px 10px;
+            background-color: #e8f4e8;
+            border-left: 4px solid #2d7d2d;
+            font-size: 11px;
+        }
+
+        .teacher-tip-title {
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #2d7d2d;
+            margin-bottom: 3px;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+
+        .corner-decoration {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+        }
+
+        .corner-decoration.top-left {
+            top: 5mm;
+            left: 5mm;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-decoration.top-right {
+            top: 5mm;
+            right: 5mm;
+            border-left: none;
+            border-bottom: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="corner-decoration top-left"></div>
+        <div class="corner-decoration top-right"></div>
+
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">Synonym Detective</h1>
+            <p class="worksheet-subtitle">{{ story_title }}</p>
+        </div>
+
+        <div class="student-info">
+            <div class="info-group">
+                <span>Name:</span>
+                <span class="info-line"></span>
+            </div>
+            <div class="info-group">
+                <span>Date:</span>
+                <span class="info-line"></span>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <div class="instructions-title">Instructions</div>
+            <p class="instructions-text">
+                A <strong>synonym</strong> is a word that means the same or nearly the same as another word.
+                Find the synonyms for words from the story!
+            </p>
+        </div>
+
+        {% if matching_exercise %}
+        <div class="section-title">Part A: Circle the Synonym</div>
+        {% for m in matching_exercise %}
+        <div class="matching-row">
+            <span class="matching-word">{{ m.word }}</span>
+            <span class="matching-arrow">&rarr;</span>
+            <div class="matching-options">
+                {% for opt in m.options %}
+                <span class="matching-option">{{ opt }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if synonym_pairs %}
+        <div class="section-title">Part B: Write the Synonym</div>
+        {% for p in synonym_pairs %}
+        <div class="pair-item">
+            <div class="pair-context">
+                From the story: "{{ p.sentence }}"
+            </div>
+            <div class="pair-prompt">
+                Another word for <strong>{{ p.word }}</strong> is <span class="pair-blank"></span>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <div class="teacher-tip">
+            <div class="teacher-tip-title">Parent/Teacher Tip</div>
+            Discuss how synonyms can make writing more interesting. Ask your child
+            to retell part of the story using the synonyms instead of the original words.
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

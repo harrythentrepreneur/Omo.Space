@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Activity - Reading Between the Lines</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        /* Header */
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .worksheet-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            margin: 0;
+            color: #444;
+        }
+
+        /* Student info */
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+
+        .info-line {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            margin-left: 4px;
+            min-width: 50px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .info-group:first-child {
+            flex: 2;
+            margin-right: 15px;
+        }
+
+        /* Instructions */
+        .instructions {
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+        }
+
+        .instructions-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        /* Question blocks */
+        .inference-block {
+            margin-bottom: 10px;
+            padding: 8px 10px;
+            background-color: #fafafa;
+            border: 1.5px solid #333;
+        }
+
+        .inference-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .inference-number {
+            font-weight: bold;
+            font-size: 16px;
+            min-width: 25px;
+            color: #333;
+        }
+
+        .story-clue-label {
+            font-weight: bold;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .story-clue {
+            font-size: 12px;
+            font-style: italic;
+            padding: 6px 10px;
+            margin-bottom: 6px;
+            border-left: 3px solid #d4a800;
+            background-color: #fff9e6;
+            color: #333;
+            line-height: 1.45;
+        }
+
+        .inference-question {
+            font-size: 13px;
+            margin-bottom: 4px;
+            font-weight: 500;
+            color: #1a1a1a;
+        }
+
+        /* Answer lines */
+        .answer-lines {
+            margin-top: 5px;
+        }
+
+        .answer-line {
+            border-bottom: 1.5px solid #333;
+            height: 20px;
+            margin-bottom: 2px;
+        }
+
+        /* Teacher tip */
+        .teacher-tip {
+            margin-top: 12px;
+            padding: 8px 10px;
+            background-color: #e8f4e8;
+            border-left: 4px solid #2d7d2d;
+            font-size: 11px;
+        }
+
+        .teacher-tip-title {
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #2d7d2d;
+            margin-bottom: 3px;
+        }
+
+        /* Page number */
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">Reading Between the Lines</h1>
+            <p class="worksheet-subtitle">{{ story_title }}</p>
+        </div>
+
+        <div class="student-info">
+            <div class="info-group">
+                <span>Name:</span>
+                <span class="info-line"></span>
+            </div>
+            <div class="info-group">
+                <span>Date:</span>
+                <span class="info-line"></span>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <div class="instructions-title">Instructions</div>
+            <p class="instructions-text">
+                Sometimes the story doesn't tell us everything directly. We have to
+                <strong>think carefully</strong> about what the clues in the story mean.
+                Read the clue, then answer the question.
+            </p>
+        </div>
+
+        {% for q in questions %}
+        <div class="inference-block">
+            <div class="inference-header">
+                <span class="inference-number">{{ loop.index }}.</span>
+                <span class="story-clue-label">Clue from the story:</span>
+            </div>
+
+            <div class="story-clue">
+                "{{ q.story_clue }}"
+            </div>
+
+            <div class="inference-question">{{ q.question }}</div>
+
+            <div class="answer-lines">
+                <div class="answer-line"></div>
+                <div class="answer-line"></div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="teacher-tip">
+            <div class="teacher-tip-title">Parent/Teacher Tip</div>
+            Help your child find the clue in the story first. Ask "What does this tell us?"
+            before they try to answer. There is no single right answer — encourage thoughtful reasoning.
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,41 @@
+# RunPod Serverless Configuration
+name: phonicsmaker-core
+image: harrythentrepreneur/phonicsmaker-core:latest
+
+# Environment variables for RunPod deployment
+env:
+  - name: ENVIRONMENT
+    value: production
+  - name: PYTHONPATH
+    value: /app
+  - name: PYTHONUNBUFFERED
+    value: "1"
+  - name: RUNPOD_DEBUG_LEVEL
+    value: INFO
+
+# Handler configuration
+handler:
+  handler_path: runpod_handler.py
+  handler_function: handler
+
+# Resource configuration
+resources:
+  gpu: 0  # No GPU required for this service
+  cpu_cores: 2
+  ram_gb: 4
+
+# Scaling configuration
+scaling:
+  min_workers: 0
+  max_workers: 10
+  scale_down_delay: 60
+
+# Timeout configuration
+timeout:
+  max_job_execution_time: 600  # 10 minutes max per job
+
+# Health check
+health_check:
+  enabled: true
+  interval: 30
+  timeout: 10

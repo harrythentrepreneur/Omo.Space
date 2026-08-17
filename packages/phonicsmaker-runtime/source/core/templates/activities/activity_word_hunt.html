@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>Phonics Activity - Word Hunt</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'LexieReadable', Georgia, 'Times New Roman', serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        @page {
+            size: A5;
+            margin: 12mm;
+        }
+
+        @media print {
+            body {
+                width: 148mm;
+                height: 210mm;
+            }
+
+            .page {
+                width: 124mm;
+                height: 186mm;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .page {
+            padding: 8mm;
+            margin: 0;
+        }
+
+        /* Old School Teacher Header */
+        .worksheet-header {
+            text-align: center;
+            border-bottom: 3px double #333;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .worksheet-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            margin: 0;
+            color: #444;
+        }
+
+        /* Name/Date Line - Classic Teacher Style */
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+
+        .info-line {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            margin-left: 4px;
+            min-width: 50px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .info-group:first-child {
+            flex: 2;
+            margin-right: 15px;
+        }
+
+        /* Instructions Box */
+        .instructions {
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            border-radius: 0;
+            padding: 10px 12px;
+            margin-bottom: 15px;
+        }
+
+        .instructions-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .phoneme-highlight {
+            font-weight: bold;
+            background-color: #fff3cd;
+            padding: 1px 4px;
+            border: 1px solid #d4a800;
+        }
+
+        /* Word Grid - Checkboxes */
+        .word-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin: 15px 0;
+        }
+
+        .word-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            border: 1.5px solid #333;
+            background-color: #fafafa;
+            font-size: 16px;
+        }
+
+        .checkbox {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #333;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .word-text {
+            font-size: 16px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Score Box */
+        .score-section {
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 2px solid #333;
+        }
+
+        .score-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .score-label {
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .score-value {
+            display: flex;
+            align-items: baseline;
+            font-size: 14px;
+        }
+
+        .score-blank {
+            border-bottom: 1.5px solid #333;
+            width: 25px;
+            margin: 0 4px;
+            text-align: center;
+        }
+
+        /* Teacher Tip Box */
+        .teacher-tip {
+            margin-top: 15px;
+            padding: 8px 10px;
+            background-color: #e8f4e8;
+            border-left: 4px solid #2d7d2d;
+            font-size: 11px;
+        }
+
+        .teacher-tip-title {
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #2d7d2d;
+            margin-bottom: 3px;
+        }
+
+        /* Page Number */
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+
+        /* Decorative Elements */
+        .corner-decoration {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+        }
+
+        .corner-decoration.top-left {
+            top: 5mm;
+            left: 5mm;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-decoration.top-right {
+            top: 5mm;
+            right: 5mm;
+            border-left: none;
+            border-bottom: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="corner-decoration top-left"></div>
+        <div class="corner-decoration top-right"></div>
+
+        <div class="worksheet-header">
+            <h1 class="worksheet-title">📚 Word Hunt</h1>
+            <p class="worksheet-subtitle">Find the Phonics Sounds!</p>
+        </div>
+
+        <div class="student-info">
+            <div class="info-group">
+                <span>Name:</span>
+                <span class="info-line"></span>
+            </div>
+            <div class="info-group">
+                <span>Date:</span>
+                <span class="info-line"></span>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <div class="instructions-title">📖 Instructions</div>
+            <p class="instructions-text">
+                Read each word carefully. Put a <strong>tick (✓)</strong> in the box next to
+                words that have the <span class="phoneme-highlight">{{ phoneme_display }}</span> sound.
+            </p>
+        </div>
+
+        <div class="word-grid">
+            {% for word in words %}
+            <div class="word-item">
+                <div class="checkbox"></div>
+                <span class="word-text">{{ word }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="score-section">
+            <div class="score-box">
+                <span class="score-label">How many did you find?</span>
+                <div class="score-value">
+                    <span class="score-blank"></span>
+                    <span>out of {{ correct_count }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="teacher-tip">
+            <div class="teacher-tip-title">💡 Parent/Teacher Tip</div>
+            Say each word out loud with your child. Emphasise the {{ phoneme_display }} sound.
+            Ask: "Can you hear the sound? Where is it - at the beginning, middle, or end?"
+        </div>
+
+        <div class="page-number">Page {{ page_number }}</div>
+    </div>
+</body>
+
+</html>

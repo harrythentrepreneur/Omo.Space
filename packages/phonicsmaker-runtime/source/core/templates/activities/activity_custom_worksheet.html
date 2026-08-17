@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="PhonicsMaker">
+    <title>{{ title }}</title>
+    <style>
+        @font-face {
+            font-family: 'LexieReadable';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ static_path }}/fonts/LexieReadable-Regular.ttf') format('truetype');
+        }
+
+        :root {
+            --ws-text-dark: #1a1a1a;
+            --ws-text-heading: #2c3e50;
+            --ws-text-body: #334155;
+            --ws-text-muted: #475569;
+            --ws-text-light: #64748b;
+            --ws-text-faint: #94a3b8;
+            --ws-bg-white: #ffffff;
+            --ws-bg-subtle: #f8fafc;
+            --ws-bg-muted: #f1f5f9;
+            --ws-bg-instructions: #eff6ff;
+            --ws-bg-teacher-tip: #fefce8;
+            --ws-border-dark: #333;
+            --ws-border-default: #d1d5db;
+            --ws-border-light: #e2e8f0;
+            --ws-border-instructions: #bfdbfe;
+            --ws-border-teacher-tip: #fde68a;
+            --ws-accent-instructions: #1e40af;
+            --ws-accent-teacher-tip: #a16207;
+            --ws-accent-teacher-tip-text: #78350f;
+            --ws-line-color: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'LexieReadable', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--ws-text-dark);
+            background-color: var(--ws-bg-white);
+            line-height: 1.6;
+            font-size: 16px;
+            padding: 32px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        @page {
+            size: A4;
+            margin: 12mm 15mm;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+                width: 210mm;
+                font-size: 14px;
+            }
+            .page {
+                width: 180mm;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .teacher-tip,
+            .instructions {
+                page-break-inside: avoid;
+            }
+        }
+
+        .page {
+            padding: 10mm;
+            margin: 0;
+        }
+
+        /* Header */
+        .worksheet-header {
+            text-align: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 3px double var(--ws-border-dark);
+        }
+
+        .worksheet-logo {
+            height: 35px;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+
+        .worksheet-title {
+            font-size: 22px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--ws-text-heading);
+            margin: 0 0 4px 0;
+        }
+
+        .worksheet-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            color: var(--ws-text-light);
+            margin: 0;
+        }
+
+        /* Student Info (Name / Date) */
+        .student-info {
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+            margin: 14px 0;
+            padding: 10px 14px;
+            background: var(--ws-bg-subtle);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: baseline;
+            flex: 1;
+        }
+
+        .info-group span:first-child {
+            font-weight: 600;
+            color: #475569;
+            margin-right: 6px;
+        }
+
+        .info-line {
+            border-bottom: 1.5px solid var(--ws-line-color);
+            flex: 1;
+            min-width: 60px;
+        }
+
+        /* Instructions Box */
+        .instructions {
+            background: var(--ws-bg-instructions);
+            border: 1px solid var(--ws-border-instructions);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin: 16px 0;
+        }
+
+        .instructions-title {
+            font-weight: 700;
+            color: var(--ws-accent-instructions);
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .instructions-text {
+            font-size: 13px;
+            color: var(--ws-text-body);
+            margin: 0;
+        }
+
+        /* Teacher Tip Box */
+        .teacher-tip {
+            background: var(--ws-bg-teacher-tip);
+            border: 1px solid var(--ws-border-teacher-tip);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-top: 24px;
+        }
+
+        .teacher-tip-title {
+            font-weight: 700;
+            color: var(--ws-accent-teacher-tip);
+            margin-bottom: 5px;
+            font-size: 13px;
+        }
+
+        .teacher-tip p, .teacher-tip-content {
+            font-size: 13px;
+            color: var(--ws-accent-teacher-tip-text);
+        }
+
+        /* Generated Content Styling (Headers, lists) */
+        .content-area {
+            margin: 20px 0;
+        }
+
+        .content-area h1 {
+            font-size: 22px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+        }
+
+        .content-area h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 20px 0 8px;
+        }
+
+        .content-area h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--ws-text-body);
+            margin: 16px 0 6px;
+        }
+
+        .content-area p {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .content-area hr {
+            border: none;
+            border-top: 1px solid var(--ws-border-light);
+            margin: 16px 0;
+        }
+
+        .content-area ol,
+        .content-area ul {
+            padding-left: 24px;
+            margin: 12px 0;
+        }
+
+        .content-area li {
+            margin-bottom: 10px;
+            padding: 4px 0;
+        }
+
+        .content-area table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+
+        .content-area th,
+        .content-area td {
+            border: 1px solid #d1d5db;
+            padding: 10px 14px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .content-area th {
+            background: var(--ws-bg-muted);
+            font-weight: 700;
+            color: #334155;
+        }
+
+        /* Writing Lines */
+        input[type="text"],
+        .answer-line,
+        .write-line {
+            border: none;
+            border-bottom: 1.5px solid #94a3b8;
+            background: transparent;
+            min-width: 60px;
+            padding: 2px 4px;
+            font-size: 14px;
+            display: inline-block;
+        }
+
+        /* Page Number */
+        .page-number {
+            position: absolute;
+            bottom: 8mm;
+            right: 8mm;
+            font-size: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        {{ html_content | safe }}
+    </div>
+</body>
+
+</html>

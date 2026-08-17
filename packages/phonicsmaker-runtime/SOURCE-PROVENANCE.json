@@ -1,0 +1,604 @@
+{
+  "source_repo": "/root/work/phonicsmaker/core",
+  "source_branch": "feat/interest-age-decoupled-from-reading-level",
+  "source_commit": "4c31dc2aae366ae8c75f4c3f0580208a65904f7c",
+  "source_origin_main": "b78253dc8134b958b5632ae825f260ac7e099587",
+  "selection": "tracked core engine/runtime source only; .env*, draft_data, logs and caches excluded",
+  "files": [
+    {
+      "path": "Dockerfile",
+      "bytes": 1949,
+      "sha256": "ab14df6fa28ac0c31661f94f0d741e090b5b95f1af433446288397131c6084ec"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5282,
+      "sha256": "056dca686b5001f2b49570e2500bcdd8e50bc49a09b2c0c82128920e9c769180"
+    },
+    {
+      "path": "app/.DS_Store",
+      "bytes": 6148,
+      "sha256": "793ed3ba8a2637305614228354683dbffc94311b35a06a020a3181f29ab48367"
+    },
+    {
+      "path": "app/core/ai/ai_config.py",
+      "bytes": 25344,
+      "sha256": "bc2ccbbd0814a0262410184ab6e8fb7143b06116c50fb6268290f54cc5faef52"
+    },
+    {
+      "path": "app/core/ai/prompts.py",
+      "bytes": 66300,
+      "sha256": "99c8fad171c75460416d445a15c6f19bc02b5ba9d73e0fc973cda9612ad2ced0"
+    },
+    {
+      "path": "app/core/auth/auth_service.py",
+      "bytes": 1295,
+      "sha256": "743e207f29707d084e6cdfc915c19f958ef2c8e38ed8fca68d4dea310c332991"
+    },
+    {
+      "path": "app/core/callbacks/callback_service.py",
+      "bytes": 13256,
+      "sha256": "81d2629ab48bc39b363906d202262055c26c282e80bab9616de6950659ac0b8b"
+    },
+    {
+      "path": "app/core/config/config.py",
+      "bytes": 5496,
+      "sha256": "df38e4138af10f7d6ca13a172de240656ab110669f443ed5e950dbd151e9d9f3"
+    },
+    {
+      "path": "app/core/config/logger.py",
+      "bytes": 2648,
+      "sha256": "dd748b6be741b3aee5467d95041cf1136f271f3a182c3fa4e595bdd7cfa73b24"
+    },
+    {
+      "path": "app/core/config/validation.py",
+      "bytes": 2362,
+      "sha256": "9b1f0b210c3c84223f6c8fd4d46039289e126f748700f20f3dc5545b7d8c823a"
+    },
+    {
+      "path": "app/core/error_handling/error_service.py",
+      "bytes": 1531,
+      "sha256": "5cfd2f56c9a1800d7f8d595689f3f2623495ba3acbaf79aff87ea145d1dc1954"
+    },
+    {
+      "path": "app/core/storage/file_storage.py",
+      "bytes": 4214,
+      "sha256": "c77254511b4dd634702934d4729d9a6390ce67055fb77f7c1cb7bff3b61dc53b"
+    },
+    {
+      "path": "app/core/user/user_service.py",
+      "bytes": 3960,
+      "sha256": "6dc46a3101dd0a50a0829ca8fbf2f9d81d3ce08fd8a5d922372ef34a04b699de"
+    },
+    {
+      "path": "app/core/utils/retry.py",
+      "bytes": 4174,
+      "sha256": "52e57977a373f47bd97621502c56813cc3a2276fab7bdd0eb5a875c7ce699b1d"
+    },
+    {
+      "path": "app/db/database.py",
+      "bytes": 1514,
+      "sha256": "91a510f5ddd41d8ee26d54f01e38eb17150ad897c01d56d9b5356febf51f8a55"
+    },
+    {
+      "path": "app/db/models/basic.py",
+      "bytes": 3317,
+      "sha256": "9ff21f46e7518585eccb091b9dbfeffab5bc91fac8308fadf91945c066719e69"
+    },
+    {
+      "path": "app/db/models/image.py",
+      "bytes": 368,
+      "sha256": "291427b5c3d79a6d4b2003bad4a4fe8236fe5c9ec1a9ce33e97fe8ad6cee03d9"
+    },
+    {
+      "path": "app/db/models/pdf.py",
+      "bytes": 859,
+      "sha256": "2b27de6cf040273ef4f2ba02baa57733aff9b25adb81480b442a00a839c5ada1"
+    },
+    {
+      "path": "app/db/models/story.py",
+      "bytes": 1410,
+      "sha256": "b17d5be72165f808325addf14078d818ad6e02aa638e0e32baf63c729e06755f"
+    },
+    {
+      "path": "app/db/models/task.py",
+      "bytes": 208,
+      "sha256": "1f376be915ee487b08ebc87553ff1c66f9529f4693803846a3554a7fe183e60c"
+    },
+    {
+      "path": "app/phonics_maker/activity_generation/__init__.py",
+      "bytes": 562,
+      "sha256": "25da30dc72d6269c9f7b2cee8e9ecf84491aa07ed10ccbd3dc6bf1102732c19e"
+    },
+    {
+      "path": "app/phonics_maker/activity_generation/activity_service.py",
+      "bytes": 99164,
+      "sha256": "28f9064688d90ef9bf478578eade4b049b2a59e2cb15286b1e2db9e3f7cfeab1"
+    },
+    {
+      "path": "app/phonics_maker/activity_generation/activity_types.py",
+      "bytes": 31016,
+      "sha256": "176e0132c7dba4709bfa980494080898673cae67aa48d89c552d3e233d49c41d"
+    },
+    {
+      "path": "app/phonics_maker/audio_generation/__init__.py",
+      "bytes": 489,
+      "sha256": "accc26fb86c04385c643a585ed425e34e0a8d27651bf5e55015d4602caaeefbf"
+    },
+    {
+      "path": "app/phonics_maker/audio_generation/audio_service.py",
+      "bytes": 21617,
+      "sha256": "3c40e26f9a272a77fbf1fc18ae718a88a795f24b580cfa4a4ba31c51b56a97a6"
+    },
+    {
+      "path": "app/phonics_maker/audio_generation/audio_types.py",
+      "bytes": 3632,
+      "sha256": "520b5c32ee17f172715b34bd1223eac9c1fdc9e9e6d8e2e425c7b5c1a5275dd6"
+    },
+    {
+      "path": "app/phonics_maker/audio_generation/qr_generator.py",
+      "bytes": 4252,
+      "sha256": "4d8475a2f8de669fa0117e1d8f70400469e108e044cd4c8df170a67d8dc95ea3"
+    },
+    {
+      "path": "app/phonics_maker/image_generation/image_service.py",
+      "bytes": 72786,
+      "sha256": "74d09005a7c8a4462d58d524c7cb797fa9bbce34fe3afbee83ba37db40f70c7c"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/__init__.py",
+      "bytes": 1054,
+      "sha256": "4f19e0f2ef122121897b4a8381d37266df994b054de37d3f36e1e65db0cecc5d"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/file_utils.py",
+      "bytes": 1640,
+      "sha256": "413c0f194f05b0717f0821d7d8cd6456745e1f4397a845a9dfd358841e1e1ad7"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/font_config.py",
+      "bytes": 5534,
+      "sha256": "7053e80dbe8e466b301eb3b3efe046378f303e6d3c0ed9d62aa1b2259add9315"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/html_renderer.py",
+      "bytes": 1588,
+      "sha256": "e63c5f4b57d0196839693d92c1280b67a7ca1b715a5d13869355bbdf750bb807"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/image_processor.py",
+      "bytes": 65213,
+      "sha256": "561e3738b0e69a6f3c50d6b536f80d530a6768a402eb5ba28d02143cd4d75b30"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/layout_utils.py",
+      "bytes": 4266,
+      "sha256": "fb6681b5f38b3a2ad1dfb46ccfd10767eb9b02db36f9ec217aa8d33e5a1c9ea6"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/pdf_generator.py",
+      "bytes": 6570,
+      "sha256": "f79e48b8bd76a18b7e0d66f8245500f0548bcaed4698b37237a5e7817bd83e21"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/pdf_service.py",
+      "bytes": 54256,
+      "sha256": "f6e465281d6e0b7aedd993da85300e6036e3ea9b29ed7f60da73d887816dee22"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/pptx_generator.py",
+      "bytes": 2370,
+      "sha256": "491df9597877f545829b4e33e924819506a1e1cd8fa137157d85193a0de27e7d"
+    },
+    {
+      "path": "app/phonics_maker/pdf_generation/text_processor.py",
+      "bytes": 16619,
+      "sha256": "b1ecd9f1dd141408c78c3bdc71b60fe4faa1d3ba1a4fe016e9d92725f397c6e7"
+    },
+    {
+      "path": "app/phonics_maker/resend/email_service.py",
+      "bytes": 1224,
+      "sha256": "fe3cb6ed7d6f7c04052a5e9f2094fdd44e7818da82500ca94c51c93b7dd79719"
+    },
+    {
+      "path": "app/phonics_maker/story_generation/story_service.py",
+      "bytes": 74980,
+      "sha256": "ab738dd5e09210ea819aa5691886ddc42ada912b8cd25c1ea5cfe7eef54642c3"
+    },
+    {
+      "path": "app/phonics_maker/task_management/task_service.py",
+      "bytes": 17980,
+      "sha256": "03327326d1fda9495b47c854fda4fbf792520ff9f3c332c1f4c85344c5757e0a"
+    },
+    {
+      "path": "app/phonics_maker/tasks/render_tasks.py",
+      "bytes": 14121,
+      "sha256": "3eda910f6231f1e3b32f286cd063e39c64b0dc9637ab1c7be0667b54b059133a"
+    },
+    {
+      "path": "app/phonics_maker/tasks/story_tasks.py",
+      "bytes": 49787,
+      "sha256": "16acfd1b71933e1fff873b6deb95b598507a1d9b4fdfce9c4de1e3fd3a990fb2"
+    },
+    {
+      "path": "app/phonics_maker/worksheet_generation/worksheet_service.py",
+      "bytes": 15129,
+      "sha256": "a6a6166e4ac74ce38f63ca7e4f61c652a22dca0e4593853512318b98f569bf89"
+    },
+    {
+      "path": "app/templates/emails/free_book_ready.html",
+      "bytes": 2315,
+      "sha256": "00cb9ffb8343bbd47ce73acee81a99fe6acd8645b4a4f6a868bb50b3b932ebae"
+    },
+    {
+      "path": "app/templates/emails/story_ready.html",
+      "bytes": 2235,
+      "sha256": "78ae4c919d8640e1fa1c525b9a4b11982c15b2217be9c9bd8e79ec3f19ac1697"
+    },
+    {
+      "path": "modal_app.py",
+      "bytes": 22860,
+      "sha256": "ac186f312c925b055917eca25e73a582e9bb34a598173433a3a7186909289e4b"
+    },
+    {
+      "path": "poetry.lock",
+      "bytes": 486443,
+      "sha256": "ded39b829e9aac0f5c7dc170b99c0669e34014ecbdd10b6d5f5e386ae5244dea"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 1380,
+      "sha256": "c94c0050425c595c5d25db84c10ea2415a526a121804bced5feccdfc1c256ca6"
+    },
+    {
+      "path": "runpod.yaml",
+      "bytes": 791,
+      "sha256": "1e62ef0ab7897dd4d42f1417b393878187af672248d7acba9007a6c3ee6db7f9"
+    },
+    {
+      "path": "runpod_handler.py",
+      "bytes": 12037,
+      "sha256": "d4064136c623fdcec02660e31ee27eaa5a4ad1fcfc03a25d1df343004563072a"
+    },
+    {
+      "path": "runpod_wrapper.py",
+      "bytes": 2317,
+      "sha256": "6e7f7b817ac8bed8181198b3cbf69aed64319cbe007b1e8a4d705910602105de"
+    },
+    {
+      "path": "static/.DS_Store",
+      "bytes": 6148,
+      "sha256": "cb9a2b9ef94e13d93f138fd1aa2cc1b1bb5fb70d3bbd66661d8c0b66b7d207df"
+    },
+    {
+      "path": "static/fonts/Andika-Bold.ttf",
+      "bytes": 681008,
+      "sha256": "4361126189a2d0e0da66999352db58aaf1b4ca940faf8a8239d725f8303d890d"
+    },
+    {
+      "path": "static/fonts/Andika-Regular.ttf",
+      "bytes": 669828,
+      "sha256": "202b96b1f174a4a43baefe885b40dacacb81786755efd08ed4b7704e79c45515"
+    },
+    {
+      "path": "static/fonts/AtkinsonHyperlegible-Bold.ttf",
+      "bytes": 55256,
+      "sha256": "5a3b0c8cc8ca545155150b4512a1fa248298df121c50d6557e651e61fbdab92f"
+    },
+    {
+      "path": "static/fonts/AtkinsonHyperlegible-Regular.ttf",
+      "bytes": 54348,
+      "sha256": "7fb917c89019896d0b52ee84b7cbb3304c18cb90b19a62f5e32712bd23e97669"
+    },
+    {
+      "path": "static/fonts/Cabin-Variable.ttf",
+      "bytes": 165468,
+      "sha256": "a16576e6cec01cf994c46838ed1c17ffdb62cf6da8430edfbcb011f57dd62457"
+    },
+    {
+      "path": "static/fonts/ComicNeue-Bold.ttf",
+      "bytes": 53384,
+      "sha256": "0f4f082e1bbc2e61d2ebdfa9b7674a08483db978e9a5d61e13da47225b4204a4"
+    },
+    {
+      "path": "static/fonts/ComicNeue-Italic.ttf",
+      "bytes": 51796,
+      "sha256": "35c89d057a1d44c8fa668b145e4b73cf1585a129b528a7a45d61de6aab5e99ca"
+    },
+    {
+      "path": "static/fonts/ComicNeue-Regular.ttf",
+      "bytes": 54848,
+      "sha256": "bfa4e17ce83d8bda3caccc25a2be55a21f89f14da295e866a8202ebbfbb69fab"
+    },
+    {
+      "path": "static/fonts/Fredoka-Variable.ttf",
+      "bytes": 159184,
+      "sha256": "2ba02e68b152868aef9ba28e24b3648c7d457fe6f25c761f2c2c53fb61a73fc8"
+    },
+    {
+      "path": "static/fonts/Lexend-Bold.ttf",
+      "bytes": 175756,
+      "sha256": "3add53e641fbc81da64da4bb254285e2831b52b029527bc0714e2b9610832ee6"
+    },
+    {
+      "path": "static/fonts/Lexend-Regular.ttf",
+      "bytes": 175756,
+      "sha256": "3add53e641fbc81da64da4bb254285e2831b52b029527bc0714e2b9610832ee6"
+    },
+    {
+      "path": "static/fonts/LexieReadable-Regular.ttf",
+      "bytes": 120056,
+      "sha256": "c4ed399f756902ff5493e16c72348e35cc77de7150087b5fef178f2bac22eaa5"
+    },
+    {
+      "path": "static/fonts/Nunito-Variable.ttf",
+      "bytes": 276932,
+      "sha256": "bb55a5ca5c2042335b3991af27c4d0705d0ef41cac6164ac737fd8f2a1e85207"
+    },
+    {
+      "path": "static/fonts/OpenDyslexic-Bold.ttf",
+      "bytes": 303360,
+      "sha256": "a735125476b52c67e2b50b2036c7f79b9b953980766f07f60a44756cbd6ff4ba"
+    },
+    {
+      "path": "static/fonts/OpenDyslexic-Regular.ttf",
+      "bytes": 303401,
+      "sha256": "3ebb65a2ca5128b7a23b16b650e865ab65feec12519e5954132e9b52b4289ea6"
+    },
+    {
+      "path": "static/fonts/PatrickHand-Regular.ttf",
+      "bytes": 214772,
+      "sha256": "0f173b3e6cb6d1af25babf7f0057c5ac4ee11f9992b0469bb817e967ef4ad0fc"
+    },
+    {
+      "path": "static/fonts/Poppins-Bold.ttf",
+      "bytes": 155996,
+      "sha256": "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c"
+    },
+    {
+      "path": "static/fonts/Poppins-Regular.ttf",
+      "bytes": 160316,
+      "sha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba"
+    },
+    {
+      "path": "static/fonts/Quicksand-Variable.ttf",
+      "bytes": 124824,
+      "sha256": "39c9b64223561f56aaff6062a6f04063c4fc86809ad6768722c06614d977e1cc"
+    },
+    {
+      "path": "static/images/logo-dark.png",
+      "bytes": 119068,
+      "sha256": "d929782444370a60e7460422d24fa93683ed789e18c0d0848da1d649e95dc391"
+    },
+    {
+      "path": "static/images/logo.png",
+      "bytes": 119550,
+      "sha256": "7975ed161384d36c38c2ffb8a272d2f563acff8432446773a7d864352a94c17f"
+    },
+    {
+      "path": "static/images/trial-image.png",
+      "bytes": 1091221,
+      "sha256": "61117b0c82cddf5cc887e0c8e5a31ef0ab3987441802ea8631e116c65b7c32d9"
+    },
+    {
+      "path": "templates/activities/activity_answer_key.html",
+      "bytes": 19599,
+      "sha256": "f9c5a678a8c6029ffd1e411c8f635c8404b6a31a531f1473fc34d81637b6de1c"
+    },
+    {
+      "path": "templates/activities/activity_circle_sound.html",
+      "bytes": 7143,
+      "sha256": "a530efc46da2227eff87155f4978a5cc105d14e34f4cf28b0aab401a87fa3c4c"
+    },
+    {
+      "path": "templates/activities/activity_comprehension_questions.html",
+      "bytes": 6969,
+      "sha256": "4ea249d342ad4627aa4a90535d01891e894a78b455939d1c434f47bd971fd2b0"
+    },
+    {
+      "path": "templates/activities/activity_crossword.html",
+      "bytes": 7629,
+      "sha256": "b7b47e451979702cd2f719c4f1898b1541ab1b57e70c4a77d02c595702e4e1d8"
+    },
+    {
+      "path": "templates/activities/activity_custom_worksheet.html",
+      "bytes": 7328,
+      "sha256": "1fecab41b27a9959393b6f281481e74ffcc26e852cf6cd174d846c7164c02d5e"
+    },
+    {
+      "path": "templates/activities/activity_cut_and_sort.html",
+      "bytes": 8598,
+      "sha256": "71e8c4cbf846853b94570d4915c6b2834a45ce381192c17452879753b8b70db1"
+    },
+    {
+      "path": "templates/activities/activity_fill_blank.html",
+      "bytes": 8043,
+      "sha256": "6ecb0737a1db094deea7b934b2d555a3ee876b8b394473df0260670999901f1c"
+    },
+    {
+      "path": "templates/activities/activity_inferred_meaning.html",
+      "bytes": 6773,
+      "sha256": "6b3f3da8d43ad78cfd34c3d2b3adceb1a75652d90fb6f2cbbe2414f2456d6b7c"
+    },
+    {
+      "path": "templates/activities/activity_missing_sound.html",
+      "bytes": 8107,
+      "sha256": "e389c5c5d0915bad7077310affaf9fc01e3f72217312ec88cd1d1ba4dab77826"
+    },
+    {
+      "path": "templates/activities/activity_odd_one_out.html",
+      "bytes": 7855,
+      "sha256": "fdc8096c72ce9bc36e71b6da09a2564af06b751b5d86f66bd3f6649168b14de6"
+    },
+    {
+      "path": "templates/activities/activity_phoneme_count.html",
+      "bytes": 10199,
+      "sha256": "e66f061475e969747321613fa208f575d048fda40d6dd19a0e90e7601578b41f"
+    },
+    {
+      "path": "templates/activities/activity_phoneme_position.html",
+      "bytes": 9167,
+      "sha256": "5e04945bfc495e01931ff620e383e9874ccaa2c3e0e30858c1125d0753e8a7ed"
+    },
+    {
+      "path": "templates/activities/activity_phoneme_spotter.html",
+      "bytes": 8210,
+      "sha256": "1e274fc65dabc93a5cd5318fc4d741d1edc0d37094ffdf4e032e1a32352d7259"
+    },
+    {
+      "path": "templates/activities/activity_read_and_draw.html",
+      "bytes": 7903,
+      "sha256": "f8a3d0da2e9e6b67c8b84ca70eba252ef09ec05619a5d8f25fd54740d0e8e7d8"
+    },
+    {
+      "path": "templates/activities/activity_real_or_nonsense.html",
+      "bytes": 8467,
+      "sha256": "90644b2bae344df68508d96b4d155dc18c055d1e354c32c0697924ad92199aa6"
+    },
+    {
+      "path": "templates/activities/activity_rhyming_pairs.html",
+      "bytes": 8268,
+      "sha256": "3a04dca9002c5682a619bb4da08252926b8ceeea57b9bdf4347b846f996d3be3"
+    },
+    {
+      "path": "templates/activities/activity_sentence_building.html",
+      "bytes": 8636,
+      "sha256": "d0f462c5706df90b6dc980fecda275f8513666fb93c93b260ba5eb1f543c3964"
+    },
+    {
+      "path": "templates/activities/activity_sound_matching.html",
+      "bytes": 7821,
+      "sha256": "8ce66bb16ab378a2cee1da79ffc44df2b63120a6f9830e50f61e35076b46e07c"
+    },
+    {
+      "path": "templates/activities/activity_sound_swap.html",
+      "bytes": 8964,
+      "sha256": "2361c1ab3535f0fefb6a4f2589dcbc892d97383d68c742b75ebfd651acbcad5f"
+    },
+    {
+      "path": "templates/activities/activity_syllable_count.html",
+      "bytes": 9093,
+      "sha256": "836d9ee05ea1c70d621d279718027a95a2e72736b1c4abc0028f2d60f6134719"
+    },
+    {
+      "path": "templates/activities/activity_synonyms.html",
+      "bytes": 7924,
+      "sha256": "0d99877c9cec4be038525b954390782b47226eb9cc470709f31836fdb97eca03"
+    },
+    {
+      "path": "templates/activities/activity_tracing.html",
+      "bytes": 8901,
+      "sha256": "68b8961fcd70c5dc4e6c3cf4021f98bf6b36c918cf532821c35c4e2a5f7ce5e8"
+    },
+    {
+      "path": "templates/activities/activity_vocabulary_building.html",
+      "bytes": 6772,
+      "sha256": "60bf48a8547e709d27c566e9d0e54eadb78116f98c4dad7fdc88b855c3dccba3"
+    },
+    {
+      "path": "templates/activities/activity_word_building.html",
+      "bytes": 8313,
+      "sha256": "846e9a71387af8a1e32a1b5351abe7da388efddbeca3a711cd962c4de716c10e"
+    },
+    {
+      "path": "templates/activities/activity_word_hunt.html",
+      "bytes": 7706,
+      "sha256": "e52845f703c081c557d3b0203ca2c2a4aea82ed1f37bcc44baf3521a4f7e8bfa"
+    },
+    {
+      "path": "templates/activities/activity_word_ladder.html",
+      "bytes": 9375,
+      "sha256": "31404ed5a905522fb53d1acb441878c52de841e6700c09e2aa7480b665f47006"
+    },
+    {
+      "path": "templates/activities/activity_word_scramble.html",
+      "bytes": 8059,
+      "sha256": "1d4ac1b2bc9697ec217d2cdd207179d364b274b8e17540d3aeaabb68077ed91c"
+    },
+    {
+      "path": "templates/back_cover_audio.html",
+      "bytes": 10226,
+      "sha256": "6a4dd302ad77412ddc02bd891d7bebe37f773c48afdaf30bbca2f1de03d38881"
+    },
+    {
+      "path": "templates/cover_page_template.html",
+      "bytes": 4128,
+      "sha256": "ea6d514ae7c95bc6b4938abf3de98f0ff03e26ca1be791e7f26ec61b8e559fd0"
+    },
+    {
+      "path": "templates/scene_picture_top.html",
+      "bytes": 5238,
+      "sha256": "051bbdceccd61775599afc11097b6749ae3fdd0895820a00bf29a0ba85acee43"
+    },
+    {
+      "path": "templates/scene_side_by_side.html",
+      "bytes": 4929,
+      "sha256": "04cab8784aa6abdb56d4f2b6824b7630d265078427013a437f019ea1e047d04b"
+    },
+    {
+      "path": "templates/scene_template.html",
+      "bytes": 3066,
+      "sha256": "2b555765433156357752eeedeac8a6f2e4db28cad9cc552a66100979a64d949e"
+    },
+    {
+      "path": "templates/scene_text_top.html",
+      "bytes": 4517,
+      "sha256": "7b91e23ff3a170f5923b217807f8dfa6789677c53aaa6a72968b86354113f75f"
+    },
+    {
+      "path": "templates/trial_page_template.html",
+      "bytes": 1817,
+      "sha256": "acd99542b5dbb14d007b60b26416970b07ee5734c114404bb04c5f9182f13e19"
+    },
+    {
+      "path": "tests/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "tests/test_character_descriptions.py",
+      "bytes": 1731,
+      "sha256": "59db71760fb984ee75d866ea8b0b26a2e0a13519792efdfccb93aeb1c7e285ec"
+    },
+    {
+      "path": "tests/test_cover_title_layout.py",
+      "bytes": 909,
+      "sha256": "4c176d82a52be8fb5371640da283c0668033d662c34be081f1561460e7d3bad3"
+    },
+    {
+      "path": "tests/test_db.py",
+      "bytes": 300,
+      "sha256": "2d69c5c421755a78459be481050d787a5c58f64a482c5887bd6a67fa551c0a48"
+    },
+    {
+      "path": "tests/test_image_validation.py",
+      "bytes": 5661,
+      "sha256": "a72df6f73bc477544728e918a7c41402a1ce985df52f14b73378eb1fb2ff8199"
+    },
+    {
+      "path": "tests/test_interest_age.py",
+      "bytes": 10833,
+      "sha256": "2aa0af42de72436de921623c09ca5cd7691726217dae6c8468b612d2a6a16ec8"
+    },
+    {
+      "path": "tests/test_newsletter_template.py",
+      "bytes": 3804,
+      "sha256": "3476ec272d4367fa7af389b6f8750a51aa5adf0593565cb98422674e3b9c24aa"
+    },
+    {
+      "path": "tests/test_reference_book_fields.py",
+      "bytes": 4331,
+      "sha256": "373d3470c09139bf90804c2401615ef7a10475a417b6be1b41ea7aec54677c63"
+    },
+    {
+      "path": "tests/test_store_and_get_hash.py",
+      "bytes": 763,
+      "sha256": "695fa4be8a333f8e2cbf159caa305687c53a2015bb6e6e0888fd0b7774348ca6"
+    },
+    {
+      "path": "tests/test_v2_integration.py",
+      "bytes": 32539,
+      "sha256": "368e26b2df89303b7724836960473cf26ef9f04b77c23f4805b43df45a59138d"
+    }
+  ]
+}

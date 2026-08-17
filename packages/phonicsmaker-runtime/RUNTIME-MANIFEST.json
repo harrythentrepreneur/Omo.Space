@@ -1,0 +1,34 @@
+{
+  "name": "phonicsmaker-core-runtime",
+  "execution_kind": "phonicsmaker_core",
+  "runtime_template": "omo-phonicsmaker-core@1",
+  "source_provenance": "SOURCE-PROVENANCE.json",
+  "status": "source_preserved_adapter_pending",
+  "chargeable": false,
+  "publishable": false,
+  "deployable": false,
+  "capabilities": [
+    "illustrated_book_generation",
+    "worksheet_generation",
+    "activity_generation",
+    "audio_narration",
+    "image_generation_and_refinement",
+    "pdf_exports",
+    "pptx_export",
+    "editable_draft_rendering",
+    "differentiated_variations",
+    "private_artifact_delivery"
+  ],
+  "required_gates": [
+    "source_hash_verification",
+    "exact_input_contracts",
+    "differential_output_fixtures",
+    "pdf_visual_and_text_qa",
+    "audio_decode_qa",
+    "pptx_openability_qa",
+    "artifact_ownership_qa",
+    "measured_pricing",
+    "protected_hosted_canary",
+    "production_activation_approval"
+  ]
+}
