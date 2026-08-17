@@ -127,6 +127,20 @@ non-sensitive onboarding/profile screen and reply `continue`. No account has
 been created and no branding field was available before this gate. After
 handoff, the agent may request `@omospace` and apply the prepared Omo branding.
 Instagram and Facebook remain queued for later one-action growth-loop rounds.
+
+### PROPOSAL — phonicsmaker-runtime-binding-001 (awaiting Harry)
+
+The exact source engine now imports and passes a network-disabled draft probe in
+an Omo-built, lockfile-pinned image. To run the first real book fixture, Harry
+must explicitly authorize the existing secret-control process to make the
+source-equivalent Gemini/Runware provider credentials available inside the
+isolated Omo runtime and approve the Omo private artifact-storage binding.
+
+Scope of the approval: one synthetic teacher-input fixture only; no customer
+data, no external send, no catalog activation, no charge, and no production
+deploy. The fixture will compare source and Omo input preservation, story/draft
+shape, all captured artifacts, hashes, PDF/PPTX/audio validity, and measured
+provider/compute cost. Credentials will not be pasted into chat or committed.
 No password, code, or other secret may be written to the repository.
 
 - **RESOLVED — PhonicsMaker contact audit:** Harry supplied the 5,087-row Loops CSV export. The exact 200-contact cohort was generated locally and verified on 2026-08-14; the export and cohort remain outside git.
@@ -258,7 +272,8 @@ catalog change, external message, or production mutation occurred.
 - Current evidence is conservative: 18 rows have an Omo profile/container name match but remain `candidate-hosted-unverified`; 150 rows have no Omo hosting scaffold. No row is marked parity-proven because no differential fixture or quality gate has been run.
 - BOOK ADAPTER CONTRACT COMPLETE (2026-08-17): `containers/phonicsmaker-book-engine/` now preserves the full source-compatible book payload, async submit/poll contract, all source result keys, and nine artifact roles. Targeted contract tests pass 4/4; input/output schemas pass Draft 2020-12 validation. The container is explicitly `can_submit:false`, `chargeable:false`, `publishable:false`, `deployable:false` until the exact source engine and Omo artifact/provider boundary are bound.
 - BOOK ENGINE BOUNDARY IMPLEMENTED (2026-08-17): `containers/phonicsmaker-book-engine/engine_binding.py` now wraps the exact source task without changing its generation logic: Omo-owned artifact hashing/upload, callback suppression, DB/email isolation, full source-argument mapping, background-upload draining, legacy-URL remapping, and result/artifact normalization. Binding tests pass 5/5; the complete container suite passes 9/9. The current source import probe reaches the real copied engine but stops at the existing core venv's missing `sentry_sdk`; no dependency install or credential access was performed.
-- NEXT CONCRETE BUILD STEP: build a clean pinned PhonicsMaker runtime image from the copied `poetry.lock`, exercise a no-provider source import/draft probe, then bind that runtime to the adapter. Keep `can_submit:false` until the real engine produces a captured artifact through the Omo store.
+- RUNTIME IMAGE + OFFLINE DRAFT PROBE COMPLETE (2026-08-17): `containers/phonicsmaker-book-engine/Dockerfile.runtime-probe` builds locally from the copied locked PhonicsMaker `pyproject.toml`/`poetry.lock` with Python 3.12, rendering/image system libraries, fonts, and `sentry-sdk`; the real source `generate_story_task` imports successfully in the image. Network-disabled `source_draft_probe.py` executed the real `draft_only=True` orchestration with deterministic fake story/image services and returned `draft_ready`, 2 scenes, 2 images, 9 Omo callback events, `provider_calls=0`. Runtime manifest records the lockfile hashes and remains `can_submit:false`, `chargeable:false`, `publishable:false`, `deployable:false`.
+- NEXT CONCRETE STEP IS APPROVAL-GATED: bind the runtime to the real Gemini/Runware provider credentials and Omo private artifact storage, then run one real source-vs-Omo book fixture. This cannot be truthfully exercised offline because exact book quality depends on the source providers and the artifact boundary.
 - DIFFERENTIAL HARNESS TRACER COMPLETE (2026-08-17): `tools/phonicsmaker_parity/` now has strict input/output/artifact comparison, transport-only normalization, 9 passing tests, and source-derived `phonics-list-generator` evidence. The current candidate is explicitly `DRIFT_CONFIRMED` with 18 input mismatches and 7 output-contract mismatches; evidence is `research/parity-evidence/phonics-list-generator-drift.json`.
 - SECOND DIFFERENTIAL PORT DONE (2026-08-17, this tick): `digraph-spotter` is ported with the same harness. Source contract derived from web `3ab74dce` (`toolConfig.ts` 142-204 + `prompts.ts` 808-846); fixture at `tools/phonicsmaker_parity/fixtures/digraph-spotter-source.json`; evidence at `research/parity-evidence/digraph-spotter-drift.json` = `DRIFT_CONFIRMED`, 15 input + 7 output mismatches (Omo renamed `textInput->text`, `digraphType->digraph_type`, added `dialect`, added JSON-Schema envelope, structured output objects vs source markdown-rules contract). The drift builder was generalized to `build_drift_report(root, slug)` so future ports are fixture + test + evidence, not a new function. 13/13 parity tests pass.
 - NEXT PORT after this: 6 of 8 configured tools with matching Omo containers are still unported (decodable-sentence-creator, grapheme-to-phoneme-converter, phoneme-counter, phonics-rule-explainer, story-idea-generator, syllable-splitter-and-counter). Continuation is fully loop-owned (offline, no Harry).

@@ -3,7 +3,20 @@
   "execution_kind": "phonicsmaker_core",
   "runtime_template": "omo-phonicsmaker-core@1",
   "source_provenance": "SOURCE-PROVENANCE.json",
-  "status": "source_preserved_adapter_pending",
+  "lockfiles": {
+    "poetry_lock_sha256": "ded39b829e9aac0f5c7dc170b99c0669e34014ecbdd10b6d5f5e386ae5244dea",
+    "pyproject_sha256": "c94c0050425c595c5d25db84c10ea2415a526a121804bced5feccdfc1c256ca6"
+  },
+  "runtime_probe": {
+    "dockerfile": "containers/phonicsmaker-book-engine/Dockerfile.runtime-probe",
+    "python": "3.12",
+    "image_tag": "omo-phonicsmaker-core:pinned-ded39b8",
+    "source_import": "passed",
+    "offline_draft": "passed",
+    "provider_calls": 0,
+    "network": "disabled"
+  },
+  "status": "runtime_built_offline_draft_verified_engine_unbound",
   "chargeable": false,
   "publishable": false,
   "deployable": false,
