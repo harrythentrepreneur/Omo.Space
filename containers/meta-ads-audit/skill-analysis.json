@@ -1,0 +1,36 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash Meta Ads Audit call with a 2600-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Audit Meta Ads measurement, Pixel and Conversions API, attribution, Facebook and Instagram creative, audiences, placements, automation, budgets, account structure, and policy. Use for Meta Ads, Facebook Ads, Instagram Ads, Advantage+, Pixel, CAPI, Events Manager, creative fatigue, or Meta campaign optimization.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "meta-ads-audit",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "meta-ads-audit",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "meta-ads-audit",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "09176aafaf176c37cf8736c67bcc503cbd33e9c2f9cab5f9c25dfcca92aa28d3"
+  },
+  "unresolved": []
+}

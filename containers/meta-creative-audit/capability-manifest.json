@@ -1,0 +1,37 @@
+{
+  "allowlist": [
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:0cc38279c9c8ae13d41aae5c8b19fc7e6c7cb9d59ad82deced5e367b13417471",
+  "decision": "approved",
+  "execution_kind": "single_llm",
+  "generated": {
+    "dependencies": [],
+    "files": [],
+    "honest_limits": [],
+    "packages": [],
+    "policy": [],
+    "resources": {},
+    "runtime_steps": [],
+    "tests": [],
+    "tool_bindings": []
+  },
+  "needs": [],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [],
+  "skill_owned_resources": [],
+  "slug": "meta-creative-audit",
+  "source_sha256": "68779b410928469d7a4ddb362742703844073d465112917af3f30d4a1a59a4e6",
+  "workflow_blockers": []
+}

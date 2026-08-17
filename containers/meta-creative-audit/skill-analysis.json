@@ -1,0 +1,36 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash Meta Creative Audit call with a 2400-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Audit paid-ad copy, images, video, hooks, concepts, format coverage, platform-native fit, message match, creative fatigue, accessibility, and policy across supported platforms. Use for creative audit, ad creative, creative fatigue, creative diversity, ad copy review, video review, image review, or production priorities.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "meta-creative-audit",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "meta-creative-audit",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "meta-creative-audit",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "68779b410928469d7a4ddb362742703844073d465112917af3f30d4a1a59a4e6"
+  },
+  "unresolved": []
+}

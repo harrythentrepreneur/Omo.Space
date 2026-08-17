@@ -5634,7 +5634,7 @@ def execute_workflow(
         {live_execute_code}
     else:
         result = executor(normalized_payload)
-    {artifact_finalize_code}
+{("    " + artifact_finalize_code) if artifact_finalize_code else ""}
     validate_instance(result, "output.json")
     return result
 
@@ -5650,10 +5650,10 @@ runtime_image = (
     .add_local_dir(LOCAL_ROOT / "prompts", IMAGE_ROOT / "prompts", copy=True)
     .add_local_file(LOCAL_ROOT / "manifest.json", str(IMAGE_ROOT / "manifest.json"), copy=True)
     .add_local_file(LOCAL_ROOT / "capability-manifest.json", str(IMAGE_ROOT / "capability-manifest.json"), copy=True)
-    {artifact_image_add}
-    {public_fetch_image_add}
-    {tabular_image_add}
-    {video_image_add}
+{("    " + artifact_image_add) if artifact_image_add else ""}
+{("    " + public_fetch_image_add) if public_fetch_image_add else ""}
+{("    " + tabular_image_add) if tabular_image_add else ""}
+{("    " + video_image_add) if video_image_add else ""}
 )
 
 app = modal.App(APP_NAME){artifact_volume_definition}{media_volume_definition}
@@ -5703,7 +5703,7 @@ def create_fastapi_app(
             validate_instance(body, "input.json")
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.message) from exc
-        {adapter_preflight_code}
+{("        " + adapter_preflight_code) if adapter_preflight_code else ""}
 
         state = readiness()
         can_submit = state["can_submit"] if ready_override is None else ready_override
@@ -6008,8 +6008,7 @@ def test_manifest_and_capabilities_are_honest() -> None:
     assert capabilities["schema_version"] == "cognition.capabilities/v2"
     assert capabilities["registry_digest"].startswith("sha256:")
     assert capabilities["contract_digest"].startswith("sha256:")
-{capability_tests}
-'''
+{(chr(10) + capability_tests.rstrip()) if capability_tests else ""}'''
 
 
 def yaml_quote(value: str) -> str:

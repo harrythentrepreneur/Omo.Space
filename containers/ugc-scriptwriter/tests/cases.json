@@ -1,0 +1,92 @@
+{
+  "happy_path": {
+    "input": {
+      "audience": "Teachers supporting a reluctant reader who loves a specific topic.",
+      "brand_voice": "honest",
+      "constraints": "Do not mention diagnoses, guaranteed gains, or fake personal results.",
+      "desired_length": "30",
+      "hook": "I stopped fighting the topic and used it to get phonics practice started.",
+      "key_message": "Teachers can turn a student interest into a controlled phonics reading activity.",
+      "product_name": "PhonicsMaker",
+      "proof_points": "The teacher chooses a phonics focus, year level, and topic; the product creates a decodable reader and matching practice materials."
+    },
+    "output": {
+      "compliance_notes": [
+        "Use only a real teacher experience and real product output; do not imply guaranteed gains or diagnose a student."
+      ],
+      "delivery_notes": [
+        "Speak like a teacher sharing one useful classroom adjustment, not like a polished announcer.",
+        "Pause after the hook and keep the product explanation concrete."
+      ],
+      "emotional_arc": [
+        "Recognition of reading resistance",
+        "The teacher names the classroom problem",
+        "The interest becomes the bridge into practice",
+        "The product provides controlled reading and practice materials",
+        "A soft invitation to explore the approach"
+      ],
+      "hook": "I stopped fighting the topic and used it to get phonics practice started.",
+      "run_id": "run-fixture-ugc-scriptwriter",
+      "script": "I stopped fighting the topic and used it to get phonics practice started. One of my students would shut down as soon as reading practice began, but they would talk about their favourite topic all day. So I chose the phonics focus, picked the year level, and used that interest to make a short decodable reader. Then I had matching practice materials ready to go. It did not turn reading into a magic trick, but it gave us a much easier place to start. If you are trying to make practice feel more connected to the student in front of you, this is worth a look.",
+      "status": "completed",
+      "usage": {
+        "completion_tokens": 1500,
+        "estimated_cost_usd": 0.0007,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 900,
+        "provider": "opencode-go"
+      },
+      "visual_pairing": [
+        "Direct-to-camera hook followed by a notebook or lesson-plan setup.",
+        "Show the selected phonics focus, generated reader, and matching practice materials without covering the proof."
+      ],
+      "workflow_version": "ugc-scriptwriter@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-hook",
+      "input": {
+        "audience": "Teachers supporting a reluctant reader who loves a specific topic.",
+        "brand_voice": "honest",
+        "constraints": "Do not mention diagnoses, guaranteed gains, or fake personal results.",
+        "desired_length": "30",
+        "hook": "",
+        "key_message": "Teachers can turn a student interest into a controlled phonics reading activity.",
+        "product_name": "PhonicsMaker",
+        "proof_points": "The teacher chooses a phonics focus, year level, and topic; the product creates a decodable reader and matching practice materials."
+      },
+      "reason": "hook is required"
+    },
+    {
+      "id": "unsupported-length",
+      "input": {
+        "audience": "Teachers supporting a reluctant reader who loves a specific topic.",
+        "brand_voice": "honest",
+        "constraints": "Do not mention diagnoses, guaranteed gains, or fake personal results.",
+        "desired_length": "90",
+        "hook": "I stopped fighting the topic and used it to get phonics practice started.",
+        "key_message": "Teachers can turn a student interest into a controlled phonics reading activity.",
+        "product_name": "PhonicsMaker",
+        "proof_points": "The teacher chooses a phonics focus, year level, and topic; the product creates a decodable reader and matching practice materials."
+      },
+      "reason": "desired_length is a reviewed enum"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "audience": "Teachers supporting a reluctant reader who loves a specific topic.",
+        "brand_voice": "honest",
+        "constraints": "Do not mention diagnoses, guaranteed gains, or fake personal results.",
+        "desired_length": "30",
+        "hook": "I stopped fighting the topic and used it to get phonics practice started.",
+        "key_message": "Teachers can turn a student interest into a controlled phonics reading activity.",
+        "make_video": true,
+        "product_name": "PhonicsMaker",
+        "proof_points": "The teacher chooses a phonics focus, year level, and topic; the product creates a decodable reader and matching practice materials."
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

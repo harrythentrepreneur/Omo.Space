@@ -1,0 +1,37 @@
+{
+  "chargeable": true,
+  "cost_model_sha256": "c9e7f9947b705ddf967dfc431a342eea5ff37fce5715aa0bfaa1d4805f4a4428",
+  "default_tier": "standard",
+  "display_price_usd": 0.1,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 0.1,
+      "detail": [
+        {
+          "cost_usd": 0.0014,
+          "qty": 1,
+          "step": "llm(meta-ads-audit)"
+        }
+      ],
+      "guard_cost_usd": 0.0,
+      "guarded_price_floor_usd": 0.1,
+      "modeled_cost_usd": 0.0014,
+      "notes": [
+        "One bounded, schema-validated single-LLM call is priced at the repository minimum."
+      ],
+      "pricing_cost_usd": 0.0014,
+      "tier": "standard"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "measured_evidence": [],
+  "notes": [
+    "The modeled provider cost remains below the marketplace minimum, so the buyer quote is $0.10."
+  ],
+  "quote_status": "cost_model",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model.mjs",
+  "unpriced_costs": []
+}

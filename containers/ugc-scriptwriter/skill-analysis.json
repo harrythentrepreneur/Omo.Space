@@ -1,0 +1,36 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash UGC Scriptwriter call with a 2200-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Helps outline and draft UGC-style scripts for paid social ads. Use when the user has an ad concept and wants a script for creator content.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "ugc-scriptwriter",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "ugc-scriptwriter",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "ugc-scriptwriter",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "b6d1b0d44bc870fb974673018374e71b918d46cac972ac7ac3bd39f7265caf94"
+  },
+  "unresolved": []
+}
