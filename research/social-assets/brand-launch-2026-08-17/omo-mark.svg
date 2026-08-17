@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-labelledby="title desc">
+  <title id="title">Omo Space bean mark</title>
+  <desc id="desc">A friendly orange bean with a pine green outline and a small smile.</desc>
+  <rect width="200" height="200" rx="48" fill="#F8F7F5"/>
+  <path d="M100 30c37 0 57 25 57 65 0 50-23 76-57 76S43 145 43 95c0-40 20-65 57-65Z" fill="#FF6B3D" stroke="#17352C" stroke-width="8"/>
+  <circle cx="78" cy="92" r="6" fill="#17352C"/>
+  <circle cx="122" cy="92" r="6" fill="#17352C"/>
+  <path d="M78 119c12 12 32 12 44 0" fill="none" stroke="#17352C" stroke-width="6" stroke-linecap="round"/>
+</svg>
