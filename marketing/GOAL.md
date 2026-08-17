@@ -8,6 +8,9 @@ Honest path: GATE 1 (prove a teacher pays twice) -> $1k/mo -> $10k/mo -> scale.
 Build complete PhonicsMaker parity in Omo Space: every current PhonicsMaker product capability, tool, input contract, output contract, book/worksheet/activity/audio/export quality gate, and hosted user journey must exist in Omo's marketplace structure and be proven before production activation. The $1,000/month pilot remains a commercial milestone, not permission to ship a partial or lower-quality replica.
 
 The durable parity contract is `marketing/PHONICSMAKER-PARITY-CONTRACT.md`.
+The complete feature enumeration is `research/phonicsmaker-saas-feature-map.md`,
+derived from the local `web` and `core` repositories (not the live site, which
+is behind a Vercel checkpoint).
 
 ### Builder hosting acceptance definition
 
@@ -251,6 +254,7 @@ catalog change, external message, or production mutation occurred.
 - Current evidence is conservative: 18 rows have an Omo profile/container name match but remain `candidate-hosted-unverified`; 150 rows have no Omo hosting scaffold. No row is marked parity-proven because no differential fixture or quality gate has been run.
 - NEXT CONCRETE BUILD STEP: expand the source-derived contracts and differential fixtures across the core book/worksheet/audio/export/editor pipelines and the remaining configured tools. Each port must first pass the harness on teacher-facing inputs and logical outputs before it is hosted or listed as parity-ready.
 - DIFFERENTIAL HARNESS TRACER COMPLETE (2026-08-17): `tools/phonicsmaker_parity/` now has strict input/output/artifact comparison, transport-only normalization, 9 passing tests, and source-derived `phonics-list-generator` evidence. The current candidate is explicitly `DRIFT_CONFIRMED` with 18 input mismatches and 7 output-contract mismatches; evidence is `research/parity-evidence/phonics-list-generator-drift.json`.
+- FULL ENGINE ENUMERATED (2026-08-17): `research/phonicsmaker-saas-feature-map.md` now records the complete core book engine (required + ~30 optional controls, 11 output artifact types, draft/refine/render pipeline), the 3-agent worksheet loop, 25 activity types, the audio narration engine, the image/character/seed engine, and the full 168-route web SaaS surface. This is the canonical "same quality books + same features" reference.
 
 ## Legacy pilot lane — retained history (superseded)
 
