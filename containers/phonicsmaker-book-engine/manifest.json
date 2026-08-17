@@ -1,0 +1,35 @@
+{
+  "name": "phonicsmaker-book-engine",
+  "slug": "phonicsmaker-book-engine",
+  "execution_kind": "phonicsmaker_core",
+  "runtime_template": "omo-phonicsmaker-core@1",
+  "source_runtime": "packages/phonicsmaker-runtime/SOURCE-PROVENANCE.json",
+  "status": "adapter_contract_ready_engine_unbound",
+  "can_submit": false,
+  "chargeable": false,
+  "publishable": false,
+  "deployable": false,
+  "source_input_contract": "schemas/input.json",
+  "source_output_contract": "schemas/output.json",
+  "artifacts": [
+    "book_pdf",
+    "book_compressed_pdf",
+    "thumbnail",
+    "book_only_pdf",
+    "worksheets_pdf",
+    "homework_pdf",
+    "answer_key_pdf",
+    "pptx",
+    "editable_source"
+  ],
+  "required_before_ready": [
+    "bind_exact_source_engine",
+    "replace_phonicsmaker_storage_with_private_omo_artifact_plane",
+    "bind_approved_provider_secrets_without_client_controls",
+    "run_differential_book_fixtures",
+    "run_pdf_pptx_audio_visual_qa",
+    "measure_cost_and_failure_refunds",
+    "protected_modal_canary",
+    "production_activation_approval"
+  ]
+}
