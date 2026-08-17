@@ -1,0 +1,46 @@
+{
+  "fixture_kind": "source-derived-contract",
+  "provenance": {
+    "source_repo": "/root/work/phonicsmaker/web",
+    "source_snapshot": "3ab74dceeb7691dc6464ced2728f6edef56c694a",
+    "source_files": [
+      "src/shared/toolConfig.ts",
+      "src/app/api/tools/prompts.ts"
+    ],
+    "notes": "This is a contract snapshot derived from the checked-out source. It contains no customer data and is not a provider-output quality claim."
+  },
+  "slug": "digraph-spotter",
+  "input_contract": {
+    "additionalProperties": true,
+    "properties": {
+      "textInput": {
+        "type": "string",
+        "ui_widget": "textarea",
+        "required": true
+      },
+      "digraphType": {
+        "type": "string",
+        "enum": ["all", "consonant", "vowel"],
+        "default": "all",
+        "ui_widget": "custom_select"
+      },
+      "includeExplanations": {
+        "type": "string",
+        "enum": ["yes", "no"],
+        "default": "yes",
+        "ui_widget": "custom_select"
+      }
+    },
+    "required": ["textInput", "digraphType", "includeExplanations"]
+  },
+  "output_contract": {
+    "type": "string",
+    "format": "markdown",
+    "rules": [
+      "highlight each digraph occurrence in the original text with double asterisks",
+      "provide a summary of the found digraphs",
+      "list all unique digraphs found",
+      "output must be valid, renderable markdown with no additional explanatory text"
+    ]
+  }
+}

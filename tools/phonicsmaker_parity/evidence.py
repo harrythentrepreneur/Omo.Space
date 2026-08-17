@@ -14,10 +14,18 @@ def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def build_phonics_list_drift_report(root: Path) -> dict[str, Any]:
-    source_path = root / "tools/phonicsmaker_parity/fixtures/phonics-list-generator-source.json"
-    input_path = root / "containers/phonics-list-generator/schemas/input.json"
-    output_path = root / "containers/phonics-list-generator/schemas/output.json"
+def build_drift_report(root: Path, slug: str) -> dict[str, Any]:
+    """Build a sanitized DRIFT_CONFIRMED report for any source-derived
+    contract fixture with a matching Omo container schema pair.
+
+    Offline only: reads the committed source fixture and the Omo container
+    schemas, compares exact contracts, and records mismatch counts. No
+    provider calls, no customer data; matching Omo slug is explicitly NOT
+    treated as parity.
+    """
+    source_path = root / "tools/phonicsmaker_parity/fixtures" / f"{slug}-source.json"
+    input_path = root / "containers" / slug / "schemas" / "input.json"
+    output_path = root / "containers" / slug / "schemas" / "output.json"
     source = _load(source_path)
     input_report = compare_contracts(source["input_contract"], _load(input_path))
     output_report = compare_contracts(source["output_contract"], _load(output_path))
@@ -43,6 +51,10 @@ def build_phonics_list_drift_report(root: Path) -> dict[str, Any]:
             "parity_proven": False,
         },
     }
+
+
+def build_phonics_list_drift_report(root: Path) -> dict[str, Any]:
+    return build_drift_report(root, "phonics-list-generator")
 
 
 def main() -> None:
