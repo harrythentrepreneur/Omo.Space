@@ -1,0 +1,366 @@
+{
+  "status": "DRIFT_CONFIRMED",
+  "fixture_kind": "source-derived-contract",
+  "slug": "phonics-list-generator",
+  "source_provenance": {
+    "source_repo": "/root/work/phonicsmaker/web",
+    "source_snapshot": "3ab74dceeb7691dc6464ced2728f6edef56c694a",
+    "source_files": [
+      "src/shared/toolConfig.ts",
+      "src/app/api/tools/prompts.ts"
+    ],
+    "notes": "This is a contract snapshot derived from the checked-out source. It contains no customer data and is not a provider-output quality claim."
+  },
+  "omo_paths": {
+    "input_schema": "containers/phonics-list-generator/schemas/input.json",
+    "output_schema": "containers/phonics-list-generator/schemas/output.json"
+  },
+  "rules": {
+    "matching_omo_name_is_not_parity": true,
+    "teacher_input_names_and_output_contracts_are_exact": true,
+    "transport_fields_are_not_involved_in_this_contract_check": true
+  },
+  "input_contract_report": {
+    "passed": false,
+    "mismatches": [
+      {
+        "kind": "contract",
+        "path": "$.$id",
+        "reason": "extra_in_omo",
+        "candidate": "https://omo.space/schemas/phonics-list-generator/input.json"
+      },
+      {
+        "kind": "contract",
+        "path": "$.$schema",
+        "reason": "extra_in_omo",
+        "candidate": "https://json-schema.org/draft/2020-12/schema"
+      },
+      {
+        "kind": "contract",
+        "path": "$.type",
+        "reason": "extra_in_omo",
+        "candidate": "object"
+      },
+      {
+        "kind": "contract",
+        "path": "$.additionalProperties",
+        "reason": "value_mismatch",
+        "source": true,
+        "candidate": false
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.difficultyLevel",
+        "reason": "missing_in_omo",
+        "source": {
+          "type": "string",
+          "enum": [
+            "beginner",
+            "intermediate",
+            "advanced"
+          ],
+          "default": "beginner",
+          "ui_widget": "custom_select"
+        }
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.dialect",
+        "reason": "extra_in_omo",
+        "candidate": {
+          "enum": [
+            "en-US",
+            "en-GB",
+            "en-AU"
+          ]
+        }
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.difficulty_level",
+        "reason": "extra_in_omo",
+        "candidate": {
+          "enum": [
+            "beginner",
+            "intermediate",
+            "advanced"
+          ]
+        }
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.word_count",
+        "reason": "extra_in_omo",
+        "candidate": {
+          "maximum": 30,
+          "minimum": 5,
+          "type": "integer"
+        }
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.phonemes.options",
+        "reason": "missing_in_omo",
+        "source": [
+          "sh",
+          "ch",
+          "th",
+          "ph",
+          "wh",
+          "ck",
+          "ng",
+          "qu",
+          "ai",
+          "ee",
+          "igh",
+          "oa",
+          "oo",
+          "ar",
+          "or",
+          "ur",
+          "ow",
+          "oi",
+          "ear",
+          "air",
+          "ure",
+          "er"
+        ]
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.phonemes.ui_widget",
+        "reason": "missing_in_omo",
+        "source": "multi_select"
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.phonemes.maxItems",
+        "reason": "extra_in_omo",
+        "candidate": 8
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.phonemes.minItems",
+        "reason": "extra_in_omo",
+        "candidate": 1
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.phonemes.uniqueItems",
+        "reason": "extra_in_omo",
+        "candidate": true
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.phonemes.items.maxLength",
+        "reason": "extra_in_omo",
+        "candidate": 20
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.phonemes.items.minLength",
+        "reason": "extra_in_omo",
+        "candidate": 1
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.topic.ui_widget",
+        "reason": "missing_in_omo",
+        "source": "text"
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties.topic.maxLength",
+        "reason": "extra_in_omo",
+        "candidate": 120
+      },
+      {
+        "kind": "contract",
+        "path": "$.required",
+        "reason": "length_mismatch",
+        "source_length": 0,
+        "candidate_length": 5
+      }
+    ]
+  },
+  "output_contract_report": {
+    "passed": false,
+    "mismatches": [
+      {
+        "kind": "contract",
+        "path": "$.format",
+        "reason": "missing_in_omo",
+        "source": "markdown"
+      },
+      {
+        "kind": "contract",
+        "path": "$.rules",
+        "reason": "missing_in_omo",
+        "source": [
+          "word list only",
+          "phoneme spans are highlighted with double asterisks",
+          "include words for every requested phoneme when possible",
+          "no additional explanatory text"
+        ]
+      },
+      {
+        "kind": "contract",
+        "path": "$.$schema",
+        "reason": "extra_in_omo",
+        "candidate": "https://json-schema.org/draft/2020-12/schema"
+      },
+      {
+        "kind": "contract",
+        "path": "$.additionalProperties",
+        "reason": "extra_in_omo",
+        "candidate": false
+      },
+      {
+        "kind": "contract",
+        "path": "$.properties",
+        "reason": "extra_in_omo",
+        "candidate": {
+          "coverage": {
+            "items": {
+              "maxLength": 20,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "run_id": {
+            "minLength": 8,
+            "type": "string"
+          },
+          "status": {
+            "const": "completed"
+          },
+          "usage": {
+            "additionalProperties": false,
+            "properties": {
+              "completion_tokens": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "estimated_cost_usd": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "llm_calls": {
+                "maximum": 2,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "model": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "prompt_tokens": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "provider": {
+                "const": "opencode-go"
+              }
+            },
+            "required": [
+              "provider",
+              "model",
+              "llm_calls",
+              "prompt_tokens",
+              "completion_tokens",
+              "estimated_cost_usd"
+            ],
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "maxLength": 240,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 6,
+            "type": "array"
+          },
+          "words": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "matched_phonemes": {
+                  "items": {
+                    "maxLength": 20,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 8,
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "pronunciation_note": {
+                  "maxLength": 240,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "target_position": {
+                  "enum": [
+                    "initial",
+                    "medial",
+                    "final",
+                    "multiple"
+                  ]
+                },
+                "word": {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "word",
+                "matched_phonemes",
+                "target_position",
+                "pronunciation_note"
+              ],
+              "type": "object"
+            },
+            "maxItems": 30,
+            "minItems": 5,
+            "type": "array"
+          },
+          "workflow_version": {
+            "const": "phonics-list-generator@0.1.0"
+          }
+        }
+      },
+      {
+        "kind": "contract",
+        "path": "$.required",
+        "reason": "extra_in_omo",
+        "candidate": [
+          "run_id",
+          "status",
+          "workflow_version",
+          "words",
+          "coverage",
+          "warnings",
+          "usage"
+        ]
+      },
+      {
+        "kind": "contract",
+        "path": "$.type",
+        "reason": "value_mismatch",
+        "source": "string",
+        "candidate": "object"
+      }
+    ]
+  },
+  "summary": {
+    "input_mismatch_count": 18,
+    "output_mismatch_count": 7,
+    "parity_proven": false
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "fixture_kind": "source-derived-contract",
+  "provenance": {
+    "source_repo": "/root/work/phonicsmaker/web",
+    "source_snapshot": "3ab74dceeb7691dc6464ced2728f6edef56c694a",
+    "source_files": [
+      "src/shared/toolConfig.ts",
+      "src/app/api/tools/prompts.ts"
+    ],
+    "notes": "This is a contract snapshot derived from the checked-out source. It contains no customer data and is not a provider-output quality claim."
+  },
+  "slug": "phonics-list-generator",
+  "input_contract": {
+    "additionalProperties": true,
+    "properties": {
+      "phonemes": {
+        "type": "array",
+        "items": {"type": "string"},
+        "ui_widget": "multi_select",
+        "options": [
+          "sh", "ch", "th", "ph", "wh", "ck", "ng", "qu", "ai", "ee", "igh",
+          "oa", "oo", "ar", "or", "ur", "ow", "oi", "ear", "air", "ure", "er"
+        ]
+      },
+      "topic": {
+        "type": "string",
+        "ui_widget": "text"
+      },
+      "difficultyLevel": {
+        "type": "string",
+        "enum": ["beginner", "intermediate", "advanced"],
+        "default": "beginner",
+        "ui_widget": "custom_select"
+      }
+    },
+    "required": []
+  },
+  "output_contract": {
+    "type": "string",
+    "format": "markdown",
+    "rules": [
+      "word list only",
+      "phoneme spans are highlighted with double asterisks",
+      "include words for every requested phoneme when possible",
+      "no additional explanatory text"
+    ]
+  }
+}
