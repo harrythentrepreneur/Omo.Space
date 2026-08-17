@@ -507,6 +507,24 @@ class HttpSubmissionRepository:
         if response_status != 200 or not body or body.get("ok") is not True:
             raise RuntimeError("submission status transition was rejected")
 
+    def resume_merged_release(self, submission_id: str, merge_sha: str) -> None:
+        normalized_sha = str(merge_sha or "").strip().lower()
+        if not SAFE_GIT_SHA_RE.fullmatch(normalized_sha):
+            raise ValueError("invalid merge SHA")
+        validated_id = validate_submission_id(submission_id)
+        response_status, body = self._post(
+            f"/api/internal/submissions/{validated_id}/resume-merged-release",
+            {"merge_sha": normalized_sha},
+        )
+        if (
+            response_status != 200
+            or not body
+            or body.get("ok") is not True
+            or body.get("id") != validated_id
+            or body.get("status") != "ready_for_deploy"
+        ):
+            raise RuntimeError("merged release recovery was rejected")
+
     def set_runtime_decision(self, submission_id: str, decision: dict[str, Any]) -> None:
         effective = str(decision.get("effective") or "")
         reason = str(decision.get("reason") or "")
@@ -2037,6 +2055,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--deploy", action="store_true", help="Run external Modal/Worker deployment gates")
     parser.add_argument("--prepare-release", action="store_true", help="Prepare/reuse the GitHub issue, release branch, and PR for a reviewed submission")
     parser.add_argument("--merge-verified-release", help="Merge one prepared release PR after required checks pass")
+    parser.add_argument("--resume-merged-release", help="Resume one failed, merge-verified release through the private Worker bridge")
     parser.add_argument("--deploy-merged-release", help="Deploy one server-verified merged release from its merge tree")
     parser.add_argument("--dry-run", type=Path, metavar="SAMPLE_JSON", help="Validate a sample without DB writes")
     parser.add_argument("--export-review", help="Export one submission to a mode-0600 review file")
@@ -2075,6 +2094,23 @@ def main() -> int:
             merged = adapter.merge_after_required_checks(release_metadata_from_row(row))
             repository.set_release_metadata(submission_id, merged)
             output({"id": submission_id, **merged})
+            return 0
+        if args.resume_merged_release:
+            submission_id = validate_submission_id(args.resume_merged_release)
+            row = repository.get(submission_id)
+            if not row:
+                raise ValueError("submission not found")
+            merge_sha = str(row.get("release_merge_sha") or "").strip().lower()
+            if (
+                row.get("status") != "failed"
+                or row.get("release_phase") != "merged_verified"
+                or not SAFE_GIT_SHA_RE.fullmatch(merge_sha)
+            ):
+                raise RuntimeError("submission is not a failed merge-verified release")
+            if not hasattr(repository, "resume_merged_release"):
+                raise RuntimeError("merged release recovery requires the private Worker bridge")
+            repository.resume_merged_release(submission_id, merge_sha)
+            output({"id": submission_id, "status": "ready_for_deploy", "release_phase": "merged_verified"})
             return 0
         if args.deploy_merged_release:
             submission_id = validate_submission_id(args.deploy_merged_release)

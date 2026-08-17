@@ -407,6 +407,8 @@ function dynamicRoute(pathname) {
   if (internalDetail) return { handler: handleInternalSubmissionDetail, methods: ['POST'], params: { submissionId: internalDetail[1] }, internal: true };
   const internalStatus = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/status$/.exec(pathname);
   if (internalStatus) return { handler: handleInternalSubmissionStatus, methods: ['POST'], params: { submissionId: internalStatus[1] }, internal: true };
+  const internalResumeMergedRelease = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/resume-merged-release$/.exec(pathname);
+  if (internalResumeMergedRelease) return { handler: handleInternalSubmissionResumeMergedRelease, methods: ['POST'], params: { submissionId: internalResumeMergedRelease[1] }, internal: true };
   const internalRuntime = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/runtime$/.exec(pathname);
   if (internalRuntime) return { handler: handleInternalSubmissionRuntime, methods: ['POST'], params: { submissionId: internalRuntime[1] }, internal: true };
   const internalDeployment = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/deployment$/.exec(pathname);
@@ -2582,6 +2584,20 @@ async function handleInternalSubmissionStatus(request, env, _url, params) {
     : internalJson({ error: 'invalid_transition' }, 409);
 }
 
+async function handleInternalSubmissionResumeMergedRelease(request, env, _url, params) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  if (Object.keys(parsed.body).sort().join(',') !== 'merge_sha') {
+    return internalJson({ error: 'invalid_resume_payload' }, 400);
+  }
+  const mergeSha = safeGitSha(parsed.body.merge_sha);
+  if (!mergeSha) return internalJson({ error: 'invalid_merge_sha' }, 400);
+  const updated = await internalResumeMergedRelease(env, params.submissionId, mergeSha);
+  return updated
+    ? internalJson({ ok: true, id: params.submissionId, status: 'ready_for_deploy' }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
 async function handleInternalSubmissionRuntime(request, env, _url, params) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
@@ -3567,6 +3583,85 @@ async function internalSetSubmissionStatus(env, submissionId, status, failureCod
     }
   }
   return false;
+}
+
+function mergedReleaseRecoverySnapshot(row, submissionId, mergeSha) {
+  if (!row || row.id !== submissionId || row.status !== 'failed' || row.release_phase !== 'merged_verified') return null;
+  const sourceSha256 = safeSha256(row.source_sha256);
+  const headSha = safeGitSha(row.release_head_sha);
+  const recordedMergeSha = safeGitSha(row.release_merge_sha);
+  const artifactHash = safeSha256(row.release_artifact_hash);
+  const issueUrl = safeGithubUrl(row.release_issue_url, 'issues');
+  const prUrl = safeGithubUrl(row.release_pr_url, 'pull');
+  const branch = safeReleaseBranch(row.release_branch);
+  const runtime = safeRuntime(row.selected_runtime);
+  const canonicalSlug = safeSlug(row.slug);
+  const publishedSlug = safeSlug(row.published_slug);
+  const workflowVersion = String(row.workflow_version || '').trim();
+  const prNumber = Number(row.release_pr_number);
+  const rawBuildEvidence = typeof row.build_evidence === 'string'
+    ? row.build_evidence
+    : row.build_evidence && typeof row.build_evidence === 'object' && !Array.isArray(row.build_evidence)
+      ? JSON.stringify(row.build_evidence)
+      : '';
+  const buildEvidence = safeBuildEvidence(rawBuildEvidence);
+  if (!sourceSha256 || !headSha || !recordedMergeSha || recordedMergeSha !== mergeSha || !artifactHash ||
+      !issueUrl || !prUrl || !branch || !runtime || !canonicalSlug || canonicalSlug !== publishedSlug ||
+      !Number.isSafeInteger(prNumber) || prNumber < 1 ||
+      !prUrl.endsWith(`/pull/${prNumber}`) || branch !== `omo-release/${submissionId}-${publishedSlug}` ||
+      !SAFE_WORKFLOW_VERSION_RE.test(workflowVersion) || !workflowVersion.startsWith(`${publishedSlug}@`) ||
+      !buildEvidence.checks.length || buildEvidence.source_sha256 !== sourceSha256) {
+    return null;
+  }
+  return {
+    sourceSha256, headSha, recordedMergeSha, artifactHash, issueUrl, prUrl, prNumber,
+    branch, runtime, canonicalSlug, publishedSlug, workflowVersion, rawBuildEvidence,
+  };
+}
+
+async function internalResumeMergedRelease(env, submissionId, mergeSha) {
+  const row = await internalGetSubmissionDetail(env, submissionId);
+  const snapshot = mergedReleaseRecoverySnapshot(row, submissionId, mergeSha);
+  if (!snapshot) return false;
+  const values = [
+    submissionId, snapshot.recordedMergeSha, snapshot.sourceSha256, snapshot.headSha,
+    snapshot.artifactHash, snapshot.issueUrl, snapshot.prUrl, snapshot.prNumber,
+    snapshot.branch, snapshot.runtime, snapshot.publishedSlug, snapshot.workflowVersion,
+    snapshot.rawBuildEvidence, snapshot.canonicalSlug,
+  ];
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-resume-merged-release-v1',
+      `UPDATE submissions
+       SET status = 'ready_for_deploy', failure_code = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND release_merge_sha = $2 AND source_sha256 = $3
+         AND release_head_sha = $4 AND release_artifact_hash = $5
+         AND release_issue_url = $6 AND release_pr_url = $7 AND release_pr_number = $8
+         AND release_branch = $9 AND selected_runtime = $10 AND published_slug = $11
+         AND workflow_version = $12 AND build_evidence = $13 AND slug = $14
+         AND status = 'failed' AND release_phase = 'merged_verified'
+       RETURNING id`,
+      values
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `UPDATE submissions
+       SET status = 'ready_for_deploy', failure_code = NULL, updated_at = ?
+       WHERE id = ? AND release_merge_sha = ? AND source_sha256 = ?
+         AND release_head_sha = ? AND release_artifact_hash = ?
+         AND release_issue_url = ? AND release_pr_url = ? AND release_pr_number = ?
+         AND release_branch = ? AND selected_runtime = ? AND published_slug = ?
+         AND workflow_version = ? AND build_evidence = ? AND slug = ?
+         AND status = 'failed' AND release_phase = 'merged_verified'`
+    ).bind(new Date().toISOString(), ...values).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  row.status = 'ready_for_deploy';
+  row.failure_code = null;
+  row.updated_at = new Date().toISOString();
+  return true;
 }
 
 async function internalSetRuntimeDecision(env, submissionId, decision) {

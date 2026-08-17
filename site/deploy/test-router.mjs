@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
 import { webcrypto } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
 globalThis.crypto ??= webcrypto;
@@ -120,6 +121,7 @@ let neonInfoSchemaTableExists = false;
 let neonInfoSchemaColumns = [];
 let neonApprovalRow = null;
 let neonInternalDetailRow = null;
+let neonResumeMergedRow = null;
 
 class MockPool {
   constructor(options) {
@@ -148,6 +150,9 @@ class MockPool {
         }
         if (entry.name === 'omo-internal-submission-detail-v1') {
           return neonInternalDetailRow ? { rows: [neonInternalDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        if (entry.name === 'omo-internal-resume-merged-release-v1') {
+          return neonResumeMergedRow ? { rows: [neonResumeMergedRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -307,7 +312,9 @@ const sandbox = {
             ? 'omo-submission-retry-v2'
             : text.includes('SELECT id,slug,source_sha256,selected_runtime') && text.includes('WHERE id = $1')
               ? 'omo-internal-submission-detail-v1'
-              : null,
+              : text.includes("SET status = 'ready_for_deploy'") && text.includes("release_phase = 'merged_verified'")
+                ? 'omo-internal-resume-merged-release-v1'
+                : null,
         connectionString,
       };
       neonSqlCalls.push(entry);
@@ -317,12 +324,15 @@ const sandbox = {
       if (entry.name === 'omo-internal-submission-detail-v1') {
         return neonInternalDetailRow ? { rows: [neonInternalDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-internal-resume-merged-release-v1') {
+        return neonResumeMergedRow ? { rows: [neonResumeMergedRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
       return { rows: [], rowCount: 0 };
     },
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -1459,6 +1469,156 @@ check('internal detail Neon: valid pre-runtime failure omits unset selected_runt
   neonPreRuntimeDetail.status === 200 &&
   neonPreRuntimeBody.submission.status === 'failed' &&
   !('selected_runtime' in neonPreRuntimeBody.submission));
+
+neonSqlCalls.length = 0;
+neonInternalDetailRow = validMergedReleaseRecord('sub_neonresume01', { release_merge_sha: '2'.repeat(40) });
+neonResumeMergedRow = { id: 'sub_neonresume01' };
+const resumeMergeSha = '2'.repeat(40);
+const resumeMerged = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neonresume01/resume-merged-release', {
+  merge_sha: resumeMergeSha,
+}, internalHeaders), migrationEnv);
+const resumeMergedBody = await resumeMerged.json();
+const resumeMergedCall = neonSqlCalls.find((call) => call.name === 'omo-internal-resume-merged-release-v1');
+neonInternalDetailRow = null;
+neonResumeMergedRow = null;
+const resumeMergedMismatch = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neonresume01/resume-merged-release', {
+  merge_sha: '3'.repeat(40),
+}, internalHeaders), migrationEnv);
+const resumeMergedExtra = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neonresume01/resume-merged-release', {
+  merge_sha: resumeMergeSha,
+  status: 'ready_for_deploy',
+}, internalHeaders), migrationEnv);
+const resumeMergedBadAuth = await worker.fetch(mkReq('POST', '/api/internal/submissions/sub_neonresume01/resume-merged-release', {
+  merge_sha: resumeMergeSha,
+}, { Authorization: 'Bearer wrong-token' }), migrationEnv);
+check('internal merged-release recovery: exact merge evidence resumes failed row and all other transitions fail closed',
+  resumeMerged.status === 200 &&
+  resumeMergedBody.ok === true &&
+  resumeMergedBody.status === 'ready_for_deploy' &&
+  resumeMergedMismatch.status === 409 &&
+  resumeMergedExtra.status === 400 &&
+  resumeMergedBadAuth.status === 401);
+
+function validMergedReleaseRecord(id, overrides = {}) {
+  const sourceSha256 = 'a'.repeat(64);
+  return {
+    id,
+    slug: 'label-normalizer-canary',
+    status: 'failed',
+    failure_code: null,
+    release_phase: 'merged_verified',
+    release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/112',
+    release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/111',
+    release_pr_number: 111,
+    release_branch: `omo-release/${id}-label-normalizer-canary`,
+    release_head_sha: 'b'.repeat(40),
+    release_merge_sha: 'c'.repeat(40),
+    release_artifact_hash: 'd'.repeat(64),
+    source_sha256: sourceSha256,
+    selected_runtime: 'modal-hosted',
+    published_slug: 'label-normalizer-canary',
+    workflow_version: 'label-normalizer-canary@1.0.0',
+    build_evidence: JSON.stringify({ checks: ['trusted_compile'], source_sha256: sourceSha256 }),
+    ...overrides,
+  };
+}
+
+function d1DatabaseForMergedRelease(record) {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE submissions (
+    id TEXT PRIMARY KEY, slug TEXT, status TEXT, failure_code TEXT, release_phase TEXT,
+    release_issue_url TEXT, release_pr_url TEXT, release_pr_number INTEGER,
+    release_branch TEXT, release_head_sha TEXT, release_merge_sha TEXT,
+    release_artifact_hash TEXT, source_sha256 TEXT, selected_runtime TEXT,
+    published_slug TEXT, workflow_version TEXT, build_evidence TEXT, updated_at TEXT,
+    modal_app TEXT, modal_url TEXT, canary_evidence TEXT
+  )`);
+  const keys = Object.keys(record);
+  db.prepare(`INSERT INTO submissions (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...keys.map((key) => record[key]));
+  return {
+    db,
+    binding: {
+      prepare(sql) {
+        return {
+          bind(...values) {
+            return {
+              first: async () => db.prepare(sql).get(...values) || null,
+              run: async () => {
+                const result = db.prepare(sql).run(...values);
+                return { meta: { changes: Number(result.changes) } };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+}
+
+const malformedMergedEvidence = [
+  { release_pr_number: 0 },
+  { release_issue_url: 'https://evil.invalid/issues/112' },
+  { release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/111' },
+  { release_branch: 'main' },
+  { release_head_sha: 'g'.repeat(40) },
+  { release_artifact_hash: 'g'.repeat(64) },
+  { source_sha256: 'g'.repeat(64) },
+  { selected_runtime: 'shell-hosted' },
+  { slug: 'different-valid-slug' },
+  { published_slug: 'Bad Slug' },
+  { workflow_version: 'not-a-version' },
+  { build_evidence: null },
+  { build_evidence: '{bad json' },
+  { build_evidence: JSON.stringify({ checks: [], source_sha256: 'a'.repeat(64) }) },
+  { build_evidence: JSON.stringify({ checks: ['trusted_compile'] }) },
+  { build_evidence: JSON.stringify({ checks: ['trusted_compile'], source_sha256: 'e'.repeat(64) }) },
+  { status: 'ready_for_deploy' },
+  { release_phase: 'pr_open' },
+];
+
+const d1ValidId = 'sub_d1resumevalid01';
+const d1Valid = d1DatabaseForMergedRelease(validMergedReleaseRecord(d1ValidId));
+const d1First = await workerTest.internalResumeMergedRelease({ BALANCE_DB: d1Valid.binding }, d1ValidId, 'c'.repeat(40));
+const d1Replay = await workerTest.internalResumeMergedRelease({ BALANCE_DB: d1Valid.binding }, d1ValidId, 'c'.repeat(40));
+const d1Final = d1Valid.db.prepare('SELECT status, failure_code FROM submissions WHERE id = ?').get(d1ValidId);
+const d1MalformedResults = [];
+for (let index = 0; index < malformedMergedEvidence.length; index += 1) {
+  const id = `sub_d1resumebad${String(index).padStart(2, '0')}`;
+  const fixture = d1DatabaseForMergedRelease(validMergedReleaseRecord(id, malformedMergedEvidence[index]));
+  d1MalformedResults.push(await workerTest.internalResumeMergedRelease({ BALANCE_DB: fixture.binding }, id, 'c'.repeat(40)));
+  fixture.db.close();
+}
+check('internal merged-release recovery: D1 validates complete evidence atomically and rejects replay',
+  d1First === true && d1Replay === false && d1Final.status === 'ready_for_deploy' &&
+  d1Final.failure_code === null && d1MalformedResults.every((result) => result === false));
+d1Valid.db.close();
+
+const mockValidId = 'sub_mockresumevalid01';
+workerTest.mockSubmissions.set(`resume\u0000${mockValidId}`, validMergedReleaseRecord(mockValidId));
+const mockFirst = await workerTest.internalResumeMergedRelease({}, mockValidId, 'c'.repeat(40));
+const mockReplay = await workerTest.internalResumeMergedRelease({}, mockValidId, 'c'.repeat(40));
+const mockMalformedResults = [];
+for (let index = 0; index < malformedMergedEvidence.length; index += 1) {
+  const id = `sub_mockresumebad${String(index).padStart(2, '0')}`;
+  workerTest.mockSubmissions.set(`resume\u0000${id}`, validMergedReleaseRecord(id, malformedMergedEvidence[index]));
+  mockMalformedResults.push(await workerTest.internalResumeMergedRelease({}, id, 'c'.repeat(40)));
+}
+check('internal merged-release recovery: mock validates complete evidence and rejects replay',
+  mockFirst === true && mockReplay === false && mockMalformedResults.every((result) => result === false));
+check('internal merged-release recovery: Neon update is atomic and binds the validated evidence snapshot',
+  resumeMergedCall &&
+  resumeMergedCall.text.includes("SET status = 'ready_for_deploy'") &&
+  resumeMergedCall.text.includes("status = 'failed'") &&
+  resumeMergedCall.text.includes("release_phase = 'merged_verified'") &&
+  resumeMergedCall.text.includes('release_merge_sha = $2') &&
+  resumeMergedCall.text.includes('source_sha256 = $3') &&
+  resumeMergedCall.text.includes('release_head_sha = $4') &&
+  resumeMergedCall.text.includes('release_artifact_hash = $5') &&
+  resumeMergedCall.text.includes('build_evidence = $13') &&
+  resumeMergedCall.text.includes('slug = $14') &&
+  resumeMergedCall.values[0] === 'sub_neonresume01' &&
+  resumeMergedCall.values[1] === resumeMergeSha &&
+  resumeMergedCall.values.length === 14);
 
 const internalBadStatus = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/status`, {
   status: 'queued',
