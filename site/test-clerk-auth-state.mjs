@@ -15,6 +15,14 @@ const signedInUser = {
   username: 'kaviru',
   primaryEmailAddress: { emailAddress: 'kaviru@example.com' },
 };
+const switchedUser = {
+  id: 'user_456',
+  firstName: 'Ada',
+  lastName: 'Lovelace',
+  fullName: 'Ada Lovelace',
+  username: 'ada',
+  primaryEmailAddress: { emailAddress: 'ada@example.com' },
+};
 
 const fakeClerk = {
   // Reproduces the observed timing: Clerk's listener payload has the new user
@@ -102,6 +110,15 @@ assert.equal(
   'listener payload should update auth state even before Clerk.user catches up',
 );
 assert.equal(context.window.ClerkAuth.getUser().id, 'user_123');
+
+clerkListener({ user: switchedUser, session: { id: 'sess_456' } });
+assert.equal(context.window.ClerkAuth.getUser().id, 'user_456');
+assert.deepEqual(
+  [...removedStorageKeys].sort(),
+  ['cognition_user', 'omo_apikey_v1', 'omo_balance_v1', 'omo_usage_v1'].sort(),
+  'switching directly between Clerk accounts should clear the previous user’s browser state',
+);
+removedStorageKeys.length = 0;
 
 const signOutPromise = context.window.ClerkAuth.signOut();
 assert.equal(signOutCalls, 1);
