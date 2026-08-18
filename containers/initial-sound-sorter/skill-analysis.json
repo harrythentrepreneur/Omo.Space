@@ -1,0 +1,62 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "One bounded structured-output educational-content call",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum applies if this candidate is later activated"
+  ],
+  "description": "Produce reviewable grouped words with validation, safety checks, and structured output. Use when a teacher, tutor, or literacy specialist needs this bounded workflow and will review the result before use.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "initial-sound-sorter",
+  "parsed_workflow_steps": [
+    {
+      "id": "validate",
+      "number": "1",
+      "title": "Validate"
+    },
+    {
+      "id": "normalize",
+      "number": "2",
+      "title": "Normalize"
+    },
+    {
+      "id": "perform",
+      "number": "3",
+      "title": "Perform"
+    },
+    {
+      "id": "review",
+      "number": "4",
+      "title": "Review"
+    },
+    {
+      "id": "return",
+      "number": "5",
+      "title": "Return"
+    }
+  ],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "group",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "initial-sound-sorter",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "4716371748028241cdd226eb96ca70a76477c76689b1439919aa3bd112e72904"
+  },
+  "unresolved": []
+}

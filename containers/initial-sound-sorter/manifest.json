@@ -1,0 +1,172 @@
+{
+  "artifacts": [],
+  "description": "Produce reviewable grouped words with validation, safety checks, and structured output. Use when a teacher, tutor, or literacy specialist needs this bounded workflow and will review the result before use.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "words",
+      "widget": "textarea"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "$id": "https://omo.space/schemas/initial-sound-sorter/input.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "words": {
+        "items": {
+          "maxLength": 40,
+          "minLength": 1,
+          "pattern": "^[A-Za-z]+(?:['-][A-Za-z]+)*$",
+          "type": "string"
+        },
+        "maxItems": 24,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      }
+    },
+    "required": [
+      "words"
+    ],
+    "type": "object"
+  },
+  "name": "initial-sound-sorter",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "grouped": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "initial_sound": {
+              "maxLength": 24,
+              "minLength": 1,
+              "type": "string"
+            },
+            "items": {
+              "items": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 24,
+              "minItems": 1,
+              "type": "array"
+            },
+            "label": {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "initial_sound",
+            "items"
+          ],
+          "type": "object"
+        },
+        "maxItems": 24,
+        "minItems": 1,
+        "type": "array"
+      },
+      "run_id": {
+        "minLength": 8,
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "maximum": 2,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "model": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "warnings": {
+        "items": {
+          "maxLength": 240,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 8,
+        "type": "array"
+      },
+      "workflow_version": {
+        "const": "initial-sound-sorter@0.1.0"
+      }
+    },
+    "required": [
+      "run_id",
+      "status",
+      "workflow_version",
+      "grouped",
+      "warnings",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "modeled",
+    "report_path": "pricing-report.json"
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "initial-sound-sorter",
+  "source_sha256": "4716371748028241cdd226eb96ca70a76477c76689b1439919aa3bd112e72904",
+  "version": "0.1.0"
+}
