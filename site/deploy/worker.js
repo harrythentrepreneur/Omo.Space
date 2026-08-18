@@ -241,6 +241,7 @@ const MAX_TOPUP_USD_DEFAULT = 1000;
 const MAX_SUBMISSION_BYTES = 200 * 1024;
 const MAX_INTERNAL_BODY_BYTES = 16 * 1024;
 const MAX_INTERNAL_MIGRATION_BODY_BYTES = 256;
+const SUBMISSION_CLAIM_LEASE_SECONDS = 2 * 60 * 60;
 const USER_ID_RE = /^user_[A-Za-z0-9_-]{1,80}$/;
 const SUBMISSION_ID_RE = /^sub_[A-Za-z0-9_-]{8,100}$/;
 const SAFE_FAILURE_RE = /^[a-z][a-z0-9_]{2,63}$/;
@@ -2427,6 +2428,21 @@ function safeFailureCode(value) {
   return SAFE_FAILURE_RE.test(code) ? code : 'internal_error';
 }
 
+function validSubmissionClaimSource(row) {
+  const content = String(row && row.content || '');
+  return safeSubmissionId(row && row.id) &&
+    safeSlug(row && row.slug) &&
+    safeSha256(row && (row.source_sha256 || row.sourceSha256)) &&
+    content.length > 0 &&
+    new TextEncoder().encode(content).length <= MAX_SUBMISSION_BYTES;
+}
+
+function staleSubmissionClaim(row, now = Date.now()) {
+  if (!row || !row.build_claimed_at) return false;
+  const claimedAt = Date.parse(String(row.build_claimed_at));
+  return Number.isFinite(claimedAt) && now - claimedAt > SUBMISSION_CLAIM_LEASE_SECONDS * 1000;
+}
+
 function internalClaimRow(row) {
   if (!row) return null;
   const sourceSha256 = safeSha256(row.source_sha256 || row.sourceSha256);
@@ -2435,7 +2451,7 @@ function internalClaimRow(row) {
   const content = String(row.content || '');
   if (!safeSubmissionId(row.id) || !safeSlug(row.slug) || !sourceSha256 || !content ||
       new TextEncoder().encode(content).length > MAX_SUBMISSION_BYTES ||
-      !['queued', 'needs_review', 'ready_for_deploy'].includes(priorStatus)) {
+      !['queued', 'needs_review', 'ready_for_deploy', 'processing'].includes(priorStatus)) {
     return null;
   }
   return {
@@ -3412,20 +3428,39 @@ async function internalClaimSubmission(env, options) {
     if (options.includeReview) claimStates.push('needs_review');
     if (options.includeReady) claimStates.push('ready_for_deploy');
     const statePlaceholders = claimStates.map((_, index) => `$${index + 1}`).join(', ');
-    const params = [...claimStates];
+    const params = [...claimStates, SUBMISSION_CLAIM_LEASE_SECONDS];
+    const leaseParam = params.length;
     const whereId = options.id ? `AND id = $${params.length + 1}` : '';
     if (options.id) params.push(options.id);
     const result = await getNeonPool(env).query(prepared(
       'omo-internal-submission-claim-v1',
       `WITH candidate AS (
          SELECT id, status AS prior_status FROM submissions
-         WHERE status IN (${statePlaceholders}) ${whereId}
+         WHERE (
+           status IN (${statePlaceholders})
+           OR (
+             status = 'processing'
+             AND build_claimed_at IS NOT NULL
+             AND build_claimed_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+             AND build_claimed_at::timestamptz < CURRENT_TIMESTAMP - ($${leaseParam} * INTERVAL '1 second')
+           )
+         )
+         AND slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+         AND source_sha256 ~ '^[0-9a-f]{64}$'
+         AND content IS NOT NULL
+         AND octet_length(content) BETWEEN 1 AND ${MAX_SUBMISSION_BYTES}
+         ${whereId}
          ORDER BY created_at ASC
          FOR UPDATE SKIP LOCKED
          LIMIT 1
        )
        UPDATE submissions AS submission
-       SET status = 'processing', failure_code = NULL, updated_at = CURRENT_TIMESTAMP
+       SET status = 'processing',
+           failure_code = NULL,
+           build_claimed_at = CURRENT_TIMESTAMP,
+           build_attempts = COALESCE(build_attempts, 0) + 1,
+           build_evidence = NULL,
+           updated_at = CURRENT_TIMESTAMP
        FROM candidate
        WHERE submission.id = candidate.id
        RETURNING submission.id, submission.name, submission.slug, submission.content, submission.source_sha256, submission.requested_runtime, candidate.prior_status`,
@@ -3438,29 +3473,40 @@ async function internalClaimSubmission(env, options) {
     if (options.includeReview) claimStates.push('needs_review');
     if (options.includeReady) claimStates.push('ready_for_deploy');
     const placeholders = claimStates.map(() => '?').join(', ');
-    const params = [...claimStates];
+    const params = [...claimStates, SUBMISSION_CLAIM_LEASE_SECONDS];
     const whereId = options.id ? 'AND id = ?' : '';
     if (options.id) params.push(options.id);
     const row = await env.BALANCE_DB
-      .prepare(`SELECT id,name,slug,content,source_sha256,requested_runtime,status AS prior_status FROM submissions WHERE status IN (${placeholders}) ${whereId} ORDER BY created_at ASC LIMIT 1`)
+      .prepare(`SELECT id,name,slug,content,source_sha256,requested_runtime,status AS prior_status,build_claimed_at FROM submissions
+        WHERE (
+          status IN (${placeholders})
+          OR (status = 'processing' AND build_claimed_at IS NOT NULL
+            AND datetime(build_claimed_at) < datetime('now', '-' || ? || ' seconds'))
+        )
+        AND length(CAST(content AS BLOB)) BETWEEN 1 AND ${MAX_SUBMISSION_BYTES}
+        ${whereId}
+        ORDER BY created_at ASC LIMIT 1`)
       .bind(...params).first();
     if (!row) return null;
     const updated = await env.BALANCE_DB
-      .prepare("UPDATE submissions SET status = 'processing', failure_code = NULL, updated_at = ? WHERE id = ? AND status = ?")
-      .bind(new Date().toISOString(), row.id, row.prior_status).run();
+      .prepare("UPDATE submissions SET status = 'processing', failure_code = NULL, build_claimed_at = ?, build_attempts = COALESCE(build_attempts, 0) + 1, build_evidence = NULL, updated_at = ? WHERE id = ? AND status = ? AND (status IN (" + placeholders + ") OR (status = 'processing' AND build_claimed_at = ? AND datetime(build_claimed_at) < datetime('now', '-' || ? || ' seconds')))" )
+      .bind(new Date().toISOString(), new Date().toISOString(), row.id, row.prior_status, ...claimStates, row.build_claimed_at || '', SUBMISSION_CLAIM_LEASE_SECONDS).run();
     return updated.meta && updated.meta.changes ? row : null;
   }
   const claimStates = new Set(['queued']);
   if (options.includeReview) claimStates.add('needs_review');
   if (options.includeReady) claimStates.add('ready_for_deploy');
   const rows = Array.from(mockSubmissions.values())
-    .filter((record) => claimStates.has(record.status) && (!options.id || record.id === options.id))
+    .filter((record) => (claimStates.has(record.status) || (record.status === 'processing' && staleSubmissionClaim(record))) && (!options.id || record.id === options.id))
     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id || '').localeCompare(String(b.id || '')));
   const record = rows[0];
-  if (!record) return null;
+  if (!record || !validSubmissionClaimSource(record)) return null;
   const priorStatus = record.status;
   record.status = 'processing';
   record.failure_code = null;
+  record.build_claimed_at = new Date().toISOString();
+  record.build_attempts = Number(record.build_attempts || 0) + 1;
+  record.build_evidence = null;
   record.updated_at = new Date().toISOString();
   return {
     id: record.id,

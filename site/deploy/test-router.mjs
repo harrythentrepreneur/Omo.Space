@@ -120,6 +120,7 @@ let neonPoolShouldThrow = false;
 let neonInfoSchemaTableExists = false;
 let neonInfoSchemaColumns = [];
 let neonApprovalRow = null;
+let neonInternalClaimRow = null;
 let neonInternalDetailRow = null;
 let neonResumeMergedRow = null;
 
@@ -147,6 +148,9 @@ class MockPool {
         }
         if (entry.name === 'omo-submission-approve-v1') {
           return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        if (entry.name && entry.name.startsWith('omo-internal-submission-claim-')) {
+          return neonInternalClaimRow ? { rows: [neonInternalClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         if (entry.name === 'omo-internal-submission-detail-v1') {
           return neonInternalDetailRow ? { rows: [neonInternalDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
@@ -310,8 +314,10 @@ const sandbox = {
           ? 'omo-submission-approve-v1'
           : text.includes('UPDATE submissions') && text.includes('failure_code IN') && text.includes("status = 'queued'")
             ? 'omo-submission-retry-v2'
-            : text.includes('SELECT id,slug,source_sha256,selected_runtime') && text.includes('WHERE id = $1')
+            : text.includes("SELECT id,slug,source_sha256,selected_runtime") && text.includes('WHERE id = $1')
               ? 'omo-internal-submission-detail-v1'
+              : text.includes('WITH candidate AS') && text.includes('build_claimed_at')
+                ? 'omo-internal-submission-claim-v1'
               : text.includes("SET status = 'ready_for_deploy'") && text.includes("release_phase = 'merged_verified'")
                 ? 'omo-internal-resume-merged-release-v1'
                 : null,
@@ -324,6 +330,9 @@ const sandbox = {
       if (entry.name === 'omo-internal-submission-detail-v1') {
         return neonInternalDetailRow ? { rows: [neonInternalDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-internal-submission-claim-v1') {
+        return neonInternalClaimRow ? { rows: [neonInternalClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
       if (entry.name === 'omo-internal-resume-merged-release-v1') {
         return neonResumeMergedRow ? { rows: [neonResumeMergedRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
@@ -332,7 +341,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -1290,6 +1299,9 @@ check('internal migration: database errors are generic and never include DSN or 
 for (const record of workerTest.mockSubmissions.values()) {
   if (record.id === submitAuto.id) {
     record.status = 'queued';
+    record.failure_code = 'old_failure_must_clear';
+    record.build_claimed_at = null;
+    record.build_attempts = 2;
     record.published_slug = null;
     record.workflow_version = null;
     record.build_evidence = null;
@@ -1305,9 +1317,81 @@ check('internal claim: atomically returns one safe processing row and cannot rep
   internalClaimBody.submission.prior_status === 'queued' &&
   internalClaimBody.submission.content === autoSubmissionContent &&
   !('user_id' in internalClaimBody.submission) &&
-  internalReplay.status === 204);
+  internalReplay.status === 204 &&
+  Array.from(workerTest.mockSubmissions.values()).some((record) =>
+    record.id === submitAuto.id && record.status === 'processing' &&
+    record.failure_code === null && record.build_attempts === 3 &&
+    !Number.isNaN(Date.parse(record.build_claimed_at))));
 const internalBadClaimId = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: 'sub_bad' }, internalHeaders), buildEnv);
 check('internal claim: unsafe specific ids are rejected before SQL', internalBadClaimId.status === 400);
+
+const staleMockId = 'sub_staleclaimmock01';
+const staleMockLease = new Date(Date.now() - (2 * 60 * 60 + 1) * 1000).toISOString();
+workerTest.mockSubmissions.set('stale-mock-claim', {
+  id: staleMockId,
+  user_id: 'user_private_must_not_leak',
+  name: 'Stale Claim Workflow',
+  slug: 'stale-claim-workflow',
+  content: '---\nname: stale-claim-workflow\ndescription: safe stale claim fixture\n---\n',
+  source_sha256: '9'.repeat(64),
+  requested_runtime: 'auto',
+  status: 'processing',
+  failure_code: 'old_failure_must_clear',
+  build_claimed_at: staleMockLease,
+  build_attempts: 4,
+  build_evidence: JSON.stringify({ checks: ['old_check'], source_sha256: '9'.repeat(64), secret: 'must-not-leak' }),
+  created_at: '2026-08-01T00:00:00.000Z',
+  updated_at: staleMockLease,
+});
+const staleMockClaim = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: staleMockId }, internalHeaders), buildEnv);
+const staleMockClaimBody = staleMockClaim.status === 200 ? await staleMockClaim.json() : {};
+const staleMockReplay = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: staleMockId }, internalHeaders), buildEnv);
+const staleMockRecord = workerTest.mockSubmissions.get('stale-mock-claim');
+check('internal claim lease mock: stale processing is reclaimed once without trusting prior evidence',
+  staleMockClaim.status === 200 && staleMockClaimBody.submission.prior_status === 'processing' &&
+  !('build_evidence' in staleMockClaimBody.submission) &&
+  !JSON.stringify(staleMockClaimBody).includes('must-not-leak') &&
+  !('user_id' in staleMockClaimBody.submission) && staleMockReplay.status === 204 &&
+  staleMockRecord.status === 'processing' && staleMockRecord.failure_code === null &&
+  staleMockRecord.build_attempts === 5 && staleMockRecord.build_evidence === null &&
+  Date.parse(staleMockRecord.build_claimed_at) > Date.parse(staleMockLease));
+
+const freshMockId = 'sub_freshclaimmock01';
+workerTest.mockSubmissions.set('fresh-mock-claim', {
+  ...staleMockRecord,
+  id: freshMockId,
+  build_claimed_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+});
+const freshMockClaim = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: freshMockId }, internalHeaders), buildEnv);
+check('internal claim lease mock: a fresh processing row cannot be reclaimed', freshMockClaim.status === 204);
+
+neonSqlCalls.length = 0;
+neonInternalClaimRow = {
+  id: 'sub_staleclaimneon01',
+  name: 'Neon Stale Claim',
+  slug: 'neon-stale-claim',
+  content: '---\nname: neon-stale-claim\ndescription: safe neon claim fixture\n---\n',
+  source_sha256: '8'.repeat(64),
+  requested_runtime: 'auto',
+  prior_status: 'processing',
+  build_evidence: '{"secret":"must-not-leak"}',
+};
+const staleNeonClaim = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: 'sub_staleclaimneon01' }, internalHeaders), migrationEnv);
+const staleNeonClaimBody = await staleNeonClaim.json();
+const staleNeonCall = neonSqlCalls.find((call) => call.name && call.name.startsWith('omo-internal-submission-claim-'));
+neonInternalClaimRow = null;
+check('internal claim lease Neon: one locked guarded update applies the bounded lease and returns only processor fields',
+  staleNeonClaim.status === 200 && staleNeonClaimBody.submission.prior_status === 'processing' &&
+  !JSON.stringify(staleNeonClaimBody).includes('must-not-leak') && staleNeonCall &&
+  staleNeonCall.text.includes('FOR UPDATE SKIP LOCKED') &&
+  staleNeonCall.text.includes("status = 'processing'") &&
+  staleNeonCall.text.includes('build_claimed_at') &&
+  staleNeonCall.text.includes('build_attempts') &&
+  staleNeonCall.text.includes('build_evidence') &&
+  staleNeonCall.text.includes('source_sha256') &&
+  staleNeonCall.values.includes(7200) &&
+  !staleNeonCall.text.split('RETURNING', 2).at(-1).includes('user_id'));
 
 const internalRuntime = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/runtime`, {
   effective: 'worker-native',
@@ -1522,6 +1606,76 @@ function validMergedReleaseRecord(id, overrides = {}) {
     ...overrides,
   };
 }
+
+function d1DatabaseForSubmissionClaim(records) {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE submissions (
+    id TEXT PRIMARY KEY, user_id TEXT, name TEXT, slug TEXT, content TEXT,
+    source_sha256 TEXT, requested_runtime TEXT, status TEXT, failure_code TEXT,
+    build_claimed_at TEXT, build_attempts INTEGER, build_evidence TEXT,
+    created_at TEXT, updated_at TEXT
+  )`);
+  for (const record of records) {
+    const keys = Object.keys(record);
+    db.prepare(`INSERT INTO submissions (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...keys.map((key) => record[key]));
+  }
+  return {
+    db,
+    binding: {
+      prepare(sql) {
+        return {
+          bind(...values) {
+            return {
+              first: async () => db.prepare(sql).get(...values) || null,
+              run: async () => {
+                const result = db.prepare(sql).run(...values);
+                return { meta: { changes: Number(result.changes) } };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+}
+
+const d1ClaimLease = new Date(Date.now() - (2 * 60 * 60 + 1) * 1000).toISOString();
+const d1ClaimValidId = 'sub_d1staleclaim01';
+const d1ClaimInvalidId = 'sub_d1badstale01';
+const d1Claims = d1DatabaseForSubmissionClaim([
+  {
+    id: d1ClaimValidId, user_id: 'user_private', name: 'D1 Stale Claim', slug: 'd1-stale-claim',
+    content: '---\nname: d1-stale-claim\ndescription: safe d1 claim fixture\n---\n', source_sha256: '7'.repeat(64),
+    requested_runtime: 'auto', status: 'processing', failure_code: 'old_failure',
+    build_claimed_at: d1ClaimLease, build_attempts: 6,
+    build_evidence: JSON.stringify({ checks: ['old_check'], source_sha256: '7'.repeat(64) }),
+    created_at: '2026-08-01T00:00:00.000Z', updated_at: d1ClaimLease,
+  },
+  {
+    id: d1ClaimInvalidId, user_id: 'user_private', name: 'Bad D1 Stale Claim', slug: 'bad-d1-stale-claim',
+    content: '', source_sha256: 'not-a-source-identity', requested_runtime: 'auto', status: 'processing',
+    failure_code: 'must_stay', build_claimed_at: d1ClaimLease, build_attempts: 9,
+    build_evidence: '{"secret":"must-stay"}', created_at: '2026-08-01T00:00:00.000Z', updated_at: d1ClaimLease,
+  },
+]);
+const d1ConcurrentClaims = await Promise.all([
+  workerTest.internalClaimSubmission({ BALANCE_DB: d1Claims.binding }, { id: d1ClaimValidId, includeReview: false, includeReady: false }),
+  workerTest.internalClaimSubmission({ BALANCE_DB: d1Claims.binding }, { id: d1ClaimValidId, includeReview: false, includeReady: false }),
+]);
+const d1SuccessfulClaims = d1ConcurrentClaims.filter(Boolean);
+const d1ClaimFinal = d1Claims.db.prepare('SELECT * FROM submissions WHERE id = ?').get(d1ClaimValidId);
+const d1InvalidClaim = await workerTest.internalClaimSubmission(
+  { BALANCE_DB: d1Claims.binding }, { id: d1ClaimInvalidId, includeReview: false, includeReady: false }
+);
+const d1InvalidFinal = d1Claims.db.prepare('SELECT * FROM submissions WHERE id = ?').get(d1ClaimInvalidId);
+check('internal claim lease D1: stale compare-and-swap has one winner and malformed stale source is untouched',
+  d1SuccessfulClaims.length === 1 && workerTest.internalClaimRow(d1SuccessfulClaims[0]).prior_status === 'processing' &&
+  d1ClaimFinal.status === 'processing' && d1ClaimFinal.failure_code === null &&
+  d1ClaimFinal.build_attempts === 7 && d1ClaimFinal.build_evidence === null &&
+  Date.parse(d1ClaimFinal.build_claimed_at) > Date.parse(d1ClaimLease) &&
+  d1InvalidClaim === null && d1InvalidFinal.failure_code === 'must_stay' &&
+  d1InvalidFinal.build_attempts === 9 && d1InvalidFinal.build_claimed_at === d1ClaimLease);
+d1Claims.db.close();
 
 function d1DatabaseForMergedRelease(record) {
   const db = new DatabaseSync(':memory:');

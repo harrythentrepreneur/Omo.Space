@@ -516,6 +516,24 @@ def test_process_row_persists_exact_private_review_source(monkeypatch, tmp_path:
     assert stat.S_IMODE(review_path.stat().st_mode) == 0o600
 
 
+def test_process_row_reclaimed_processing_does_not_rewrite_review_source(monkeypatch) -> None:
+    process = load_process_submissions()
+    source = (ROOT / "tools" / "host-skill" / "tests" / "fixtures" / "sample-workflow.md").read_text(encoding="utf-8")
+    row = _unknown_review_row(process, source)
+    row["prior_status"] = "processing"
+    persisted: list[str] = []
+    monkeypatch.setattr(
+        process,
+        "persist_review_source",
+        lambda _validated, submission_id: persisted.append(submission_id),
+    )
+
+    result = process.process_row(row, FakeRepository(), deploy=False)
+
+    assert result["status"] == "needs_review"
+    assert persisted == []
+
+
 def test_process_row_review_persistence_fails_closed_for_unsafe_root(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     source = (ROOT / "tools" / "host-skill" / "tests" / "fixtures" / "sample-workflow.md").read_text(encoding="utf-8")
@@ -1174,6 +1192,30 @@ def test_http_repository_maps_204_claim_to_idle(monkeypatch) -> None:
     assert repo.claim() is None
 
 
+def test_http_claim_validation_accepts_only_safe_processing_reclaims() -> None:
+    process = load_process_submissions()
+    response = {
+        "submission": {
+            "id": "sub_12345678",
+            "name": "sample-workflow",
+            "slug": "sample-workflow",
+            "content": "---\nname: sample-workflow\ndescription: x\n---\n",
+            "source_sha256": "a" * 64,
+            "requested_runtime": "auto",
+            "prior_status": "processing",
+            "build_evidence": {"checks": ["untrusted"], "secret": "must-not-leak"},
+            "user_id": "must-not-leak",
+        }
+    }
+
+    row = process.validate_claim_response(response)
+
+    assert row["prior_status"] == "processing"
+    assert "build_evidence" not in row
+    assert "user_id" not in row
+    assert "must-not-leak" not in json.dumps(row)
+
+
 def test_http_repository_get_posts_bearer_and_normalizes_safe_detail(monkeypatch) -> None:
     process = load_process_submissions()
     calls: list[dict] = []
@@ -1430,9 +1472,15 @@ def test_claim_sql_is_atomic_and_returns_only_processor_fields() -> None:
         def execute(self, query, params):
             assert "FOR UPDATE SKIP LOCKED" in query
             assert "UPDATE submissions AS submission" in query
+            assert "status = 'processing'" in query
+            assert "build_claimed_at" in query
+            assert "build_attempts" in query
+            assert "build_evidence" in query
+            assert "source_sha256" in query
             assert "RETURNING submission.id, submission.name, submission.slug, submission.content, submission.source_sha256, submission.requested_runtime, candidate.prior_status" in " ".join(query.split())
             assert "user_id" not in query.split("RETURNING", 1)[1]
-            assert params == ["queued"]
+            assert params[0] == "queued"
+            assert process.SUBMISSION_CLAIM_LEASE_SECONDS in params
         def fetchone(self):
             return None
 

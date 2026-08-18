@@ -53,6 +53,7 @@ SAFE_POLICY_RE = re.compile(r"^[a-z][a-z0-9_:-]{2,127}$")
 SAFE_RUNTIMES = {"auto", "worker-native", "modal-hosted"}
 SAFE_SELECTED_RUNTIMES = {"worker-native", "modal-hosted"}
 SAFE_PRIOR_STATUSES = {"queued", "needs_review", "ready_for_deploy"}
+SUBMISSION_CLAIM_LEASE_SECONDS = 2 * 60 * 60
 HOSTED_PROFILE_GLOB = "*/hosted-profile.json"
 RELEASE_PHASES = {
     "compiled",
@@ -319,7 +320,7 @@ def validate_claim_response(value: Any) -> dict[str, Any]:
         raise RuntimeError("invalid internal claim response")
     if not SAFE_SHA256_RE.fullmatch(str(row["source_sha256"])):
         raise RuntimeError("invalid internal claim response")
-    if str(row["requested_runtime"]) not in SAFE_RUNTIMES or str(row["prior_status"]) not in SAFE_PRIOR_STATUSES:
+    if str(row["requested_runtime"]) not in SAFE_RUNTIMES or str(row["prior_status"]) not in SAFE_PRIOR_STATUSES | {"processing"}:
         raise RuntimeError("invalid internal claim response")
     content = row["content"]
     if not isinstance(content, str) or not content or len(content.encode("utf-8")) > MAX_SUBMISSION_BYTES:
@@ -616,20 +617,40 @@ class SubmissionRepository:
         if include_ready:
             claim_states += ("ready_for_deploy",)
         state_placeholders = ", ".join(["%s"] * len(claim_states))
-        where_id = "AND id = %s" if submission_id else ""
         params: list[Any] = list(claim_states)
+        params.append(SUBMISSION_CLAIM_LEASE_SECONDS)
+        lease_placeholder = "%s"
+        where_id = "AND id = %s" if submission_id else ""
         if submission_id:
             params.append(submission_id)
         query = f"""
             WITH candidate AS (
               SELECT id, status AS prior_status FROM submissions
-              WHERE status IN ({state_placeholders}) {where_id}
+              WHERE (
+                status IN ({state_placeholders})
+                OR (
+                  status = 'processing'
+                  AND build_claimed_at IS NOT NULL
+                  AND build_claimed_at ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}'
+                  AND build_claimed_at::timestamptz < CURRENT_TIMESTAMP - ({lease_placeholder} * INTERVAL '1 second')
+                )
+              )
+              AND slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+              AND source_sha256 ~ '^[0-9a-f]{{64}}$'
+              AND content IS NOT NULL
+              AND octet_length(content) BETWEEN 1 AND {MAX_SUBMISSION_BYTES}
+              {where_id}
               ORDER BY created_at ASC
               FOR UPDATE SKIP LOCKED
               LIMIT 1
             )
             UPDATE submissions AS submission
-            SET status = 'processing', failure_code = NULL, updated_at = CURRENT_TIMESTAMP
+            SET status = 'processing',
+                failure_code = NULL,
+                build_claimed_at = CURRENT_TIMESTAMP,
+                build_attempts = COALESCE(build_attempts, 0) + 1,
+                build_evidence = NULL,
+                updated_at = CURRENT_TIMESTAMP
             FROM candidate
             WHERE submission.id = candidate.id
             RETURNING submission.id, submission.name, submission.slug, submission.content,
@@ -1885,7 +1906,7 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
     )
     if state != "ready_for_build":
         review_path = None
-        if state == "needs_review" and reason == "reviewed_profile_required" and row.get("prior_status") != "needs_review":
+        if state == "needs_review" and reason == "reviewed_profile_required" and row.get("prior_status") not in {"needs_review", "processing"}:
             review_path = persist_review_source(validated, submission_id)
         repository.set_status(submission_id, state, reason)
         result = {"id": submission_id, "slug": validated.slug, "status": state, "failure_code": reason}
