@@ -1,0 +1,23 @@
+{
+  "$id": "https://omo.space/schemas/initial-sound-sorter/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "words": {
+      "items": {
+        "maxLength": 40,
+        "minLength": 1,
+        "pattern": "^[A-Za-z]+(?:['-][A-Za-z]+)*$",
+        "type": "string"
+      },
+      "maxItems": 24,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "words"
+  ],
+  "type": "object"
+}
