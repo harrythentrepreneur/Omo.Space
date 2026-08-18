@@ -504,11 +504,22 @@
         el('toast').hidden = false;
         toastTimer = window.setTimeout(function () { el('toast').hidden = true; }, 2300);
       }
+      function allowsLocalCredentialFallback() {
+        if (window.location && window.location.protocol === 'file:') return true;
+        var key = typeof window.CLERK_PUBLISHABLE_KEY === 'string'
+          ? window.CLERK_PUBLISHABLE_KEY.trim()
+          : '';
+        return key === 'pk_test_placeholder' || !/^pk_(test|live)_/.test(key);
+      }
       function currentUser() {
-        if (window.ClerkAuth && typeof window.ClerkAuth.isSignedIn === 'function' && window.ClerkAuth.isSignedIn()) {
-          var clerkUser = window.ClerkAuth.getUser && window.ClerkAuth.getUser();
-          if (clerkUser && clerkUser.id) return clerkUser;
+        if (window.ClerkAuth && typeof window.ClerkAuth.isSignedIn === 'function') {
+          if (window.ClerkAuth.isSignedIn()) {
+            var clerkUser = window.ClerkAuth.getUser && window.ClerkAuth.getUser();
+            if (clerkUser && clerkUser.id) return clerkUser;
+          }
+          return null;
         }
+        if (!allowsLocalCredentialFallback()) return null;
         try {
           var storedUser = JSON.parse(safeStorage('cognition_user') || 'null');
           return storedUser && storedUser.id ? storedUser : null;
@@ -575,6 +586,7 @@
           headers.Authorization = 'Bearer ' + token;
           return headers;
         }).catch(function (error) {
+          if (!allowsLocalCredentialFallback()) throw error;
           var apiKey = safeStorage('omo_apikey_v1') || '';
           if (/^omo_[A-Za-z0-9_-]+$/.test(apiKey)) {
             headers.Authorization = 'Bearer ' + apiKey;
