@@ -70,7 +70,7 @@
 import { Pool, neon } from '@neondatabase/serverless';
 import { grantSignupCredits, debitForRun, apiKeyFor, topupAmounts, MIN_TOPUP_USD } from './balance.mjs';
 import { PilotTokenError, verifyPilotToken } from './pilot-magic.mjs';
-import { runPrice, llmWorkflow } from './cost-model.mjs';
+import { runPrice, llmWorkflow, LLM_RATES } from './cost-model.mjs';
 import { handleMcpRequest } from './mcp-server.mjs';
 import { HOSTED_WORKER_SKILL_ROWS, HOSTED_MODAL_SKILL_ROWS, HOSTED_SERVER_CATALOG_ROWS } from './hosted-skills.generated.mjs';
 
@@ -914,6 +914,38 @@ function hostedWorkerPrompt(input) {
   return `Input JSON:\n${JSON.stringify(input)}\n\nRun the reviewed workflow using only this JSON input. Return only the complete JSON object required by the output schema.`;
 }
 
+function hostedWorkerUsage(executor, rawUsage) {
+  const usage = rawUsage && typeof rawUsage === 'object' && !Array.isArray(rawUsage) ? rawUsage : {};
+  const promptCandidate = Number(usage.prompt_tokens ?? usage.input_tokens ?? 0);
+  const completionCandidate = Number(usage.completion_tokens ?? usage.output_tokens ?? 0);
+  const promptTokens = Number.isInteger(promptCandidate) && promptCandidate >= 0 ? promptCandidate : 0;
+  const completionTokens = Number.isInteger(completionCandidate) && completionCandidate >= 0 ? completionCandidate : 0;
+  const rate = LLM_RATES[executor.model] || null;
+  const estimatedCostUsd = rate
+    ? (promptTokens / 1e6) * Number(rate.input) + (completionTokens / 1e6) * Number(rate.output)
+    : 0;
+  return {
+    provider: executor.provider,
+    model: executor.model,
+    llm_calls: 1,
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    estimated_cost_usd: Number.isFinite(estimatedCostUsd) && estimatedCostUsd >= 0
+      ? +estimatedCostUsd.toFixed(12)
+      : 0,
+  };
+}
+
+function hostedWorkerPublicOutput(hosted, runId, modelOutput, rawUsage) {
+  return {
+    ...modelOutput,
+    run_id: runId,
+    status: 'completed',
+    workflow_version: `${hosted.container_slug}@${hosted.executor.workflow_version}`,
+    usage: hostedWorkerUsage(hosted.executor, rawUsage),
+  };
+}
+
 async function dispatchHostedWorkerRun(env, hosted, context) {
   const {
     runRequest, runId, userId, hostedInput, costUsd, balanceAfterDebit, authMethod,
@@ -926,7 +958,12 @@ async function dispatchHostedWorkerRun(env, hosted, context) {
   if (!parsed.ok) {
     return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_invalid_json', 502);
   }
-  const outputErrors = validateSchemaValue(parsed.value, hosted.output_schema);
+  const modelOutputErrors = validateSchemaValue(parsed.value, hosted.model_output_schema);
+  if (modelOutputErrors.length) {
+    return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_invalid_output', 502);
+  }
+  const publicOutput = hostedWorkerPublicOutput(hosted, runId, parsed.value, llm.usage);
+  const outputErrors = validateSchemaValue(publicOutput, hosted.output_schema);
   if (outputErrors.length) {
     return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_invalid_output', 502);
   }
@@ -936,7 +973,7 @@ async function dispatchHostedWorkerRun(env, hosted, context) {
     quoted_cost_usd: Number(hosted.run_price_cents) / 100,
     billed_amount_usd: Number(runRequest.row.cost_cents) / 100,
     cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
-    auth: authMethod, output: parsed.value,
+    auth: authMethod, output: publicOutput,
   };
   await finishRunRequest(env, runId, 'succeeded', result, 200);
   return json(result, 200, cors());
@@ -951,6 +988,7 @@ function hostedWorkerConfigError(env, hosted) {
   if (!HOSTED_WORKER_PROVIDERS.has(executor.provider)) return 'hosted_worker_provider_unsupported';
   const provider = HOSTED_WORKER_PROVIDER_DESCRIPTORS.get(executor.provider);
   if (!provider) return 'hosted_worker_provider_unsupported';
+  if (!hosted.model_output_schema || typeof hosted.model_output_schema !== 'object' || Array.isArray(hosted.model_output_schema)) return 'hosted_worker_model_output_schema_missing';
   if (!String(executor.model || '').trim()) return 'hosted_worker_model_missing';
   if (!String(executor.system_prompt || '').trim()) return 'hosted_worker_system_prompt_missing';
   if (!String(executor.workflow_version || '').trim()) return 'hosted_worker_workflow_version_missing';
@@ -996,7 +1034,8 @@ async function callHostedWorkerProvider(env, executor, userPrompt) {
     try { data = JSON.parse(textResult.text); } catch { return { error: 'provider_invalid_envelope' }; }
     const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (typeof content !== 'string' || !content.trim()) return { error: 'provider_empty_content' };
-    return { content };
+    const usage = data && data.usage && typeof data.usage === 'object' && !Array.isArray(data.usage) ? data.usage : {};
+    return { content, usage };
   } catch {
     return { error: 'provider_fetch_failed' };
   } finally {

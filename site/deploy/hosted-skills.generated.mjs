@@ -4,6 +4,7 @@ export const HOSTED_WORKER_SKILL_ROWS = [
   [
     "facebook-ads-copywriter",
     {
+      "artifact": null,
       "container_slug": "facebook-ads-copywriter",
       "executor": {
         "execution_kind": "single_llm",
@@ -17,6 +18,7 @@ export const HOSTED_WORKER_SKILL_ROWS = [
         "timeout_seconds": 120,
         "workflow_version": "0.1.0"
       },
+      "input_adapters": [],
       "input_schema": {
         "$id": "https://omo.space/schemas/facebook-ads-copywriter/input.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -110,6 +112,91 @@ export const HOSTED_WORKER_SKILL_ROWS = [
         "type": "object"
       },
       "kind": "worker-native",
+      "model_output_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "ads": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "angle": {
+                  "maxLength": 120,
+                  "minLength": 3,
+                  "type": "string"
+                },
+                "cta": {
+                  "enum": [
+                    "Shop Now",
+                    "Learn More",
+                    "Sign Up",
+                    "Get Offer"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "maxLength": 160,
+                  "minLength": 3,
+                  "type": "string"
+                },
+                "headline": {
+                  "maxLength": 100,
+                  "minLength": 5,
+                  "type": "string"
+                },
+                "primary_text": {
+                  "maxLength": 1200,
+                  "minLength": 50,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "angle",
+                "primary_text",
+                "headline",
+                "description",
+                "cta"
+              ],
+              "type": "object"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "campaign_summary": {
+            "maxLength": 700,
+            "minLength": 20,
+            "type": "string"
+          },
+          "compliance_notes": {
+            "items": {
+              "maxLength": 360,
+              "minLength": 8,
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "type": "array"
+          },
+          "testing_notes": {
+            "items": {
+              "maxLength": 360,
+              "minLength": 8,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 2,
+            "type": "array"
+          }
+        },
+        "required": [
+          "campaign_summary",
+          "ads",
+          "testing_notes",
+          "compliance_notes"
+        ],
+        "type": "object"
+      },
       "output_schema": {
         "$id": "https://omo.space/schemas/facebook-ads-copywriter/output.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -349,6 +436,204 @@ export const HOSTED_WORKER_SKILL_ROWS = [
         "type": "object"
       },
       "kind": "worker-native",
+      "model_output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "diagnoses": {
+            "items": {
+              "description": "A diagnosis grounded in observations.",
+              "maxLength": 500,
+              "minLength": 8,
+              "title": "Diagnosis",
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Diagnoses",
+            "type": "array"
+          },
+          "draft_changes": {
+            "items": {
+              "description": "A proposed change only; never an applied mutation.",
+              "maxLength": 400,
+              "minLength": 8,
+              "title": "Draft change",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 0,
+            "title": "Draft changes",
+            "type": "array"
+          },
+          "evidence_coverage": {
+            "description": "How complete the supplied evidence is.",
+            "enum": [
+              "complete",
+              "partial",
+              "limited"
+            ],
+            "title": "Evidence coverage"
+          },
+          "guardrails": {
+            "items": {
+              "description": "A policy or measurement guardrail.",
+              "maxLength": 400,
+              "minLength": 8,
+              "title": "Guardrail",
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Guardrails",
+            "type": "array"
+          },
+          "missing_inputs": {
+            "items": {
+              "description": "Evidence needed to increase confidence.",
+              "maxLength": 300,
+              "minLength": 3,
+              "title": "Missing input",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 0,
+            "title": "Missing inputs",
+            "type": "array"
+          },
+          "observations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "area": {
+                  "description": "Reviewed audit area.",
+                  "enum": [
+                    "measurement",
+                    "attribution",
+                    "creative",
+                    "audience",
+                    "placements",
+                    "budget",
+                    "policy",
+                    "structure"
+                  ],
+                  "title": "Area"
+                },
+                "confidence": {
+                  "description": "Confidence based on supplied evidence.",
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low"
+                  ],
+                  "title": "Confidence"
+                },
+                "evidence": {
+                  "description": "Input evidence supporting the finding.",
+                  "maxLength": 700,
+                  "minLength": 3,
+                  "title": "Evidence",
+                  "type": "string"
+                },
+                "finding": {
+                  "description": "Evidence-grounded observation.",
+                  "maxLength": 500,
+                  "minLength": 8,
+                  "title": "Finding",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "area",
+                "finding",
+                "evidence",
+                "confidence"
+              ],
+              "title": "Audit observation",
+              "type": "object"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Observations",
+            "type": "array"
+          },
+          "platform_health": {
+            "description": "Plain-language overall state.",
+            "maxLength": 700,
+            "minLength": 8,
+            "title": "Platform health",
+            "type": "string"
+          },
+          "recommendations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "next_check": {
+                  "description": "What to verify next.",
+                  "maxLength": 300,
+                  "minLength": 8,
+                  "title": "Next check",
+                  "type": "string"
+                },
+                "owner": {
+                  "description": "Suggested owner.",
+                  "maxLength": 120,
+                  "minLength": 3,
+                  "title": "Owner",
+                  "type": "string"
+                },
+                "priority": {
+                  "description": "Order of attention.",
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low"
+                  ],
+                  "title": "Priority"
+                },
+                "rationale": {
+                  "description": "Why this follows from the evidence.",
+                  "maxLength": 600,
+                  "minLength": 8,
+                  "title": "Rationale",
+                  "type": "string"
+                },
+                "recommendation": {
+                  "description": "A bounded recommended next move.",
+                  "maxLength": 500,
+                  "minLength": 8,
+                  "title": "Recommendation",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "priority",
+                "recommendation",
+                "rationale",
+                "owner",
+                "next_check"
+              ],
+              "title": "Prioritized recommendation",
+              "type": "object"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Recommendations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "platform_health",
+          "evidence_coverage",
+          "observations",
+          "diagnoses",
+          "recommendations",
+          "draft_changes",
+          "missing_inputs",
+          "guardrails"
+        ],
+        "title": "Meta Ads Audit provider result",
+        "type": "object"
+      },
       "output_schema": {
         "additionalProperties": false,
         "properties": {
@@ -688,6 +973,210 @@ export const HOSTED_WORKER_SKILL_ROWS = [
         "type": "object"
       },
       "kind": "worker-native",
+      "model_output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_findings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "asset_or_concept": {
+                  "description": "Asset or concept identifier.",
+                  "maxLength": 160,
+                  "minLength": 3,
+                  "title": "Asset or concept",
+                  "type": "string"
+                },
+                "fatigue_signal": {
+                  "description": "Only infer fatigue from time-series evidence.",
+                  "enum": [
+                    "none",
+                    "possible",
+                    "strong",
+                    "unknown"
+                  ],
+                  "title": "Fatigue signal"
+                },
+                "recommendation": {
+                  "description": "A bounded next action.",
+                  "maxLength": 500,
+                  "minLength": 8,
+                  "title": "Recommendation",
+                  "type": "string"
+                },
+                "risks": {
+                  "items": {
+                    "description": "Creative, policy, accessibility, or message-match risk.",
+                    "maxLength": 360,
+                    "minLength": 3,
+                    "title": "Risk",
+                    "type": "string"
+                  },
+                  "maxItems": 5,
+                  "minItems": 0,
+                  "title": "Risks",
+                  "type": "array"
+                },
+                "strengths": {
+                  "items": {
+                    "description": "Evidence-grounded creative strength.",
+                    "maxLength": 360,
+                    "minLength": 3,
+                    "title": "Strength",
+                    "type": "string"
+                  },
+                  "maxItems": 4,
+                  "minItems": 0,
+                  "title": "Strengths",
+                  "type": "array"
+                }
+              },
+              "required": [
+                "asset_or_concept",
+                "strengths",
+                "risks",
+                "fatigue_signal",
+                "recommendation"
+              ],
+              "title": "Creative finding",
+              "type": "object"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Asset findings",
+            "type": "array"
+          },
+          "evidence_coverage": {
+            "description": "Completeness of asset and performance evidence.",
+            "enum": [
+              "complete",
+              "partial",
+              "limited"
+            ],
+            "title": "Evidence coverage"
+          },
+          "experiment_briefs": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "audience": {
+                  "description": "Audience for the test.",
+                  "maxLength": 300,
+                  "minLength": 3,
+                  "title": "Audience",
+                  "type": "string"
+                },
+                "evidence_needed": {
+                  "description": "What must be measured.",
+                  "maxLength": 400,
+                  "minLength": 3,
+                  "title": "Evidence needed",
+                  "type": "string"
+                },
+                "format": {
+                  "description": "Recommended format.",
+                  "maxLength": 160,
+                  "minLength": 3,
+                  "title": "Format",
+                  "type": "string"
+                },
+                "hypothesis": {
+                  "description": "What the next test should learn.",
+                  "maxLength": 500,
+                  "minLength": 8,
+                  "title": "Hypothesis",
+                  "type": "string"
+                },
+                "success_metric": {
+                  "description": "Primary signal.",
+                  "maxLength": 200,
+                  "minLength": 3,
+                  "title": "Success metric",
+                  "type": "string"
+                },
+                "variable": {
+                  "description": "The single main variable.",
+                  "maxLength": 160,
+                  "minLength": 3,
+                  "title": "Variable",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "hypothesis",
+                "variable",
+                "audience",
+                "format",
+                "success_metric",
+                "evidence_needed"
+              ],
+              "title": "Experiment brief",
+              "type": "object"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Experiment briefs",
+            "type": "array"
+          },
+          "limitations": {
+            "items": {
+              "description": "Boundary on the audit.",
+              "maxLength": 350,
+              "minLength": 8,
+              "title": "Limitation",
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Limitations",
+            "type": "array"
+          },
+          "policy_and_accessibility_checks": {
+            "items": {
+              "description": "A check that needs human verification.",
+              "maxLength": 350,
+              "minLength": 8,
+              "title": "Policy or accessibility check",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Policy and accessibility checks",
+            "type": "array"
+          },
+          "production_priorities": {
+            "items": {
+              "description": "Next creative production priority.",
+              "maxLength": 450,
+              "minLength": 8,
+              "title": "Production priority",
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Production priorities",
+            "type": "array"
+          },
+          "summary": {
+            "description": "Overall creative read.",
+            "maxLength": 800,
+            "minLength": 8,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary",
+          "evidence_coverage",
+          "asset_findings",
+          "experiment_briefs",
+          "production_priorities",
+          "policy_and_accessibility_checks",
+          "limitations"
+        ],
+        "title": "Meta Creative Audit provider result",
+        "type": "object"
+      },
       "output_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1054,6 +1543,87 @@ export const HOSTED_WORKER_SKILL_ROWS = [
         "type": "object"
       },
       "kind": "worker-native",
+      "model_output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "compliance_notes": {
+            "items": {
+              "description": "Claim, disclosure, or proof note for human review.",
+              "maxLength": 400,
+              "minLength": 8,
+              "title": "Compliance note",
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Compliance notes",
+            "type": "array"
+          },
+          "delivery_notes": {
+            "items": {
+              "description": "Practical delivery guidance.",
+              "maxLength": 350,
+              "minLength": 8,
+              "title": "Delivery note",
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 2,
+            "title": "Delivery notes",
+            "type": "array"
+          },
+          "emotional_arc": {
+            "items": {
+              "description": "One beat from recognition through action.",
+              "maxLength": 180,
+              "minLength": 3,
+              "title": "Arc beat",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 5,
+            "title": "Emotional arc",
+            "type": "array"
+          },
+          "hook": {
+            "description": "The supplied opening line, preserved exactly.",
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Hook",
+            "type": "string"
+          },
+          "script": {
+            "description": "Voiceover words only, written for the requested length.",
+            "maxLength": 1800,
+            "minLength": 40,
+            "title": "Spoken script",
+            "type": "string"
+          },
+          "visual_pairing": {
+            "items": {
+              "description": "Optional visual suggestion kept separate from spoken copy.",
+              "maxLength": 350,
+              "minLength": 8,
+              "title": "Visual pairing",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 2,
+            "title": "Visual pairing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hook",
+          "script",
+          "emotional_arc",
+          "delivery_notes",
+          "visual_pairing",
+          "compliance_notes"
+        ],
+        "title": "UGC Scriptwriter provider result",
+        "type": "object"
+      },
       "output_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1305,6 +1875,254 @@ export const HOSTED_WORKER_SKILL_ROWS = [
         "type": "object"
       },
       "kind": "worker-native",
+      "model_output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "content_system": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "cadence": {
+                  "description": "Suggested cadence, explicitly framed as a plan.",
+                  "maxLength": 160,
+                  "minLength": 3,
+                  "title": "Cadence",
+                  "type": "string"
+                },
+                "owner": {
+                  "description": "Suggested owner.",
+                  "maxLength": 120,
+                  "minLength": 3,
+                  "title": "Owner",
+                  "type": "string"
+                },
+                "trigger": {
+                  "description": "Moment or prompt that can generate content.",
+                  "maxLength": 350,
+                  "minLength": 8,
+                  "title": "Trigger",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Content type.",
+                  "enum": [
+                    "organic",
+                    "incentivized",
+                    "creator",
+                    "review"
+                  ],
+                  "title": "UGC type"
+                },
+                "use": {
+                  "description": "How the content is used.",
+                  "maxLength": 350,
+                  "minLength": 8,
+                  "title": "Use",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "trigger",
+                "use",
+                "owner",
+                "cadence"
+              ],
+              "title": "UGC system item",
+              "type": "object"
+            },
+            "maxItems": 7,
+            "minItems": 1,
+            "title": "Content system",
+            "type": "array"
+          },
+          "creator_brief": {
+            "additionalProperties": false,
+            "properties": {
+              "deliverables": {
+                "items": {
+                  "description": "Requested content deliverable.",
+                  "maxLength": 280,
+                  "minLength": 8,
+                  "title": "Deliverable",
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "minItems": 1,
+                "title": "Deliverables",
+                "type": "array"
+              },
+              "do": {
+                "items": {
+                  "description": "Include this.",
+                  "maxLength": 280,
+                  "minLength": 8,
+                  "title": "Do",
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "minItems": 1,
+                "title": "Do",
+                "type": "array"
+              },
+              "dont": {
+                "items": {
+                  "description": "Avoid this.",
+                  "maxLength": 280,
+                  "minLength": 8,
+                  "title": "Do not",
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "minItems": 1,
+                "title": "Do not",
+                "type": "array"
+              },
+              "hook_options": {
+                "items": {
+                  "description": "A creator hook grounded in supplied facts.",
+                  "maxLength": 250,
+                  "minLength": 8,
+                  "title": "Hook option",
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "title": "Hook options",
+                "type": "array"
+              },
+              "key_message": {
+                "description": "One message the creator must communicate.",
+                "maxLength": 500,
+                "minLength": 8,
+                "title": "Key message",
+                "type": "string"
+              },
+              "usage_rights_prompt": {
+                "description": "Plain-language rights question for the brief/contract.",
+                "maxLength": 500,
+                "minLength": 8,
+                "title": "Usage rights prompt",
+                "type": "string"
+              }
+            },
+            "required": [
+              "hook_options",
+              "key_message",
+              "do",
+              "dont",
+              "deliverables",
+              "usage_rights_prompt"
+            ],
+            "title": "Creator brief",
+            "type": "object"
+          },
+          "next_14_days": {
+            "items": {
+              "description": "A concrete next action for the next 14 days.",
+              "maxLength": 350,
+              "minLength": 8,
+              "title": "Next action",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 3,
+            "title": "Next 14 days",
+            "type": "array"
+          },
+          "paid_ad_plan": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "disclosure": {
+                  "description": "Disclosure reminder.",
+                  "maxLength": 300,
+                  "minLength": 8,
+                  "title": "Disclosure",
+                  "type": "string"
+                },
+                "format": {
+                  "description": "UGC ad format.",
+                  "maxLength": 160,
+                  "minLength": 3,
+                  "title": "Format",
+                  "type": "string"
+                },
+                "hook_test": {
+                  "description": "A testable hook variation.",
+                  "maxLength": 300,
+                  "minLength": 8,
+                  "title": "Hook test",
+                  "type": "string"
+                },
+                "proof_requirement": {
+                  "description": "What must be visibly or verbally supported.",
+                  "maxLength": 400,
+                  "minLength": 8,
+                  "title": "Proof requirement",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "format",
+                "hook_test",
+                "proof_requirement",
+                "disclosure"
+              ],
+              "title": "Paid UGC plan",
+              "type": "object"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Paid ad plan",
+            "type": "array"
+          },
+          "review_plan": {
+            "items": {
+              "description": "A review-generation or review-hygiene step.",
+              "maxLength": 400,
+              "minLength": 8,
+              "title": "Review plan step",
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Review plan",
+            "type": "array"
+          },
+          "rights_and_compliance": {
+            "items": {
+              "description": "Rights, disclosure, or legal review point.",
+              "maxLength": 450,
+              "minLength": 8,
+              "title": "Rights and compliance",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Rights and compliance",
+            "type": "array"
+          },
+          "strategy_summary": {
+            "description": "Overall UGC system summary.",
+            "maxLength": 1000,
+            "minLength": 8,
+            "title": "Strategy summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "strategy_summary",
+          "content_system",
+          "creator_brief",
+          "paid_ad_plan",
+          "review_plan",
+          "rights_and_compliance",
+          "next_14_days"
+        ],
+        "title": "UGC Strategy Planner provider result",
+        "type": "object"
+      },
       "output_schema": {
         "additionalProperties": false,
         "properties": {

@@ -535,6 +535,210 @@
       "type": "object"
     },
     "kind": "worker-native",
+    "model_output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_findings": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "asset_or_concept": {
+                "description": "Asset or concept identifier.",
+                "maxLength": 160,
+                "minLength": 3,
+                "title": "Asset or concept",
+                "type": "string"
+              },
+              "fatigue_signal": {
+                "description": "Only infer fatigue from time-series evidence.",
+                "enum": [
+                  "none",
+                  "possible",
+                  "strong",
+                  "unknown"
+                ],
+                "title": "Fatigue signal"
+              },
+              "recommendation": {
+                "description": "A bounded next action.",
+                "maxLength": 500,
+                "minLength": 8,
+                "title": "Recommendation",
+                "type": "string"
+              },
+              "risks": {
+                "items": {
+                  "description": "Creative, policy, accessibility, or message-match risk.",
+                  "maxLength": 360,
+                  "minLength": 3,
+                  "title": "Risk",
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 0,
+                "title": "Risks",
+                "type": "array"
+              },
+              "strengths": {
+                "items": {
+                  "description": "Evidence-grounded creative strength.",
+                  "maxLength": 360,
+                  "minLength": 3,
+                  "title": "Strength",
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "minItems": 0,
+                "title": "Strengths",
+                "type": "array"
+              }
+            },
+            "required": [
+              "asset_or_concept",
+              "strengths",
+              "risks",
+              "fatigue_signal",
+              "recommendation"
+            ],
+            "title": "Creative finding",
+            "type": "object"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Asset findings",
+          "type": "array"
+        },
+        "evidence_coverage": {
+          "description": "Completeness of asset and performance evidence.",
+          "enum": [
+            "complete",
+            "partial",
+            "limited"
+          ],
+          "title": "Evidence coverage"
+        },
+        "experiment_briefs": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "description": "Audience for the test.",
+                "maxLength": 300,
+                "minLength": 3,
+                "title": "Audience",
+                "type": "string"
+              },
+              "evidence_needed": {
+                "description": "What must be measured.",
+                "maxLength": 400,
+                "minLength": 3,
+                "title": "Evidence needed",
+                "type": "string"
+              },
+              "format": {
+                "description": "Recommended format.",
+                "maxLength": 160,
+                "minLength": 3,
+                "title": "Format",
+                "type": "string"
+              },
+              "hypothesis": {
+                "description": "What the next test should learn.",
+                "maxLength": 500,
+                "minLength": 8,
+                "title": "Hypothesis",
+                "type": "string"
+              },
+              "success_metric": {
+                "description": "Primary signal.",
+                "maxLength": 200,
+                "minLength": 3,
+                "title": "Success metric",
+                "type": "string"
+              },
+              "variable": {
+                "description": "The single main variable.",
+                "maxLength": 160,
+                "minLength": 3,
+                "title": "Variable",
+                "type": "string"
+              }
+            },
+            "required": [
+              "hypothesis",
+              "variable",
+              "audience",
+              "format",
+              "success_metric",
+              "evidence_needed"
+            ],
+            "title": "Experiment brief",
+            "type": "object"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Experiment briefs",
+          "type": "array"
+        },
+        "limitations": {
+          "items": {
+            "description": "Boundary on the audit.",
+            "maxLength": 350,
+            "minLength": 8,
+            "title": "Limitation",
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "policy_and_accessibility_checks": {
+          "items": {
+            "description": "A check that needs human verification.",
+            "maxLength": 350,
+            "minLength": 8,
+            "title": "Policy or accessibility check",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Policy and accessibility checks",
+          "type": "array"
+        },
+        "production_priorities": {
+          "items": {
+            "description": "Next creative production priority.",
+            "maxLength": 450,
+            "minLength": 8,
+            "title": "Production priority",
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Production priorities",
+          "type": "array"
+        },
+        "summary": {
+          "description": "Overall creative read.",
+          "maxLength": 800,
+          "minLength": 8,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "evidence_coverage",
+        "asset_findings",
+        "experiment_briefs",
+        "production_priorities",
+        "policy_and_accessibility_checks",
+        "limitations"
+      ],
+      "title": "Meta Creative Audit provider result",
+      "type": "object"
+    },
     "output_schema": {
       "additionalProperties": false,
       "properties": {

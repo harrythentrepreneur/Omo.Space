@@ -9,6 +9,7 @@ No command in the Markdown is executed and no credential value is read.
 from __future__ import annotations
 
 import argparse
+import copy
 import importlib
 import importlib.util
 import json
@@ -578,6 +579,7 @@ def build_hosted_profile(
         })
     else:
         runtime["executor"] = build_worker_executor(profile)
+        runtime["model_output_schema"] = copy.deepcopy(profile["live"]["model_output_schema"])
     native_runtime_label = (
         "native-builder"
         if profile.get("execution_kind") == "skill_builder"

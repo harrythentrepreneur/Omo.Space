@@ -280,7 +280,15 @@ const sandbox = {
       if (workerNativeMode === 'invalid_schema') {
         return llmResponse(200, { choices: [{ message: { content: '{"status":"completed"}' } }] });
       }
-      return llmResponse(200, { choices: [{ message: { content: JSON.stringify(facebookCases.happy_path.output) } }] });
+      const modelOutput = { ...facebookCases.happy_path.output };
+      delete modelOutput.run_id;
+      delete modelOutput.status;
+      delete modelOutput.workflow_version;
+      delete modelOutput.usage;
+      return llmResponse(200, {
+        choices: [{ message: { content: JSON.stringify(modelOutput) } }],
+        usage: { prompt_tokens: 820, completion_tokens: 640 },
+      });
     }
     const user = body.messages.find((m) => m.role === 'user').content;
     let route = '/api/ugc-script-studio';
@@ -2085,7 +2093,7 @@ const facebookEvilOriginBody = await facebookEvilOriginFailure.json();
 check('hosted registry: evil Worker provider origin fails configuration before fetch or auth emission', facebookEvilOriginFailure.status === 503 && facebookEvilOriginBody.error === 'hosted_worker_provider_base_url_invalid' && facebookCalls.length === 0 && llmCalls.length === facebookProviderCallsBeforeEvil);
 const facebookStartResponse = await worker.fetch(mkReq('POST', '/api/run', facebookInput, facebookHeaders), facebookEnv);
 const facebookStart = await facebookStartResponse.json();
-check('hosted registry: Facebook Ads executes Worker-native synchronously at the server-owned $0.10 quote', facebookStartResponse.status === 200 && facebookStart.status === 'completed' && facebookStart.output.ads.length === 3 && facebookStart.cost_usd === 0.1 && facebookStart.balance === 4.9);
+check('hosted registry: Facebook Ads executes Worker-native synchronously at the server-owned $0.10 quote', facebookStartResponse.status === 200 && facebookStart.status === 'completed' && facebookStart.output.ads.length === 3 && facebookStart.output.run_id === facebookStart.run_id && facebookStart.output.status === 'completed' && facebookStart.output.workflow_version === 'facebook-ads-copywriter@0.1.0' && facebookStart.output.usage.provider === 'opencode-go' && facebookStart.output.usage.prompt_tokens === 820 && facebookStart.output.usage.completion_tokens === 640 && facebookStart.cost_usd === 0.1 && facebookStart.balance === 4.9);
 check('hosted registry: Worker-native path calls the server-owned LLM provider directly without Modal', facebookCalls.length === 0 && llmCalls.at(-1).messages[0].content.includes('senior Facebook ads copywriter') && !llmCalls.at(-1).messages[1].content.includes('MALICIOUS'));
 const badFacebook = await worker.fetch(mkReq('POST', '/api/run', { slug: 'facebook-ads-copywriter', input: { ...facebookInput.input, objective: 'awareness' } }, { ...facebookHeaders, 'Idempotency-Key': 'facebook-router-bad1' }), facebookEnv);
 const facebookAfterBad = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook', {}), env)).json();
