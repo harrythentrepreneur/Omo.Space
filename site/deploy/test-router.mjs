@@ -115,6 +115,8 @@ const facebookStatuses = new Map();
 const facebookCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'tests', 'cases.json'), 'utf8'));
 const japaneseCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'japanese-style-story-video', 'tests', 'cases.json'), 'utf8'));
 let workerNativeMode = 'valid';
+let workerNativeProviderGate = null;
+let releaseWorkerNativeProvider = null;
 const neonSqlCalls = [];
 let neonPoolShouldThrow = false;
 let neonInfoSchemaTableExists = false;
@@ -280,6 +282,9 @@ const sandbox = {
       if (workerNativeMode === 'invalid_schema') {
         return llmResponse(200, { choices: [{ message: { content: '{"status":"completed"}' } }] });
       }
+      if (workerNativeMode === 'late_success_after_refund' && workerNativeProviderGate) {
+        await workerNativeProviderGate;
+      }
       const modelOutput = { ...facebookCases.happy_path.output };
       delete modelOutput.run_id;
       delete modelOutput.status;
@@ -349,7 +354,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -2128,6 +2133,31 @@ const providerFailure = await worker.fetch(mkReq('POST', '/api/run', facebookInp
 const providerFailureBody = await providerFailure.json();
 const facebookProviderAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_provider', {}), env)).json();
 check('hosted registry: Worker-native provider failure refunds exactly once', providerFailure.status === 502 && providerFailureBody.reason === 'worker_native_provider_error' && facebookProviderAfter.balance_usd === 5);
+
+workerNativeMode = 'late_success_after_refund';
+workerNativeProviderGate = new Promise((resolve) => { releaseWorkerNativeProvider = resolve; });
+const facebookLateMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_late', {}), env)).json();
+const facebookLateHeaders = { 'X-API-Key': facebookLateMe.api_key, 'Idempotency-Key': 'facebook-router-late-success' };
+const facebookLatePromise = worker.fetch(mkReq('POST', '/api/run', facebookInput, facebookLateHeaders), facebookEnv);
+let facebookLateRow = null;
+for (let attempt = 0; attempt < 100; attempt += 1) {
+  facebookLateRow = Array.from(workerTest.mockRunRequests.values()).find((row) => row.idempotency_key === 'facebook-router-late-success') || null;
+  if (facebookLateRow && facebookLateRow.state === 'running') break;
+  await new Promise((resolve) => setImmediate(resolve));
+}
+check('hosted registry: Worker-native race fixture reaches a running provider call', facebookLateRow && facebookLateRow.state === 'running');
+facebookLateRow.updated_at = new Date(Date.now() - 61 * 1000).toISOString();
+const facebookBeforeTimeout = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_late', {}), { ...env, RUN_RESERVATION_TTL_SECONDS: '60' })).json();
+check('hosted registry: Worker-native run is not stale before provider timeout plus safety buffer', facebookLateRow.state === 'running' && facebookBeforeTimeout.balance_usd === 4.9);
+facebookLateRow.updated_at = new Date(Date.now() - 151 * 1000).toISOString();
+const facebookAfterTimeout = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_late', {}), { ...env, RUN_RESERVATION_TTL_SECONDS: '60' })).json();
+check('hosted registry: Worker-native run refunds after provider timeout plus safety buffer', facebookLateRow.state === 'refunded' && facebookAfterTimeout.balance_usd === 5);
+releaseWorkerNativeProvider();
+const facebookLateResponse = await facebookLatePromise;
+const facebookLateBody = await facebookLateResponse.json();
+check('hosted registry: late Worker-native success returns the authoritative refunded terminal result', facebookLateResponse.status === 409 && facebookLateBody.state === 'refunded' && facebookLateBody.error === 'stale_reservation_refunded' && !('output' in facebookLateBody));
+workerNativeProviderGate = null;
+releaseWorkerNativeProvider = null;
 workerNativeMode = 'valid';
 
 // ── Japanese generated executor → owner-scoped Modal async run ───────────

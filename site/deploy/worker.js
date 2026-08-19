@@ -975,7 +975,15 @@ async function dispatchHostedWorkerRun(env, hosted, context) {
     cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
     auth: authMethod, output: publicOutput,
   };
-  await finishRunRequest(env, runId, 'succeeded', result, 200);
+  const ownsSuccess = await finishRunRequest(env, runId, 'succeeded', result, 200);
+  if (!ownsSuccess) {
+    const terminal = await getRunRequestById(env, runId);
+    if (terminal) {
+      const authoritative = terminalRunResult(terminal);
+      return json(authoritative.body, authoritative.status, cors());
+    }
+    return json({ ok: false, error: 'run_terminal_state_unknown', run_id: runId }, 409, cors());
+  }
   return json(result, 200, cors());
 }
 
@@ -4823,10 +4831,24 @@ async function reconcileStaleReservations(env, userId) {
     ).slice(0, 20);
   }
   for (const row of rows) {
-    const longRunningHosted = row.slug === DEMELLO_SLUG || HOSTED_MODAL_SKILLS.has(row.slug);
-    if (longRunningHosted && row.updated_at >= demelloCutoff) continue;
+    let staleCutoff = cutoff;
+    if (HOSTED_WORKER_SKILLS.has(row.slug)) {
+      const hostedWorker = HOSTED_WORKER_SKILLS.get(row.slug);
+      const providerTimeoutSeconds = boundedInt(
+        hostedWorker && hostedWorker.executor && hostedWorker.executor.timeout_seconds,
+        1,
+        120,
+        120
+      );
+      const workerTtlSeconds = Math.max(ttlSeconds, providerTimeoutSeconds + 30);
+      staleCutoff = new Date(Date.now() - workerTtlSeconds * 1000).toISOString();
+      if (row.updated_at >= staleCutoff) continue;
+    } else if (row.slug === DEMELLO_SLUG || HOSTED_MODAL_SKILLS.has(row.slug)) {
+      staleCutoff = demelloCutoff;
+      if (row.updated_at >= staleCutoff) continue;
+    }
     const response = { error: 'stale_reservation_refunded', run_id: row.run_id, state: 'refunded' };
-    const claimed = await claimStaleRunRefund(env, row.run_id, longRunningHosted ? demelloCutoff : cutoff, response);
+    const claimed = await claimStaleRunRefund(env, row.run_id, staleCutoff, response);
     if (claimed && await runDebitExists(env, row.run_id)) {
       await refundRunCredits(env, userId, Number(row.cost_cents), row.run_id);
     }
