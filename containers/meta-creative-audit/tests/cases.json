@@ -1,0 +1,109 @@
+{
+  "happy_path": {
+    "input": {
+      "audience_and_placement": "US teachers; Facebook Feed and Reels.",
+      "constraints": "Do not use diagnosis-based targeting or guaranteed learning claims.",
+      "creative_inventory": "asset,concept,hook,format,spend,ctr,purchases\nA,hyper-fixation,teacher selfie,9:16 video,180,1.8%,6\nB,plain proof,worksheet screenshot,1:1 image,120,0.7%,1",
+      "performance_window": "2026-08-01 to 2026-08-14; compare within the same ad set and account timezone.",
+      "platform": "both",
+      "product_or_offer": "A phonics SaaS that turns a chosen student interest into a decodable reader and matching practice materials."
+    },
+    "output": {
+      "asset_findings": [
+        {
+          "asset_or_concept": "A — hyper-fixation teacher selfie",
+          "fatigue_signal": "unknown",
+          "recommendation": "Use this as the control for one focused creative test while checking message match and downstream conversion quality.",
+          "risks": [
+            "The supplied evidence does not include comments, landing-page match, or time-series fatigue data."
+          ],
+          "strengths": [
+            "The hook and format are described clearly enough for a directional comparison."
+          ]
+        },
+        {
+          "asset_or_concept": "B — plain proof worksheet screenshot",
+          "fatigue_signal": "unknown",
+          "recommendation": "Test a native vertical proof treatment before deciding whether the underlying proof is weak.",
+          "risks": [
+            "The supplied CTR and purchase row are weak, and the image may be less native to the placement."
+          ],
+          "strengths": [
+            "The product proof is concrete in the description."
+          ]
+        }
+      ],
+      "evidence_coverage": "partial",
+      "experiment_briefs": [
+        {
+          "audience": "US teachers from the supplied ad set",
+          "evidence_needed": "Same audience, placement, budget window, and a recorded comparison period.",
+          "format": "9:16 native-style video or motion proof",
+          "hypothesis": "A native vertical proof treatment will improve attention without changing the core promise.",
+          "success_metric": "Outbound CTR followed by purchase conversion quality",
+          "variable": "creative format and opening frame"
+        }
+      ],
+      "limitations": [
+        "Two rows are not enough to establish a universal winner or fatigue cadence."
+      ],
+      "policy_and_accessibility_checks": [
+        "Check captions, contrast, readable UI, and claims against the destination page before launch."
+      ],
+      "production_priorities": [
+        "Create one new vertical proof variant that keeps the product visible in the first seconds."
+      ],
+      "run_id": "run-fixture-meta-creative-audit",
+      "status": "completed",
+      "summary": "The teacher-led hyper-fixation video is the stronger directional concept in the supplied rows; the image needs a clearer test rather than an automatic kill decision.",
+      "usage": {
+        "completion_tokens": 1500,
+        "estimated_cost_usd": 0.0007,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 900,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "meta-creative-audit@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "short-inventory",
+      "input": {
+        "audience_and_placement": "US teachers; Facebook Feed and Reels.",
+        "constraints": "Do not use diagnosis-based targeting or guaranteed learning claims.",
+        "creative_inventory": "too short",
+        "performance_window": "2026-08-01 to 2026-08-14; compare within the same ad set and account timezone.",
+        "platform": "both",
+        "product_or_offer": "A phonics SaaS that turns a chosen student interest into a decodable reader and matching practice materials."
+      },
+      "reason": "creative_inventory needs enough evidence"
+    },
+    {
+      "id": "unsupported-platform",
+      "input": {
+        "audience_and_placement": "US teachers; Facebook Feed and Reels.",
+        "constraints": "Do not use diagnosis-based targeting or guaranteed learning claims.",
+        "creative_inventory": "asset,concept,hook,format,spend,ctr,purchases\nA,hyper-fixation,teacher selfie,9:16 video,180,1.8%,6\nB,plain proof,worksheet screenshot,1:1 image,120,0.7%,1",
+        "performance_window": "2026-08-01 to 2026-08-14; compare within the same ad set and account timezone.",
+        "platform": "tiktok",
+        "product_or_offer": "A phonics SaaS that turns a chosen student interest into a decodable reader and matching practice materials."
+      },
+      "reason": "platform is a reviewed enum"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "audience_and_placement": "US teachers; Facebook Feed and Reels.",
+        "constraints": "Do not use diagnosis-based targeting or guaranteed learning claims.",
+        "creative_inventory": "asset,concept,hook,format,spend,ctr,purchases\nA,hyper-fixation,teacher selfie,9:16 video,180,1.8%,6\nB,plain proof,worksheet screenshot,1:1 image,120,0.7%,1",
+        "performance_window": "2026-08-01 to 2026-08-14; compare within the same ad set and account timezone.",
+        "platform": "both",
+        "product_or_offer": "A phonics SaaS that turns a chosen student interest into a decodable reader and matching practice materials.",
+        "secret": "x"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

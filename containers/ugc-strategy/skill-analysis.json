@@ -1,0 +1,36 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "One DeepSeek V4 Flash UGC Strategy Planner call with a 2800-token output ceiling",
+    "Modal CPU, request latency, and schema-invalid provider failures",
+    "The repository $0.10 minimum keeps this bounded single-call workflow chargeable"
+  ],
+  "description": "Build a User Generated Content (UGC) strategy — getting customers to create content, review generation, UGC briefs for creators, social campaigns, contest mechanics, legal rights management, and repurposing UGC in paid ads. Use when the user says \"UGC\", \"user generated content\", \"get customers to create content\", \"customer content\", \"UGC ads\", \"UGC creators\", \"organic UGC\", \"UGC strategy\", \"how do we get customers to post about us\", \"brand hashtag\", \"UGC brief\", \"influencer UGC\", \"UGC for ads\", \"customer photos and videos\", or wants to use real customer content to build trust and reduce content production costs.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "ugc-strategy",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "ugc-strategy",
+      "operation": "chat.completions.strict_json",
+      "prompt": "run.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "ugc-strategy",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "4db97b01b4378a5ebdf39015b9cf42c7ded4cfba82f9d91b127dff040658bf86"
+  },
+  "unresolved": []
+}

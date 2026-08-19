@@ -115,6 +115,8 @@ const facebookStatuses = new Map();
 const facebookCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'tests', 'cases.json'), 'utf8'));
 const japaneseCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'japanese-style-story-video', 'tests', 'cases.json'), 'utf8'));
 let workerNativeMode = 'valid';
+let workerNativeProviderGate = null;
+let releaseWorkerNativeProvider = null;
 const neonSqlCalls = [];
 let neonPoolShouldThrow = false;
 let neonInfoSchemaTableExists = false;
@@ -280,7 +282,18 @@ const sandbox = {
       if (workerNativeMode === 'invalid_schema') {
         return llmResponse(200, { choices: [{ message: { content: '{"status":"completed"}' } }] });
       }
-      return llmResponse(200, { choices: [{ message: { content: JSON.stringify(facebookCases.happy_path.output) } }] });
+      if (workerNativeMode === 'late_success_after_refund' && workerNativeProviderGate) {
+        await workerNativeProviderGate;
+      }
+      const modelOutput = { ...facebookCases.happy_path.output };
+      delete modelOutput.run_id;
+      delete modelOutput.status;
+      delete modelOutput.workflow_version;
+      delete modelOutput.usage;
+      return llmResponse(200, {
+        choices: [{ message: { content: JSON.stringify(modelOutput) } }],
+        usage: { prompt_tokens: 820, completion_tokens: 640 },
+      });
     }
     const user = body.messages.find((m) => m.role === 'user').content;
     let route = '/api/ugc-script-studio';
@@ -341,7 +354,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -2085,7 +2098,7 @@ const facebookEvilOriginBody = await facebookEvilOriginFailure.json();
 check('hosted registry: evil Worker provider origin fails configuration before fetch or auth emission', facebookEvilOriginFailure.status === 503 && facebookEvilOriginBody.error === 'hosted_worker_provider_base_url_invalid' && facebookCalls.length === 0 && llmCalls.length === facebookProviderCallsBeforeEvil);
 const facebookStartResponse = await worker.fetch(mkReq('POST', '/api/run', facebookInput, facebookHeaders), facebookEnv);
 const facebookStart = await facebookStartResponse.json();
-check('hosted registry: Facebook Ads executes Worker-native synchronously at the server-owned $0.10 quote', facebookStartResponse.status === 200 && facebookStart.status === 'completed' && facebookStart.output.ads.length === 3 && facebookStart.cost_usd === 0.1 && facebookStart.balance === 4.9);
+check('hosted registry: Facebook Ads executes Worker-native synchronously at the server-owned $0.10 quote', facebookStartResponse.status === 200 && facebookStart.status === 'completed' && facebookStart.output.ads.length === 3 && facebookStart.output.run_id === facebookStart.run_id && facebookStart.output.status === 'completed' && facebookStart.output.workflow_version === 'facebook-ads-copywriter@0.1.0' && facebookStart.output.usage.provider === 'opencode-go' && facebookStart.output.usage.prompt_tokens === 820 && facebookStart.output.usage.completion_tokens === 640 && facebookStart.cost_usd === 0.1 && facebookStart.balance === 4.9);
 check('hosted registry: Worker-native path calls the server-owned LLM provider directly without Modal', facebookCalls.length === 0 && llmCalls.at(-1).messages[0].content.includes('senior Facebook ads copywriter') && !llmCalls.at(-1).messages[1].content.includes('MALICIOUS'));
 const badFacebook = await worker.fetch(mkReq('POST', '/api/run', { slug: 'facebook-ads-copywriter', input: { ...facebookInput.input, objective: 'awareness' } }, { ...facebookHeaders, 'Idempotency-Key': 'facebook-router-bad1' }), facebookEnv);
 const facebookAfterBad = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook', {}), env)).json();
@@ -2120,6 +2133,31 @@ const providerFailure = await worker.fetch(mkReq('POST', '/api/run', facebookInp
 const providerFailureBody = await providerFailure.json();
 const facebookProviderAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_provider', {}), env)).json();
 check('hosted registry: Worker-native provider failure refunds exactly once', providerFailure.status === 502 && providerFailureBody.reason === 'worker_native_provider_error' && facebookProviderAfter.balance_usd === 5);
+
+workerNativeMode = 'late_success_after_refund';
+workerNativeProviderGate = new Promise((resolve) => { releaseWorkerNativeProvider = resolve; });
+const facebookLateMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_late', {}), env)).json();
+const facebookLateHeaders = { 'X-API-Key': facebookLateMe.api_key, 'Idempotency-Key': 'facebook-router-late-success' };
+const facebookLatePromise = worker.fetch(mkReq('POST', '/api/run', facebookInput, facebookLateHeaders), facebookEnv);
+let facebookLateRow = null;
+for (let attempt = 0; attempt < 100; attempt += 1) {
+  facebookLateRow = Array.from(workerTest.mockRunRequests.values()).find((row) => row.idempotency_key === 'facebook-router-late-success') || null;
+  if (facebookLateRow && facebookLateRow.state === 'running') break;
+  await new Promise((resolve) => setImmediate(resolve));
+}
+check('hosted registry: Worker-native race fixture reaches a running provider call', facebookLateRow && facebookLateRow.state === 'running');
+facebookLateRow.updated_at = new Date(Date.now() - 61 * 1000).toISOString();
+const facebookBeforeTimeout = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_late', {}), { ...env, RUN_RESERVATION_TTL_SECONDS: '60' })).json();
+check('hosted registry: Worker-native run is not stale before provider timeout plus safety buffer', facebookLateRow.state === 'running' && facebookBeforeTimeout.balance_usd === 4.9);
+facebookLateRow.updated_at = new Date(Date.now() - 151 * 1000).toISOString();
+const facebookAfterTimeout = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_late', {}), { ...env, RUN_RESERVATION_TTL_SECONDS: '60' })).json();
+check('hosted registry: Worker-native run refunds after provider timeout plus safety buffer', facebookLateRow.state === 'refunded' && facebookAfterTimeout.balance_usd === 5);
+releaseWorkerNativeProvider();
+const facebookLateResponse = await facebookLatePromise;
+const facebookLateBody = await facebookLateResponse.json();
+check('hosted registry: late Worker-native success returns the authoritative refunded terminal result', facebookLateResponse.status === 409 && facebookLateBody.state === 'refunded' && facebookLateBody.error === 'stale_reservation_refunded' && !('output' in facebookLateBody));
+workerNativeProviderGate = null;
+releaseWorkerNativeProvider = null;
 workerNativeMode = 'valid';
 
 // ── Japanese generated executor → owner-scoped Modal async run ───────────

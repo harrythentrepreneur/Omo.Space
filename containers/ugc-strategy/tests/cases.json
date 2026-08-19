@@ -1,0 +1,160 @@
+{
+  "happy_path": {
+    "input": {
+      "audience": "Primary-school teachers who want more engaging phonics practice.",
+      "budget": "mixed",
+      "channels": [
+        "instagram",
+        "tiktok",
+        "reviews",
+        "email"
+      ],
+      "constraints": "Do not ask for positive reviews only; paid usage rights and teacher privacy need explicit review.",
+      "current_ugc_state": "A few teacher-led product demos exist; there is no documented rights library or creator brief yet.",
+      "goals": "all",
+      "offer_or_use_case": "A teacher chooses a phonics focus and student interest, then creates a decodable reader and matching practice materials.",
+      "product_name": "PhonicsMaker"
+    },
+    "output": {
+      "content_system": [
+        {
+          "cadence": "Review new submissions weekly.",
+          "owner": "Community or founder",
+          "trigger": "A teacher finishes a useful reader or practice set for a real class need.",
+          "type": "organic",
+          "use": "Invite a short, optional workflow story with the product proof visible."
+        },
+        {
+          "cadence": "Brief a small batch before expanding.",
+          "owner": "Creative lead",
+          "trigger": "A teacher agrees to a brief with a defined product proof beat.",
+          "type": "creator",
+          "use": "Create native vertical clips for paid-social testing."
+        },
+        {
+          "cadence": "Time the request to the verified use moment.",
+          "owner": "Lifecycle owner",
+          "trigger": "A user reaches a meaningful product-use moment.",
+          "type": "review",
+          "use": "Ask every eligible user for an honest review without steering sentiment."
+        }
+      ],
+      "creator_brief": {
+        "deliverables": [
+          "One 20–30 second vertical clip",
+          "Raw take plus captions-ready version",
+          "Written permission scope for paid usage"
+        ],
+        "do": [
+          "Show the real product flow and name the phonics focus.",
+          "Speak from a real teacher experience and keep the student anonymous."
+        ],
+        "dont": [
+          "Do not promise learning gains or use diagnosis-based language.",
+          "Do not imply a testimonial or review is independent if it was incentivized."
+        ],
+        "hook_options": [
+          "I used the topic they already cared about to start phonics practice.",
+          "Here is the small change that made this reading task easier to introduce.",
+          "I wanted the practice to feel connected to the student, not generic."
+        ],
+        "key_message": "Show how the selected phonics focus, interest, reader, and practice materials connect in one real workflow.",
+        "usage_rights_prompt": "Confirm the platforms, territory, duration, paid-ad use, whitelisting, and whether the creator may withdraw permission."
+      },
+      "next_14_days": [
+        "Write and approve one creator brief with rights language.",
+        "Collect three permissioned teacher workflow stories.",
+        "Cut one proof-led vertical test from an approved story.",
+        "Review the first assets for claims, disclosure, accessibility, and product visibility."
+      ],
+      "paid_ad_plan": [
+        {
+          "disclosure": "Add the required paid or sponsored disclosure and confirm the landing-page claim match.",
+          "format": "Teacher talking-head with product proof insert",
+          "hook_test": "Test three hooks while holding the proof section constant.",
+          "proof_requirement": "Show the selected phonics focus, generated reader, and matching practice materials."
+        }
+      ],
+      "review_plan": [
+        "Ask for an honest review after a documented meaningful-use moment.",
+        "Keep positive and negative feedback eligible; do not condition incentives on sentiment."
+      ],
+      "rights_and_compliance": [
+        "Record explicit written permission for paid usage separately from organic repost permission.",
+        "Have a human review child privacy, teacher privacy, disclosure, and any education-performance claim."
+      ],
+      "run_id": "run-fixture-ugc-strategy",
+      "status": "completed",
+      "strategy_summary": "Start with real teacher workflow stories and product-proof clips, then build a small rights-cleared library that can be reused in paid social and review surfaces. Keep claims tied to what each teacher actually experienced.",
+      "usage": {
+        "completion_tokens": 1500,
+        "estimated_cost_usd": 0.0007,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 900,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "ugc-strategy@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-audience",
+      "input": {
+        "audience": "",
+        "budget": "mixed",
+        "channels": [
+          "instagram",
+          "tiktok",
+          "reviews",
+          "email"
+        ],
+        "constraints": "Do not ask for positive reviews only; paid usage rights and teacher privacy need explicit review.",
+        "current_ugc_state": "A few teacher-led product demos exist; there is no documented rights library or creator brief yet.",
+        "goals": "all",
+        "offer_or_use_case": "A teacher chooses a phonics focus and student interest, then creates a decodable reader and matching practice materials.",
+        "product_name": "PhonicsMaker"
+      },
+      "reason": "audience is required"
+    },
+    {
+      "id": "unsupported-goal",
+      "input": {
+        "audience": "Primary-school teachers who want more engaging phonics practice.",
+        "budget": "mixed",
+        "channels": [
+          "instagram",
+          "tiktok",
+          "reviews",
+          "email"
+        ],
+        "constraints": "Do not ask for positive reviews only; paid usage rights and teacher privacy need explicit review.",
+        "current_ugc_state": "A few teacher-led product demos exist; there is no documented rights library or creator brief yet.",
+        "goals": "virality",
+        "offer_or_use_case": "A teacher chooses a phonics focus and student interest, then creates a decodable reader and matching practice materials.",
+        "product_name": "PhonicsMaker"
+      },
+      "reason": "goals is a reviewed enum"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "audience": "Primary-school teachers who want more engaging phonics practice.",
+        "budget": "mixed",
+        "channels": [
+          "instagram",
+          "tiktok",
+          "reviews",
+          "email"
+        ],
+        "constraints": "Do not ask for positive reviews only; paid usage rights and teacher privacy need explicit review.",
+        "current_ugc_state": "A few teacher-led product demos exist; there is no documented rights library or creator brief yet.",
+        "goals": "all",
+        "offer_or_use_case": "A teacher chooses a phonics focus and student interest, then creates a decodable reader and matching practice materials.",
+        "product_name": "PhonicsMaker",
+        "send_dm": true
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

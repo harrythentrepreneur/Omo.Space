@@ -1,0 +1,37 @@
+{
+  "allowlist": [
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:17e156dddfbf41d78f136fd32eced5db7e66a96a403f8038d678d6ffc0e289b8",
+  "decision": "approved",
+  "execution_kind": "single_llm",
+  "generated": {
+    "dependencies": [],
+    "files": [],
+    "honest_limits": [],
+    "packages": [],
+    "policy": [],
+    "resources": {},
+    "runtime_steps": [],
+    "tests": [],
+    "tool_bindings": []
+  },
+  "needs": [],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [],
+  "skill_owned_resources": [],
+  "slug": "ugc-strategy",
+  "source_sha256": "4db97b01b4378a5ebdf39015b9cf42c7ded4cfba82f9d91b127dff040658bf86",
+  "workflow_blockers": []
+}

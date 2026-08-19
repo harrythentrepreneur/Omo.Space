@@ -272,6 +272,7 @@ def test_lightweight_single_llm_defaults_to_worker_native() -> None:
     }
     assert hosted["runtime"]["kind"] == "worker-native"
     assert "default_endpoint" not in hosted["runtime"]
+    assert hosted["runtime"]["model_output_schema"] == profile["live"]["model_output_schema"]
     assert hosted["runtime"]["executor"] == {
         "spec_version": "omo.worker-single-llm/v1",
         "execution_kind": "single_llm",

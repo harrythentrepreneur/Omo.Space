@@ -1,0 +1,101 @@
+{
+  "happy_path": {
+    "input": {
+      "account_context": "Sales objective, AU, AUD, 30-day window, mature account, purchase conversion; goal is diagnose.",
+      "constraints": "Do not suggest changing budgets automatically.",
+      "creative_notes": "Prospecting uses teacher-led product demos; brand-test is a static text-heavy image.",
+      "goal": "diagnose",
+      "metrics_export": "campaign,spend,omni_purchase,omni_purchase_value\nprospecting,412,38,1876\nretargeting,198,52,2210\nbrand-test,150,2,87",
+      "objective": "sales"
+    },
+    "output": {
+      "diagnoses": [
+        "The account has a clear directional winner, but the evidence does not include attribution settings or enough creative detail for a confident causal diagnosis."
+      ],
+      "draft_changes": [
+        "Prepare a human-reviewed test that compares a new creative against the static brand-test concept without changing more than one decision surface."
+      ],
+      "evidence_coverage": "partial",
+      "guardrails": [
+        "Keep any pause, budget, or bid action as a human-reviewed draft until the measurement check passes."
+      ],
+      "missing_inputs": [
+        "Account-level attribution setting and purchase reconciliation with source-of-truth revenue."
+      ],
+      "observations": [
+        {
+          "area": "budget",
+          "confidence": "high",
+          "evidence": "The retargeting row shows spend 198 and omni_purchase_value 2210.",
+          "finding": "Retargeting has the strongest supplied revenue-to-spend relationship in the pasted rows."
+        },
+        {
+          "area": "creative",
+          "confidence": "medium",
+          "evidence": "The notes describe a static text-heavy image and the row shows spend 150 with omni_purchase_value 87.",
+          "finding": "The brand-test row is weak in the supplied window, but creative quality and delivery context are not fully described."
+        }
+      ],
+      "platform_health": "Retargeting is the clearest positive signal, while the static brand test needs review; the supplied window is enough for directional diagnosis but not a universal scaling rule.",
+      "recommendations": [
+        {
+          "next_check": "Reconcile Events Manager, backend purchases, and the exported window.",
+          "owner": "Media buyer",
+          "priority": "high",
+          "rationale": "The audit depends on the supplied omni_purchase fields and does not include account-level measurement configuration.",
+          "recommendation": "Verify purchase-event deduplication and attribution settings before reallocating spend."
+        }
+      ],
+      "run_id": "run-fixture-meta-ads-audit",
+      "status": "completed",
+      "usage": {
+        "completion_tokens": 1500,
+        "estimated_cost_usd": 0.0007,
+        "llm_calls": 1,
+        "model": "deepseek-v4-flash",
+        "prompt_tokens": 900,
+        "provider": "opencode-go"
+      },
+      "workflow_version": "meta-ads-audit@0.1.0"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "missing-metrics",
+      "input": {
+        "account_context": "Sales objective, AU, AUD, 30-day window, mature account, purchase conversion; goal is diagnose.",
+        "constraints": "Do not suggest changing budgets automatically.",
+        "creative_notes": "Prospecting uses teacher-led product demos; brand-test is a static text-heavy image.",
+        "goal": "diagnose",
+        "metrics_export": "too short",
+        "objective": "sales"
+      },
+      "reason": "metrics_export needs enough supplied evidence"
+    },
+    {
+      "id": "unsupported-objective",
+      "input": {
+        "account_context": "Sales objective, AU, AUD, 30-day window, mature account, purchase conversion; goal is diagnose.",
+        "constraints": "Do not suggest changing budgets automatically.",
+        "creative_notes": "Prospecting uses teacher-led product demos; brand-test is a static text-heavy image.",
+        "goal": "diagnose",
+        "metrics_export": "campaign,spend,omni_purchase,omni_purchase_value\nprospecting,412,38,1876\nretargeting,198,52,2210\nbrand-test,150,2,87",
+        "objective": "awareness"
+      },
+      "reason": "objective is a reviewed enum"
+    },
+    {
+      "id": "unknown-field",
+      "input": {
+        "account_context": "Sales objective, AU, AUD, 30-day window, mature account, purchase conversion; goal is diagnose.",
+        "constraints": "Do not suggest changing budgets automatically.",
+        "creative_notes": "Prospecting uses teacher-led product demos; brand-test is a static text-heavy image.",
+        "goal": "diagnose",
+        "ignore_policy": true,
+        "metrics_export": "campaign,spend,omni_purchase,omni_purchase_value\nprospecting,412,38,1876\nretargeting,198,52,2210\nbrand-test,150,2,87",
+        "objective": "sales"
+      },
+      "reason": "unknown fields fail closed"
+    }
+  ]
+}

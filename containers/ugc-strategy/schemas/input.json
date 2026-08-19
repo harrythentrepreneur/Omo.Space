@@ -1,0 +1,92 @@
+{
+  "$id": "https://omo.space/schemas/ugc-strategy/input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Brand and channel context for an evidence-aware UGC generation, review, creator, and paid-ad system.",
+  "properties": {
+    "audience": {
+      "description": "Non-sensitive audience description.",
+      "maxLength": 900,
+      "minLength": 8,
+      "title": "Audience",
+      "type": "string"
+    },
+    "budget": {
+      "description": "Production posture.",
+      "enum": [
+        "organic_only",
+        "mixed",
+        "paid_creators"
+      ],
+      "title": "Budget"
+    },
+    "channels": {
+      "items": {
+        "description": "Channel to include.",
+        "enum": [
+          "instagram",
+          "tiktok",
+          "youtube",
+          "reviews",
+          "email"
+        ],
+        "title": "Channel"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "title": "Channels",
+      "type": "array"
+    },
+    "constraints": {
+      "default": "",
+      "description": "Industry, claims, rights, or other constraints.",
+      "maxLength": 1600,
+      "minLength": 1,
+      "title": "Constraints",
+      "type": "string"
+    },
+    "current_ugc_state": {
+      "description": "What customer or creator content exists today.",
+      "maxLength": 1600,
+      "minLength": 3,
+      "title": "Current UGC state",
+      "type": "string"
+    },
+    "goals": {
+      "description": "Primary UGC outcome.",
+      "enum": [
+        "content_volume",
+        "ad_creative",
+        "reviews",
+        "all"
+      ],
+      "title": "Goals"
+    },
+    "offer_or_use_case": {
+      "description": "What the audience buys or does.",
+      "maxLength": 900,
+      "minLength": 8,
+      "title": "Offer or use case",
+      "type": "string"
+    },
+    "product_name": {
+      "description": "Product or service.",
+      "maxLength": 160,
+      "minLength": 2,
+      "title": "Product name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "product_name",
+    "audience",
+    "offer_or_use_case",
+    "current_ugc_state",
+    "goals",
+    "channels",
+    "budget",
+    "constraints"
+  ],
+  "title": "UGC strategy brief",
+  "type": "object"
+}
