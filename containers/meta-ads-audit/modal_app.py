@@ -27,8 +27,9 @@ WORKFLOW_VERSION = 'meta-ads-audit@0.1.0'
 EXECUTION_KIND = 'single_llm'
 LOCAL_ROOT = Path(__file__).resolve().parent
 IMAGE_ROOT = Path('/root/meta_ads_audit')
-RENDER_ROOT = LOCAL_ROOT.parents[1] / "tools" / "render"
-RESEARCH_ROOT = LOCAL_ROOT.parents[1] / "tools" / "research"
+REPOSITORY_ROOT = LOCAL_ROOT.parents[1] if len(LOCAL_ROOT.parents) > 1 else LOCAL_ROOT
+RENDER_ROOT = REPOSITORY_ROOT / "tools" / "render"
+RESEARCH_ROOT = REPOSITORY_ROOT / "tools" / "research"
 
 LIVE_PROVIDER = 'opencode-go'
 LIVE_BASE_URL_ENV = 'LLM_BASE_URL'

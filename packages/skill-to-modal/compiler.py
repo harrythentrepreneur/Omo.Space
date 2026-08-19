@@ -5545,8 +5545,9 @@ WORKFLOW_VERSION = {slug + '@' + version!r}
 EXECUTION_KIND = {profile['execution_kind']!r}
 LOCAL_ROOT = Path(__file__).resolve().parent
 IMAGE_ROOT = Path({('/root/' + slug.replace('-', '_'))!r})
-RENDER_ROOT = LOCAL_ROOT.parents[1] / "tools" / "render"
-RESEARCH_ROOT = LOCAL_ROOT.parents[1] / "tools" / "research"
+REPOSITORY_ROOT = LOCAL_ROOT.parents[1] if len(LOCAL_ROOT.parents) > 1 else LOCAL_ROOT
+RENDER_ROOT = REPOSITORY_ROOT / "tools" / "render"
+RESEARCH_ROOT = REPOSITORY_ROOT / "tools" / "research"
 {live_constants}
 {adapter_constants}
 {artifact_constants}

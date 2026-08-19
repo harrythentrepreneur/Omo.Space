@@ -73,6 +73,16 @@ def test_invalid_skill_metadata_fails_closed(text: str, message: str) -> None:
         compiler.parse_skill(text)
 
 
+def test_generated_runtime_imports_from_flat_modal_root() -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    source = compiler.modal_app_template(profile)
+    namespace = {"__file__": "/root/modal_app.py", "__name__": "flat_modal_runtime"}
+    exec(compile(source, "/root/modal_app.py", "exec"), namespace)
+    assert namespace["LOCAL_ROOT"] == Path("/root")
+    assert namespace["RENDER_ROOT"] == Path("/root/tools/render")
+    assert namespace["RESEARCH_ROOT"] == Path("/root/tools/research")
+
+
 def test_provider_need_detection_is_stable_and_sorted() -> None:
     needs = compiler.detect_needs("Use ffmpeg, Runware, and faster-whisper. Then ffprobe.")
     assert needs == ["faster-whisper", "ffmpeg", "runware"]
