@@ -1,0 +1,134 @@
+{
+  "provenance": "deterministic synthetic reconstruction 2026-08-16; right-needle/wrong-needle fixtures for the six generic contract-evidence adapters (semantic.contract_evidence_adapters/v1); not a recorded provider output",
+  "grounded_numeric_copy": [
+    {
+      "id": "proposal-happy-path",
+      "input": {
+        "company": "Acme Systems",
+        "budget": "Total spend is 4500 USD",
+        "dates": "March 2026"
+      },
+      "input_sha256": "8f3f02f057de43f14d38598fc3c0a320499d81a7c35ea6f984deeb5171d12d69",
+      "semantic_projection": {
+        "proposal": "Acme Systems will deliver the rollout for 4500 USD by March 2026."
+      }
+    }
+  ],
+  "exact_field_projection": [
+    {
+      "id": "email-happy-path",
+      "input": {
+        "recipient_name": "Sarah Chen",
+        "company_name": "Brightpath Schools",
+        "offer": "20% off the annual plan"
+      },
+      "input_sha256": "c227e562133d595886def962bfa5902b3e7108bcc68d12e756a8b37b79f3ff63",
+      "semantic_projection": {
+        "subject": "A note for Sarah Chen",
+        "greeting": "Hi Sarah Chen,",
+        "body": "We would like to offer Brightpath Schools 20% off the annual plan.",
+        "signature": "The Brightpath Schools team"
+      }
+    }
+  ],
+  "constraint_coverage": [
+    {
+      "id": "docs-happy-path",
+      "input": {
+        "functions": [
+          "validate_email",
+          "format_currency"
+        ]
+      },
+      "input_sha256": "4ed556345e01cd05d99df32c728a393dd028ef65b8842e820aca2e99e3a94965",
+      "semantic_projection": {
+        "docs": [
+          {
+            "name": "validate_email",
+            "doc": "validate_email checks that the address is well formed."
+          },
+          {
+            "name": "format_currency",
+            "doc": "format_currency renders a number with two decimals."
+          }
+        ]
+      }
+    }
+  ],
+  "policy_requirement_coverage": [
+    {
+      "id": "policy-happy-path",
+      "input": {
+        "required_topics": [
+          "data collection",
+          "third-party sharing",
+          "data retention",
+          "user rights"
+        ]
+      },
+      "input_sha256": "47dd4a4bf302df1523b7f2f64ca36d2f111336ceb71909f3f90cb522f873a5ff",
+      "semantic_projection": {
+        "sections": [
+          {
+            "title": "Data Collection",
+            "body": "We collect names and email addresses."
+          },
+          {
+            "title": "Third-Party Sharing",
+            "body": "We share records only with approved processors."
+          },
+          {
+            "title": "Data Retention",
+            "body": "We keep records for seven years."
+          },
+          {
+            "title": "User Rights",
+            "body": "You may request access or deletion."
+          }
+        ]
+      }
+    }
+  ],
+  "rule_based_classification": [
+    {
+      "id": "triage-happy-path",
+      "input": {
+        "ticket": "Payment failed twice with card ending 4242.",
+        "categories": [
+          "billing",
+          "access",
+          "feature-request"
+        ]
+      },
+      "input_sha256": "780b34627bf20e78402d71f5a17f9f918bb4685168001bed87fb0a840d87ca03",
+      "semantic_projection": {
+        "category": "billing",
+        "priority": "high",
+        "summary": "Payment retry needed"
+      }
+    }
+  ],
+  "placeholder_glossary_enforcement": [
+    {
+      "id": "brief-happy-path",
+      "input": {
+        "brand_name": "Lumen",
+        "palette": [
+          {
+            "term": "navy",
+            "definition": "#1B2A4A"
+          },
+          {
+            "term": "gold",
+            "definition": "#E8B84B"
+          }
+        ],
+        "style": "minimal"
+      },
+      "input_sha256": "ad0bf08454a34455fe156a500a3befabf5039132e799011baf780c16cecd1a7f",
+      "semantic_projection": {
+        "brief": "Lumen gets a minimal navy #1B2A4A and gold #E8B84B mark."
+      }
+    }
+  ]
+}

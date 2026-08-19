@@ -1,0 +1,264 @@
+{
+  "provenance": "deterministic synthetic reconstruction 2026-08-16; original recorded-run fixtures were lost with /tmp and are not recoverable; not a recorded provider output",
+  "copy_editing": [
+    {
+      "id": "reviewed-happy-path",
+      "input": {
+        "copy": "Try our new plan today. Save 20% on your first invoice. Setup takes five minutes."
+      },
+      "input_sha256": "5c6620f3d97833f701148007f2cf70cabfa6a789d5a894b3cfe7079e97aea9a3",
+      "semantic_projection": {
+        "revised_copy": "Start our new plan today and save 20% on your first invoice. Setup takes just five minutes.",
+        "unsupported_claims": [
+          "No credit card required"
+        ],
+        "edits": [
+          {
+            "before": "Try our new plan today.",
+            "after": "Start our new plan today.",
+            "rationale": "Lead with the action."
+          },
+          {
+            "before": "No credit card required to start.",
+            "after": "No credit card required",
+            "rationale": "A considered but unsupported risk reducer."
+          }
+        ]
+      }
+    },
+    {
+      "id": "copy-case-1",
+      "input": {
+        "copy": "Upgrade to Pro for unlimited exports. Annual billing saves 30%."
+      },
+      "input_sha256": "6138571d78124b0305ee0264aabaf96944cbe1d7686ae8378310f1d0f2c400a1",
+      "semantic_projection": {
+        "revised_copy": "Upgrade to Pro for unlimited exports. Annual billing saves 30% and keeps your workflow simple.",
+        "unsupported_claims": [],
+        "edits": [
+          {
+            "before": "Annual billing saves 30%.",
+            "after": "Annual billing saves 30% and keeps your workflow simple.",
+            "rationale": "Add the benefit."
+          }
+        ]
+      }
+    }
+  ],
+  "budget_planning": [
+    {
+      "id": "budget-case-0",
+      "input": {
+        "lines": [
+          {
+            "department": "Engineering",
+            "category": "Tools",
+            "monthly_budget": [
+              100,
+              100
+            ],
+            "monthly_actual": [
+              90,
+              110
+            ]
+          },
+          {
+            "department": "Engineering",
+            "category": "Cloud",
+            "monthly_budget": [
+              50,
+              50
+            ],
+            "monthly_actual": [
+              60,
+              40
+            ]
+          },
+          {
+            "department": "Sales",
+            "category": "Travel",
+            "monthly_budget": [
+              80,
+              70
+            ],
+            "monthly_actual": [
+              75,
+              75
+            ]
+          }
+        ],
+        "period": "2026-08",
+        "currency": "USD",
+        "target_total": 500
+      },
+      "input_sha256": "4761d9d30d916276e6d0fa0b369eef737c99e1edc7e17cee1d9d883cae40f01f",
+      "semantic_projection": {
+        "line_items": [
+          {
+            "department": "Engineering",
+            "category": "Tools",
+            "budget_total": 200,
+            "actual_total": 200,
+            "variance_amount": 0,
+            "variance_percent": 0.0
+          },
+          {
+            "department": "Engineering",
+            "category": "Cloud",
+            "budget_total": 100,
+            "actual_total": 100,
+            "variance_amount": 0,
+            "variance_percent": 0.0
+          },
+          {
+            "department": "Sales",
+            "category": "Travel",
+            "budget_total": 150,
+            "actual_total": 150,
+            "variance_amount": 0,
+            "variance_percent": 0.0
+          }
+        ],
+        "department_totals": [
+          {
+            "department": "Engineering",
+            "budget_total": 300,
+            "actual_total": 300,
+            "variance_amount": 0
+          },
+          {
+            "department": "Sales",
+            "budget_total": 150,
+            "actual_total": 150,
+            "variance_amount": 0
+          }
+        ],
+        "company_budget_total": 450,
+        "company_actual_total": 450,
+        "forecast_total": 450,
+        "target_variance": -50,
+        "period": "2026-08",
+        "currency": "USD",
+        "recommendations": [
+          "Reallocate surplus to training."
+        ]
+      }
+    },
+    {
+      "id": "budget-case-1",
+      "input": {
+        "lines": [
+          {
+            "department": "Marketing",
+            "category": "Ads",
+            "monthly_budget": [
+              200,
+              200
+            ],
+            "monthly_actual": [
+              180,
+              210
+            ]
+          },
+          {
+            "department": "Marketing",
+            "category": "Events",
+            "monthly_budget": [
+              100,
+              100
+            ],
+            "monthly_actual": [
+              120,
+              90
+            ]
+          }
+        ],
+        "period": "2026-08",
+        "currency": "USD",
+        "target_total": 600
+      },
+      "input_sha256": "999500aa7efa1c98b7e42cee5de80f8ce108f08769ecb4c9a866c54c204c2399",
+      "semantic_projection": {
+        "line_items": [
+          {
+            "department": "Marketing",
+            "category": "Ads",
+            "budget_total": 400,
+            "actual_total": 390,
+            "variance_amount": -10,
+            "variance_percent": -2.5
+          },
+          {
+            "department": "Marketing",
+            "category": "Events",
+            "budget_total": 200,
+            "actual_total": 210,
+            "variance_amount": 10,
+            "variance_percent": 5.0
+          }
+        ],
+        "department_totals": [
+          {
+            "department": "Marketing",
+            "budget_total": 600,
+            "actual_total": 600,
+            "variance_amount": 0
+          }
+        ],
+        "company_budget_total": 600,
+        "company_actual_total": 600,
+        "forecast_total": 600,
+        "target_variance": 0,
+        "period": "2026-08",
+        "currency": "USD",
+        "recommendations": [
+          "Maintain current allocation."
+        ]
+      }
+    }
+  ],
+  "data_analysis": [
+    {
+      "id": "reviewed-happy-path",
+      "input": {
+        "dataset": "group,value\nNorth,120\nSouth,90\nNorth,140\n",
+        "dataset_format": "csv",
+        "questions": [
+          "Compare region totals."
+        ],
+        "hypotheses": [],
+        "column_semantics": "group is categorical and value is numeric",
+        "filters": "None",
+        "units": "USD"
+      },
+      "input_sha256": "23774a14a3c8dde98c3e52a07dddd5effea121cbe90fb32e225aeadb76be1676",
+      "findings_writer_output": {
+        "summary": "North totals 260 and South totals 90.",
+        "findings": [
+          "The computed revenue sum is 350."
+        ]
+      }
+    },
+    {
+      "id": "data-case-1",
+      "input": {
+        "dataset": "month,revenue\nJan,120\nFeb,140\nMar,90\n",
+        "dataset_format": "csv",
+        "questions": [
+          "Show the monthly trend over time."
+        ],
+        "hypotheses": [],
+        "column_semantics": "month is categorical and revenue is numeric",
+        "filters": "None",
+        "units": "USD"
+      },
+      "input_sha256": "1e147ecb4a8567156aa5cfeea96c9ec00eb74dc2a4ccad3bab46e3b1bbe71580",
+      "findings_writer_output": {
+        "summary": "Revenue peaked in February at 140.",
+        "findings": [
+          "March revenue is 90."
+        ]
+      }
+    }
+  ]
+}
