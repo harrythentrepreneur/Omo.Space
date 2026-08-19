@@ -1801,20 +1801,44 @@ def _object_array_title_field(schema: Any) -> str | None:
     return None
 
 
-def _reviewed_pair_mapping(reviewed: dict[str, Any], key: str) -> list[tuple[str, str]]:
-    """Normalize a reviewed-contract pair mapping into [(input_field, output_field)]."""
-    raw = reviewed.get(key)
+def _reviewed_pair_mapping(
+    reviewed: dict[str, Any], key: str
+) -> list[tuple[str, str]] | None:
+    """Normalize a reviewed pair mapping; return None when it is malformed."""
+    if key not in reviewed:
+        return []
+    raw = reviewed[key]
     if isinstance(raw, dict):
-        return [(str(source), str(target)) for source, target in raw.items()]
+        if not raw or not all(
+            isinstance(source, str)
+            and bool(source)
+            and isinstance(target, str)
+            and bool(target)
+            for source, target in raw.items()
+        ):
+            return None
+        return list(raw.items())
     if isinstance(raw, list):
+        if not raw:
+            return None
         pairs: list[tuple[str, str]] = []
         for item in raw:
             if isinstance(item, (list, tuple)) and len(item) == 2:
-                pairs.append((str(item[0]), str(item[1])))
-            elif isinstance(item, dict) and "input" in item and "output" in item:
-                pairs.append((str(item["input"]), str(item["output"])))
+                source, target = item
+            elif isinstance(item, dict) and set(item) == {"input", "output"}:
+                source, target = item["input"], item["output"]
+            else:
+                return None
+            if not (
+                isinstance(source, str)
+                and bool(source)
+                and isinstance(target, str)
+                and bool(target)
+            ):
+                return None
+            pairs.append((source, target))
         return pairs
-    return []
+    return None
 
 
 def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
@@ -2000,8 +2024,10 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
 
     # exact_field_projection: reviewed projection pairs (or shared scalar
     # fields under an explicit preservation promise) must be carried verbatim.
-    projection_pairs = _reviewed_pair_mapping(reviewed, "projection")
-    if not projection_pairs:
+    reviewed_projection_pairs = _reviewed_pair_mapping(reviewed, "projection")
+    projection_mapping_valid = reviewed_projection_pairs is not None
+    projection_pairs = reviewed_projection_pairs or []
+    if projection_mapping_valid and not projection_pairs:
         shared_scalar = [
             (name, name)
             for name in input_properties
@@ -2040,8 +2066,10 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
     # constraint_coverage: every supplied item in an input array must have a
     # paired, source-grounded output item (segments -> translations, functions
     # -> documentation, and the like).
-    coverage_pairs = _reviewed_pair_mapping(reviewed, "coverage")
-    if not coverage_pairs:
+    reviewed_coverage_pairs = _reviewed_pair_mapping(reviewed, "coverage")
+    coverage_mapping_valid = reviewed_coverage_pairs is not None
+    coverage_pairs = reviewed_coverage_pairs or []
+    if coverage_mapping_valid and not coverage_pairs:
         input_arrays = [
             name for name, schema in input_properties.items() if _schema_type_is(schema, "array")
         ]
@@ -2059,11 +2087,14 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
             )
         ):
             coverage_pairs = [(input_arrays[0], output_arrays[0])]
+    candidate_coverage_pairs = coverage_pairs
     coverage_pairs = [
         (source, target)
-        for source, target in coverage_pairs
+        for source, target in candidate_coverage_pairs
         if source in input_properties and target in output_properties
     ]
+    if len(coverage_pairs) != len(candidate_coverage_pairs):
+        coverage_pairs = []
     if coverage_pairs:
         return {
             "kind": "constraint_coverage",
@@ -2075,18 +2106,22 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
     # least one delivered section, and no section may invent an unreferenced
     # topic.
     requirement_entries: list[dict[str, Any]] = []
-    requirements_pairs = _reviewed_pair_mapping(reviewed, "requirements")
-    for source, target in requirements_pairs:
-        if source not in input_properties or target not in output_properties:
-            continue
-        requirement_entries.append(
-            {
-                "requirements_field": source,
-                "sections_field": target,
-                "title_field": _object_array_title_field(output_properties.get(target)),
-            }
-        )
-    if not requirement_entries:
+    reviewed_requirements_pairs = _reviewed_pair_mapping(reviewed, "requirements")
+    requirements_mapping_valid = reviewed_requirements_pairs is not None
+    requirements_pairs = reviewed_requirements_pairs or []
+    if all(
+        source in input_properties and target in output_properties
+        for source, target in requirements_pairs
+    ):
+        for source, target in requirements_pairs:
+            requirement_entries.append(
+                {
+                    "requirements_field": source,
+                    "sections_field": target,
+                    "title_field": _object_array_title_field(output_properties.get(target)),
+                }
+            )
+    if requirements_mapping_valid and not requirements_pairs:
         input_string_arrays = [
             name
             for name, schema in input_properties.items()
@@ -2131,28 +2166,76 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
     labels_field: str | None = None
     classification_rules: Any = None
     if isinstance(classification, dict):
-        label_field = str(classification.get("field") or "")
+        raw_label_field = classification.get("field")
+        label_field = raw_label_field if isinstance(raw_label_field, str) else ""
         raw_source_fields = classification.get("source_fields")
         source_fields = (
-            [str(item) for item in raw_source_fields]
+            list(raw_source_fields)
             if isinstance(raw_source_fields, list)
+            and bool(raw_source_fields)
+            and all(isinstance(item, str) and bool(item) for item in raw_source_fields)
             else []
         )
+        raw_allowed_labels = classification.get("labels")
         allowed_labels = (
-            [str(item) for item in classification["labels"]]
-            if isinstance(classification.get("labels"), list)
+            list(raw_allowed_labels)
+            if isinstance(raw_allowed_labels, list)
+            and bool(raw_allowed_labels)
+            and all(isinstance(item, str) and bool(item) for item in raw_allowed_labels)
             else []
         )
-        labels_field = str(classification.get("labels_field") or "") or None
+        raw_labels_field = classification.get("labels_field")
+        labels_field = (
+            raw_labels_field
+            if isinstance(raw_labels_field, str) and bool(raw_labels_field)
+            else None
+        )
         classification_rules = classification.get("rules")
+        rules_valid = (
+            isinstance(classification_rules, dict)
+            and bool(classification_rules)
+            and all(
+                isinstance(rule_label, str)
+                and bool(rule_label)
+                and isinstance(keywords, list)
+                and bool(keywords)
+                and all(
+                    isinstance(keyword, str) and bool(keyword)
+                    for keyword in keywords
+                )
+                for rule_label, keywords in classification_rules.items()
+            )
+        )
+        labels_shape_valid = (
+            (raw_allowed_labels is None) != (raw_labels_field is None)
+            and (raw_allowed_labels is None or bool(allowed_labels))
+            and (
+                raw_labels_field is None
+                or (
+                    labels_field in input_properties
+                    and _schema_type_is(input_properties.get(labels_field), "array")
+                    and _schema_type_is(
+                        input_properties.get(labels_field, {}).get("items"), "string"
+                    )
+                )
+            )
+        )
+        rule_labels_valid = (
+            not allowed_labels
+            or (
+                isinstance(classification_rules, dict)
+                and set(classification_rules) <= set(allowed_labels)
+            )
+        )
         contract_complete = (
-            label_field in output_properties
+            bool(label_field)
+            and label_field in output_properties
             and _schema_type_is(output_properties.get(label_field), "string")
             and bool(source_fields)
             and all(field in input_properties for field in source_fields)
-            and (bool(allowed_labels) or labels_field in input_properties)
-            and isinstance(classification_rules, dict)
-            and bool(classification_rules)
+            and labels_shape_valid
+            and rules_valid
+            and rule_labels_valid
         )
     else:
         contract_complete = False
@@ -5255,21 +5338,58 @@ def _grounded_numeric_copy_semantic_diff(
     return []
 
 
+def _json_like_equal(left: Any, right: Any) -> bool:
+    """Compare JSON-like values without Python's bool/number equivalence."""
+    if left is None or right is None:
+        return left is None and right is None
+    if isinstance(left, bool) or isinstance(right, bool):
+        return isinstance(left, bool) and isinstance(right, bool) and left is right
+    if isinstance(left, (int, float)) or isinstance(right, (int, float)):
+        return (
+            isinstance(left, (int, float))
+            and not isinstance(left, bool)
+            and isinstance(right, (int, float))
+            and not isinstance(right, bool)
+            and _numbers_equal(left, right)
+        )
+    if isinstance(left, str) or isinstance(right, str):
+        return isinstance(left, str) and isinstance(right, str) and left == right
+    if isinstance(left, list) or isinstance(right, list):
+        return (
+            isinstance(left, list)
+            and isinstance(right, list)
+            and len(left) == len(right)
+            and all(_json_like_equal(a, b) for a, b in zip(left, right))
+        )
+    if isinstance(left, dict) or isinstance(right, dict):
+        return (
+            isinstance(left, dict)
+            and isinstance(right, dict)
+            and set(left) == set(right)
+            and all(_json_like_equal(left[key], right[key]) for key in left)
+        )
+    return False
+
+
 def _exact_field_projection_semantic_diff(
     generated: dict[str, Any], payload: dict[str, Any]
 ) -> list[str]:
     details: list[str] = []
     for source_field, target_field in SEMANTIC_EVIDENCE_SPEC["pairs"]:
         source_value = payload.get(source_field)
-        if source_value is None or source_value == "":
+        if source_value is None:
             continue
         target_value = generated.get(target_field)
         if isinstance(source_value, str):
             expected = re.sub(r"\\s+", " ", source_value.strip().casefold())
             actual = re.sub(r"\\s+", " ", str(target_value or "").strip().casefold())
-            prefix = r"(?<!\\w)" if expected and re.match(r"\\w", expected) else ""
-            suffix = r"(?!\\w)" if expected and re.search(r"\\w$", expected) else ""
-            if not expected or re.search(prefix + re.escape(expected) + suffix, actual) is None:
+            if not expected:
+                if actual:
+                    details.append(f"$.{target_field}:semantic_projection")
+                continue
+            prefix = r"(?<!\\w)" if re.match(r"\\w", expected) else ""
+            suffix = r"(?!\\w)" if re.search(r"\\w$", expected) else ""
+            if re.search(prefix + re.escape(expected) + suffix, actual) is None:
                 details.append(f"$.{target_field}:semantic_projection")
         elif isinstance(source_value, bool):
             if target_value is not source_value:
@@ -5278,7 +5398,7 @@ def _exact_field_projection_semantic_diff(
             if not _numbers_equal(target_value, source_value):
                 details.append(f"$.{target_field}:semantic_projection")
         elif isinstance(source_value, (list, dict)):
-            if target_value != source_value:
+            if not _json_like_equal(target_value, source_value):
                 details.append(f"$.{target_field}:semantic_projection")
         else:
             details.append(f"$.{target_field}:semantic_projection")
@@ -5363,6 +5483,13 @@ def _policy_requirement_coverage_semantic_diff(
     return details
 
 
+def _classification_keyword_matches(payload_text: str, keyword: str) -> bool:
+    normalized = keyword.casefold()
+    prefix = r"(?<!\\w)" if re.match(r"\\w", normalized) else ""
+    suffix = r"(?!\\w)" if re.search(r"\\w$", normalized) else ""
+    return re.search(prefix + re.escape(normalized) + suffix, payload_text) is not None
+
+
 def _rule_based_classification_semantic_diff(
     generated: dict[str, Any], payload: dict[str, Any]
 ) -> list[str]:
@@ -5370,12 +5497,23 @@ def _rule_based_classification_semantic_diff(
     spec = SEMANTIC_EVIDENCE_SPEC
     label_field = spec["label_field"]
     label = str(generated.get(label_field) or "").strip()
-    allowed = [str(item) for item in spec.get("allowed", [])]
+    allowed = list(spec.get("allowed", []))
     if not allowed:
         labels_field = spec.get("labels_field")
         if labels_field:
-            allowed = [str(item) for item in payload.get(labels_field, [])]
-    if allowed and label not in allowed:
+            raw_allowed = payload.get(labels_field)
+            if not (
+                isinstance(raw_allowed, list)
+                and bool(raw_allowed)
+                and all(
+                    isinstance(item, str) and bool(item.strip())
+                    for item in raw_allowed
+                )
+            ):
+                details.append(f"$.{label_field}:semantic_invalid_label")
+                return details
+            allowed = [item.strip() for item in raw_allowed]
+    if not allowed or label not in allowed:
         details.append(f"$.{label_field}:semantic_invalid_label")
         return details
     rules = spec.get("rules", {})
@@ -5384,13 +5522,11 @@ def _rule_based_classification_semantic_diff(
         payload_text = _evidence_text(source_values).casefold()
         matched_labels: list[str] = []
         for rule_label, keywords in rules.items():
-            keyword_list = keywords if isinstance(keywords, list) else [keywords]
             if any(
-                str(keyword).casefold() in payload_text
-                for keyword in keyword_list
-                if str(keyword)
+                _classification_keyword_matches(payload_text, keyword)
+                for keyword in keywords
             ):
-                matched_labels.append(str(rule_label))
+                matched_labels.append(rule_label)
         if matched_labels and label not in matched_labels:
             details.append(f"$.{label_field}:semantic_rule_match")
     return details

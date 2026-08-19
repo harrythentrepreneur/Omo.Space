@@ -1714,6 +1714,40 @@ def test_exact_field_projection_is_boundary_aware_and_compares_structured_values
         array_mismatch, payload
     )
 
+    nested_object_bool_number_collision = json.loads(json.dumps(output))
+    nested_object_bool_number_collision["metadata_copy"]["active"] = 1
+    assert "$.metadata_copy:semantic_projection" in runtime._semantic_validation_diff(
+        nested_object_bool_number_collision, payload
+    )
+
+    nested_array_payload = json.loads(json.dumps(payload))
+    nested_array_payload["tags"] = ["priority", {"active": False}]
+    nested_array_output = json.loads(json.dumps(output))
+    nested_array_output["tags_copy"] = ["priority", {"active": 0.0}]
+    assert "$.tags_copy:semantic_projection" in runtime._semantic_validation_diff(
+        nested_array_output, nested_array_payload
+    )
+
+
+def test_exact_field_projection_empty_and_whitespace_sources_fail_closed(
+    tmp_path: Path,
+) -> None:
+    runtime, cases = _generic_adapter_runtime(tmp_path, "exact_field_projection")
+    payload = json.loads(json.dumps(cases[0]["input"]))
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+
+    payload["recipient_name"] = ""
+    output["greeting"] = "Invented recipient"
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(output, payload)
+    output["greeting"] = ""
+    assert runtime._semantic_validation_diff(output, payload) == ""
+
+    payload["recipient_name"] = " \t "
+    output["greeting"] = "Invented recipient"
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(output, payload)
+    output["greeting"] = "\n"
+    assert runtime._semantic_validation_diff(output, payload) == ""
+
 
 def test_exact_field_projection_selector_rejects_schema_incompatible_mapping() -> None:
     profile = {
@@ -1757,6 +1791,115 @@ def test_exact_field_projection_selector_rejects_schema_incompatible_mapping() -
         "reviewed_spec": {"projection": {"tags": "tags_copy"}},
     }
     assert compiler.semantic_evidence_spec(incompatible_array_items)["kind"] == "schema_only"
+
+
+def test_malformed_reviewed_mapping_list_invalidates_the_entire_adapter() -> None:
+    profile = {
+        "input_schema": {"properties": {
+            "name": {"type": "string"},
+            "company": {"type": "string"},
+        }},
+        "live": {"model_output_schema": {"properties": {
+            "greeting": {"type": "string"},
+            "signature": {"type": "string"},
+        }}},
+        "reviewed_spec": {"projection": [
+            ["name", "greeting"],
+            {"input": "company"},
+        ]},
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "schema_only"
+
+
+def test_rule_based_classification_selector_rejects_malformed_reviewed_values() -> None:
+    profile = {
+        "input_schema": {"properties": {"ticket": {"type": "string"}}},
+        "live": {"model_output_schema": {"properties": {
+            "category": {"type": "string"},
+        }}},
+        "reviewed_spec": {"classification": {
+            "field": "category",
+            "source_fields": ["ticket"],
+            "labels": ["billing", "feature"],
+            "rules": {"billing": ["card"]},
+        }},
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "rule_based_classification"
+
+    malformed_rule_values = ["card", 7, {"keyword": "card"}, ["card", 7], []]
+    for malformed in malformed_rule_values:
+        candidate = json.loads(json.dumps(profile))
+        candidate["reviewed_spec"]["classification"]["rules"]["billing"] = malformed
+        assert compiler.semantic_evidence_spec(candidate)["kind"] == "schema_only"
+
+    for key, malformed in (
+        ("source_fields", ["ticket", 7]),
+        ("labels", ["billing", {"name": "feature"}]),
+    ):
+        candidate = json.loads(json.dumps(profile))
+        candidate["reviewed_spec"]["classification"][key] = malformed
+        assert compiler.semantic_evidence_spec(candidate)["kind"] == "schema_only"
+
+
+def test_dynamic_classification_labels_fail_closed_and_keywords_are_boundary_aware(
+    tmp_path: Path,
+) -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "dynamic-classification-regressions"
+    profile["name"] = profile["slug"]
+    profile["input_schema"] = {
+        "type": "object",
+        "properties": {
+            "ticket": {"type": "string"},
+            "categories": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["ticket", "categories"],
+    }
+    profile["live"]["model_output_schema"] = {
+        "type": "object",
+        "properties": {"category": {"type": "string"}},
+        "required": ["category"],
+    }
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = {
+        "classification": {
+            "field": "category",
+            "source_fields": ["ticket"],
+            "labels_field": "categories",
+            "rules": {
+                "billing": ["card"],
+                "feature": ["café"],
+            },
+        },
+    }
+    runtime_path = tmp_path / "dynamic-classification-regressions.py"
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_dynamic_classification_regressions", runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == "rule_based_classification"
+
+    for malformed_labels in ([], "billing", ["billing", 7]):
+        payload = {"ticket": "discarded request", "categories": malformed_labels}
+        assert "$.category:semantic_invalid_label" in runtime._semantic_validation_diff(
+            {"category": "arbitrary"}, payload
+        )
+
+    no_collision = {"ticket": "The request was discarded.", "categories": ["billing", "feature"]}
+    assert runtime._semantic_validation_diff({"category": "feature"}, no_collision) == ""
+
+    punctuation_case = {"ticket": "The CARD—was declined.", "categories": ["billing", "feature"]}
+    assert "$.category:semantic_rule_match" in runtime._semantic_validation_diff(
+        {"category": "feature"}, punctuation_case
+    )
+
+    unicode_boundary = {"ticket": "A CAFÉ! request.", "categories": ["billing", "feature"]}
+    assert "$.category:semantic_rule_match" in runtime._semantic_validation_diff(
+        {"category": "billing"}, unicode_boundary
+    )
 
 
 def test_rule_based_classification_uses_only_reviewed_source_fields(tmp_path: Path) -> None:
