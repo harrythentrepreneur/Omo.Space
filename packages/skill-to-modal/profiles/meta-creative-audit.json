@@ -841,7 +841,7 @@
     "memory_mb": 512,
     "timeout_seconds": 180
   },
-  "runtime_preference": "modal-hosted",
+  "runtime_preference": "auto",
   "slug": "meta-creative-audit",
   "steps": [
     {
