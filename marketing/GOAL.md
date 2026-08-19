@@ -37,6 +37,8 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 
 ## Status
 
+- HERO PRODUCT ROTATION (2026-08-19): kept the existing Omo homepage design and changed only the rotating hero phrase to four complete product types: Claude workflows, Codex workflows, Hermes Profiles, and Hermes Bots. A focused static test passes 3/3, inline JavaScript syntax passes, and the local HTTP preview returns 200 with both new Hermes phrases. No deployment or public change occurred.
+
 - OMO SOCIAL BRAND LAUNCH (2026-08-17): built and QA-verified the Living Utility brand system under `research/social-assets/brand-launch-2026-08-17/`: brand DNA, SVG mark plus PNG fallbacks, brand board, five 1080x1080 launch posts, contact sheet, and captions. No external post, send, spend, deploy, or production change occurred.
 
 - HELPFUL REEL SERIES (2026-08-19): analyzed the live Keeran reference Reel and used its content structure—not its creator branding—to build five original educational Omo posts under `research/social-assets/reel-series-helpful-2026-08-19/`. The series has 37 exact-text 1080x1920 slides, five H.264 MP4 Reels, captions, contact sheets, and a reproducible renderer. Styles use Harry's chosen Living Utility modes 5 (warm marketplace) and 3 (open-source terminal). All claims were checked against the live Omo homepage; arithmetic and decoded video frames passed QA. Nothing was published or sent.
