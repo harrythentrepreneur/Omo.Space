@@ -1750,6 +1750,37 @@ def _scalar_schema(schema: Any) -> bool:
     return any(candidate in ("string", "number", "integer", "boolean") for candidate in types)
 
 
+def _canonical_projection_schema(value: Any, parent_key: str | None = None) -> Any:
+    """Canonicalize only JSON Schema arrays whose ordering has no semantics."""
+    if isinstance(value, dict):
+        return {
+            key: _canonical_projection_schema(item, key)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        normalized = [_canonical_projection_schema(item) for item in value]
+        if parent_key == "required" and all(isinstance(item, str) for item in normalized):
+            return sorted(normalized)
+        return normalized
+    return value
+
+
+def _projection_source_always_present(input_schema: Any, field: str) -> bool:
+    """Accept projection only when the input contract requires a non-null source."""
+    if not isinstance(input_schema, dict):
+        return False
+    required = input_schema.get("required")
+    properties = input_schema.get("properties")
+    if not isinstance(required, list) or field not in required or not isinstance(properties, dict):
+        return False
+    property_schema = properties.get(field)
+    if not isinstance(property_schema, dict):
+        return False
+    declared = property_schema.get("type")
+    declared_types = declared if isinstance(declared, list) else [declared]
+    return bool(declared_types) and None not in declared_types and "null" not in declared_types
+
+
 def _projection_schema_compatible(source_schema: Any, target_schema: Any) -> bool:
     """Return whether every declared projection type has exact comparison semantics."""
     if not isinstance(source_schema, dict) or not isinstance(target_schema, dict):
@@ -1768,9 +1799,12 @@ def _projection_schema_compatible(source_schema: Any, target_schema: Any) -> boo
     structured = {"array", "object"}
     if source_types & structured or target_types & structured:
         # Structural projection is supported only for the same reviewed schema.
-        # This conservative equality check prevents nested item/property shapes
-        # from being silently discarded by a top-level array/object match.
-        return source_schema == target_schema
+        # JSON Schema's `required` arrays are sets at every nesting level; all
+        # other arrays retain order so real item/property/constraint differences
+        # continue to fail closed.
+        return _canonical_projection_schema(source_schema) == _canonical_projection_schema(
+            target_schema
+        )
 
     def compatible(source_type: str, target_type: str) -> bool:
         return source_type == target_type or (
@@ -1804,7 +1838,12 @@ def _object_array_title_field(schema: Any) -> str | None:
 def _reviewed_pair_mapping(
     reviewed: dict[str, Any], key: str
 ) -> list[tuple[str, str]] | None:
-    """Normalize a reviewed pair mapping; return None when it is malformed."""
+    """Normalize a reviewed pair mapping; reject duplicate sources or targets.
+
+    Reviewed mappings are one-to-one evidence contracts. Repeated, duplicate,
+    or conflicting endpoints invalidate the whole mapping rather than allowing
+    list order or dictionary insertion order to choose a winner.
+    """
     if key not in reviewed:
         return []
     raw = reviewed[key]
@@ -1817,11 +1856,11 @@ def _reviewed_pair_mapping(
             for source, target in raw.items()
         ):
             return None
-        return list(raw.items())
-    if isinstance(raw, list):
+        pairs = list(raw.items())
+    elif isinstance(raw, list):
         if not raw:
             return None
-        pairs: list[tuple[str, str]] = []
+        pairs = []
         for item in raw:
             if isinstance(item, (list, tuple)) and len(item) == 2:
                 source, target = item
@@ -1837,8 +1876,13 @@ def _reviewed_pair_mapping(
             ):
                 return None
             pairs.append((source, target))
-        return pairs
-    return None
+    else:
+        return None
+    sources = [source for source, _ in pairs]
+    targets = [target for _, target in pairs]
+    if len(set(sources)) != len(sources) or len(set(targets)) != len(targets):
+        return None
+    return pairs
 
 
 def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
@@ -1851,8 +1895,10 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
     live = profile.get("live")
     if not isinstance(live, dict):
         return {"kind": "schema_only", "version": 1}
-    input_properties = profile.get("input_schema", {}).get("properties", {})
-    output_properties = live.get("model_output_schema", {}).get("properties", {})
+    input_schema = profile.get("input_schema", {})
+    output_schema = live.get("model_output_schema", {})
+    input_properties = input_schema.get("properties", {})
+    output_properties = output_schema.get("properties", {})
     if not isinstance(input_properties, dict) or not isinstance(output_properties, dict):
         return {"kind": "schema_only", "version": 1}
     promises = _reviewed_semantic_promises(profile)
@@ -2050,6 +2096,7 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
         (source, target)
         for source, target in candidate_projection_pairs
         if source in input_properties and target in output_properties
+        and _projection_source_always_present(input_schema, source)
         and _projection_schema_compatible(
             input_properties[source], output_properties[target]
         )
@@ -5338,6 +5385,17 @@ def _grounded_numeric_copy_semantic_diff(
     return []
 
 
+def _exact_json_number_equal(left: Any, right: Any) -> bool:
+    """Compare JSON numbers exactly, excluding Python's bool/int equivalence."""
+    return (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+        and left == right
+    )
+
+
 def _json_like_equal(left: Any, right: Any) -> bool:
     """Compare JSON-like values without Python's bool/number equivalence."""
     if left is None or right is None:
@@ -5345,13 +5403,7 @@ def _json_like_equal(left: Any, right: Any) -> bool:
     if isinstance(left, bool) or isinstance(right, bool):
         return isinstance(left, bool) and isinstance(right, bool) and left is right
     if isinstance(left, (int, float)) or isinstance(right, (int, float)):
-        return (
-            isinstance(left, (int, float))
-            and not isinstance(left, bool)
-            and isinstance(right, (int, float))
-            and not isinstance(right, bool)
-            and _numbers_equal(left, right)
-        )
+        return _exact_json_number_equal(left, right)
     if isinstance(left, str) or isinstance(right, str):
         return isinstance(left, str) and isinstance(right, str) and left == right
     if isinstance(left, list) or isinstance(right, list):
@@ -5376,8 +5428,11 @@ def _exact_field_projection_semantic_diff(
 ) -> list[str]:
     details: list[str] = []
     for source_field, target_field in SEMANTIC_EVIDENCE_SPEC["pairs"]:
+        source_present = source_field in payload
         source_value = payload.get(source_field)
-        if source_value is None:
+        if not source_present or source_value is None:
+            if target_field in generated and generated.get(target_field) is not None:
+                details.append(f"$.{target_field}:semantic_projection")
             continue
         target_value = generated.get(target_field)
         if isinstance(source_value, str):
@@ -5395,7 +5450,7 @@ def _exact_field_projection_semantic_diff(
             if target_value is not source_value:
                 details.append(f"$.{target_field}:semantic_projection")
         elif isinstance(source_value, (int, float)):
-            if not _numbers_equal(target_value, source_value):
+            if not _exact_json_number_equal(target_value, source_value):
                 details.append(f"$.{target_field}:semantic_projection")
         elif isinstance(source_value, (list, dict)):
             if not _json_like_equal(target_value, source_value):

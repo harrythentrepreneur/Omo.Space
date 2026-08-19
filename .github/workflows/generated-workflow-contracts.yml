@@ -24,7 +24,7 @@ jobs:
       - name: Compiler semantic adapter regressions
         run: >-
           PYTHONPATH=. pytest -q packages/skill-to-modal/tests/test_compiler.py
-          -k 'semantic or exact_field_projection or classification or malformed_reviewed_mapping'
+          -k 'semantic or exact_field_projection or classification or malformed_reviewed_mapping or reviewed_pair_mapping'
       - name: Worker and API contracts
         run: |
           node site/deploy/test-workers.mjs

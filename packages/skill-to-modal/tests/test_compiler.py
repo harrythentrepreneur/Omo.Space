@@ -1629,7 +1629,10 @@ def test_generic_semantic_adapters_flag_secondary_wrong_needles(tmp_path: Path) 
 
 def test_generic_semantic_adapter_selectors_fail_closed_without_contract() -> None:
     projection_shape = {
-        "input_schema": {"properties": {"recipient_name": {"type": "string"}}},
+        "input_schema": {
+            "properties": {"recipient_name": {"type": "string"}},
+            "required": ["recipient_name"],
+        },
         "live": {"model_output_schema": {"properties": {"greeting": {"type": "string"}}}},
         "reviewed_spec": {"projection": {"recipient_name": "greeting"}},
     }
@@ -1749,6 +1752,151 @@ def test_exact_field_projection_empty_and_whitespace_sources_fail_closed(
     assert runtime._semantic_validation_diff(output, payload) == ""
 
 
+def test_exact_field_projection_numeric_values_use_exact_json_equality(tmp_path: Path) -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "projection-numeric-regressions"
+    profile["name"] = profile["slug"]
+    profile["input_schema"] = {
+        "type": "object",
+        "properties": {"amount": {"type": "number"}},
+        "required": ["amount"],
+    }
+    profile["live"]["model_output_schema"] = {
+        "type": "object",
+        "properties": {"amount_copy": {"type": "number"}},
+        "required": ["amount_copy"],
+    }
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = {"projection": {"amount": "amount_copy"}}
+    runtime_path = tmp_path / "projection-numeric-regressions.py"
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("projection_numeric_regressions", runtime_path)
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    accepted = [
+        (1, 1.0),
+        (-17, -17.0),
+        (9_007_199_254_740_993, 9_007_199_254_740_993),
+        (1.0000000000000002, 1.0000000000000002),
+    ]
+    rejected = [
+        (1.00, 1.01),
+        (-17.0, -17.0001),
+        (9_007_199_254_740_993, 9_007_199_254_740_992.0),
+        (0.1 + 0.2, 0.3),
+        (1, True),
+    ]
+    for source, target in accepted:
+        assert runtime._semantic_validation_diff(
+            {"amount_copy": target}, {"amount": source}
+        ) == ""
+    for source, target in rejected:
+        assert "$.amount_copy:semantic_projection" in runtime._semantic_validation_diff(
+            {"amount_copy": target}, {"amount": source}
+        )
+
+
+def test_exact_field_projection_missing_and_null_sources_fail_closed(tmp_path: Path) -> None:
+    runtime, cases = _generic_adapter_runtime(tmp_path, "exact_field_projection")
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+
+    missing_payload = json.loads(json.dumps(cases[0]["input"]))
+    missing_payload.pop("recipient_name")
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(
+        output, missing_payload
+    )
+    output.pop("greeting")
+    assert runtime._semantic_validation_diff(output, missing_payload) == ""
+
+    null_payload = json.loads(json.dumps(cases[0]["input"]))
+    null_payload["recipient_name"] = None
+    null_output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(
+        null_output, null_payload
+    )
+    null_output["greeting"] = None
+    assert runtime._semantic_validation_diff(null_output, null_payload) == ""
+
+
+def test_exact_field_projection_selector_rejects_optional_or_nullable_sources() -> None:
+    base = {
+        "input_schema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+        "live": {"model_output_schema": {
+            "type": "object",
+            "properties": {"greeting": {"type": "string"}},
+            "required": ["greeting"],
+        }},
+        "reviewed_spec": {"projection": {"name": "greeting"}},
+    }
+    assert compiler.semantic_evidence_spec(base)["kind"] == "exact_field_projection"
+
+    optional_source = json.loads(json.dumps(base))
+    optional_source["input_schema"]["required"] = []
+    assert compiler.semantic_evidence_spec(optional_source)["kind"] == "schema_only"
+
+    nullable_source = json.loads(json.dumps(base))
+    nullable_source["input_schema"]["properties"]["name"]["type"] = ["string", "null"]
+    assert compiler.semantic_evidence_spec(nullable_source)["kind"] == "schema_only"
+
+    optional_source_optional_target = json.loads(json.dumps(optional_source))
+    optional_source_optional_target["live"]["model_output_schema"]["required"] = []
+    assert compiler.semantic_evidence_spec(optional_source_optional_target)["kind"] == "schema_only"
+
+
+def test_exact_field_projection_selector_canonicalizes_required_arrays_recursively() -> None:
+    source = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "address": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string"},
+                    "postal": {"type": "string", "minLength": 3},
+                },
+                "required": ["city", "postal"],
+            },
+            "contacts": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {"kind": {"type": "string"}, "value": {"type": "string"}},
+                    "required": ["kind", "value"],
+                },
+            },
+        },
+        "required": ["name", "address", "contacts"],
+    }
+    target = json.loads(json.dumps(source))
+    target["required"].reverse()
+    target["properties"]["address"]["required"].reverse()
+    target["properties"]["contacts"]["items"]["required"].reverse()
+    profile = {
+        "input_schema": {
+            "type": "object", "properties": {"metadata": source}, "required": ["metadata"]
+        },
+        "live": {"model_output_schema": {
+            "type": "object",
+            "properties": {"metadata_copy": target},
+            "required": ["metadata_copy"],
+        }},
+        "reviewed_spec": {"projection": {"metadata": "metadata_copy"}},
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "exact_field_projection"
+
+    different_constraint = json.loads(json.dumps(profile))
+    different_constraint["live"]["model_output_schema"]["properties"]["metadata_copy"][
+        "properties"
+    ]["address"]["properties"]["postal"]["minLength"] = 4
+    assert compiler.semantic_evidence_spec(different_constraint)["kind"] == "schema_only"
+
+
 def test_exact_field_projection_selector_rejects_schema_incompatible_mapping() -> None:
     profile = {
         "input_schema": {"properties": {
@@ -1798,7 +1946,7 @@ def test_malformed_reviewed_mapping_list_invalidates_the_entire_adapter() -> Non
         "input_schema": {"properties": {
             "name": {"type": "string"},
             "company": {"type": "string"},
-        }},
+        }, "required": ["name", "company"]},
         "live": {"model_output_schema": {"properties": {
             "greeting": {"type": "string"},
             "signature": {"type": "string"},
@@ -1809,6 +1957,22 @@ def test_malformed_reviewed_mapping_list_invalidates_the_entire_adapter() -> Non
         ]},
     }
     assert compiler.semantic_evidence_spec(profile)["kind"] == "schema_only"
+
+
+@pytest.mark.parametrize("mapping_key", ["projection", "coverage", "requirements"])
+@pytest.mark.parametrize(
+    "mapping",
+    [
+        [["source_a", "target_a"], ["source_a", "target_b"]],
+        [["source_a", "target_a"], ["source_b", "target_a"]],
+        [["source_a", "target_a"], ["source_a", "target_a"]],
+        {"source_a": "target_a", "source_b": "target_a"},
+    ],
+)
+def test_reviewed_pair_mapping_rejects_duplicate_or_conflicting_pairs(
+    mapping_key: str, mapping: object
+) -> None:
+    assert compiler._reviewed_pair_mapping({mapping_key: mapping}, mapping_key) is None
 
 
 def test_rule_based_classification_selector_rejects_malformed_reviewed_values() -> None:
