@@ -177,12 +177,14 @@
         // Clerk delivers the listener payload before every SDK build updates
         // the singleton's `user` property. Keep the payload as the auth source
         // of truth so navigation reacts to sign-in/sign-out immediately.
+        var previousUserId = realClerkUser && realClerkUser.id;
         if (resources && Object.prototype.hasOwnProperty.call(resources, 'user')) {
           realClerkUser = resources.user || null;
         } else {
           realClerkUser = realClerk.user || null;
         }
-        if (!realClerkUser) clearUserState();
+        var activeUserId = realClerkUser && realClerkUser.id;
+        if (!activeUserId || (previousUserId && previousUserId !== activeUserId)) clearUserState();
         fire();
         finishSignUpRedirect();
       });
