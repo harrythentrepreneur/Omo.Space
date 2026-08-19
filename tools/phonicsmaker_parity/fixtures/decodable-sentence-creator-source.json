@@ -1,0 +1,84 @@
+{
+  "fixture_kind": "source-derived-contract",
+  "provenance": {
+    "source_repo": "/root/work/phonicsmaker/web",
+    "source_snapshot": "3ab74dceeb7691dc6464ced2728f6edef56c694a",
+    "source_files": [
+      "src/shared/toolConfig.ts",
+      "src/app/api/tools/prompts.ts"
+    ],
+    "notes": "Contract snapshot from checked-out source. It contains no customer data and is not a provider-output quality claim."
+  },
+  "slug": "decodable-sentence-creator",
+  "input_contract": {
+    "additionalProperties": true,
+    "properties": {
+      "phonicsPattern": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "cvc",
+            "cvcc",
+            "ccvc",
+            "long_a",
+            "long_e",
+            "long_i",
+            "long_o",
+            "long_u",
+            "sh_digraph",
+            "ch_digraph",
+            "th_digraph",
+            "wh_digraph",
+            "ck_digraph",
+            "ai_vowel_team",
+            "ee_vowel_team",
+            "oa_vowel_team"
+          ]
+        },
+        "minItems": 1,
+        "ui_widget": "multi_select",
+        "required": true
+      },
+      "numSentences": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5,
+        "default": 1,
+        "ui_widget": "number",
+        "required": true
+      },
+      "sentenceLength": {
+        "type": "string",
+        "enum": ["short", "medium", "long"],
+        "default": "medium",
+        "ui_widget": "custom_select",
+        "required": true
+      },
+      "includeSightWords": {
+        "type": "string",
+        "enum": ["yes", "no"],
+        "default": "yes",
+        "ui_widget": "custom_select",
+        "required": true
+      }
+    },
+    "required": [
+      "phonicsPattern",
+      "numSentences",
+      "sentenceLength",
+      "includeSightWords"
+    ]
+  },
+  "output_contract": {
+    "type": "string",
+    "format": "markdown",
+    "rules": [
+      "output valid renderable markdown without escaped newline characters",
+      "create simple grammatically correct sentences where the majority of words adhere to the selected phonics patterns",
+      "make each sentence logical and easy for early readers to decode",
+      "put one sentence per line, optionally with a leading number",
+      "include no additional text or explanations"
+    ]
+  }
+}
