@@ -40,6 +40,9 @@ SEMANTIC_INPUTS_PATH = SEMANTIC_REPLAY_PATH.with_name("semantic-adapter-inputs.j
 HARDENING_FIXTURE_PATH = SEMANTIC_REPLAY_PATH.with_name(
     "hardening-final-rerun.json"
 )
+BATCH30_RECOVERED_PATH = SEMANTIC_REPLAY_PATH.with_name(
+    "batch30-recovered-adapters.json"
+)
 
 
 def test_parse_skill_requires_and_returns_frontmatter() -> None:
@@ -1435,6 +1438,228 @@ def test_invoice_arithmetic_replays_correct_values_despite_nullable_header_shape
     assert "semantic_invoice_total" in runtime._semantic_validation_diff(output, payload)
 
 
+GENERIC_ADAPTERS_PATH = SEMANTIC_REPLAY_PATH.with_name("generic-adapters.json")
+
+_GENERIC_ADAPTER_REVIEWED = {
+    "grounded_numeric_copy": {
+        "constraints": ["Use only supplied figures", "Do not invent numbers"],
+        "source_expected_contract": {"outputs": "A proposal drafted from supplied figures."},
+    },
+    "exact_field_projection": {
+        "constraints": ["Use the supplied names exactly"],
+        "projection": {"recipient_name": "greeting", "company_name": "signature"},
+        "source_expected_contract": {"outputs": "A personalized email."},
+    },
+    "constraint_coverage": {
+        "constraints": ["Document every function with one entry"],
+        "coverage": {"functions": "docs"},
+        "source_expected_contract": {"outputs": "Function documentation entries."},
+    },
+    "policy_requirement_coverage": {
+        "constraints": [
+            "Cover every required topic in a dedicated section",
+            "Never add unrelated sections",
+        ],
+        "requirements": {"required_topics": "sections"},
+        "source_expected_contract": {"outputs": "A policy with one section per required topic."},
+    },
+    "rule_based_classification": {
+        "constraints": ["Classify each ticket into exactly one reviewed category"],
+        "classification": {
+            "field": "category",
+            "labels": ["billing", "login", "feature"],
+            "rules": {
+                "billing": ["payment", "card", "invoice"],
+                "login": ["password", "sign in", "login"],
+            },
+        },
+        "source_expected_contract": {"outputs": "A triage category and priority."},
+    },
+    "placeholder_glossary_enforcement": {
+        "constraints": ["Never output placeholder text"],
+        "glossary": "palette",
+        "source_expected_contract": {"outputs": "A design brief with the reviewed palette."},
+    },
+}
+
+_EXISTING_PROFILE_KINDS = {
+    "audio-symbolic-animation": "schema_only",
+    "customer-feedback-theme-finder": "schema_only",
+    "decodable-sentence-creator": "profile_semantic_normalizers",
+    "digraph-spotter": "profile_semantic_normalizers",
+    "facebook-ads-copywriter": "schema_only",
+    "grapheme-to-phoneme-converter": "profile_semantic_normalizers",
+    "illustrated-decodable-story-maker": "schema_only",
+    "japanese-style-story-video": "schema_only",
+    "label-normalizer-canary": "schema_only",
+    "meta-ads-audit": "schema_only",
+    "meta-creative-audit": "schema_only",
+    "phoneme-counter": "profile_semantic_normalizers",
+    "phonics-list-generator": "profile_semantic_normalizers",
+    "phonics-reading-error-coach": "schema_only",
+    "phonics-rule-explainer": "schema_only",
+    "phonics-story-edit-studio": "schema_only",
+    "phonics-worksheet-generator": "schema_only",
+    "skill-md-to-hosted-workflow": "schema_only",
+    "story-idea-generator": "schema_only",
+    "syllable-splitter-and-counter": "profile_semantic_normalizers",
+    "ugc-scriptwriter": "schema_only",
+    "ugc-strategy": "schema_only",
+    "woven-storybook-pipeline": "schema_only",
+}
+
+
+def _generic_adapter_runtime(tmp_path: Path, section: str):
+    fixture = json.loads(GENERIC_ADAPTERS_PATH.read_text(encoding="utf-8"))
+    cases = fixture[section]
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "generic-" + section
+    profile["name"] = profile["slug"]
+    profile["input_schema"] = _fixture_schema(cases[0]["input"])
+    profile["live"]["model_output_schema"] = _fixture_schema(cases[0]["semantic_projection"])
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = _GENERIC_ADAPTER_REVIEWED[section]
+    runtime_path = tmp_path / (profile["slug"] + ".py")
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + profile["slug"].replace("-", "_"), runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == section
+    return runtime, cases
+
+
+def test_generic_semantic_adapters_replay_right_needle_fixtures(tmp_path: Path) -> None:
+    for section in _GENERIC_ADAPTER_REVIEWED:
+        runtime, cases = _generic_adapter_runtime(tmp_path, section)
+        for case in cases:
+            payload = case["input"]
+            assert compiler.sha256_text(
+                json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            ) == case["input_sha256"]
+            output = json.loads(json.dumps(case["semantic_projection"]))
+            diff = runtime._semantic_validation_diff(output, payload)
+            assert diff == "", f"{section}: {diff}"
+
+
+def test_generic_semantic_adapters_flag_wrong_needles(tmp_path: Path) -> None:
+    wrong_needles = {
+        "grounded_numeric_copy": (
+            lambda output: output.update(
+                {"proposal": output["proposal"] + " for 5200 USD"}
+            ),
+            "$:semantic_invented_number",
+        ),
+        "exact_field_projection": (
+            lambda output: output.update({"greeting": "Hi there,"}),
+            "$.greeting:semantic_projection",
+        ),
+        "constraint_coverage": (
+            lambda output: output["docs"].pop(0),
+            "$.docs:semantic_coverage(expected=2,actual=1)",
+        ),
+        "policy_requirement_coverage": (
+            lambda output: output["sections"].pop(3),
+            "$.sections:semantic_requirement_uncovered(expected=1)",
+        ),
+        "rule_based_classification": (
+            lambda output: output.update({"category": "login"}),
+            "$.category:semantic_rule_match",
+        ),
+        "placeholder_glossary_enforcement": (
+            lambda output: output.update(
+                {"brief": "Lumen gets a [brand] mark with your logo here."}
+            ),
+            "$:semantic_placeholder",
+        ),
+    }
+    for section, (mutate, needle) in wrong_needles.items():
+        runtime, cases = _generic_adapter_runtime(tmp_path, section)
+        payload = cases[0]["input"]
+        output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+        mutate(output)
+        diff = runtime._semantic_validation_diff(output, payload)
+        assert needle in diff, f"{section}: expected {needle} in {diff}"
+
+
+def test_generic_semantic_adapters_flag_secondary_wrong_needles(tmp_path: Path) -> None:
+    runtime, cases = _generic_adapter_runtime(tmp_path, "constraint_coverage")
+    payload = cases[0]["input"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["docs"][0]["doc"] = "validate_email"
+    assert "$.docs[0]:semantic_noop" in runtime._semantic_validation_diff(output, payload)
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["docs"][0] = {
+        "name": "unrelated_function",
+        "doc": "unrelated_function inspects the mailbox quickly.",
+    }
+    assert "$.docs[0]:semantic_item_ungrounded" in runtime._semantic_validation_diff(
+        output, payload
+    )
+
+    runtime, cases = _generic_adapter_runtime(tmp_path, "policy_requirement_coverage")
+    payload = cases[0]["input"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["sections"].append(
+        {"title": "Monetization", "body": "We sell user data to advertisers."}
+    )
+    assert "$.sections:semantic_requirement_invented" in runtime._semantic_validation_diff(
+        output, payload
+    )
+
+    runtime, cases = _generic_adapter_runtime(tmp_path, "rule_based_classification")
+    payload = cases[0]["input"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["category"] = "refund"
+    assert "$.category:semantic_invalid_label" in runtime._semantic_validation_diff(
+        output, payload
+    )
+
+    runtime, cases = _generic_adapter_runtime(tmp_path, "placeholder_glossary_enforcement")
+    payload = cases[0]["input"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["brief"] = "Lumen gets a navy mark."
+    assert "$:semantic_glossary_expansion" in runtime._semantic_validation_diff(
+        output, payload
+    )
+
+
+def test_generic_semantic_adapter_selectors_fail_closed_without_contract() -> None:
+    projection_shape = {
+        "input_schema": {"properties": {"recipient_name": {"type": "string"}}},
+        "live": {"model_output_schema": {"properties": {"greeting": {"type": "string"}}}},
+        "reviewed_spec": {"projection": {"recipient_name": "greeting"}},
+    }
+    assert compiler.semantic_evidence_spec(projection_shape)["kind"] == "exact_field_projection"
+    empty_reviewed = json.loads(json.dumps(projection_shape))
+    empty_reviewed["reviewed_spec"] = {}
+    assert compiler.semantic_evidence_spec(empty_reviewed)["kind"] == "schema_only"
+    dangling_marker = json.loads(json.dumps(projection_shape))
+    dangling_marker["reviewed_spec"] = {"projection": {"recipient_name": "missing_field"}}
+    assert compiler.semantic_evidence_spec(dangling_marker)["kind"] == "schema_only"
+
+    numeric_shape = {
+        "input_schema": {"properties": {"budget": {"type": "string"}}},
+        "live": {"model_output_schema": {"properties": {"proposal": {"type": "string"}}}},
+        "reviewed_spec": {"constraints": ["Do not invent numbers"]},
+    }
+    assert compiler.semantic_evidence_spec(numeric_shape)["kind"] == "grounded_numeric_copy"
+    numeric_shape["reviewed_spec"] = {"constraints": ["Write a persuasive proposal"]}
+    assert compiler.semantic_evidence_spec(numeric_shape)["kind"] == "schema_only"
+
+
+def test_generic_semantic_adapter_selectors_do_not_reclassify_existing_profiles() -> None:
+    profiles_dir = ROOT / "packages" / "skill-to-modal" / "profiles"
+    for path in sorted(profiles_dir.glob("*.json")):
+        profile = json.loads(path.read_text(encoding="utf-8"))
+        assert (
+            compiler.semantic_evidence_spec(profile)["kind"]
+            == _EXISTING_PROFILE_KINDS[path.stem]
+        ), path.stem
+
+
 def test_structural_selector_preserves_grounded_copy_budget_and_education_classes() -> None:
     grounded_copy = {
         "input_schema": {"properties": {"product_name": {"type": "string"}}},
@@ -1485,6 +1710,102 @@ def test_structural_selector_preserves_grounded_copy_budget_and_education_classe
         "normalizers": ["phoneme_containment"],
         "version": 1,
     }
+
+
+def _batch30_recovered_runtime(tmp_path: Path, slug: str):
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    entry = next(item for item in fixture["skills"] if item["slug"] == slug)
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = entry["slug"]
+    profile["name"] = entry["slug"]
+    profile["input_schema"] = _fixture_schema(entry["input"])
+    profile["live"]["model_output_schema"] = _fixture_schema(entry["semantic_projection"])
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = entry["reviewed_spec"]
+    runtime_path = tmp_path / (profile["slug"] + ".py")
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + profile["slug"].replace("-", "_"), runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    return runtime, entry
+
+
+def test_batch30_recovered_semantic_blockers_select_matching_adapter_kind(
+    tmp_path: Path,
+) -> None:
+    """Each of the seven BATCH30 REAL_RUN_SEMANTIC_FAILED contracts must
+    select its matching generic contract-evidence adapter (BUILDABLE #1)."""
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    assert fixture["provenance"]  # synthetic reconstruction, not provider output
+    expected_kinds = {
+        "code-documentation": "constraint_coverage",
+        "email-drafting": "exact_field_projection",
+        "logo-design": "placeholder_glossary_enforcement",
+        "privacy-policy-drafting": "policy_requirement_coverage",
+        "proposal-generation": "grounded_numeric_copy",
+        "ticket-triage": "rule_based_classification",
+        "translation": "constraint_coverage",
+    }
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == expected_kinds[entry["slug"]]
+
+
+def test_batch30_recovered_semantic_blockers_replay_right_needles(tmp_path: Path) -> None:
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        output = json.loads(json.dumps(entry["semantic_projection"]))
+        diff = runtime._semantic_validation_diff(output, entry["input"])
+        assert diff == "", f"{entry['slug']}: {diff}"
+
+
+def test_batch30_recovered_semantic_blockers_flag_wrong_needles(tmp_path: Path) -> None:
+    wrong_needles = {
+        "code-documentation": (
+            lambda output: output["docs"].pop(0),
+            "$.docs:semantic_coverage(expected=2,actual=1)",
+        ),
+        "email-drafting": (
+            lambda output: output.update({"greeting": "Hi there,"}),
+            "$.greeting:semantic_projection",
+        ),
+        "logo-design": (
+            lambda output: output.update(
+                {"brief": "Lumen gets a [brand] mark with your logo here."}
+            ),
+            "$:semantic_placeholder",
+        ),
+        "privacy-policy-drafting": (
+            lambda output: output["sections"].pop(3),
+            "$.sections:semantic_requirement_uncovered(expected=1)",
+        ),
+        "proposal-generation": (
+            lambda output: output.update(
+                {"proposal": output["proposal"] + " for 5200 USD"}
+            ),
+            "$:semantic_invented_number",
+        ),
+        "ticket-triage": (
+            lambda output: output.update({"category": "access"}),
+            "$.category:semantic_rule_match",
+        ),
+        "translation": (
+            lambda output: output["translations"].pop(0),
+            "$.translations:semantic_coverage(expected=2,actual=1)",
+        ),
+    }
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        output = json.loads(json.dumps(entry["semantic_projection"]))
+        mutate, needle = wrong_needles[entry["slug"]]
+        mutate(output)
+        diff = runtime._semantic_validation_diff(output, entry["input"])
+        assert needle in diff, f"{entry['slug']}: expected {needle} in {diff}"
 
 
 def test_generated_repair_is_schema_driven_and_wrapper_allows_one_retry(tmp_path: Path) -> None:
