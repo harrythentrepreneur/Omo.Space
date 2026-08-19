@@ -379,7 +379,7 @@
       max-width: 560px; margin-inline: auto; text-wrap: pretty;
     }
     .rotating-tool {
-      display: inline-block; width: 3.8em; color: var(--orange); font-weight: 700;
+      display: inline-block; width: 10.5em; color: var(--orange); font-weight: 700; white-space: nowrap;
       text-align: center; transform: translateY(0);
       transition: opacity .25s ease, transform .25s ease;
     }
@@ -874,7 +874,7 @@
       .hero { padding: 46px 0 40px; }
       .hero-title { font-size: clamp(36px, 10.5vw, 46px); }
       .hero-sub { font-size: clamp(16px, 4.5vw, 17px); }
-      .rotating-tool { width: 6.25ch; }
+      .rotating-tool { width: 10.5em; }
       .search-form { width: 100%; }
       .search-input { padding-inline: 15px 10px; }
       .search-submit { padding-inline: 16px; }
@@ -975,7 +975,7 @@
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="shell hero-inner">
         <h1 class="hero-title" id="hero-title">Buy the <em>result</em>, not another subscription.</h1>
-        <p class="hero-sub">The easy way to run the <span class="rotating-tool" id="rotating-tool" aria-live="polite" aria-atomic="true">Claude</span> workflows you see on reels.</p>
+        <p class="hero-sub">The easy way to run <span class="rotating-tool" id="rotating-tool" aria-live="polite" aria-atomic="true">Claude workflows</span>.</p>
         <form class="search-form" id="search-form" role="search" aria-label="Search helpers">
           <input class="search-input" id="search-input" type="search" name="q" placeholder="Search helpers, e.g. UGC scripts, ads, photos…" aria-label="Search helpers" autocomplete="off">
           <button class="search-submit" type="submit">Search</button>
@@ -1049,7 +1049,7 @@
       var rotatingTool = document.getElementById('rotating-tool');
       var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (rotatingTool && !prefersReducedMotion) {
-        var toolNames = ['Claude', 'Codex', 'Hermes'];
+        var toolNames = ['Claude workflows', 'Codex workflows', 'Hermes Profiles', 'Hermes Bots'];
         var toolIndex = 0;
         window.setInterval(function () {
           rotatingTool.classList.add('is-changing');
