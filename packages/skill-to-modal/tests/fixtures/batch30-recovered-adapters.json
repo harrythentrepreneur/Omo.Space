@@ -110,6 +110,7 @@
         "constraints": ["Classify each ticket into exactly one reviewed category"],
         "classification": {
           "field": "category",
+          "source_fields": ["ticket"],
           "labels": ["billing", "access", "feature-request"],
           "rules": {
             "billing": ["payment", "card", "invoice", "charge"],

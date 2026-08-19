@@ -1467,6 +1467,7 @@ _GENERIC_ADAPTER_REVIEWED = {
         "constraints": ["Classify each ticket into exactly one reviewed category"],
         "classification": {
             "field": "category",
+            "source_fields": ["ticket"],
             "labels": ["billing", "login", "feature"],
             "rules": {
                 "billing": ["payment", "card", "invoice"],
@@ -1648,6 +1649,124 @@ def test_generic_semantic_adapter_selectors_fail_closed_without_contract() -> No
     assert compiler.semantic_evidence_spec(numeric_shape)["kind"] == "grounded_numeric_copy"
     numeric_shape["reviewed_spec"] = {"constraints": ["Write a persuasive proposal"]}
     assert compiler.semantic_evidence_spec(numeric_shape)["kind"] == "schema_only"
+
+    enum_only_classification = {
+        "input_schema": {"properties": {"ticket": {"type": "string"}}},
+        "live": {"model_output_schema": {"properties": {
+            "category": {"type": "string", "enum": ["billing", "login"]},
+        }}},
+        "reviewed_spec": {},
+    }
+    assert compiler.semantic_evidence_spec(enum_only_classification)["kind"] == "schema_only"
+
+
+def test_exact_field_projection_is_boundary_aware_and_compares_structured_values(
+    tmp_path: Path,
+) -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "projection-regressions"
+    profile["name"] = profile["slug"]
+    payload = {
+        "recipient_name": "Ann",
+        "metadata": {"region": "EU", "active": True},
+        "tags": ["priority", "renewal"],
+    }
+    output = {
+        "greeting": "Hello, ANN!",
+        "metadata_copy": {"region": "EU", "active": True},
+        "tags_copy": ["priority", "renewal"],
+    }
+    profile["input_schema"] = _fixture_schema(payload)
+    profile["live"]["model_output_schema"] = _fixture_schema(output)
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = {
+        "constraints": ["Use the supplied values exactly"],
+        "projection": {
+            "recipient_name": "greeting",
+            "metadata": "metadata_copy",
+            "tags": "tags_copy",
+        },
+    }
+    runtime_path = tmp_path / "projection-regressions.py"
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("generated_projection_regressions", runtime_path)
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    assert runtime._semantic_validation_diff(output, payload) == ""
+
+    substring_collision = json.loads(json.dumps(output))
+    substring_collision["greeting"] = "Hello, Joanne!"
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(
+        substring_collision, payload
+    )
+
+    object_mismatch = json.loads(json.dumps(output))
+    object_mismatch["metadata_copy"]["region"] = "US"
+    assert "$.metadata_copy:semantic_projection" in runtime._semantic_validation_diff(
+        object_mismatch, payload
+    )
+
+    array_mismatch = json.loads(json.dumps(output))
+    array_mismatch["tags_copy"][1] = "expansion"
+    assert "$.tags_copy:semantic_projection" in runtime._semantic_validation_diff(
+        array_mismatch, payload
+    )
+
+
+def test_exact_field_projection_selector_rejects_schema_incompatible_mapping() -> None:
+    profile = {
+        "input_schema": {"properties": {
+            "name": {"type": "string"},
+            "metadata": {"type": "object"},
+        }},
+        "live": {"model_output_schema": {"properties": {
+            "greeting": {"type": "string"},
+            "summary": {"type": "string"},
+        }}},
+        "reviewed_spec": {"projection": {
+            "name": "greeting",
+            "metadata": "summary",
+        }},
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "schema_only"
+
+    incompatible_object_shapes = {
+        "input_schema": {"properties": {"metadata": {
+            "type": "object",
+            "properties": {"region": {"type": "string"}},
+            "required": ["region"],
+        }}},
+        "live": {"model_output_schema": {"properties": {"metadata_copy": {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+        }}}},
+        "reviewed_spec": {"projection": {"metadata": "metadata_copy"}},
+    }
+    assert compiler.semantic_evidence_spec(incompatible_object_shapes)["kind"] == "schema_only"
+
+    incompatible_array_items = {
+        "input_schema": {"properties": {"tags": {
+            "type": "array", "items": {"type": "string"},
+        }}},
+        "live": {"model_output_schema": {"properties": {"tags_copy": {
+            "type": "array", "items": {"type": "object"},
+        }}}},
+        "reviewed_spec": {"projection": {"tags": "tags_copy"}},
+    }
+    assert compiler.semantic_evidence_spec(incompatible_array_items)["kind"] == "schema_only"
+
+
+def test_rule_based_classification_uses_only_reviewed_source_fields(tmp_path: Path) -> None:
+    runtime, cases = _generic_adapter_runtime(tmp_path, "rule_based_classification")
+    payload = json.loads(json.dumps(cases[0]["input"]))
+    payload["ticket"] = "I forgot my password and cannot sign in."
+    payload["categories"] = ["payment", "login"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["category"] = "billing"
+    assert "$.category:semantic_rule_match" in runtime._semantic_validation_diff(output, payload)
 
 
 def test_generic_semantic_adapter_selectors_do_not_reclassify_existing_profiles() -> None:

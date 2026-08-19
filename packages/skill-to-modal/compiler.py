@@ -1750,6 +1750,42 @@ def _scalar_schema(schema: Any) -> bool:
     return any(candidate in ("string", "number", "integer", "boolean") for candidate in types)
 
 
+def _projection_schema_compatible(source_schema: Any, target_schema: Any) -> bool:
+    """Return whether every declared projection type has exact comparison semantics."""
+    if not isinstance(source_schema, dict) or not isinstance(target_schema, dict):
+        return False
+
+    def declared_types(schema: dict[str, Any]) -> set[str]:
+        declared = schema.get("type")
+        values = declared if isinstance(declared, list) else [declared]
+        return {str(value) for value in values if value is not None and value != "null"}
+
+    source_types = declared_types(source_schema)
+    target_types = declared_types(target_schema)
+    supported = {"string", "number", "integer", "boolean", "array", "object"}
+    if not source_types or not target_types or not source_types <= supported or not target_types <= supported:
+        return False
+    structured = {"array", "object"}
+    if source_types & structured or target_types & structured:
+        # Structural projection is supported only for the same reviewed schema.
+        # This conservative equality check prevents nested item/property shapes
+        # from being silently discarded by a top-level array/object match.
+        return source_schema == target_schema
+
+    def compatible(source_type: str, target_type: str) -> bool:
+        return source_type == target_type or (
+            source_type == "integer" and target_type == "number"
+        )
+
+    return all(
+        any(compatible(source_type, target_type) for target_type in target_types)
+        for source_type in source_types
+    ) and all(
+        any(compatible(source_type, target_type) for source_type in source_types)
+        for target_type in target_types
+    )
+
+
 def _object_array_title_field(schema: Any) -> str | None:
     if not isinstance(schema, dict) or not _schema_type_is(schema, "array"):
         return None
@@ -1983,11 +2019,17 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
             )
         ):
             projection_pairs = shared_scalar
+    candidate_projection_pairs = projection_pairs
     projection_pairs = [
         (source, target)
-        for source, target in projection_pairs
+        for source, target in candidate_projection_pairs
         if source in input_properties and target in output_properties
+        and _projection_schema_compatible(
+            input_properties[source], output_properties[target]
+        )
     ]
+    if len(projection_pairs) != len(candidate_projection_pairs):
+        projection_pairs = []
     if projection_pairs:
         return {
             "kind": "exact_field_projection",
@@ -2083,62 +2125,44 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
     # label set and follow the reviewed keyword rules when the payload triggers
     # a rule.
     classification = reviewed.get("classification")
-    label_field: str | None = None
+    label_field = ""
+    source_fields: list[str] = []
     allowed_labels: list[str] = []
     labels_field: str | None = None
-    classification_rules: dict[str, Any] = {}
+    classification_rules: Any = None
     if isinstance(classification, dict):
-        candidate = str(classification.get("field") or "")
-        if candidate in output_properties:
-            label_field = candidate
-        if isinstance(classification.get("labels"), list):
-            allowed_labels = [str(item) for item in classification["labels"]]
-        candidate_labels = str(classification.get("labels_field") or "")
-        if candidate_labels in input_properties:
-            labels_field = candidate_labels
-        if isinstance(classification.get("rules"), dict):
-            classification_rules = classification["rules"]
-    if not label_field:
-        enum_fields = [
-            name
-            for name, schema in output_properties.items()
-            if name not in input_properties
-            and _schema_type_is(schema, "string")
-            and isinstance(schema.get("enum"), list)
-        ]
-        if len(enum_fields) == 1:
-            label_field = enum_fields[0]
-            allowed_labels = [
-                str(item) for item in output_properties[enum_fields[0]].get("enum", [])
-            ]
-    if not label_field:
-        output_strings = [
-            name for name, schema in output_properties.items() if _schema_type_is(schema, "string")
-        ]
-        input_string_arrays = [
-            name
-            for name, schema in input_properties.items()
-            if _schema_type_is(schema, "array")
-            and _schema_type_is(schema.get("items"), "string")
-        ]
-        if (
-            len(output_strings) == 1
-            and len(input_string_arrays) == 1
-            and (
-                "classify" in promises
-                or "assign a category" in promises
-                or "triage" in promises
-                or "label each" in promises
-            )
-        ):
-            label_field = output_strings[0]
-            labels_field = input_string_arrays[0]
-    if label_field:
+        label_field = str(classification.get("field") or "")
+        raw_source_fields = classification.get("source_fields")
+        source_fields = (
+            [str(item) for item in raw_source_fields]
+            if isinstance(raw_source_fields, list)
+            else []
+        )
+        allowed_labels = (
+            [str(item) for item in classification["labels"]]
+            if isinstance(classification.get("labels"), list)
+            else []
+        )
+        labels_field = str(classification.get("labels_field") or "") or None
+        classification_rules = classification.get("rules")
+        contract_complete = (
+            label_field in output_properties
+            and _schema_type_is(output_properties.get(label_field), "string")
+            and bool(source_fields)
+            and all(field in input_properties for field in source_fields)
+            and (bool(allowed_labels) or labels_field in input_properties)
+            and isinstance(classification_rules, dict)
+            and bool(classification_rules)
+        )
+    else:
+        contract_complete = False
+    if contract_complete:
         return {
             "kind": "rule_based_classification",
             "label_field": label_field,
             "allowed": allowed_labels,
             "labels_field": labels_field,
+            "source_fields": source_fields,
             "rules": classification_rules,
             "version": 1,
         }
@@ -5241,7 +5265,11 @@ def _exact_field_projection_semantic_diff(
             continue
         target_value = generated.get(target_field)
         if isinstance(source_value, str):
-            if str(source_value).casefold() not in str(target_value or "").casefold():
+            expected = re.sub(r"\\s+", " ", source_value.strip().casefold())
+            actual = re.sub(r"\\s+", " ", str(target_value or "").strip().casefold())
+            prefix = r"(?<!\\w)" if expected and re.match(r"\\w", expected) else ""
+            suffix = r"(?!\\w)" if expected and re.search(r"\\w$", expected) else ""
+            if not expected or re.search(prefix + re.escape(expected) + suffix, actual) is None:
                 details.append(f"$.{target_field}:semantic_projection")
         elif isinstance(source_value, bool):
             if target_value is not source_value:
@@ -5249,6 +5277,11 @@ def _exact_field_projection_semantic_diff(
         elif isinstance(source_value, (int, float)):
             if not _numbers_equal(target_value, source_value):
                 details.append(f"$.{target_field}:semantic_projection")
+        elif isinstance(source_value, (list, dict)):
+            if target_value != source_value:
+                details.append(f"$.{target_field}:semantic_projection")
+        else:
+            details.append(f"$.{target_field}:semantic_projection")
     return details
 
 
@@ -5347,7 +5380,8 @@ def _rule_based_classification_semantic_diff(
         return details
     rules = spec.get("rules", {})
     if isinstance(rules, dict) and rules and label:
-        payload_text = _evidence_text(payload).casefold()
+        source_values = [payload.get(field) for field in spec.get("source_fields", [])]
+        payload_text = _evidence_text(source_values).casefold()
         matched_labels: list[str] = []
         for rule_label, keywords in rules.items():
             keyword_list = keywords if isinstance(keywords, list) else [keywords]
