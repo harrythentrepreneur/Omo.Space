@@ -229,9 +229,13 @@ def test_safe_failure_stage_is_allowlisted() -> None:
     release_safe = builder._safe_result(
         "failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="release_issue_lookup"
     )
+    prerender_safe = builder._safe_result(
+        "failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="trusted_prerender"
+    )
     unsafe = builder._safe_result("failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="secret-value")
     assert safe["stage"] == "claim"
     assert release_safe["stage"] == "release_issue_lookup"
+    assert prerender_safe["stage"] == "trusted_prerender"
     assert "stage" not in unsafe
 
 

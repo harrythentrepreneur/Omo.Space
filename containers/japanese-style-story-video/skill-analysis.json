@@ -1,6 +1,6 @@
 {
   "artifact": null,
-  "compiler": "skill-to-modal/0.3.0",
+  "compiler": "skill-to-modal/0.6.0",
   "cost_drivers": [
     "CPU-only 10-second portrait frame generation, FFmpeg assembly, and full-decode QA",
     "Run-scoped video, transcript, frame brief, frame manifest, and contact-sheet storage and egress",

@@ -85,7 +85,7 @@
     "prefix: optional ASCII identifier prefix"
   ],
   "marketplace": {
-    "catalog_managed": false,
+    "catalog_managed": true,
     "category": "ops",
     "cover": null,
     "demo_cap": "CPU-only deterministic canary; zero provider calls",

@@ -538,7 +538,7 @@
     }
   ],
   "marketplace": {
-    "catalog_managed": false,
+    "catalog_managed": true,
     "runtime_preference": "modal-hosted",
     "slug": "skill-md-to-hosted-workflow",
     "title": "Skill.md to Hosted Workflow",

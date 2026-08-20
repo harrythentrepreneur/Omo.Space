@@ -30,6 +30,7 @@
   ],
   "floor_usd": 0.1,
   "markup": 5.0,
+  "measured_evidence": [],
   "notes": [
     "$0.40 applies the repository 5x launch markup to the $0.08 staging guard.",
     "The hosted product includes bounded WhatsApp ZIP extraction, Markdown, page plan, PDF composition, and signed artifact delivery."

@@ -168,7 +168,7 @@
     "timeout_seconds": 120
   },
   "marketplace": {
-    "catalog_managed": false,
+    "catalog_managed": true,
     "category": "content",
     "cover": "covers/woven-relationship-book-maker.svg",
     "demo_cap": "Hosted run: WhatsApp ZIP or story fields to a PDF keepsake",

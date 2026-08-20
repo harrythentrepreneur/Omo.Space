@@ -1171,7 +1171,9 @@ def release_allowlisted_paths(slug: str, root: Path = ROOT) -> list[str]:
         f"containers/{slug}",
         f"packages/skill-to-modal/profiles/{slug}.json",
         *(f"site/run-manifests/{manifest_slug}.json" for manifest_slug in sorted(run_manifest_slugs)),
+        *(f"site/workflows/{manifest_slug}/index.html" for manifest_slug in sorted(run_manifest_slugs)),
         "site/catalog.js",
+        "site/sitemap.xml",
         "site/deploy/hosted-skills.generated.mjs",
         "site/deploy/schema.sql",
         "site/deploy/test-balance.mjs",
@@ -1576,6 +1578,11 @@ def prepare_reviewed_release(skill_path: Path, slug: str, profile_path: Path, se
         host_command(skill_path, slug, profile_path=profile_path, register=True, check=True),
         ROOT,
         "trusted_check",
+    )
+    run_checked_at_stage(
+        ["node", "scripts/prerender-listings.mjs"],
+        ROOT,
+        "trusted_prerender",
     )
     for script in ("test-workers.mjs", "test-router.mjs", "test-balance.mjs", "test-cost.mjs"):
         run_checked_at_stage(["node", script], WORKER_ROOT, "worker_contracts")
