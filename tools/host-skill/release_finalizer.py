@@ -11,9 +11,10 @@ import argparse
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 SAFE_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -197,6 +198,64 @@ def _resume_completed(store, claim: FinalizationClaim, target_sha: str) -> dict[
     return {"status": "deployed", "submission_id": claim.submission_id, "target_sha": target_sha}
 
 
+def _new_deployment(receipt: object) -> bool:
+    return isinstance(receipt, dict) and receipt.get("status") == "passed" and receipt.get("reused") is False
+
+
+def _deployment_receipt(receipt: object, claim, provider: str) -> dict[str, object]:
+    if is_dataclass(receipt) and not isinstance(receipt, type):
+        value = asdict(receipt)
+    elif isinstance(receipt, Mapping):
+        value = dict(receipt)
+    else:
+        raise FinalizerError("internal_finalizer_failed")
+    expected = {
+        "modal": ("cognition-staging-label-normalizer-canary", "omo-release-staging"),
+        "cloudflare": ("cognition-demos-staging", "staging"),
+    }
+    target, environment = expected[provider]
+    required = {
+        "status", "provider", "target", "environment", "target_sha", "artifact_hash",
+        "version_id", "previous_version_id", "reused", "rollback_token",
+    }
+    previous = value.get("previous_version_id")
+    reused = value.get("reused")
+    if (
+        set(value) != required
+        or value.get("status") != "passed"
+        or value.get("provider") != provider
+        or value.get("target") != target
+        or value.get("environment") != environment
+        or value.get("target_sha") != claim.target_sha
+        or value.get("artifact_hash") != claim.artifact_hash
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", str(value.get("version_id") or ""))
+        or type(reused) is not bool
+        or (previous is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", str(previous)))
+        or value.get("rollback_token") != previous
+        or (reused is False and previous is None)
+        or (reused is True and previous is not None)
+    ):
+        raise FinalizerError("internal_finalizer_failed")
+    return value
+
+
+def _rollback_new_deployments(claim, modal, cloudflare, modal_receipt, worker_receipt) -> None:
+    """Rollback only explicit newly-created staging deployments, in reverse order."""
+    failed = False
+    if _new_deployment(worker_receipt):
+        try:
+            _require_passed(cloudflare.rollback_worker(claim, worker_receipt), "internal_finalizer_failed")
+        except Exception:
+            failed = True
+    if _new_deployment(modal_receipt):
+        try:
+            _require_passed(modal.rollback(claim, modal_receipt), "internal_finalizer_failed")
+        except Exception:
+            failed = True
+    if failed:
+        raise FinalizerError("internal_finalizer_failed")
+
+
 def run_finalizer(mainline, store, modal, cloudflare, vercel) -> dict[str, str]:
     """Finalize at most one release through injected deterministic adapters."""
     green = mainline.latest_green()
@@ -211,6 +270,8 @@ def run_finalizer(mainline, store, modal, cloudflare, vercel) -> dict[str, str]:
             return {"status": "idle", "target_sha": green.target_sha}
         return _resume_completed(store, resumed, green.target_sha)
     promoted = False
+    modal_receipt = None
+    worker_receipt = None
     try:
         checkout = _verify_provenance(
             mainline, claim, green.target_sha, store.required_registry_slugs()
@@ -233,14 +294,19 @@ def run_finalizer(mainline, store, modal, cloudflare, vercel) -> dict[str, str]:
 
         if claim.runtime == "modal-hosted":
             store.advance(claim, "deploying_modal")
-            _require_passed(modal.deploy(claim, checkout), "modal_deploy_failed")
-            _require_passed(modal.canary(claim, checkout), "modal_canary_failed")
+            modal_receipt = modal.deploy(claim, checkout)
+            _require_passed(modal_receipt, "modal_deploy_failed")
+            modal_receipt = _deployment_receipt(modal_receipt, claim, "modal")
+            store.record_effect(claim, "modal_deploy", modal_receipt)
+            _require_passed(modal.canary(claim, checkout, modal_receipt), "modal_canary_failed")
         store.advance(claim, "deploying_worker")
         r1 = cloudflare.verify_registry(claim, checkout)
         _require_passed(r1, "internal_finalizer_failed")
-        r2 = cloudflare.deploy_worker(claim, checkout)
-        _require_passed(r2, "worker_deploy_failed")
-        r3 = cloudflare.smoke_worker(claim)
+        worker_receipt = cloudflare.deploy_worker(claim, checkout)
+        _require_passed(worker_receipt, "worker_deploy_failed")
+        worker_receipt = _deployment_receipt(worker_receipt, claim, "cloudflare")
+        store.record_effect(claim, "worker_deploy", worker_receipt)
+        r3 = cloudflare.smoke_worker(claim, worker_receipt)
         _require_passed(r3, "worker_smoke_failed")
 
         store.advance(claim, "verifying_public")
@@ -275,12 +341,22 @@ def run_finalizer(mainline, store, modal, cloudflare, vercel) -> dict[str, str]:
         return {"status": "deployed", "submission_id": claim.submission_id, "target_sha": green.target_sha}
     except FinalizerError as error:
         if not promoted:
+            try:
+                _rollback_new_deployments(claim, modal, cloudflare, modal_receipt, worker_receipt)
+            except FinalizerError as rollback_error:
+                _record_failure(store, claim, rollback_error.code)
+                raise rollback_error from error
             safe_code = _record_failure(store, claim, error.code)
             if safe_code != error.code:
                 raise FinalizerError(safe_code) from error
         raise
     except Exception as error:
         if not promoted:
+            try:
+                _rollback_new_deployments(claim, modal, cloudflare, modal_receipt, worker_receipt)
+            except FinalizerError as rollback_error:
+                _record_failure(store, claim, rollback_error.code)
+                raise rollback_error from error
             _record_failure(store, claim, "internal_finalizer_failed")
         raise FinalizerError("internal_finalizer_failed") from error
 
@@ -290,15 +366,42 @@ class EffectJournal:
 
     def __init__(self) -> None:
         self.events: list[tuple[str, str, str, str]] = []
-        self._receipts: dict[tuple[str, str, str, str], dict[str, str]] = {}
+        self._receipts: dict[tuple[str, str, str, str], dict[str, object]] = {}
 
-    def apply(self, claim: FinalizationClaim, operation: str) -> dict[str, str]:
+    def apply(self, claim: FinalizationClaim, operation: str) -> dict[str, object]:
         if not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", operation):
             raise FinalizerError("invalid_fake_operation")
         key = (claim.submission_id, claim.target_sha, claim.artifact_hash, operation)
         if key not in self._receipts:
             self.events.append(key)
-            self._receipts[key] = {"status": "passed", "operation": operation}
+            if operation == "modal_deploy":
+                self._receipts[key] = {
+                    "status": "passed",
+                    "provider": "modal",
+                    "target": "cognition-staging-label-normalizer-canary",
+                    "environment": "omo-release-staging",
+                    "target_sha": claim.target_sha,
+                    "artifact_hash": claim.artifact_hash,
+                    "version_id": "modal-v2",
+                    "previous_version_id": "modal-v1",
+                    "reused": False,
+                    "rollback_token": "modal-v1",
+                }
+            elif operation == "worker_deploy":
+                self._receipts[key] = {
+                    "status": "passed",
+                    "provider": "cloudflare",
+                    "target": "cognition-demos-staging",
+                    "environment": "staging",
+                    "target_sha": claim.target_sha,
+                    "artifact_hash": claim.artifact_hash,
+                    "version_id": "worker-v2",
+                    "previous_version_id": "worker-v1",
+                    "reused": False,
+                    "rollback_token": "worker-v1",
+                }
+            else:
+                self._receipts[key] = {"status": "passed", "operation": operation}
         return dict(self._receipts[key])
 
 
@@ -371,6 +474,9 @@ class _ScenarioStore:
         self._state = "completed"
         self._submission_status = "ready_for_publish"
 
+    def record_effect(self, claim: FinalizationClaim, operation: str, receipt: dict[str, object]) -> None:
+        return None
+
     def mark_deployed(self, submission_id: str) -> None:
         self._submission_status = "deployed"
 
@@ -382,11 +488,14 @@ class _FakeModal:
     def preflight(self, claim: FinalizationClaim, checkout: Path) -> None:
         return None
 
-    def deploy(self, claim: FinalizationClaim, checkout: Path) -> dict[str, str]:
+    def deploy(self, claim: FinalizationClaim, checkout: Path) -> dict[str, object]:
         return self._journal.apply(claim, "modal_deploy")
 
-    def canary(self, claim: FinalizationClaim, checkout: Path) -> dict[str, str]:
+    def canary(self, claim: FinalizationClaim, checkout: Path, deploy_receipt=None) -> dict[str, str]:
         return self._journal.apply(claim, "modal_canary")
+
+    def rollback(self, claim: FinalizationClaim, deploy_receipt) -> dict[str, str]:
+        return self._journal.apply(claim, "modal_rollback")
 
 
 class _FakeCloudflare:
@@ -399,11 +508,14 @@ class _FakeCloudflare:
     def verify_registry(self, claim: FinalizationClaim, checkout: Path) -> dict[str, str]:
         return self._journal.apply(claim, "registry_verify")
 
-    def deploy_worker(self, claim: FinalizationClaim, checkout: Path) -> dict[str, str]:
+    def deploy_worker(self, claim: FinalizationClaim, checkout: Path) -> dict[str, object]:
         return self._journal.apply(claim, "worker_deploy")
 
-    def smoke_worker(self, claim: FinalizationClaim) -> dict[str, str]:
+    def smoke_worker(self, claim: FinalizationClaim, deploy_receipt=None) -> dict[str, str]:
         return self._journal.apply(claim, "worker_smoke")
+
+    def rollback_worker(self, claim: FinalizationClaim, deploy_receipt) -> dict[str, str]:
+        return self._journal.apply(claim, "worker_rollback")
 
 
 class _FakeVercel:

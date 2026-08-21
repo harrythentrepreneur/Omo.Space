@@ -7,6 +7,7 @@ import json
 import sys
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -114,6 +115,7 @@ class Store:
         self.state = "claimed"
         self.submission_status = "ready_for_deploy"
         self.gates = None
+        self.effects: dict[str, dict] = {}
         self.fail_on: str | None = None
 
     def claim(self, target_sha):
@@ -156,6 +158,12 @@ class Store:
         self.state = "completed"
         self.submission_status = "ready_for_publish"
 
+    def record_effect(self, claim, operation, receipt):
+        self.events.append(("record_effect", operation, receipt))
+        if self.fail_on == f"record_effect:{operation}":
+            raise RuntimeError("SENTINEL_STORE_FAILURE")
+        self.effects[operation] = dict(receipt)
+
     def mark_deployed(self, submission_id):
         self.events.append(("deployed", submission_id))
         if self.fail_on == "deployed":
@@ -168,6 +176,8 @@ class Adapter:
         self.name = name
         self.events: list[object] = []
         self.fail_on: str | None = None
+        self.received_receipts: list[Any] = []
+        self.reused = False
 
     def preflight(self, claim, checkout=None):
         self.events.append("preflight")
@@ -176,11 +186,28 @@ class Adapter:
 
     def deploy(self, claim, checkout):
         self.events.append("deploy")
-        return {"status": "failed" if self.fail_on == "deploy" else "passed"}
+        return {
+            "status": "failed" if self.fail_on == "deploy" else "passed",
+            "provider": "modal",
+            "target": "cognition-staging-label-normalizer-canary",
+            "environment": "omo-release-staging",
+            "target_sha": claim.target_sha,
+            "artifact_hash": claim.artifact_hash,
+            "version_id": "modal-v2",
+            "previous_version_id": None if self.reused else "modal-v1",
+            "reused": self.reused,
+            "rollback_token": None if self.reused else "modal-v1",
+        }
 
-    def canary(self, claim, checkout):
+    def canary(self, claim, checkout, deploy_receipt=None):
         self.events.append("canary")
+        self.received_receipts.append(deploy_receipt)
         return {"status": "failed" if self.fail_on == "canary" else "passed"}
+
+    def rollback(self, claim, deploy_receipt):
+        self.events.append("rollback")
+        self.received_receipts.append(deploy_receipt)
+        return {"status": "failed" if self.fail_on == "rollback" else "passed"}
 
     def verify_registry(self, claim, checkout):
         self.events.append("registry")
@@ -188,11 +215,28 @@ class Adapter:
 
     def deploy_worker(self, claim, checkout):
         self.events.append("deploy_worker")
-        return {"status": "failed" if self.fail_on == "deploy_worker" else "passed"}
+        return {
+            "status": "failed" if self.fail_on == "deploy_worker" else "passed",
+            "provider": "cloudflare",
+            "target": "cognition-demos-staging",
+            "environment": "staging",
+            "target_sha": claim.target_sha,
+            "artifact_hash": claim.artifact_hash,
+            "version_id": "worker-v2",
+            "previous_version_id": None if self.reused else "worker-v1",
+            "reused": self.reused,
+            "rollback_token": None if self.reused else "worker-v1",
+        }
 
-    def smoke_worker(self, claim):
+    def smoke_worker(self, claim, deploy_receipt=None):
         self.events.append("smoke_worker")
+        self.received_receipts.append(deploy_receipt)
         return {"status": "failed" if self.fail_on == "smoke_worker" else "passed"}
+
+    def rollback_worker(self, claim, deploy_receipt):
+        self.events.append("rollback_worker")
+        self.received_receipts.append(deploy_receipt)
+        return {"status": "failed" if self.fail_on == "rollback_worker" else "passed"}
 
     def verify_public(self, claim, checkout):
         self.events.append("verify_public")
@@ -262,6 +306,106 @@ def test_modal_hosted_runs_modal_before_worker():
     assert [event[1] for event in store.events if event[0] == "advance"] == [
         "deploying_modal", "deploying_worker", "verifying_public"
     ]
+    assert modal.received_receipts[0]["provider"] == "modal"
+    assert cloudflare.received_receipts[0]["provider"] == "cloudflare"
+    assert store.effects["modal_deploy"] == modal.received_receipts[0]
+    assert store.effects["worker_deploy"] == cloudflare.received_receipts[0]
+
+
+def test_modal_canary_failure_rolls_back_new_modal_deployment():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="modal-hosted")
+    modal.fail_on = "canary"
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+    assert caught.value.code == "modal_canary_failed"
+    assert modal.events == ["preflight", "deploy", "canary", "rollback"]
+    assert modal.received_receipts[0] == modal.received_receipts[1]
+    assert cloudflare.events == ["preflight"]
+
+
+def test_worker_smoke_failure_rolls_back_worker_then_modal():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="modal-hosted")
+    cloudflare.fail_on = "smoke_worker"
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+    assert caught.value.code == "worker_smoke_failed"
+    assert cloudflare.events[-1] == "rollback_worker"
+    assert modal.events[-1] == "rollback"
+    assert cloudflare.received_receipts[0] == cloudflare.received_receipts[1]
+
+
+def test_reused_deployments_are_never_rolled_back():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="modal-hosted")
+    modal.reused = True
+    cloudflare.reused = True
+    cloudflare.fail_on = "smoke_worker"
+    with pytest.raises(mod.FinalizerError):
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+    assert "rollback" not in modal.events
+    assert "rollback_worker" not in cloudflare.events
+
+
+@pytest.mark.parametrize(
+    ("adapter_name", "field", "value"),
+    [
+        ("modal", "target_sha", NEW_TARGET),
+        ("modal", "artifact_hash", "f" * 64),
+        ("modal", "target", "cognition-label-normalizer-canary"),
+        ("cloudflare", "provider", "modal"),
+        ("cloudflare", "environment", "production"),
+        ("cloudflare", "rollback_token", "other-version"),
+        ("cloudflare", "reused", "false"),
+    ],
+)
+def test_finalizer_rejects_unbound_or_malformed_deployment_receipts(adapter_name, field, value):
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="modal-hosted")
+    adapter = modal if adapter_name == "modal" else cloudflare
+    method_name = "deploy" if adapter_name == "modal" else "deploy_worker"
+    original = getattr(adapter, method_name)
+
+    def malformed(*args):
+        receipt = original(*args)
+        receipt[field] = value
+        return receipt
+
+    setattr(adapter, method_name, malformed)
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+    assert caught.value.code == "internal_finalizer_failed"
+    assert not any(
+        isinstance(event, tuple)
+        and len(event) > 1
+        and event[0] == "record_effect"
+        and str(event[1]).startswith(adapter_name)
+        for event in store.events
+    )
+
+
+def test_receipt_is_persisted_before_canary_and_smoke():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="modal-hosted")
+    mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+    modal_record = next(
+        i for i, event in enumerate(store.events)
+        if isinstance(event, tuple) and event[:2] == ("record_effect", "modal_deploy")
+    )
+    modal_canary = modal.events.index("canary")
+    worker_record = next(
+        i for i, event in enumerate(store.events)
+        if isinstance(event, tuple) and event[:2] == ("record_effect", "worker_deploy")
+    )
+    assert modal_record >= 0 and worker_record > modal_record
+    assert modal.received_receipts and modal_canary > modal.events.index("deploy")
+
+
+def test_worker_rollback_failure_still_attempts_modal_rollback():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="modal-hosted")
+    cloudflare.fail_on = "rollback_worker"
+    vercel.fail_on = "verify_public"
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+    assert caught.value.code == "internal_finalizer_failed"
+    assert cloudflare.events[-1] == "rollback_worker"
+    assert modal.events[-1] == "rollback"
 
 
 @pytest.mark.parametrize("field", ["source_sha256", "artifact_hash", "target_sha"])
@@ -377,7 +521,11 @@ def test_effect_journal_deduplicates_provider_effect_across_generation_ids():
     reclaimed = replace(store.claim_value, id="fin_" + "2" * 32, attempts=2)
     second = journal.apply(reclaimed, "worker_deploy")
 
-    assert first == second == {"status": "passed", "operation": "worker_deploy"}
+    assert first == second
+    assert first["status"] == "passed"
+    assert first["provider"] == "cloudflare"
+    assert first["target_sha"] == TARGET
+    assert first["artifact_hash"] == store.claim_value.artifact_hash
     assert journal.events == [
         (store.claim_value.submission_id, TARGET, store.claim_value.artifact_hash, "worker_deploy")
     ]
