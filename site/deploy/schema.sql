@@ -247,6 +247,19 @@ CREATE TABLE IF NOT EXISTS submissions (
   modal_app         TEXT,
   modal_url         TEXT,
   canary_evidence   TEXT,
+  promotion_evidence TEXT,
+  finalization_id TEXT,
+  finalization_status TEXT,
+  finalization_target_sha TEXT,
+  finalization_source_sha256 TEXT,
+  finalization_head_sha TEXT,
+  finalization_merge_sha TEXT,
+  finalization_artifact_hash TEXT,
+  finalization_claimed_at TEXT,
+  finalization_lease_expires_at TEXT,
+  finalization_attempts INTEGER NOT NULL DEFAULT 0,
+  finalization_failure_code TEXT,
+  automation_updated_at TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
   created_at    TEXT NOT NULL,
@@ -276,6 +289,19 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS release_artifact_hash TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS modal_app TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS modal_url TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS canary_evidence TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS promotion_evidence TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_id TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_status TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_target_sha TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_source_sha256 TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_head_sha TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_merge_sha TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_artifact_hash TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_claimed_at TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_lease_expires_at TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_failure_code TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS automation_updated_at TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_submissions_status_created
   ON submissions (status, created_at);

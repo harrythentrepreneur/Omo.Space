@@ -125,6 +125,9 @@ let neonApprovalRow = null;
 let neonInternalClaimRow = null;
 let neonInternalDetailRow = null;
 let neonResumeMergedRow = null;
+let neonFinalizationClaimRow = null;
+let neonFinalizationDetailRow = null;
+let neonFinalizationStatusRow = null;
 
 class MockPool {
   constructor(options) {
@@ -331,6 +334,14 @@ const sandbox = {
               ? 'omo-internal-submission-detail-v1'
               : text.includes('WITH candidate AS') && text.includes('build_claimed_at')
                 ? 'omo-internal-submission-claim-v1'
+              : text.includes('WITH candidate AS') && text.includes('finalization_id')
+                ? 'omo-internal-finalization-claim-v1'
+              : text.includes('WHERE finalization_id = $1') && text.includes('finalization_status')
+                ? 'omo-internal-finalization-detail-v1'
+              : text.includes('SET finalization_status = $1')
+                ? 'omo-internal-finalization-status-v1'
+              : text.includes("SET status = 'ready_for_publish', release_phase = 'promoted'") && text.includes("finalization_status = 'completed'")
+                ? 'omo-internal-finalization-promote-v1'
               : text.includes("SET status = 'ready_for_deploy'") && text.includes("release_phase = 'merged_verified'")
                 ? 'omo-internal-resume-merged-release-v1'
                 : null,
@@ -346,6 +357,15 @@ const sandbox = {
       if (entry.name === 'omo-internal-submission-claim-v1') {
         return neonInternalClaimRow ? { rows: [neonInternalClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-internal-finalization-claim-v1') {
+        return neonFinalizationClaimRow ? { rows: [neonFinalizationClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (entry.name === 'omo-internal-finalization-detail-v1') {
+        return neonFinalizationDetailRow ? { rows: [neonFinalizationDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (entry.name === 'omo-internal-finalization-status-v1' || entry.name === 'omo-internal-finalization-promote-v1') {
+        return neonFinalizationStatusRow ? { rows: [neonFinalizationStatusRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
       if (entry.name === 'omo-internal-resume-merged-release-v1') {
         return neonResumeMergedRow ? { rows: [neonResumeMergedRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
@@ -354,7 +374,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -1143,8 +1163,13 @@ check('submission retry: Neon uses one atomic guarded UPDATE and ignores client 
   JSON.stringify(neonSqlCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
 
 // Private build-worker bridge: bearer-only, no CORS, bounded strict payloads.
-const buildEnv = { ...realEnv, BUILD_WORKER_TOKEN: 'bridge-token-for-tests' };
+const buildEnv = {
+  ...realEnv,
+  BUILD_WORKER_TOKEN: 'bridge-token-for-tests',
+  RELEASE_FINALIZER_TOKEN: 'finalizer-token-for-tests',
+};
 const internalHeaders = { Authorization: 'Bearer bridge-token-for-tests', Origin: 'https://omo.space' };
+const finalizerHeaders = { Authorization: 'Bearer finalizer-token-for-tests', Origin: 'https://omo.space' };
 check('internal auth: constant-time helper is length-stable and exact',
   workerTest.constantTimeEquals('bridge-token-for-tests', 'bridge-token-for-tests') === true &&
   workerTest.constantTimeEquals('bridge-token-for-tests', 'bridge-token-for-testx') === false &&
@@ -1431,6 +1456,19 @@ const internalDeployment = await worker.fetch(mkReq('POST', `/api/internal/submi
     secret: 'must-not-store',
   },
 }, internalHeaders), buildEnv);
+const internalReadyForDeploy = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/deployment`, {
+  status: 'ready_for_deploy',
+  published_slug: 'auto-workflow',
+  workflow_version: 'auto-workflow@1.0.0',
+  build_evidence: {
+    checks: ['compile', 'contract'],
+    source_sha256: internalClaimBody.submission.source_sha256,
+    generated_at: '2026-08-13T00:00:00Z',
+  },
+}, internalHeaders), buildEnv);
+const builderPublishStatus = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/status`, {
+  status: 'ready_for_publish',
+}, internalHeaders), buildEnv);
 const internalRelease = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/release`, {
   release_phase: 'pr_open',
   issue_url: 'https://github.com/omo-space/marketplace/issues/31',
@@ -1457,19 +1495,329 @@ const internalDeployed = await worker.fetch(mkReq('POST', `/api/internal/submiss
   deployed_by: 'build-worker',
   deployment_url: 'https://omo.space/workflow.html?slug=auto-workflow',
 }, internalHeaders), buildEnv);
+const mergedInternalRelease = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/release`, {
+  release_phase: 'merged_verified',
+  issue_url: 'https://github.com/omo-space/marketplace/issues/31',
+  pr_url: 'https://github.com/omo-space/marketplace/pull/42',
+  pr_number: 42,
+  branch: 'omo-release/' + internalClaimBody.submission.id + '-auto-workflow',
+  head_sha: 'a'.repeat(40),
+  merge_sha: 'c'.repeat(40),
+  source_sha256: internalClaimBody.submission.source_sha256,
+  artifact_hash: 'b'.repeat(64),
+}, internalHeaders), buildEnv);
 const deployedRecord = Array.from(workerTest.mockSubmissions.values()).find((record) => record.id === internalClaimBody.submission.id);
-check('internal deployment: metadata is allowlisted and deployed is gated from ready_for_publish',
-  internalDeployment.status === 200 &&
+deployedRecord.finalization_id = 'fin_' + 'f'.repeat(32);
+deployedRecord.finalization_status = 'verifying_public';
+deployedRecord.finalization_target_sha = '9'.repeat(40);
+deployedRecord.finalization_source_sha256 = internalClaimBody.submission.source_sha256;
+deployedRecord.finalization_head_sha = 'a'.repeat(40);
+deployedRecord.finalization_merge_sha = 'c'.repeat(40);
+deployedRecord.finalization_artifact_hash = 'b'.repeat(64);
+deployedRecord.finalization_lease_expires_at = '2099-08-20T12:00:00Z';
+deployedRecord.finalization_attempts = 1;
+const promotedInternalRelease = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/release`, {
+  release_phase: 'promoted',
+  issue_url: 'https://github.com/omo-space/marketplace/issues/31',
+  pr_url: 'https://github.com/omo-space/marketplace/pull/42',
+  pr_number: 42,
+  branch: 'omo-release/' + internalClaimBody.submission.id + '-auto-workflow',
+  head_sha: 'a'.repeat(40),
+  merge_sha: 'c'.repeat(40),
+  source_sha256: internalClaimBody.submission.source_sha256,
+  artifact_hash: 'b'.repeat(64),
+  release_gates: {
+    status: 'live', checked_at: '2026-08-20T00:00:00Z',
+    R1: { status: 'passed' }, R2: { status: 'passed' },
+    R3: { status: 'passed' }, R4: { status: 'published' },
+  },
+}, internalHeaders), buildEnv);
+const atomicInternalPromotion = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${deployedRecord.finalization_id}/promote`, {
+  target_sha: '9'.repeat(40),
+  release_gates: {
+    status: 'live',
+    checked_at: '2026-08-20T00:00:00Z',
+    R1: { status: 'passed' },
+    R2: { status: 'passed' },
+    R3: { status: 'passed' },
+    R4: { status: 'published' },
+    secret: 'must-not-store',
+  },
+}, finalizerHeaders), buildEnv);
+const promotedInternalDeployed = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/deployed`, {
+  deployed_by: 'trusted_finalizer',
+  deployment_url: 'https://omo.space/workflow.html?slug=auto-workflow',
+}, finalizerHeaders), buildEnv);
+const deployedReleaseDowngrade = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/release`, {
+  release_phase: 'pr_open',
+  issue_url: 'https://github.com/omo-space/marketplace/issues/31',
+  pr_url: 'https://github.com/omo-space/marketplace/pull/42',
+  pr_number: 42,
+  branch: 'omo-release/' + internalClaimBody.submission.id + '-auto-workflow',
+  head_sha: 'a'.repeat(40),
+  source_sha256: internalClaimBody.submission.source_sha256,
+  artifact_hash: 'b'.repeat(64),
+}, internalHeaders), buildEnv);
+check('internal deployment: builder cannot bypass atomic finalization and promoted R1-R4 evidence is required',
+  internalDeployment.status === 409 &&
+  internalReadyForDeploy.status === 200 &&
+  builderPublishStatus.status === 409 &&
   internalRelease.status === 200 &&
   badInternalRelease.status === 400 &&
-  internalDeployed.status === 200 &&
+  internalDeployed.status === 401 &&
+  mergedInternalRelease.status === 200 &&
+  promotedInternalRelease.status === 409 &&
+  atomicInternalPromotion.status === 200 &&
+  promotedInternalDeployed.status === 200 &&
+  deployedReleaseDowngrade.status === 409 &&
   deployedRecord.status === 'deployed' &&
   deployedRecord.published_slug === 'auto-workflow' &&
-  deployedRecord.release_phase === 'pr_open' &&
+  deployedRecord.release_phase === 'promoted' &&
+  deployedRecord.release_merge_sha === 'c'.repeat(40) &&
+  JSON.parse(deployedRecord.promotion_evidence).status === 'live' &&
+  !deployedRecord.promotion_evidence.includes('must-not-store') &&
   deployedRecord.release_branch === 'omo-release/' + internalClaimBody.submission.id + '-auto-workflow' &&
   deployedRecord.release_pr_number === 42 &&
   !String(deployedRecord.build_evidence).includes('must-not-store') &&
   !JSON.stringify(deployedRecord).includes('attacker-branch'));
+
+const finalizationCandidateId = 'sub_finalizationlease0001';
+workerTest.mockSubmissions.set(finalizationCandidateId, {
+  id: finalizationCandidateId,
+  name: 'Lease Workflow',
+  slug: 'lease-workflow',
+  content: '# Lease Workflow\n',
+  source_sha256: 'e'.repeat(64),
+  requested_runtime: 'auto',
+  created_at: '2026-08-20T00:00:00Z',
+  selected_runtime: 'worker-native',
+  workflow_version: 'lease-workflow@1.0.0',
+  published_slug: 'lease-workflow',
+  build_evidence: JSON.stringify({ checks: ['compile'], source_sha256: 'e'.repeat(64) }),
+  status: 'ready_for_deploy',
+  release_phase: 'merged_verified',
+  release_head_sha: 'f'.repeat(40),
+  release_merge_sha: '1'.repeat(40),
+  release_artifact_hash: '2'.repeat(64),
+  release_issue_url: 'https://github.com/omo-space/marketplace/issues/51',
+  release_pr_url: 'https://github.com/omo-space/marketplace/pull/52',
+  release_pr_number: 52,
+  release_branch: 'omo-release/' + finalizationCandidateId + '-lease-workflow',
+  finalization_id: null,
+  finalization_status: null,
+  finalization_lease_expires_at: null,
+  finalization_attempts: 0,
+});
+const builderFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
+  target_sha: '3'.repeat(40),
+}, internalHeaders), buildEnv);
+const noConfigFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
+  target_sha: '3'.repeat(40),
+}, finalizerHeaders), { ...realEnv, BUILD_WORKER_TOKEN: 'bridge-token-for-tests' });
+const equalTokenFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
+  target_sha: '3'.repeat(40),
+}, internalHeaders), {
+  ...realEnv,
+  BUILD_WORKER_TOKEN: 'bridge-token-for-tests',
+  RELEASE_FINALIZER_TOKEN: 'bridge-token-for-tests',
+});
+const finalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
+  target_sha: '3'.repeat(40),
+}, finalizerHeaders), buildEnv);
+const finalizationClaimBody = await finalizationClaim.json();
+const finalizationRecord = workerTest.mockSubmissions.get(finalizationCandidateId);
+const builderReclaimAfterFinalization = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', {
+  id: finalizationCandidateId,
+  include_ready: true,
+}, internalHeaders), buildEnv);
+const builderFailureAfterFinalization = await worker.fetch(mkReq('POST', `/api/internal/submissions/${finalizationCandidateId}/status`, {
+  status: 'failed',
+  failure_code: 'build_or_deploy_failed',
+}, internalHeaders), buildEnv);
+const builderReleaseMutationAfterClaim = await worker.fetch(mkReq('POST', `/api/internal/submissions/${finalizationCandidateId}/release`, {
+  release_phase: 'failed',
+  issue_url: finalizationRecord.release_issue_url,
+  pr_url: finalizationRecord.release_pr_url,
+  pr_number: finalizationRecord.release_pr_number,
+  branch: finalizationRecord.release_branch,
+  head_sha: finalizationRecord.release_head_sha,
+  merge_sha: finalizationRecord.release_merge_sha,
+  source_sha256: finalizationRecord.source_sha256,
+  artifact_hash: finalizationRecord.release_artifact_hash,
+}, internalHeaders), buildEnv);
+const duplicateFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
+  target_sha: '3'.repeat(40),
+}, finalizerHeaders), buildEnv);
+const wrongTargetFinalizationAdvance = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/status`, {
+  target_sha: '4'.repeat(40),
+  status: 'deploying_worker',
+}, finalizerHeaders), buildEnv);
+const driftedMergeSha = finalizationRecord.release_merge_sha;
+finalizationRecord.release_merge_sha = 'd'.repeat(40);
+const driftedFinalizationAdvance = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/status`, {
+  target_sha: '3'.repeat(40),
+  status: 'deploying_worker',
+}, finalizerHeaders), buildEnv);
+finalizationRecord.release_merge_sha = driftedMergeSha;
+const finalizationAdvance = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/status`, {
+  target_sha: '3'.repeat(40),
+  status: 'deploying_worker',
+}, finalizerHeaders), buildEnv);
+const duplicateFinalizationAdvance = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/status`, {
+  target_sha: '3'.repeat(40),
+  status: 'deploying_worker',
+}, finalizerHeaders), buildEnv);
+const skippedFinalizationAdvance = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/status`, {
+  target_sha: '3'.repeat(40),
+  status: 'completed',
+}, finalizerHeaders), buildEnv);
+check('internal finalization claim: separate finalizer authority gets one target-SHA-bound lease',
+  builderFinalizationClaim.status === 401 &&
+  noConfigFinalizationClaim.status === 503 &&
+  equalTokenFinalizationClaim.status === 503 &&
+  finalizationClaim.status === 200 &&
+  finalizationClaimBody.finalization.submission_id === finalizationCandidateId &&
+  finalizationClaimBody.finalization.target_sha === '3'.repeat(40) &&
+  finalizationClaimBody.finalization.status === 'claimed' &&
+  builderReclaimAfterFinalization.status === 204 &&
+  builderFailureAfterFinalization.status === 409 &&
+  finalizationRecord.status === 'ready_for_deploy' &&
+  builderReleaseMutationAfterClaim.status === 409 &&
+  finalizationRecord.release_phase === 'merged_verified' &&
+  /^fin_[a-f0-9]{32}$/.test(finalizationClaimBody.finalization.id) &&
+  duplicateFinalizationClaim.status === 204 &&
+  finalizationRecord.finalization_attempts === 1 &&
+  finalizationRecord.finalization_id === finalizationClaimBody.finalization.id);
+check('internal finalization status: exact generation advances idempotently and skipped/wrong-target transitions fail',
+  wrongTargetFinalizationAdvance.status === 409 &&
+  driftedFinalizationAdvance.status === 409 &&
+  finalizationAdvance.status === 200 &&
+  duplicateFinalizationAdvance.status === 200 &&
+  skippedFinalizationAdvance.status === 400 &&
+  finalizationRecord.finalization_status === 'deploying_worker');
+
+const firstFinalizationId = finalizationRecord.finalization_id;
+const reclaimedGenerationIds = [];
+let reclaimedFinalization;
+let reclaimedFinalizationBody;
+for (const expiredStatus of ['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public']) {
+  finalizationRecord.finalization_status = expiredStatus;
+  finalizationRecord.finalization_lease_expires_at = '2020-01-01T00:00:00.000Z';
+  reclaimedFinalization = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
+    target_sha: '5'.repeat(40),
+  }, finalizerHeaders), buildEnv);
+  reclaimedFinalizationBody = await reclaimedFinalization.json();
+  reclaimedGenerationIds.push(reclaimedFinalizationBody.finalization.id);
+}
+const finalizationDetail = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${reclaimedFinalizationBody.finalization.id}/detail`, {}, finalizerHeaders), buildEnv);
+const finalizationDetailBody = await finalizationDetail.json();
+const failedFinalization = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${reclaimedFinalizationBody.finalization.id}/status`, {
+  target_sha: '5'.repeat(40),
+  status: 'failed',
+  failure_code: 'worker_deploy_failed',
+}, finalizerHeaders), buildEnv);
+const unsafeFailedFinalization = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${reclaimedFinalizationBody.finalization.id}/status`, {
+  target_sha: '5'.repeat(40),
+  status: 'failed',
+  failure_code: 'secret',
+}, finalizerHeaders), buildEnv);
+check('internal finalization claim: every expired active infrastructure phase is reclaimed as a new generation',
+  reclaimedFinalization.status === 200 &&
+  reclaimedGenerationIds.length === 4 &&
+  new Set([firstFinalizationId, ...reclaimedGenerationIds]).size === 5 &&
+  reclaimedFinalizationBody.finalization.target_sha === '5'.repeat(40) &&
+  reclaimedFinalizationBody.finalization.attempts === 5 &&
+  finalizationRecord.finalization_attempts === 5);
+check('internal finalization detail: safe generation state is readable without owner/source payloads',
+  finalizationDetail.status === 200 &&
+  finalizationDetailBody.finalization.id === reclaimedFinalizationBody.finalization.id &&
+  finalizationDetailBody.finalization.submission_id === finalizationCandidateId &&
+  finalizationDetailBody.finalization.status === 'claimed' &&
+  !('user_id' in finalizationDetailBody.finalization) &&
+  !('content' in finalizationDetailBody.finalization));
+check('internal finalization failure: exact generation records one typed safe terminal code',
+  failedFinalization.status === 200 &&
+  unsafeFailedFinalization.status === 400 &&
+  finalizationRecord.finalization_status === 'failed' &&
+  finalizationRecord.finalization_failure_code === 'worker_deploy_failed');
+
+neonSqlCalls.length = 0;
+neonFinalizationClaimRow = {
+  id: 'sub_neonfinalizer01',
+  slug: 'neon-finalizer',
+  selected_runtime: 'modal-hosted',
+  source_sha256: '6'.repeat(64),
+  release_head_sha: '7'.repeat(40),
+  release_merge_sha: '8'.repeat(40),
+  release_artifact_hash: '9'.repeat(64),
+  finalization_id: 'fin_' + 'a'.repeat(32),
+  finalization_target_sha: 'b'.repeat(40),
+  finalization_source_sha256: '6'.repeat(64),
+  finalization_head_sha: '7'.repeat(40),
+  finalization_merge_sha: '8'.repeat(40),
+  finalization_artifact_hash: '9'.repeat(64),
+  finalization_lease_expires_at: '2099-08-20T12:00:00Z',
+  finalization_attempts: 1,
+};
+const neonFinalization = await workerTest.internalClaimFinalization({ NEON_DATABASE_URL: 'postgres://example' }, 'b'.repeat(40));
+const neonFinalizationCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-claim-v1');
+check('internal finalization claim Neon: one locked atomic update returns only finalizer fields',
+  neonFinalization.id === 'fin_' + 'a'.repeat(32) &&
+  neonFinalizationCall.text.includes('FOR UPDATE SKIP LOCKED') &&
+  neonFinalizationCall.text.includes("release_phase = 'merged_verified'") &&
+  neonFinalizationCall.text.includes('release_pr_url IS NOT NULL') &&
+  neonFinalizationCall.text.includes('build_evidence IS NOT NULL') &&
+  neonFinalizationCall.text.includes('finalization_lease_expires_at::timestamptz < CURRENT_TIMESTAMP') &&
+  !neonFinalizationCall.text.split('RETURNING', 2).at(-1).includes('user_id') &&
+  !neonFinalizationCall.text.split('RETURNING', 2).at(-1).includes('content'));
+neonFinalizationClaimRow = null;
+
+neonSqlCalls.length = 0;
+neonFinalizationDetailRow = {
+  id: 'sub_neonfinalizer01',
+  slug: 'neon-finalizer',
+  source_sha256: '6'.repeat(64),
+  selected_runtime: 'modal-hosted',
+  status: 'ready_for_deploy',
+  release_phase: 'merged_verified',
+  release_head_sha: '7'.repeat(40),
+  release_merge_sha: '8'.repeat(40),
+  release_artifact_hash: '9'.repeat(64),
+  promotion_evidence: JSON.stringify({
+    status: 'live', checked_at: '2026-08-20T00:00:00Z',
+    R1: { status: 'passed' }, R2: { status: 'passed' },
+    R3: { status: 'passed' }, R4: { status: 'published' },
+  }),
+  finalization_id: 'fin_' + 'a'.repeat(32),
+  finalization_status: 'verifying_public',
+  finalization_target_sha: 'b'.repeat(40),
+  finalization_source_sha256: '6'.repeat(64),
+  finalization_head_sha: '7'.repeat(40),
+  finalization_merge_sha: '8'.repeat(40),
+  finalization_artifact_hash: '9'.repeat(64),
+  finalization_lease_expires_at: '2099-08-20T12:00:00Z',
+};
+neonFinalizationStatusRow = { id: 'sub_neonfinalizer01' };
+const neonFinalizationCompleted = await workerTest.internalPromoteFinalization(
+  { NEON_DATABASE_URL: 'postgres://example' },
+  'fin_' + 'a'.repeat(32),
+  'b'.repeat(40),
+  {
+    status: 'live', checked_at: '2026-08-20T00:00:00Z',
+    R1: { status: 'passed' }, R2: { status: 'passed' },
+    R3: { status: 'passed' }, R4: { status: 'published' },
+  }
+);
+const neonFinalizationStatusCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-promote-v1');
+check('internal finalization completion Neon: promotion, publish readiness, and completion are one atomic update',
+  neonFinalizationCompleted === true &&
+  neonFinalizationStatusCall.text.includes("SET status = 'ready_for_publish', release_phase = 'promoted'") &&
+  neonFinalizationStatusCall.text.includes("finalization_status = 'completed'") &&
+  neonFinalizationStatusCall.text.includes("release_phase = 'merged_verified'") &&
+  neonFinalizationStatusCall.text.includes('source_sha256 = finalization_source_sha256') &&
+  neonFinalizationStatusCall.text.includes('finalization_lease_expires_at::timestamptz > CURRENT_TIMESTAMP'));
+neonFinalizationDetailRow = null;
+neonFinalizationStatusRow = null;
 
 const internalDetail = await worker.fetch(mkReq('POST', `/api/internal/submissions/${internalClaimBody.submission.id}/detail`, {}, internalHeaders), buildEnv);
 const internalDetailBody = await internalDetail.json();
@@ -1491,11 +1839,15 @@ check('internal detail mock: bearer-only POST detail returns release/deploy fiel
   internalDetailBody.submission.workflow_version === 'auto-workflow@1.0.0' &&
   internalDetailBody.submission.published_slug === 'auto-workflow' &&
   internalDetailBody.submission.source_sha256 === internalClaimBody.submission.source_sha256 &&
-  internalDetailBody.submission.release_phase === 'pr_open' &&
+  internalDetailBody.submission.release_phase === 'promoted' &&
   internalDetailBody.submission.release_pr_number === 42 &&
   internalDetailBody.submission.release_branch === 'omo-release/' + internalClaimBody.submission.id + '-auto-workflow' &&
   internalDetailBody.submission.release_head_sha === 'a'.repeat(40) &&
+  internalDetailBody.submission.release_merge_sha === 'c'.repeat(40) &&
   internalDetailBody.submission.release_artifact_hash === 'b'.repeat(64) &&
+  internalDetailBody.submission.promotion_evidence.status === 'live' &&
+  internalDetailBody.submission.promotion_evidence.R4.status === 'published' &&
+  !JSON.stringify(internalDetailBody.submission).includes('must-not-store') &&
   !('content' in internalDetailBody.submission) &&
   !('user_id' in internalDetailBody.submission) &&
   !('approved_by' in internalDetailBody.submission) &&
@@ -1626,7 +1978,7 @@ function d1DatabaseForSubmissionClaim(records) {
     id TEXT PRIMARY KEY, user_id TEXT, name TEXT, slug TEXT, content TEXT,
     source_sha256 TEXT, requested_runtime TEXT, status TEXT, failure_code TEXT,
     build_claimed_at TEXT, build_attempts INTEGER, build_evidence TEXT,
-    created_at TEXT, updated_at TEXT
+    finalization_id TEXT, created_at TEXT, updated_at TEXT
   )`);
   for (const record of records) {
     const keys = Object.keys(record);
@@ -1690,6 +2042,98 @@ check('internal claim lease D1: stale compare-and-swap has one winner and malfor
   d1InvalidFinal.build_attempts === 9 && d1InvalidFinal.build_claimed_at === d1ClaimLease);
 d1Claims.db.close();
 
+function d1DatabaseForFinalization(record) {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE submissions (
+    id TEXT PRIMARY KEY, slug TEXT, source_sha256 TEXT, selected_runtime TEXT,
+    status TEXT, release_phase TEXT, published_slug TEXT, workflow_version TEXT,
+    build_evidence TEXT, release_issue_url TEXT, release_pr_url TEXT,
+    release_pr_number INTEGER, release_branch TEXT, release_head_sha TEXT,
+    release_merge_sha TEXT, release_artifact_hash TEXT, promotion_evidence TEXT,
+    finalization_id TEXT, finalization_status TEXT, finalization_target_sha TEXT,
+    finalization_source_sha256 TEXT, finalization_head_sha TEXT,
+    finalization_merge_sha TEXT, finalization_artifact_hash TEXT,
+    finalization_claimed_at TEXT, finalization_lease_expires_at TEXT,
+    finalization_attempts INTEGER NOT NULL DEFAULT 0,
+    finalization_failure_code TEXT, automation_updated_at TEXT, updated_at TEXT
+  )`);
+  const keys = Object.keys(record);
+  db.prepare(`INSERT INTO submissions (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`)
+    .run(...keys.map((key) => record[key]));
+  return {
+    db,
+    binding: {
+      prepare(sql) {
+        return {
+          bind(...values) {
+            return {
+              first: async () => db.prepare(sql).get(...values) || null,
+              run: async () => {
+                const result = db.prepare(sql).run(...values);
+                return { meta: { changes: Number(result.changes) } };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+}
+
+const d1FinalizerId = 'sub_d1finalizer01';
+const d1Finalizer = d1DatabaseForFinalization({
+  id: d1FinalizerId,
+  slug: 'd1-finalizer',
+  source_sha256: 'a'.repeat(64),
+  selected_runtime: 'worker-native',
+  status: 'ready_for_deploy',
+  release_phase: 'merged_verified',
+  published_slug: 'd1-finalizer',
+  workflow_version: 'd1-finalizer@1.0.0',
+  build_evidence: JSON.stringify({ checks: ['trusted_compile'], source_sha256: 'a'.repeat(64) }),
+  release_issue_url: 'https://github.com/omo-space/marketplace/issues/61',
+  release_pr_url: 'https://github.com/omo-space/marketplace/pull/62',
+  release_pr_number: 62,
+  release_branch: 'omo-release/' + d1FinalizerId + '-d1-finalizer',
+  release_head_sha: 'b'.repeat(40),
+  release_merge_sha: 'c'.repeat(40),
+  release_artifact_hash: 'd'.repeat(64),
+  finalization_attempts: 0,
+  updated_at: '2026-08-20T00:00:00.000Z',
+});
+const d1FinalizerEnv = { BALANCE_DB: d1Finalizer.binding };
+const d1FinalizerTarget = 'e'.repeat(40);
+const d1FinalizerClaim = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget);
+const d1FinalizerDuplicate = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget);
+const d1FinalizerDeploying = await workerTest.internalSetFinalizationStatus(
+  d1FinalizerEnv, d1FinalizerClaim.id, d1FinalizerTarget, 'deploying_worker'
+);
+const d1FinalizerVerifying = await workerTest.internalSetFinalizationStatus(
+  d1FinalizerEnv, d1FinalizerClaim.id, d1FinalizerTarget, 'verifying_public'
+);
+const d1FinalizerCompleted = await workerTest.internalPromoteFinalization(
+  d1FinalizerEnv,
+  d1FinalizerClaim.id,
+  d1FinalizerTarget,
+  {
+    status: 'live', checked_at: '2026-08-20T00:00:00Z',
+    R1: { status: 'passed' }, R2: { status: 'passed' },
+    R3: { status: 'passed' }, R4: { status: 'published' },
+  }
+);
+const d1FinalizerRow = d1Finalizer.db.prepare('SELECT * FROM submissions WHERE id = ?').get(d1FinalizerId);
+check('internal finalization D1: SQLite claim and immutable phase CAS complete one exact generation',
+  d1FinalizerClaim && d1FinalizerClaim.submission_id === d1FinalizerId &&
+  d1FinalizerDuplicate === null && d1FinalizerDeploying === true &&
+  d1FinalizerVerifying === true && d1FinalizerCompleted === true &&
+  d1FinalizerRow.finalization_status === 'completed' &&
+  d1FinalizerRow.finalization_source_sha256 === 'a'.repeat(64) &&
+  d1FinalizerRow.finalization_head_sha === 'b'.repeat(40) &&
+  d1FinalizerRow.finalization_merge_sha === 'c'.repeat(40) &&
+  d1FinalizerRow.finalization_artifact_hash === 'd'.repeat(64) &&
+  d1FinalizerRow.finalization_attempts === 1);
+d1Finalizer.db.close();
+
 function d1DatabaseForMergedRelease(record) {
   const db = new DatabaseSync(':memory:');
   db.exec(`CREATE TABLE submissions (
@@ -1698,7 +2142,7 @@ function d1DatabaseForMergedRelease(record) {
     release_branch TEXT, release_head_sha TEXT, release_merge_sha TEXT,
     release_artifact_hash TEXT, source_sha256 TEXT, selected_runtime TEXT,
     published_slug TEXT, workflow_version TEXT, build_evidence TEXT, updated_at TEXT,
-    modal_app TEXT, modal_url TEXT, canary_evidence TEXT
+    modal_app TEXT, modal_url TEXT, canary_evidence TEXT, promotion_evidence TEXT
   )`);
   const keys = Object.keys(record);
   db.prepare(`INSERT INTO submissions (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...keys.map((key) => record[key]));

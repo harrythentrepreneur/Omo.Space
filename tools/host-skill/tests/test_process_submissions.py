@@ -1031,6 +1031,15 @@ def test_deployed_gate_requires_publish_slug_version_and_evidence() -> None:
             assert "published_slug IS NOT NULL" in query
             assert "workflow_version IS NOT NULL" in query
             assert "build_evidence IS NOT NULL" in query
+            assert "release_phase = 'promoted'" in query
+            assert "finalization_status = 'completed'" in query
+            assert "finalization_source_sha256 = source_sha256" in query
+            assert "finalization_head_sha = release_head_sha" in query
+            assert "finalization_merge_sha = release_merge_sha" in query
+            assert "finalization_artifact_hash = release_artifact_hash" in query
+            assert "promotion_evidence::jsonb ->> 'status' = 'live'" in query
+            assert "promotion_evidence::jsonb -> 'R1' ->> 'status' = 'passed'" in query
+            assert "promotion_evidence::jsonb -> 'R4' ->> 'status' IN ('published', 'excluded_premium')" in query
             self.rowcount = 0
 
     class Connection:
@@ -1051,6 +1060,53 @@ def test_deployed_gate_requires_publish_slug_version_and_evidence() -> None:
         assert "ready_for_publish" in str(error)
     else:
         raise AssertionError("mark_deployed should fail without deployment metadata")
+
+
+def test_promoted_release_normalization_preserves_only_allowlisted_gate_evidence() -> None:
+    process = load_process_submissions()
+    normalized = process.normalize_release_metadata({
+        "release_phase": "promoted",
+        "source_sha256": "a" * 64,
+        "artifact_hash": "b" * 64,
+        "head_sha": "c" * 40,
+        "merge_sha": "d" * 40,
+        "release_gates": {
+            "status": "live",
+            "checked_at": "2026-08-20T00:00:00Z",
+            "R1": {"status": "passed", "secret": "R1_SECRET"},
+            "R2": {"status": "passed", "secret": "R2_SECRET"},
+            "R3": {"status": "passed", "secret": "R3_SECRET"},
+            "R4": {"status": "published", "secret": "R4_SECRET"},
+            "private": "TOP_SECRET",
+        },
+    })
+
+    assert normalized["release_gates"] == {
+        "status": "live",
+        "checked_at": "2026-08-20T00:00:00Z",
+        "R1": {"status": "passed"},
+        "R2": {"status": "passed"},
+        "R3": {"status": "passed"},
+        "R4": {"status": "published"},
+    }
+    assert "SECRET" not in json.dumps(normalized)
+
+
+def test_promoted_release_requires_complete_r1_through_r4_evidence() -> None:
+    process = load_process_submissions()
+    try:
+        process.normalize_release_metadata({
+            "release_phase": "promoted",
+            "source_sha256": "a" * 64,
+            "artifact_hash": "b" * 64,
+            "head_sha": "c" * 40,
+            "merge_sha": "d" * 40,
+            "release_gates": {"status": "live", "R1": {"status": "passed"}},
+        })
+    except ValueError as error:
+        assert "promotion evidence" in str(error)
+    else:
+        raise AssertionError("promoted release accepted incomplete gate evidence")
 
 
 def test_repository_factory_prefers_private_worker_bridge(monkeypatch) -> None:
