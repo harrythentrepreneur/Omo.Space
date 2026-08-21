@@ -196,12 +196,17 @@ def test_cloudflare_commands_are_staging_only_exact_sha_and_explicit_rollback(tm
         "npx", "--no-install", "wrangler", "deploy", "--env", "staging",
         "--name", "cognition-demos-staging", "--strict", "--message", f"issue141:{SHA}",
     )
+    bootstrap = mod.cloudflare_bootstrap_deploy_call(root)
+    assert bootstrap.argv == (
+        "npx", "--no-install", "wrangler", "deploy", "--env", "staging",
+        "--name", "cognition-demos-staging", "--message", f"issue141:{'0' * 40}",
+    )
     rollback = mod.cloudflare_rollback_call(root, "cf-old", SHA)
     assert rollback.argv == (
         "npx", "--no-install", "wrangler", "rollback", "cf-old", "--env", "staging",
         "--name", "cognition-demos-staging", "--message", f"staging rollback {SHA}", "--yes",
     )
-    for call in (preflight, versions, deploy, rollback):
+    for call in (preflight, versions, bootstrap, deploy, rollback):
         assert call.cwd == root / "site" / "deploy"
         assert call.shell is False
         assert call.timeout_seconds <= 300
@@ -209,6 +214,21 @@ def test_cloudflare_commands_are_staging_only_exact_sha_and_explicit_rollback(tm
             "CI", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "HOME", "NO_COLOR", "PATH",
         )
         assert "production" not in " ".join(call.argv)
+
+
+def test_cloudflare_non_strict_deploy_is_bootstrap_only(tmp_path):
+    mod = load_module()
+    root = checkout(tmp_path) / "site" / "deploy"
+    with pytest.raises(mod.AdapterError):
+        mod.CommandCall(
+            (
+                "npx", "--no-install", "wrangler", "deploy", "--env", "staging",
+                "--name", "cognition-demos-staging", "--message", f"issue141:{SHA}",
+            ),
+            root,
+            mod.CLOUDFLARE_ENV_KEYS,
+            300,
+        )
 
 
 @pytest.mark.parametrize("slug", ["../prod", "Production", "label_normalizer", "a" * 101])

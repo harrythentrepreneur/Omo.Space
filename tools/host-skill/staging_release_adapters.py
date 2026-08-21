@@ -126,6 +126,8 @@ def _valid_cloudflare_argv(argv: tuple[str, ...]) -> bool:
             return False
         if len(rest) == 7 and rest[4] == "--dry-run" and rest[5] == "--outdir":
             return Path(rest[6]).is_absolute()
+        if len(rest) == 6:
+            return rest[4:] == ("--message", f"issue141:{'0' * 40}")
         return (
             len(rest) == 7
             and rest[4:6] == ("--strict", "--message")
@@ -307,6 +309,19 @@ def cloudflare_deploy_call(checkout: Path, target_sha: str) -> CommandCall:
         (
             "npx", "--no-install", "wrangler", "deploy", "--env", "staging",
             "--name", CLOUDFLARE_TARGET, "--strict", "--message", f"issue141:{sha}",
+        ),
+        root,
+        CLOUDFLARE_ENV_KEYS,
+        300,
+    )
+
+
+def cloudflare_bootstrap_deploy_call(checkout: Path) -> CommandCall:
+    root = _worker_root(checkout)
+    return CommandCall(
+        (
+            "npx", "--no-install", "wrangler", "deploy", "--env", "staging",
+            "--name", CLOUDFLARE_TARGET, "--message", f"issue141:{'0' * 40}",
         ),
         root,
         CLOUDFLARE_ENV_KEYS,
