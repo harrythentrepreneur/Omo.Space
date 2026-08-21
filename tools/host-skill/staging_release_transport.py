@@ -37,6 +37,8 @@ def _command_mode(call: CommandCall) -> str:
     tail = argv[3:]
     if tail == ("environment", "list", "--json") or tail[:2] == ("app", "history"):
         return "read"
+    if tail == ("environment", "create", "omo-release-staging"):
+        return "write"
     if tail[:1] == ("deploy",) or tail[:2] == ("app", "rollback"):
         return "write"
     raise TransportError("invalid_staging_command")

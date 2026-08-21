@@ -150,6 +150,9 @@ def test_modal_commands_are_staging_only_exact_sha_and_explicit_rollback(tmp_pat
     assert mod.modal_preflight_call(root, SLUG).argv == (
         sys.executable, "-m", "modal", "environment", "list", "--json",
     )
+    assert mod.modal_environment_create_call(root).argv == (
+        sys.executable, "-m", "modal", "environment", "create", "omo-release-staging",
+    )
     assert mod.modal_history_call(root, SLUG).argv == (
         sys.executable, "-m", "modal", "app", "history", app_name,
         "--env", "omo-release-staging", "--json",

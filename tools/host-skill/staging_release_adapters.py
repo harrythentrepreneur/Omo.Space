@@ -98,6 +98,8 @@ def _valid_modal_argv(argv: tuple[str, ...]) -> bool:
     tail = argv[3:]
     if tail == ("environment", "list", "--json"):
         return True
+    if tail == ("environment", "create", MODAL_ENVIRONMENT):
+        return True
     if tail == ("app", "history", MODAL_TARGET, "--env", MODAL_ENVIRONMENT, "--json"):
         return True
     if len(tail) == 8 and tail[:1] == ("deploy",):
@@ -212,6 +214,16 @@ def _worker_root(checkout: Path) -> Path:
 def modal_preflight_call(checkout: Path, slug: str) -> CommandCall:
     root, _target, _path = _modal_app(checkout, slug)
     return CommandCall((sys.executable, "-m", "modal", "environment", "list", "--json"), root, MODAL_ENV_KEYS, 30)
+
+
+def modal_environment_create_call(checkout: Path) -> CommandCall:
+    root = _root(checkout)
+    return CommandCall(
+        (sys.executable, "-m", "modal", "environment", "create", MODAL_ENVIRONMENT),
+        root,
+        MODAL_ENV_KEYS,
+        60,
+    )
 
 
 def modal_history_call(checkout: Path, slug: str) -> CommandCall:
