@@ -153,5 +153,15 @@ The module cannot run subprocesses, read credentials, call providers or select
 production. Controlled transports, real staging deployment and the public
 canary remain separate reviewed gates.
 
+`staging_release_transport.py` is the controlled subprocess boundary for those
+commands. It constructs a fresh provider-specific child environment, forwards
+only allowlisted keys, fixes non-secret process flags, uses argument arrays with
+`shell=False`, enforces each command timeout, caps stdout at 1 MiB and reduces
+all command/JSON/timeout failures to typed codes without provider output. Live
+mutation is denied unless the transport is explicitly constructed with
+`allow_mutation=True`; dry-run and metadata readback remain available by
+default. This transport does not create environments, provision credentials or
+choose a production target.
+
 Use `--dry-run tools/host-skill/tests/fixtures/sample-submission.json` to test
 the intake/review decision without database writes or deployment.
