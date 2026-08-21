@@ -167,6 +167,38 @@ def test_dry_run_is_not_treated_as_mutation(tmp_path):
     assert runner.run(cloudflare_dry_run(adapters, tmp_path)) is None
 
 
+def test_staging_d1_apply_requires_mutation_and_readback_is_read_only():
+    adapters, transport = load_modules()
+    apply = adapters.cloudflare_staging_d1_schema_call(ROOT)
+    readback = adapters.cloudflare_staging_d1_readback_call(ROOT)
+    denied_executor = Executor([Result(stdout="[]")])
+    denied = transport.StagingCommandTransport(
+        executor=denied_executor, source_env={"PATH": "/bin", "HOME": "/root"}
+    )
+    with pytest.raises(transport.TransportError) as caught:
+        denied.run_json(apply)
+    assert caught.value.code == "staging_mutation_not_enabled"
+    assert denied_executor.calls == []
+
+    rows = [{"name": name} for name in adapters.CLOUDFLARE_STAGING_D1_TABLES]
+    read_executor = Executor([Result(stdout=json.dumps([{"results": rows}]))])
+    reader = transport.StagingCommandTransport(
+        executor=read_executor, source_env={"PATH": "/bin", "HOME": "/root"}
+    )
+    assert adapters.cloudflare_staging_d1_schema_ready(reader.run_json(readback)) is True
+
+    write_executor = Executor([Result(stdout="[]")])
+    writer = transport.StagingCommandTransport(
+        executor=write_executor,
+        source_env={"PATH": "/bin", "HOME": "/root"},
+        allow_mutation=True,
+    )
+    assert writer.run_json(apply) == []
+    assert write_executor.calls[0][0][0][-7:] == [
+        "--env", "staging", "--remote", "--file", "./staging-d1-schema.sql", "--yes", "--json"
+    ]
+
+
 def test_forged_or_future_command_is_denied_by_default_and_when_mutation_enabled(tmp_path):
     adapters, transport = load_modules()
     forged = object.__new__(adapters.CommandCall)

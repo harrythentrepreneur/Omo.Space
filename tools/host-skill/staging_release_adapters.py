@@ -20,6 +20,12 @@ MODAL_ENVIRONMENT = "omo-release-staging"
 MODAL_ALLOWED_SLUG = "label-normalizer-canary"
 MODAL_TARGET = "cognition-staging-label-normalizer-canary"
 CLOUDFLARE_TARGET = "cognition-demos-staging"
+CLOUDFLARE_STAGING_D1_BINDING = "BALANCE_DB"
+CLOUDFLARE_STAGING_D1_SCHEMA = "staging-d1-schema.sql"
+CLOUDFLARE_STAGING_D1_TABLES = (
+    "api_keys", "credits_ledger", "run_progress", "run_requests", "runs", "users",
+)
+CLOUDFLARE_STAGING_D1_READBACK_SQL = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
 SAFE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 SAFE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -118,6 +124,16 @@ def _valid_modal_argv(argv: tuple[str, ...]) -> bool:
 def _valid_cloudflare_argv(argv: tuple[str, ...]) -> bool:
     tail = argv[3:]
     common = ("--env", "staging", "--name", CLOUDFLARE_TARGET)
+    if tail[:3] == ("d1", "execute", CLOUDFLARE_STAGING_D1_BINDING):
+        apply_tail = (
+            "--env", "staging", "--remote", "--file", f"./{CLOUDFLARE_STAGING_D1_SCHEMA}",
+            "--yes", "--json",
+        )
+        read_tail = (
+            "--env", "staging", "--remote", "--command", CLOUDFLARE_STAGING_D1_READBACK_SQL,
+            "--json",
+        )
+        return tail[3:] in {apply_tail, read_tail}
     if tail[:1] in (("versions",), ("deployments",)):
         return len(tail) == 7 and tail[1] == "list" and tail[2:] == (*common, "--json")
     if tail[:1] == ("deploy",):
@@ -314,6 +330,54 @@ def cloudflare_deploy_call(checkout: Path, target_sha: str) -> CommandCall:
         CLOUDFLARE_ENV_KEYS,
         300,
     )
+
+
+def cloudflare_staging_d1_schema_call(checkout: Path) -> CommandCall:
+    root = _worker_root(checkout)
+    schema = (root / CLOUDFLARE_STAGING_D1_SCHEMA).resolve()
+    if (
+        schema.parent != root
+        or not schema.is_file()
+        or schema.is_symlink()
+        or not 1 <= schema.stat().st_size <= 64 * 1024
+    ):
+        raise AdapterError("staging_d1_schema_missing")
+    return CommandCall(
+        (
+            "npx", "--no-install", "wrangler", "d1", "execute", CLOUDFLARE_STAGING_D1_BINDING,
+            "--env", "staging", "--remote", "--file", f"./{CLOUDFLARE_STAGING_D1_SCHEMA}",
+            "--yes", "--json",
+        ),
+        root,
+        CLOUDFLARE_ENV_KEYS,
+        120,
+    )
+
+
+def cloudflare_staging_d1_readback_call(checkout: Path) -> CommandCall:
+    root = _worker_root(checkout)
+    return CommandCall(
+        (
+            "npx", "--no-install", "wrangler", "d1", "execute", CLOUDFLARE_STAGING_D1_BINDING,
+            "--env", "staging", "--remote", "--command", CLOUDFLARE_STAGING_D1_READBACK_SQL,
+            "--json",
+        ),
+        root,
+        CLOUDFLARE_ENV_KEYS,
+        60,
+    )
+
+
+def cloudflare_staging_d1_schema_ready(value: Any) -> bool:
+    if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+        raise AdapterError("staging_d1_readback_failed")
+    rows = value[0].get("results")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise AdapterError("staging_d1_readback_failed")
+    names = tuple(str(row.get("name") or "") for row in rows)
+    if names != CLOUDFLARE_STAGING_D1_TABLES:
+        raise AdapterError("staging_d1_readback_failed")
+    return True
 
 
 def cloudflare_bootstrap_deploy_call(checkout: Path) -> CommandCall:

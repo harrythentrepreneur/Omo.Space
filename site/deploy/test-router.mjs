@@ -110,6 +110,8 @@ const wovenCalls = [];
 const wovenStatuses = new Map();
 const japaneseCalls = [];
 const japaneseStatuses = new Map();
+const issue141Calls = [];
+const issue141Statuses = new Map();
 const facebookCalls = [];
 const facebookStatuses = new Map();
 const facebookCases = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'tests', 'cases.json'), 'utf8'));
@@ -241,6 +243,15 @@ const sandbox = {
       }
       const callId = target.searchParams.get('call_id');
       const value = japaneseStatuses.get(callId);
+      return value
+        ? { ok: value.status >= 200 && value.status < 300, status: value.status, json: async () => value.body }
+        : { ok: false, status: 404, json: async () => ({ detail: 'run_not_found' }) };
+    }
+    if (String(url).startsWith('https://issue141-canary.modal.invalid')) {
+      const target = new URL(String(url));
+      issue141Calls.push({ url: String(url), method: opts && opts.method || 'GET', headers: opts && opts.headers });
+      const callId = target.searchParams.get('call_id');
+      const value = issue141Statuses.get(callId);
       return value
         ? { ok: value.status >= 200 && value.status < 300, status: value.status, json: async () => value.body }
         : { ok: false, status: 404, json: async () => ({ detail: 'run_not_found' }) };
@@ -380,7 +391,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalSetFinalizationStatus, internalPromoteFinalization, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalSetFinalizationStatus, internalPromoteFinalization, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -531,6 +542,103 @@ const mkReq = (method, pathname, body, extraHeaders = {}) => ({
   json: async () => body,
   text: async () => JSON.stringify(body),
 });
+
+const issue141CanaryKey = 'issue141-canary-' + 'a'.repeat(32);
+const issue141CanaryEnv = {
+  ...env,
+  ENVIRONMENT: 'staging',
+  ISSUE141_CANARY_API_KEY: issue141CanaryKey,
+  LABEL_NORMALIZER_CANARY_MODAL_URL: 'https://issue141-canary.modal.invalid',
+  HOSTED_MODAL_PROXY_TOKEN_ID: 'issue141-modal-id',
+  HOSTED_MODAL_PROXY_TOKEN_SECRET: 'issue141-modal-secret',
+};
+const issue141Headers = { 'X-API-Key': issue141CanaryKey, 'Idempotency-Key': 'issue141-staging-auth-test' };
+const issue141Accepted = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'label-normalizer-canary', input: { labels: [] },
+}, issue141Headers), issue141CanaryEnv);
+check('issue141 staging canary: exact slug accepts secret-backed identity before schema validation', issue141Accepted.status === 422);
+const issue141WrongSlug = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'japanese-style-story-video', input: {},
+}, { ...issue141Headers, 'Idempotency-Key': 'issue141-wrong-slug' }), issue141CanaryEnv);
+check('issue141 staging canary: key cannot authenticate another workflow', issue141WrongSlug.status === 401);
+const issue141Production = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'label-normalizer-canary', input: { labels: [] },
+}, { ...issue141Headers, 'Idempotency-Key': 'issue141-production' }), { ...issue141CanaryEnv, ENVIRONMENT: 'production' });
+check('issue141 staging canary: key cannot authenticate production', issue141Production.status === 401);
+workerTest.mockRunRequests.set('issue141-staging-poll', {
+  run_id: 'run_issue141stagingauth', user_id: 'user_issue141_canary', slug: 'label-normalizer-canary',
+  state: 'refunded', cost_cents: 10, http_status: 502, response_json: JSON.stringify({ error: 'test_terminal' }),
+});
+const issue141Poll = await worker.fetch(mkReq('GET', '/api/run/run_issue141stagingauth', {}, {
+  'X-API-Key': issue141CanaryKey,
+}), issue141CanaryEnv);
+check('issue141 staging canary: poll binds identity only after exact-slug row lookup', issue141Poll.status === 502);
+workerTest.mockRunRequests.delete('issue141-staging-poll');
+
+function sqliteD1Binding(db) {
+  return {
+    prepare(sql) {
+      return {
+        bind(...values) {
+          return {
+            first: async () => db.prepare(sql).get(...values) || null,
+            run: async () => {
+              const result = db.prepare(sql).run(...values);
+              return { meta: { changes: Number(result.changes) } };
+            },
+            all: async () => ({ results: db.prepare(sql).all(...values) }),
+          };
+        },
+      };
+    },
+  };
+}
+
+const issue141DurableDb = new DatabaseSync(':memory:');
+issue141DurableDb.exec(fs.readFileSync(path.join(here, 'staging-d1-schema.sql'), 'utf8'));
+const issue141WriterEnv = { BALANCE_DB: sqliteD1Binding(issue141DurableDb) };
+const issue141ReaderEnv = {
+  BALANCE_DB: sqliteD1Binding(issue141DurableDb),
+  LABEL_NORMALIZER_CANARY_MODAL_URL: 'https://issue141-canary.modal.invalid',
+  HOSTED_MODAL_PROXY_TOKEN_ID: 'issue141-modal-id',
+  HOSTED_MODAL_PROXY_TOKEN_SECRET: 'issue141-modal-secret',
+};
+const durableClaim = await workerTest.claimRunRequest(
+  issue141WriterEnv, 'user_issue141_canary', 'issue141-cross-isolate', 'a'.repeat(64),
+  'label-normalizer-canary', 10, 'run_issue141crossisolate'
+);
+const issue141ProviderRunId = 'run-0123456789abcdef0123456789abcdef';
+const issue141CallId = 'fc-issue141test';
+const issue141AccessToken = 'a'.repeat(32);
+const issue141ResultUrl = `/v1/runs/${issue141ProviderRunId}?call_id=${issue141CallId}&access_token=${issue141AccessToken}`;
+await workerTest.putRunProgress(issue141WriterEnv, {
+  run_id: 'run_issue141crossisolate', user_id: 'user_issue141_canary', phase: 'running',
+  progress_pct: 35, progress_source: 'modal', modal_status: 'accepted',
+  modal_status_url: `https://issue141-canary.modal.invalid${issue141ResultUrl}`,
+  result_json: JSON.stringify({
+    call_id: issue141CallId, run_id: issue141ProviderRunId, result_url: issue141ResultUrl,
+  }),
+});
+const issue141Output = JSON.parse(fs.readFileSync(
+  path.join(here, '..', '..', 'containers', 'label-normalizer-canary', 'tests', 'cases.json'), 'utf8'
+)).happy_path.output;
+issue141Statuses.set(issue141CallId, { status: 200, body: issue141Output });
+const durableRow = await workerTest.getRunRequestById(issue141ReaderEnv, 'run_issue141crossisolate');
+const durableResult = await workerTest.refreshHostedModalRun(
+  issue141ReaderEnv, workerTest.HOSTED_MODAL_SKILLS.get('label-normalizer-canary'), durableRow
+);
+const durableTerminal = await workerTest.getRunRequestById(issue141ReaderEnv, 'run_issue141crossisolate');
+const durableProgress = await workerTest.getRunProgress(issue141ReaderEnv, 'run_issue141crossisolate');
+const durableReplay = await workerTest.refreshHostedModalRun(
+  issue141ReaderEnv, workerTest.HOSTED_MODAL_SKILLS.get('label-normalizer-canary'), durableTerminal
+);
+check('issue141 staging D1: independent binding recovers, polls, settles, and replays exact Modal run',
+  durableClaim.created === true && durableResult.status === 200 && durableResult.body.output.input_count === 3 &&
+  durableTerminal?.state === 'succeeded' && durableProgress?.phase === 'delivered' &&
+  issue141Calls.length === 1 && issue141Calls[0].url.endsWith(issue141ResultUrl) &&
+  issue141Calls[0].headers['X-Omo-Owner-Id'] === 'user_issue141_canary' &&
+  durableReplay.status === 200 && durableReplay.body.run_id === 'run_issue141crossisolate');
+issue141DurableDb.close();
 
 // OPTIONS → 200 + CORS
 const opt = await worker.fetch(mkReq('OPTIONS', '/api/ugc-script-studio'), env);
