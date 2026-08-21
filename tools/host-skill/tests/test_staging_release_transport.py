@@ -139,6 +139,27 @@ def test_mutating_commands_are_denied_until_explicitly_enabled(tmp_path):
     assert len(executor.calls) == 1
 
 
+def test_modal_environment_create_is_an_exact_mutation(tmp_path):
+    adapters, transport = load_modules()
+    call = adapters.modal_environment_create_call(tmp_path.resolve())
+    denied = transport.StagingCommandTransport(
+        executor=Executor([Result()]), source_env={"PATH": "/bin", "HOME": "/root"}
+    )
+    with pytest.raises(transport.TransportError) as caught:
+        denied.run(call)
+    assert caught.value.code == "staging_mutation_not_enabled"
+    executor = Executor([Result()])
+    enabled = transport.StagingCommandTransport(
+        executor=executor,
+        source_env={"PATH": "/bin", "HOME": "/root"},
+        allow_mutation=True,
+    )
+    assert enabled.run(call) is None
+    assert executor.calls[0][0][0] == [
+        sys.executable, "-m", "modal", "environment", "create", "omo-release-staging"
+    ]
+
+
 def test_dry_run_is_not_treated_as_mutation(tmp_path):
     adapters, transport = load_modules()
     executor = Executor([Result()])
