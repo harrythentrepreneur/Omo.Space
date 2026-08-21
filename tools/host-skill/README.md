@@ -89,7 +89,7 @@ finalizer-only and read-only. Publish-ready rows are preferred; if a crash
 occurred after the deployed write committed, the same endpoint returns the
 exact-target deployed receipt so the controller can finish idempotently.
 
-This is control-plane groundwork only. It contains no deployment adapter,
+The Phase 1 control-plane foundation did not include a deployment adapter,
 GitHub trigger, production credential, automatic deploy or production write.
 
 ### Credential-free deterministic finalizer simulation
@@ -109,6 +109,21 @@ python3 tools/host-skill/release_finalizer.py --scenario /path/to/synthetic-scen
 The CLI accepts no provider, URL, account, workspace, command or credential
 selection. It has no network client, provider SDK, environment lookup or shell
 deployment path. Real adapters and triggers remain later reviewed phases.
+
+### Credential-free GitHub trigger
+
+`release_trigger.py` reduces the untrusted `workflow_run` event to a bounded,
+sorted decision. It accepts only a successful completed
+`generated-workflow-contracts` push to this repository's `main`, from this
+repository, with a valid immutable head SHA and positive run identity.
+
+`.github/workflows/trusted-release-trigger.yml` runs with `contents: read`,
+uses an immutable `actions/checkout` revision, disables persisted credentials,
+loads the validator from trusted `main`, and checks out the eligible target
+only through the validator's SHA output. It has no secrets, artifacts,
+provider adapters, deployment command, write permission or manual dispatch.
+This is an inert controller foundation; it records eligibility but does not
+deploy or finalize a release.
 
 Use `--dry-run tools/host-skill/tests/fixtures/sample-submission.json` to test
 the intake/review decision without database writes or deployment.

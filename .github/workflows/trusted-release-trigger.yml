@@ -1,0 +1,49 @@
+name: trusted-release-trigger
+
+on:
+  workflow_run:
+    workflows:
+      - generated-workflow-contracts
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted controller from main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+          path: controller
+      - name: Validate completed workflow run
+        id: trigger
+        shell: bash
+        run: >-
+          python3 controller/tools/host-skill/release_trigger.py
+          --event "$GITHUB_EVENT_PATH"
+          --format github-output
+          >> "$GITHUB_OUTPUT"
+      - name: Check out exact eligible green commit
+        if: steps.trigger.outputs.eligible == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.trigger.outputs.target_sha }}
+          persist-credentials: false
+          path: target
+      - name: Verify exact detached target
+        if: steps.trigger.outputs.eligible == 'true'
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.trigger.outputs.target_sha }}
+        run: test "$(git -C target rev-parse HEAD)" = "$TARGET_SHA"
+      - name: Record credential-free trigger decision
+        shell: bash
+        run: >-
+          python3 controller/tools/host-skill/release_trigger.py
+          --event "$GITHUB_EVENT_PATH"
+          --format json
