@@ -82,9 +82,33 @@ identity/state fields. Typed failures become terminal and are not automatically
 reclaimed; only an expired active infrastructure lease can produce a new
 generation. The separate finalizer-only `deployed` transition fails closed
 unless atomic promotion completed with durable sanitized R1-R4 evidence.
+If the controller crashes after atomic promotion but before the deployed
+transition, `/api/internal/finalizations/resume-completed` returns one
+exact-target, immutable, completed `ready_for_publish` generation. It is
+finalizer-only and read-only. Publish-ready rows are preferred; if a crash
+occurred after the deployed write committed, the same endpoint returns the
+exact-target deployed receipt so the controller can finish idempotently.
 
 This is control-plane groundwork only. It contains no deployment adapter,
 GitHub trigger, production credential, automatic deploy or production write.
+
+### Credential-free deterministic finalizer simulation
+
+`release_finalizer.py` implements the Phase 2 orchestration contract with
+injected adapters and a fake-only scenario CLI. It verifies latest green main,
+head/merge/target ancestry, source and full artifact hashes, detached checkout
+identity, required registry preservation, runtime-aware ordering, public and
+publication receipts, Phase 1-compatible failure codes, promotion/deployed
+readback and crash recovery. Provider effects are idempotently keyed by
+submission, target SHA, artifact hash and operation rather than lease ID.
+
+```bash
+python3 tools/host-skill/release_finalizer.py --scenario /path/to/synthetic-scenario.json
+```
+
+The CLI accepts no provider, URL, account, workspace, command or credential
+selection. It has no network client, provider SDK, environment lookup or shell
+deployment path. Real adapters and triggers remain later reviewed phases.
 
 Use `--dry-run tools/host-skill/tests/fixtures/sample-submission.json` to test
 the intake/review decision without database writes or deployment.

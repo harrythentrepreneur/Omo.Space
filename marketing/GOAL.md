@@ -7,6 +7,21 @@ Honest path: GATE 1 (prove a teacher pays twice) -> $1k/mo -> $10k/mo -> scale.
 
 Get Omo to $1,000/month contribution margin. Immediate step: clear GATE 1 of the Omo pilot.
 
+### Active engineering goal — automatic trusted releases
+
+Deliver Issue #141 end to end so a reviewed creator workflow can move from a
+merged, green release PR through exact-main verification, runtime deployment,
+shared Worker deployment, public canaries and guarded `deployed` state without
+SSH, tmux, hand-run Modal/Wrangler commands or direct database edits.
+
+Completion requires one deterministic creator fixture to traverse the real
+upload → builder → PR → merge → trusted finalizer → public run path with
+immutable evidence, crash recovery, no duplicate deployment and no secret
+leakage. Work through the credential-free controller and trigger phases
+autonomously. Stop only before production credential provisioning, schema
+application, live deployment, spend or another irreversible action that needs
+Harry's explicit approval.
+
 ### Builder hosting acceptance definition
 
 - Success metric: >= 70% of submitted `skill.md` files end up HOSTED (built, tested, verified, priced, deployed, chargeable).

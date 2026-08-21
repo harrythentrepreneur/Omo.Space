@@ -417,6 +417,8 @@ function dynamicRoute(pathname) {
   if (internalClaim) return { handler: handleInternalSubmissionClaim, methods: ['POST'], internal: true };
   const internalFinalizationClaim = /^\/api\/internal\/finalizations\/claim$/.exec(pathname);
   if (internalFinalizationClaim) return { handler: handleInternalFinalizationClaim, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationResumeCompleted = /^\/api\/internal\/finalizations\/resume-completed$/.exec(pathname);
+  if (internalFinalizationResumeCompleted) return { handler: handleInternalFinalizationResumeCompleted, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationStatus = /^\/api\/internal\/finalizations\/(fin_[a-f0-9]{32})\/status$/.exec(pathname);
   if (internalFinalizationStatus) return { handler: handleInternalFinalizationStatus, methods: ['POST'], params: { finalizationId: internalFinalizationStatus[1] }, internal: true, finalizer: true };
   const internalFinalizationPromote = /^\/api\/internal\/finalizations\/(fin_[a-f0-9]{32})\/promote$/.exec(pathname);
@@ -2735,6 +2737,19 @@ async function handleInternalFinalizationClaim(request, env) {
   return internalJson({ ok: true, finalization }, 200);
 }
 
+async function handleInternalFinalizationResumeCompleted(request, env) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+    return internalJson({ error: 'invalid_completed_finalization_resume' }, 400);
+  }
+  const targetSha = safeGitSha(parsed.body.target_sha);
+  if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
+  const finalization = completedFinalizationRow(await internalResumeCompletedFinalization(env, targetSha));
+  if (!finalization) return new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
+  return internalJson({ ok: true, finalization }, 200);
+}
+
 async function handleInternalFinalizationStatus(request, env, _url, params) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
@@ -3807,6 +3822,68 @@ function finalizationClaimRow(row) {
     lease_expires_at: leaseExpiresAt,
     attempts,
   };
+}
+
+function completedFinalizationRow(row) {
+  const finalization = finalizationClaimRow(row);
+  const submissionStatus = String(row.status || '');
+  if (!finalization || !['ready_for_publish', 'deployed'].includes(submissionStatus) ||
+      String(row.release_phase || '') !== 'promoted' ||
+      String(row.finalization_status || '') !== 'completed' ||
+      safeSha256(row.source_sha256 || row.sourceSha256) !== safeSha256(row.finalization_source_sha256) ||
+      safeGitSha(row.release_head_sha) !== safeGitSha(row.finalization_head_sha) ||
+      safeGitSha(row.release_merge_sha) !== safeGitSha(row.finalization_merge_sha) ||
+      safeSha256(row.release_artifact_hash) !== safeSha256(row.finalization_artifact_hash) ||
+      !safePromotionEvidence(row.promotion_evidence)) return null;
+  return { ...finalization, status: 'completed', submission_status: submissionStatus };
+}
+
+async function internalResumeCompletedFinalization(env, targetSha) {
+  const columns = `id,slug,selected_runtime,status,release_phase,source_sha256,
+    release_head_sha,release_merge_sha,release_artifact_hash,promotion_evidence,
+    finalization_id,finalization_status,finalization_target_sha,
+    finalization_source_sha256,finalization_head_sha,finalization_merge_sha,
+    finalization_artifact_hash,finalization_lease_expires_at,finalization_attempts`;
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-resume-completed-v1',
+      `SELECT ${columns}
+       FROM submissions
+       WHERE status IN ('ready_for_publish', 'deployed') AND release_phase = 'promoted'
+         AND finalization_status = 'completed' AND finalization_target_sha = $1
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash
+       ORDER BY CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END,
+                automation_updated_at ASC, id ASC
+       LIMIT 1`,
+      [targetSha]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return await env.BALANCE_DB.prepare(
+      `SELECT ${columns}
+       FROM submissions
+       WHERE status IN ('ready_for_publish', 'deployed') AND release_phase = 'promoted'
+         AND finalization_status = 'completed' AND finalization_target_sha = ?
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash
+       ORDER BY CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END,
+                automation_updated_at ASC, id ASC
+       LIMIT 1`
+    ).bind(targetSha).first();
+  }
+  return Array.from(mockSubmissions.values())
+    .filter((record) => ['ready_for_publish', 'deployed'].includes(record.status) &&
+      record.release_phase === 'promoted' && record.finalization_status === 'completed' &&
+      record.finalization_target_sha === targetSha)
+    .sort((a, b) => Number(a.status === 'deployed') - Number(b.status === 'deployed') ||
+      String(a.automation_updated_at || '').localeCompare(String(b.automation_updated_at || '')) ||
+      String(a.id || '').localeCompare(String(b.id || '')))[0] || null;
 }
 
 async function internalClaimFinalization(env, targetSha) {

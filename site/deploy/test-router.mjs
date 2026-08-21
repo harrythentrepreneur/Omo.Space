@@ -128,6 +128,7 @@ let neonResumeMergedRow = null;
 let neonFinalizationClaimRow = null;
 let neonFinalizationDetailRow = null;
 let neonFinalizationStatusRow = null;
+let neonCompletedFinalizationRow = null;
 
 class MockPool {
   constructor(options) {
@@ -336,6 +337,8 @@ const sandbox = {
                 ? 'omo-internal-submission-claim-v1'
               : text.includes('WITH candidate AS') && text.includes('finalization_id')
                 ? 'omo-internal-finalization-claim-v1'
+              : text.includes("status IN ('ready_for_publish', 'deployed')") && text.includes("finalization_status = 'completed'") && text.includes('SELECT')
+                ? 'omo-internal-finalization-resume-completed-v1'
               : text.includes('WHERE finalization_id = $1') && text.includes('finalization_status')
                 ? 'omo-internal-finalization-detail-v1'
               : text.includes('SET finalization_status = $1')
@@ -360,6 +363,9 @@ const sandbox = {
       if (entry.name === 'omo-internal-finalization-claim-v1') {
         return neonFinalizationClaimRow ? { rows: [neonFinalizationClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
+        return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
       if (entry.name === 'omo-internal-finalization-detail-v1') {
         return neonFinalizationDetailRow ? { rows: [neonFinalizationDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
@@ -374,7 +380,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalSetFinalizationStatus, internalPromoteFinalization, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -1608,6 +1614,71 @@ workerTest.mockSubmissions.set(finalizationCandidateId, {
   finalization_lease_expires_at: null,
   finalization_attempts: 0,
 });
+const completedFinalizationId = 'sub_completedfinalization01';
+const completedFinalizationRecord = {
+  id: completedFinalizationId,
+  slug: 'completed-workflow',
+  source_sha256: '6'.repeat(64),
+  selected_runtime: 'worker-native',
+  status: 'ready_for_publish',
+  release_phase: 'promoted',
+  release_head_sha: '7'.repeat(40),
+  release_merge_sha: '8'.repeat(40),
+  release_artifact_hash: '9'.repeat(64),
+  promotion_evidence: JSON.stringify({
+    status: 'live', checked_at: '2026-08-21T00:00:00Z',
+    R1: { status: 'passed' }, R2: { status: 'passed' },
+    R3: { status: 'passed' }, R4: { status: 'excluded_premium' },
+  }),
+  finalization_id: 'fin_' + '6'.repeat(32),
+  finalization_status: 'completed',
+  finalization_target_sha: '3'.repeat(40),
+  finalization_source_sha256: '6'.repeat(64),
+  finalization_head_sha: '7'.repeat(40),
+  finalization_merge_sha: '8'.repeat(40),
+  finalization_artifact_hash: '9'.repeat(64),
+  finalization_lease_expires_at: '2099-08-21T00:00:00Z',
+  finalization_attempts: 1,
+};
+workerTest.mockSubmissions.set(completedFinalizationId, completedFinalizationRecord);
+const builderResumeCompleted = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-completed', {
+  target_sha: '3'.repeat(40),
+}, internalHeaders), buildEnv);
+const resumeCompleted = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-completed', {
+  target_sha: '3'.repeat(40),
+}, finalizerHeaders), buildEnv);
+const resumeCompletedBody = await resumeCompleted.json();
+completedFinalizationRecord.status = 'deployed';
+const deployedResumeCompleted = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-completed', {
+  target_sha: '3'.repeat(40),
+}, finalizerHeaders), buildEnv);
+const deployedResumeCompletedBody = await deployedResumeCompleted.json();
+completedFinalizationRecord.status = 'ready_for_publish';
+check('internal completed finalization resume: finalizer-only receipt prefers publish-ready and confirms exact-target deployed rows',
+  builderResumeCompleted.status === 401 &&
+  resumeCompleted.status === 200 &&
+  resumeCompletedBody.finalization.id === completedFinalizationRecord.finalization_id &&
+  resumeCompletedBody.finalization.status === 'completed' &&
+  resumeCompletedBody.finalization.target_sha === '3'.repeat(40) &&
+  !('content' in resumeCompletedBody.finalization) &&
+  deployedResumeCompleted.status === 200 &&
+  deployedResumeCompletedBody.finalization.submission_status === 'deployed');
+neonSqlCalls.length = 0;
+neonCompletedFinalizationRow = { ...completedFinalizationRecord };
+const neonCompletedResume = await workerTest.internalResumeCompletedFinalization(
+  { NEON_DATABASE_URL: 'postgres://example' }, '3'.repeat(40)
+);
+const neonCompletedResumeCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-resume-completed-v1');
+check('internal completed finalization resume Neon: exact target and immutable completed guards are parameterized',
+  workerTest.completedFinalizationRow(neonCompletedResume).status === 'completed' &&
+  neonCompletedResumeCall.values.length === 1 &&
+  neonCompletedResumeCall.values[0] === '3'.repeat(40) &&
+  neonCompletedResumeCall.text.includes("status IN ('ready_for_publish', 'deployed')") &&
+  neonCompletedResumeCall.text.includes("release_phase = 'promoted'") &&
+  neonCompletedResumeCall.text.includes("finalization_status = 'completed'") &&
+  neonCompletedResumeCall.text.includes('source_sha256 = finalization_source_sha256') &&
+  neonCompletedResumeCall.text.includes("CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END"));
+neonCompletedFinalizationRow = null;
 const builderFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
   target_sha: '3'.repeat(40),
 }, internalHeaders), buildEnv);
@@ -2133,6 +2204,23 @@ check('internal finalization D1: SQLite claim and immutable phase CAS complete o
   d1FinalizerRow.finalization_artifact_hash === 'd'.repeat(64) &&
   d1FinalizerRow.finalization_attempts === 1);
 d1Finalizer.db.close();
+
+const d1Completed = d1DatabaseForFinalization({
+  ...completedFinalizationRecord,
+  automation_updated_at: '2026-08-21T00:00:00Z',
+  updated_at: '2026-08-21T00:00:00Z',
+});
+const d1CompletedResume = await workerTest.internalResumeCompletedFinalization(
+  { BALANCE_DB: d1Completed.binding }, '3'.repeat(40)
+);
+d1Completed.db.prepare("UPDATE submissions SET status = 'deployed' WHERE id = ?").run(completedFinalizationId);
+const d1CompletedAfterDeploy = await workerTest.internalResumeCompletedFinalization(
+  { BALANCE_DB: d1Completed.binding }, '3'.repeat(40)
+);
+check('internal completed finalization resume D1: real SQLite returns publish-ready and confirms deployed',
+  workerTest.completedFinalizationRow(d1CompletedResume).status === 'completed' &&
+  workerTest.completedFinalizationRow(d1CompletedAfterDeploy).submission_status === 'deployed');
+d1Completed.db.close();
 
 function d1DatabaseForMergedRelease(record) {
   const db = new DatabaseSync(':memory:');
