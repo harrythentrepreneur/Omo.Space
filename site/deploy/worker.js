@@ -242,6 +242,7 @@ const MAX_SUBMISSION_BYTES = 200 * 1024;
 const MAX_INTERNAL_BODY_BYTES = 16 * 1024;
 const MAX_INTERNAL_MIGRATION_BODY_BYTES = 256;
 const SUBMISSION_CLAIM_LEASE_SECONDS = 2 * 60 * 60;
+const FINALIZATION_LEASE_SECONDS = 60 * 60;
 const USER_ID_RE = /^user_[A-Za-z0-9_-]{1,80}$/;
 const SUBMISSION_ID_RE = /^sub_[A-Za-z0-9_-]{8,100}$/;
 const SAFE_FAILURE_RE = /^[a-z][a-z0-9_]{2,63}$/;
@@ -251,6 +252,16 @@ const SAFE_SHA256_RE = /^[0-9a-f]{64}$/;
 const SAFE_GITHUB_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|pull)\/[1-9][0-9]{0,9}$/;
 const SAFE_RELEASE_BRANCH_RE = /^omo-release\/sub_[A-Za-z0-9_-]{8,100}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RELEASE_PHASES = new Set(['compiled', 'pr_open', 'ci_passed', 'merged_verified', 'promoted', 'failed']);
+const FINALIZATION_FAILURE_CODES = new Set([
+  'credential_preflight_failed',
+  'modal_deploy_failed',
+  'modal_canary_failed',
+  'worker_deploy_failed',
+  'worker_smoke_failed',
+  'public_verification_failed',
+  'superseded_main',
+  'internal_finalizer_failed',
+]);
 const EXPECTED_MODAL_WORKSPACE = 'omo-space';
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
 const STRIPE_CHECKOUT_API_VERSION = '2025-09-30.clover';
@@ -404,6 +415,14 @@ function dynamicRoute(pathname) {
   if (internalMigration) return { handler: handleInternalSubmissionMigration, methods: ['POST'], internal: true };
   const internalClaim = /^\/api\/internal\/submissions\/claim$/.exec(pathname);
   if (internalClaim) return { handler: handleInternalSubmissionClaim, methods: ['POST'], internal: true };
+  const internalFinalizationClaim = /^\/api\/internal\/finalizations\/claim$/.exec(pathname);
+  if (internalFinalizationClaim) return { handler: handleInternalFinalizationClaim, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationStatus = /^\/api\/internal\/finalizations\/(fin_[a-f0-9]{32})\/status$/.exec(pathname);
+  if (internalFinalizationStatus) return { handler: handleInternalFinalizationStatus, methods: ['POST'], params: { finalizationId: internalFinalizationStatus[1] }, internal: true, finalizer: true };
+  const internalFinalizationPromote = /^\/api\/internal\/finalizations\/(fin_[a-f0-9]{32})\/promote$/.exec(pathname);
+  if (internalFinalizationPromote) return { handler: handleInternalFinalizationPromote, methods: ['POST'], params: { finalizationId: internalFinalizationPromote[1] }, internal: true, finalizer: true };
+  const internalFinalizationDetail = /^\/api\/internal\/finalizations\/(fin_[a-f0-9]{32})\/detail$/.exec(pathname);
+  if (internalFinalizationDetail) return { handler: handleInternalFinalizationDetail, methods: ['POST'], params: { finalizationId: internalFinalizationDetail[1] }, internal: true, finalizer: true };
   const internalDetail = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/detail$/.exec(pathname);
   if (internalDetail) return { handler: handleInternalSubmissionDetail, methods: ['POST'], params: { submissionId: internalDetail[1] }, internal: true };
   const internalStatus = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/status$/.exec(pathname);
@@ -417,7 +436,7 @@ function dynamicRoute(pathname) {
   const internalRelease = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/release$/.exec(pathname);
   if (internalRelease) return { handler: handleInternalSubmissionRelease, methods: ['POST'], params: { submissionId: internalRelease[1] }, internal: true };
   const internalDeployed = /^\/api\/internal\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/deployed$/.exec(pathname);
-  if (internalDeployed) return { handler: handleInternalSubmissionDeployed, methods: ['POST'], params: { submissionId: internalDeployed[1] }, internal: true };
+  if (internalDeployed) return { handler: handleInternalSubmissionDeployed, methods: ['POST'], params: { submissionId: internalDeployed[1] }, internal: true, finalizer: true };
   const submissionDetail = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})$/.exec(pathname);
   if (submissionDetail) return { handler: handleSubmissionDetail, methods: ['GET'], params: { submissionId: submissionDetail[1] } };
   const submissionApproval = /^\/api\/submissions\/(sub_[A-Za-z0-9_-]{8,100})\/approve$/.exec(pathname);
@@ -439,7 +458,9 @@ async function handleWorkerFetch(request, env) {
     const isInternalPath = url.pathname.startsWith('/api/internal/');
     if (route && route.internal) {
       if (request.method === 'OPTIONS') return internalJson({ error: 'method_not_allowed' }, 405);
-      const auth = authorizeBuildWorker(request, env);
+      const auth = route.finalizer
+        ? authorizeReleaseFinalizer(request, env)
+        : authorizeBuildWorker(request, env);
       if (!auth.ok) return internalJson({ error: auth.error }, auth.status);
       const methods = route.methods || ['POST'];
       if (!methods.includes(request.method)) return internalJson({ error: 'method_not_allowed' }, 405);
@@ -2238,6 +2259,21 @@ function safeCanaryEvidence(value) {
   return Object.keys(canary).length ? canary : null;
 }
 
+function safePromotionEvidence(value) {
+  const parsed = parseJsonObject(value);
+  const checkedAt = safeTimestamp(parsed.checked_at);
+  if (String(parsed.status || '').trim() !== 'live' || !checkedAt) return null;
+  const evidence = { status: 'live', checked_at: checkedAt };
+  for (const name of ['R1', 'R2', 'R3', 'R4']) {
+    const gate = parseJsonObject(parsed[name]);
+    const status = String(gate.status || '').trim();
+    const allowed = name === 'R4' ? ['published', 'excluded_premium'] : ['passed'];
+    if (!allowed.includes(status)) return null;
+    evidence[name] = { status };
+  }
+  return evidence;
+}
+
 function safeReleaseSummary(row) {
   const phase = String(row.release_phase || '').trim();
   if (!RELEASE_PHASES.has(phase)) return null;
@@ -2251,6 +2287,7 @@ function safeReleaseSummary(row) {
   const modalApp = safeSlug(row.modal_app);
   const modalUrl = safeModalEndpoint(row.modal_url);
   const canary = safeCanaryEvidence(row.canary_evidence);
+  const promotionEvidence = safePromotionEvidence(row.promotion_evidence);
   if (issueUrl) summary.issue_url = issueUrl;
   if (prUrl) summary.pr_url = prUrl;
   if (Number.isSafeInteger(Number(row.release_pr_number)) && Number(row.release_pr_number) > 0) {
@@ -2263,6 +2300,7 @@ function safeReleaseSummary(row) {
   if (modalApp) summary.modal_app = modalApp;
   if (modalUrl) summary.modal_url = modalUrl;
   if (canary) summary.canary = canary;
+  if (promotionEvidence) summary.promotion_evidence = promotionEvidence;
   return summary;
 }
 
@@ -2298,6 +2336,19 @@ const REQUIRED_SUBMISSIONS_COLUMNS = [
   'modal_app',
   'modal_url',
   'canary_evidence',
+  'promotion_evidence',
+  'finalization_id',
+  'finalization_status',
+  'finalization_target_sha',
+  'finalization_source_sha256',
+  'finalization_head_sha',
+  'finalization_merge_sha',
+  'finalization_artifact_hash',
+  'finalization_claimed_at',
+  'finalization_lease_expires_at',
+  'finalization_attempts',
+  'finalization_failure_code',
+  'automation_updated_at',
   'status',
   'failure_code',
   'created_at',
@@ -2336,6 +2387,19 @@ const CREATE_SUBMISSIONS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS submissions (
   modal_app       TEXT,
   modal_url       TEXT,
   canary_evidence TEXT,
+  promotion_evidence TEXT,
+  finalization_id TEXT,
+  finalization_status TEXT,
+  finalization_target_sha TEXT,
+  finalization_source_sha256 TEXT,
+  finalization_head_sha TEXT,
+  finalization_merge_sha TEXT,
+  finalization_artifact_hash TEXT,
+  finalization_claimed_at TEXT,
+  finalization_lease_expires_at TEXT,
+  finalization_attempts INTEGER NOT NULL DEFAULT 0,
+  finalization_failure_code TEXT,
+  automation_updated_at TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
   created_at    TEXT NOT NULL,
@@ -2376,6 +2440,19 @@ const SUBMISSIONS_SCHEMA_MIGRATIONS = [
   ['modal_app', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS modal_app TEXT'],
   ['modal_url', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS modal_url TEXT'],
   ['canary_evidence', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS canary_evidence TEXT'],
+  ['promotion_evidence', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS promotion_evidence TEXT'],
+  ['finalization_id', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_id TEXT'],
+  ['finalization_status', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_status TEXT'],
+  ['finalization_target_sha', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_target_sha TEXT'],
+  ['finalization_source_sha256', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_source_sha256 TEXT'],
+  ['finalization_head_sha', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_head_sha TEXT'],
+  ['finalization_merge_sha', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_merge_sha TEXT'],
+  ['finalization_artifact_hash', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_artifact_hash TEXT'],
+  ['finalization_claimed_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_claimed_at TEXT'],
+  ['finalization_lease_expires_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_lease_expires_at TEXT'],
+  ['finalization_attempts', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_attempts INTEGER NOT NULL DEFAULT 0'],
+  ['finalization_failure_code', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_failure_code TEXT'],
+  ['automation_updated_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS automation_updated_at TEXT'],
   ['status', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS status TEXT'],
   ['failure_code', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS failure_code TEXT'],
   ['created_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS created_at TEXT'],
@@ -2421,6 +2498,23 @@ function constantTimeEquals(expected, supplied) {
 function authorizeBuildWorker(request, env) {
   const token = String(env && env.BUILD_WORKER_TOKEN || '').trim();
   if (!token) return { ok: false, status: 503, error: 'build_worker_not_configured' };
+  const authorization = String(request.headers.get('authorization') || '');
+  const match = /^Bearer\s+(.+)$/i.exec(authorization);
+  const supplied = match ? match[1] : '';
+  return constantTimeEquals(token, supplied)
+    ? { ok: true }
+    : { ok: false, status: 401, error: 'unauthorized' };
+}
+
+function authorizeReleaseFinalizer(request, env) {
+  const token = String(env && env.RELEASE_FINALIZER_TOKEN || '').trim();
+  const builderToken = String(env && env.BUILD_WORKER_TOKEN || '').trim();
+  if (!token || !builderToken) {
+    return { ok: false, status: 503, error: 'release_finalizer_not_configured' };
+  }
+  if (constantTimeEquals(token, builderToken)) {
+    return { ok: false, status: 503, error: 'release_finalizer_not_distinct' };
+  }
   const authorization = String(request.headers.get('authorization') || '');
   const match = /^Bearer\s+(.+)$/i.exec(authorization);
   const supplied = match ? match[1] : '';
@@ -2546,6 +2640,7 @@ function internalDetailRow(row) {
     if (release.modal_app) detail.modal_app = release.modal_app;
     if (release.modal_url) detail.modal_url = release.modal_url;
     if (release.canary) detail.canary_evidence = release.canary;
+    if (release.promotion_evidence) detail.promotion_evidence = release.promotion_evidence;
   }
   return detail;
 }
@@ -2570,7 +2665,7 @@ function validateDeploymentBody(body) {
   const publishedSlug = safeSlug(body.published_slug);
   const workflowVersion = String(body.workflow_version || '').trim();
   const evidence = safeBuildEvidence(body.build_evidence);
-  if (!['ready_for_deploy', 'ready_for_publish'].includes(status) ||
+  if (status !== 'ready_for_deploy' ||
       !publishedSlug || !SAFE_WORKFLOW_VERSION_RE.test(workflowVersion) ||
       !evidence.checks.length) {
     return null;
@@ -2602,9 +2697,11 @@ function validateReleaseBody(body) {
     modalApp: safeSlug(body.modal_app),
     modalUrl: safeModalEndpoint(body.modal_url),
     canary: safeCanaryEvidence(body.canary || body.canary_evidence),
+    promotionEvidence: safePromotionEvidence(body.release_gates || body.promotion_evidence),
   };
   if (!Number.isSafeInteger(release.prNumber) || release.prNumber < 1) return null;
   if ((phase === 'merged_verified' || phase === 'promoted') && !release.mergeSha) return null;
+  if (phase === 'promoted' && !release.promotionEvidence) return null;
   if (body.modal_url && !release.modalUrl) return null;
   return release;
 }
@@ -2625,6 +2722,68 @@ async function handleInternalSubmissionClaim(request, env) {
   return internalJson({ ok: true, submission }, 200);
 }
 
+async function handleInternalFinalizationClaim(request, env) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+    return internalJson({ error: 'invalid_finalization_claim' }, 400);
+  }
+  const targetSha = safeGitSha(parsed.body.target_sha);
+  if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
+  const finalization = await internalClaimFinalization(env, targetSha);
+  if (!finalization) return new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
+  return internalJson({ ok: true, finalization }, 200);
+}
+
+async function handleInternalFinalizationStatus(request, env, _url, params) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const status = String(parsed.body.status || '').trim();
+  const expectedKeys = status === 'failed' ? 'failure_code,status,target_sha' : 'status,target_sha';
+  if (Object.keys(parsed.body).sort().join(',') !== expectedKeys) {
+    return internalJson({ error: 'invalid_finalization_status' }, 400);
+  }
+  const targetSha = safeGitSha(parsed.body.target_sha);
+  const requestedFailure = status === 'failed' ? String(parsed.body.failure_code || '').trim() : '';
+  const failureCode = FINALIZATION_FAILURE_CODES.has(requestedFailure) ? requestedFailure : null;
+  if (!targetSha || !['deploying_modal', 'deploying_worker', 'verifying_public', 'failed'].includes(status) ||
+      (status === 'failed' && !failureCode)) {
+    return internalJson({ error: 'invalid_finalization_status' }, 400);
+  }
+  const updated = await internalSetFinalizationStatus(env, params.finalizationId, targetSha, status, failureCode);
+  return updated
+    ? internalJson({ ok: true, finalization_id: params.finalizationId, status }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalFinalizationPromote(request, env, _url, params) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  if (Object.keys(parsed.body).sort().join(',') !== 'release_gates,target_sha') {
+    return internalJson({ error: 'invalid_finalization_promotion' }, 400);
+  }
+  const targetSha = safeGitSha(parsed.body.target_sha);
+  const promotionEvidence = safePromotionEvidence(parsed.body.release_gates);
+  if (!targetSha || !promotionEvidence) {
+    return internalJson({ error: 'invalid_finalization_promotion' }, 400);
+  }
+  const updated = await internalPromoteFinalization(
+    env, params.finalizationId, targetSha, promotionEvidence
+  );
+  return updated
+    ? internalJson({ ok: true, finalization_id: params.finalizationId, status: 'completed' }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalFinalizationDetail(request, env, _url, params) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const finalization = finalizationDetailRow(await internalGetFinalization(env, params.finalizationId));
+  return finalization
+    ? internalJson({ ok: true, finalization }, 200)
+    : internalJson({ error: 'not_found' }, 404);
+}
+
 async function handleInternalSubmissionDetail(request, env, _url, params) {
   const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
@@ -2639,7 +2798,10 @@ async function handleInternalSubmissionStatus(request, env, _url, params) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
   const status = String(parsed.body.status || '').trim();
-  if (!['needs_review', 'ready_for_deploy', 'ready_for_publish', 'failed'].includes(status)) {
+  if (status === 'ready_for_publish') {
+    return internalJson({ error: 'trusted_finalizer_required' }, 409);
+  }
+  if (!['needs_review', 'ready_for_deploy', 'failed'].includes(status)) {
     return internalJson({ error: 'invalid_status' }, 400);
   }
   const updated = await internalSetSubmissionStatus(env, params.submissionId, status, parsed.body.failure_code);
@@ -2674,6 +2836,9 @@ async function handleInternalSubmissionRuntime(request, env, _url, params) {
 async function handleInternalSubmissionDeployment(request, env, _url, params) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  if (String(parsed.body.status || '').trim() === 'ready_for_publish') {
+    return internalJson({ error: 'trusted_finalizer_required' }, 409);
+  }
   const deployment = validateDeploymentBody(parsed.body);
   if (!deployment) return internalJson({ error: 'invalid_deployment' }, 400);
   const updated = await internalSetDeployment(env, params.submissionId, deployment);
@@ -2686,6 +2851,9 @@ async function handleInternalSubmissionRelease(request, env, _url, params) {
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
   const release = validateReleaseBody(parsed.body);
   if (!release) return internalJson({ error: 'invalid_release' }, 400);
+  if (release.phase === 'promoted') {
+    return internalJson({ error: 'trusted_finalizer_required' }, 409);
+  }
   const updated = await internalSetRelease(env, params.submissionId, release);
   return updated ? internalJson({ ok: true, id: params.submissionId, release_phase: release.phase }, 200)
     : internalJson({ error: 'invalid_transition' }, 409);
@@ -3496,6 +3664,7 @@ async function internalClaimSubmission(env, options) {
          AND source_sha256 ~ '^[0-9a-f]{64}$'
          AND content IS NOT NULL
          AND octet_length(content) BETWEEN 1 AND ${MAX_SUBMISSION_BYTES}
+         AND finalization_id IS NULL
          ${whereId}
          ORDER BY created_at ASC
          FOR UPDATE SKIP LOCKED
@@ -3531,12 +3700,13 @@ async function internalClaimSubmission(env, options) {
             AND datetime(build_claimed_at) < datetime('now', '-' || ? || ' seconds'))
         )
         AND length(CAST(content AS BLOB)) BETWEEN 1 AND ${MAX_SUBMISSION_BYTES}
+        AND finalization_id IS NULL
         ${whereId}
         ORDER BY created_at ASC LIMIT 1`)
       .bind(...params).first();
     if (!row) return null;
     const updated = await env.BALANCE_DB
-      .prepare("UPDATE submissions SET status = 'processing', failure_code = NULL, build_claimed_at = ?, build_attempts = COALESCE(build_attempts, 0) + 1, build_evidence = NULL, updated_at = ? WHERE id = ? AND status = ? AND (status IN (" + placeholders + ") OR (status = 'processing' AND build_claimed_at = ? AND datetime(build_claimed_at) < datetime('now', '-' || ? || ' seconds')))" )
+      .prepare("UPDATE submissions SET status = 'processing', failure_code = NULL, build_claimed_at = ?, build_attempts = COALESCE(build_attempts, 0) + 1, build_evidence = NULL, updated_at = ? WHERE id = ? AND status = ? AND finalization_id IS NULL AND (status IN (" + placeholders + ") OR (status = 'processing' AND build_claimed_at = ? AND datetime(build_claimed_at) < datetime('now', '-' || ? || ' seconds')))" )
       .bind(new Date().toISOString(), new Date().toISOString(), row.id, row.prior_status, ...claimStates, row.build_claimed_at || '', SUBMISSION_CLAIM_LEASE_SECONDS).run();
     return updated.meta && updated.meta.changes ? row : null;
   }
@@ -3544,7 +3714,9 @@ async function internalClaimSubmission(env, options) {
   if (options.includeReview) claimStates.add('needs_review');
   if (options.includeReady) claimStates.add('ready_for_deploy');
   const rows = Array.from(mockSubmissions.values())
-    .filter((record) => (claimStates.has(record.status) || (record.status === 'processing' && staleSubmissionClaim(record))) && (!options.id || record.id === options.id))
+    .filter((record) => !record.finalization_id &&
+      (claimStates.has(record.status) || (record.status === 'processing' && staleSubmissionClaim(record))) &&
+      (!options.id || record.id === options.id))
     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id || '').localeCompare(String(b.id || '')));
   const record = rows[0];
   if (!record || !validSubmissionClaimSource(record)) return null;
@@ -3605,6 +3777,382 @@ function safeBuilderPeekRow(row) {
   return { id, slug, source_sha256: sourceSha256, status };
 }
 
+function finalizationClaimRow(row) {
+  if (!row) return null;
+  const id = String(row.finalization_id || '');
+  const submissionId = safeSubmissionId(row.id);
+  const slug = safeSlug(row.slug);
+  const runtime = safeRuntime(row.selected_runtime);
+  const targetSha = safeGitSha(row.finalization_target_sha);
+  const mergeSha = safeGitSha(row.finalization_merge_sha);
+  const headSha = safeGitSha(row.finalization_head_sha);
+  const sourceSha256 = safeSha256(row.finalization_source_sha256);
+  const artifactHash = safeSha256(row.finalization_artifact_hash);
+  const leaseExpiresAt = safeTimestamp(row.finalization_lease_expires_at);
+  const attempts = Number(row.finalization_attempts);
+  if (!/^fin_[a-f0-9]{32}$/.test(id) || !submissionId || !slug || !runtime || !targetSha ||
+      !mergeSha || !headSha || !sourceSha256 || !artifactHash || !leaseExpiresAt ||
+      !Number.isSafeInteger(attempts) || attempts < 1) return null;
+  return {
+    id,
+    submission_id: submissionId,
+    slug,
+    runtime,
+    status: 'claimed',
+    target_sha: targetSha,
+    merge_sha: mergeSha,
+    head_sha: headSha,
+    source_sha256: sourceSha256,
+    artifact_hash: artifactHash,
+    lease_expires_at: leaseExpiresAt,
+    attempts,
+  };
+}
+
+async function internalClaimFinalization(env, targetSha) {
+  const now = new Date();
+  const claimedAt = now.toISOString();
+  const leaseExpiresAt = new Date(now.getTime() + FINALIZATION_LEASE_SECONDS * 1000).toISOString();
+  const finalizationId = `fin_${crypto.randomUUID().replace(/-/g, '')}`;
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-claim-v1',
+      `WITH candidate AS (
+         SELECT id FROM submissions
+         WHERE status = 'ready_for_deploy'
+           AND release_phase = 'merged_verified'
+           AND selected_runtime IN ('worker-native', 'modal-hosted')
+           AND source_sha256 IS NOT NULL
+           AND published_slug IS NOT NULL
+           AND workflow_version IS NOT NULL
+           AND build_evidence IS NOT NULL
+           AND release_issue_url IS NOT NULL
+           AND release_pr_url IS NOT NULL
+           AND release_pr_number IS NOT NULL
+           AND release_branch IS NOT NULL
+           AND release_head_sha IS NOT NULL
+           AND release_merge_sha IS NOT NULL
+           AND release_artifact_hash IS NOT NULL
+           AND (finalization_status IS NULL OR
+                (finalization_status IN ('claimed', 'deploying_modal', 'deploying_worker', 'verifying_public')
+                 AND finalization_lease_expires_at::timestamptz < CURRENT_TIMESTAMP))
+         ORDER BY updated_at ASC, id ASC
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1
+       )
+       UPDATE submissions AS submission
+       SET finalization_id = $1, finalization_status = 'claimed', finalization_target_sha = $2,
+           finalization_source_sha256 = source_sha256, finalization_head_sha = release_head_sha,
+           finalization_merge_sha = release_merge_sha, finalization_artifact_hash = release_artifact_hash,
+           finalization_claimed_at = CURRENT_TIMESTAMP, finalization_lease_expires_at = $3,
+           finalization_attempts = COALESCE(finalization_attempts, 0) + 1,
+           finalization_failure_code = NULL, automation_updated_at = CURRENT_TIMESTAMP
+       FROM candidate
+       WHERE submission.id = candidate.id
+       RETURNING submission.id,submission.slug,submission.selected_runtime,
+                 submission.finalization_id,submission.finalization_target_sha,
+                 submission.finalization_source_sha256,submission.finalization_head_sha,
+                 submission.finalization_merge_sha,submission.finalization_artifact_hash,
+                 submission.finalization_lease_expires_at,submission.finalization_attempts`,
+      [finalizationId, targetSha, leaseExpiresAt]
+    ));
+    return finalizationClaimRow(result.rows[0]);
+  }
+  if (databaseKind(env) === 'd1') {
+    const row = await env.BALANCE_DB.prepare(
+      `SELECT id,slug,selected_runtime,source_sha256,published_slug,workflow_version,build_evidence,
+              release_issue_url,release_pr_url,release_pr_number,release_branch,
+              release_head_sha,release_merge_sha,release_artifact_hash,
+              finalization_status,finalization_lease_expires_at,finalization_attempts
+       FROM submissions
+       WHERE status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+         AND selected_runtime IN ('worker-native', 'modal-hosted')
+         AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
+         AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL
+         AND release_issue_url IS NOT NULL AND release_pr_url IS NOT NULL
+         AND release_pr_number IS NOT NULL AND release_branch IS NOT NULL
+         AND release_head_sha IS NOT NULL AND release_merge_sha IS NOT NULL
+         AND release_artifact_hash IS NOT NULL
+         AND (finalization_status IS NULL OR
+              (finalization_status IN ('claimed', 'deploying_modal', 'deploying_worker', 'verifying_public')
+               AND finalization_lease_expires_at < ?))
+       ORDER BY updated_at ASC, id ASC LIMIT 1`
+    ).bind(claimedAt).first();
+    if (!row) return null;
+    const updated = await env.BALANCE_DB.prepare(
+      `UPDATE submissions
+       SET finalization_id = ?, finalization_status = 'claimed', finalization_target_sha = ?,
+           finalization_source_sha256 = ?, finalization_head_sha = ?,
+           finalization_merge_sha = ?, finalization_artifact_hash = ?,
+           finalization_claimed_at = ?, finalization_lease_expires_at = ?,
+           finalization_attempts = COALESCE(finalization_attempts, 0) + 1,
+           finalization_failure_code = NULL, automation_updated_at = ?
+       WHERE id = ? AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+         AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
+         AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL
+         AND release_issue_url IS NOT NULL AND release_pr_url IS NOT NULL
+         AND release_pr_number IS NOT NULL AND release_branch IS NOT NULL
+         AND selected_runtime = ? AND source_sha256 = ? AND published_slug = ?
+         AND workflow_version = ? AND build_evidence = ?
+         AND release_issue_url = ? AND release_pr_url = ? AND release_pr_number = ?
+         AND release_branch = ? AND release_head_sha = ? AND release_merge_sha = ?
+         AND release_artifact_hash = ?
+         AND (finalization_status IS NULL OR
+              (finalization_status IN ('claimed', 'deploying_modal', 'deploying_worker', 'verifying_public')
+               AND finalization_lease_expires_at < ?))`
+    ).bind(
+      finalizationId, targetSha, row.source_sha256, row.release_head_sha,
+      row.release_merge_sha, row.release_artifact_hash, claimedAt, leaseExpiresAt, claimedAt, row.id,
+      row.selected_runtime, row.source_sha256, row.published_slug, row.workflow_version,
+      row.build_evidence, row.release_issue_url, row.release_pr_url, row.release_pr_number,
+      row.release_branch, row.release_head_sha, row.release_merge_sha,
+      row.release_artifact_hash, claimedAt,
+    ).run();
+    if (!updated.meta || !updated.meta.changes) return null;
+    return finalizationClaimRow({
+      ...row,
+      finalization_id: finalizationId,
+      finalization_target_sha: targetSha,
+      finalization_source_sha256: row.source_sha256,
+      finalization_head_sha: row.release_head_sha,
+      finalization_merge_sha: row.release_merge_sha,
+      finalization_artifact_hash: row.release_artifact_hash,
+      finalization_lease_expires_at: leaseExpiresAt,
+      finalization_attempts: Number(row.finalization_attempts || 0) + 1,
+    });
+  }
+  for (const record of mockSubmissions.values()) {
+    const expiry = Date.parse(String(record.finalization_lease_expires_at || ''));
+    const claimable = record.finalization_status == null ||
+      (['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public'].includes(record.finalization_status) &&
+       Number.isFinite(expiry) && expiry < now.getTime());
+    if (record.status === 'ready_for_deploy' && record.release_phase === 'merged_verified' &&
+        safeRuntime(record.selected_runtime) && safeGitSha(record.release_head_sha) &&
+        safeGitSha(record.release_merge_sha) && safeSha256(record.release_artifact_hash) &&
+        safeSha256(record.source_sha256) && safeSlug(record.published_slug) &&
+        SAFE_WORKFLOW_VERSION_RE.test(String(record.workflow_version || '')) &&
+        safeBuildEvidence(record.build_evidence).checks.length &&
+        safeGithubUrl(record.release_issue_url, 'issues') && safeGithubUrl(record.release_pr_url, 'pull') &&
+        Number.isSafeInteger(Number(record.release_pr_number)) && Number(record.release_pr_number) > 0 &&
+        safeReleaseBranch(record.release_branch) && claimable) {
+      record.finalization_id = finalizationId;
+      record.finalization_status = 'claimed';
+      record.finalization_target_sha = targetSha;
+      record.finalization_source_sha256 = record.source_sha256;
+      record.finalization_head_sha = record.release_head_sha;
+      record.finalization_merge_sha = record.release_merge_sha;
+      record.finalization_artifact_hash = record.release_artifact_hash;
+      record.finalization_claimed_at = claimedAt;
+      record.finalization_lease_expires_at = leaseExpiresAt;
+      record.finalization_attempts = Number(record.finalization_attempts || 0) + 1;
+      record.finalization_failure_code = null;
+      record.automation_updated_at = claimedAt;
+      return finalizationClaimRow(record);
+    }
+  }
+  return null;
+}
+
+async function internalGetFinalization(env, finalizationId) {
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-detail-v1',
+      `SELECT id,slug,source_sha256,selected_runtime,status,release_phase,release_head_sha,
+              release_merge_sha,release_artifact_hash,promotion_evidence,finalization_id,
+              finalization_status,finalization_target_sha,finalization_source_sha256,
+              finalization_head_sha,finalization_merge_sha,finalization_artifact_hash,
+              finalization_claimed_at,
+              finalization_lease_expires_at,finalization_attempts,finalization_failure_code,
+              automation_updated_at
+       FROM submissions WHERE finalization_id = $1 LIMIT 1`,
+      [finalizationId]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return await env.BALANCE_DB.prepare(
+      `SELECT id,slug,source_sha256,selected_runtime,status,release_phase,release_head_sha,
+              release_merge_sha,release_artifact_hash,promotion_evidence,finalization_id,
+              finalization_status,finalization_target_sha,finalization_source_sha256,
+              finalization_head_sha,finalization_merge_sha,finalization_artifact_hash,
+              finalization_claimed_at,
+              finalization_lease_expires_at,finalization_attempts,finalization_failure_code,
+              automation_updated_at
+       FROM submissions WHERE finalization_id = ? LIMIT 1`
+    ).bind(finalizationId).first();
+  }
+  for (const record of mockSubmissions.values()) {
+    if (record.finalization_id === finalizationId) return record;
+  }
+  return null;
+}
+
+function finalizationDetailRow(row) {
+  if (!row || !/^fin_[a-f0-9]{32}$/.test(String(row.finalization_id || ''))) return null;
+  const submissionId = safeSubmissionId(row.id);
+  const slug = safeSlug(row.slug);
+  const runtime = safeRuntime(row.selected_runtime);
+  const targetSha = safeGitSha(row.finalization_target_sha);
+  const headSha = safeGitSha(row.finalization_head_sha);
+  const mergeSha = safeGitSha(row.finalization_merge_sha);
+  const sourceSha256 = safeSha256(row.finalization_source_sha256);
+  const artifactHash = safeSha256(row.finalization_artifact_hash);
+  const leaseExpiresAt = safeTimestamp(row.finalization_lease_expires_at);
+  const status = String(row.finalization_status || '');
+  const attempts = Number(row.finalization_attempts);
+  if (!submissionId || !slug || !runtime || !targetSha || !headSha || !mergeSha || !sourceSha256 ||
+      !artifactHash || !leaseExpiresAt ||
+      !['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public', 'completed', 'failed'].includes(status) ||
+      !Number.isSafeInteger(attempts) || attempts < 1) return null;
+  const detail = {
+    id: String(row.finalization_id), submission_id: submissionId, slug, runtime, status,
+    target_sha: targetSha, head_sha: headSha, merge_sha: mergeSha,
+    source_sha256: sourceSha256, artifact_hash: artifactHash,
+    lease_expires_at: leaseExpiresAt, attempts,
+  };
+  const failureCode = String(row.finalization_failure_code || '').trim();
+  if (status === 'failed' && FINALIZATION_FAILURE_CODES.has(failureCode)) detail.failure_code = failureCode;
+  return detail;
+}
+
+function allowedFinalizationTransition(row, targetSha, nextStatus, failureCode, now = Date.now()) {
+  if (!row || row.finalization_target_sha !== targetSha) return false;
+  const claimedSource = safeSha256(row.finalization_source_sha256);
+  const claimedHead = safeGitSha(row.finalization_head_sha);
+  const claimedMerge = safeGitSha(row.finalization_merge_sha);
+  const claimedArtifact = safeSha256(row.finalization_artifact_hash);
+  if (!claimedSource || !claimedHead || !claimedMerge || !claimedArtifact ||
+      safeSha256(row.source_sha256 || row.sourceSha256) !== claimedSource ||
+      safeGitSha(row.release_head_sha) !== claimedHead ||
+      safeGitSha(row.release_merge_sha) !== claimedMerge ||
+      safeSha256(row.release_artifact_hash) !== claimedArtifact) return false;
+  const expiry = Date.parse(String(row.finalization_lease_expires_at || ''));
+  if (!Number.isFinite(expiry) || expiry <= now) return false;
+  const current = String(row.finalization_status || '');
+  if (current === nextStatus) return nextStatus !== 'failed' || row.finalization_failure_code === failureCode;
+  const runtime = safeRuntime(row.selected_runtime);
+  if (nextStatus === 'deploying_modal') return current === 'claimed' && runtime === 'modal-hosted';
+  if (nextStatus === 'deploying_worker') {
+    return (current === 'claimed' && runtime === 'worker-native') ||
+      (current === 'deploying_modal' && runtime === 'modal-hosted');
+  }
+  if (nextStatus === 'verifying_public') return current === 'deploying_worker';
+
+  if (nextStatus === 'failed') {
+    return ['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public'].includes(current) && Boolean(failureCode);
+  }
+  return false;
+}
+
+async function internalSetFinalizationStatus(env, finalizationId, targetSha, nextStatus, failureCode = null) {
+  const row = await internalGetFinalization(env, finalizationId);
+  if (!allowedFinalizationTransition(row, targetSha, nextStatus, failureCode)) return false;
+  if (row.finalization_status === nextStatus) return true;
+  const currentStatus = row.finalization_status;
+  const now = new Date().toISOString();
+
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-status-v1',
+      `UPDATE submissions
+       SET finalization_status = $1, finalization_failure_code = $2, automation_updated_at = CURRENT_TIMESTAMP
+       WHERE finalization_id = $3 AND finalization_target_sha = $4
+         AND finalization_status = $5 AND finalization_lease_expires_at::timestamptz > CURRENT_TIMESTAMP
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash
+       RETURNING id`,
+      [nextStatus, failureCode, finalizationId, targetSha, currentStatus]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `UPDATE submissions SET finalization_status = ?, finalization_failure_code = ?, automation_updated_at = ?
+       WHERE finalization_id = ? AND finalization_target_sha = ?
+         AND finalization_status = ? AND finalization_lease_expires_at > ?
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash`
+    ).bind(nextStatus, failureCode, now, finalizationId, targetSha, currentStatus, now).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  row.finalization_status = nextStatus;
+  row.finalization_failure_code = failureCode;
+  row.automation_updated_at = now;
+  return true;
+}
+
+async function internalPromoteFinalization(env, finalizationId, targetSha, evidence) {
+  const row = await internalGetFinalization(env, finalizationId);
+  const sanitized = safePromotionEvidence(evidence);
+  if (!row || !sanitized || row.finalization_target_sha !== targetSha ||
+      row.finalization_status !== 'verifying_public' ||
+      !['ready_for_deploy', 'ready_for_publish'].includes(row.status) ||
+      row.release_phase !== 'merged_verified') return false;
+  const expiry = Date.parse(String(row.finalization_lease_expires_at || ''));
+  if (!Number.isFinite(expiry) || expiry <= Date.now()) return false;
+  const claimedSource = safeSha256(row.finalization_source_sha256);
+  const claimedHead = safeGitSha(row.finalization_head_sha);
+  const claimedMerge = safeGitSha(row.finalization_merge_sha);
+  const claimedArtifact = safeSha256(row.finalization_artifact_hash);
+  if (!claimedSource || !claimedHead || !claimedMerge || !claimedArtifact ||
+      safeSha256(row.source_sha256 || row.sourceSha256) !== claimedSource ||
+      safeGitSha(row.release_head_sha) !== claimedHead ||
+      safeGitSha(row.release_merge_sha) !== claimedMerge ||
+      safeSha256(row.release_artifact_hash) !== claimedArtifact) return false;
+  const promotionEvidence = JSON.stringify(sanitized);
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-promote-v1',
+      `UPDATE submissions
+       SET status = 'ready_for_publish', release_phase = 'promoted', promotion_evidence = $1,
+           finalization_status = 'completed', finalization_failure_code = NULL,
+           automation_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE finalization_id = $2 AND finalization_target_sha = $3
+         AND finalization_status = 'verifying_public'
+         AND status IN ('ready_for_deploy', 'ready_for_publish')
+         AND release_phase = 'merged_verified'
+         AND finalization_lease_expires_at::timestamptz > CURRENT_TIMESTAMP
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash
+       RETURNING id`,
+      [promotionEvidence, finalizationId, targetSha]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `UPDATE submissions
+       SET status = 'ready_for_publish', release_phase = 'promoted', promotion_evidence = ?,
+           finalization_status = 'completed', finalization_failure_code = NULL,
+           automation_updated_at = ?, updated_at = ?
+       WHERE finalization_id = ? AND finalization_target_sha = ?
+         AND finalization_status = 'verifying_public'
+         AND status IN ('ready_for_deploy', 'ready_for_publish')
+         AND release_phase = 'merged_verified' AND finalization_lease_expires_at > ?
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash`
+    ).bind(promotionEvidence, now, now, finalizationId, targetSha, now).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  row.status = 'ready_for_publish';
+  row.release_phase = 'promoted';
+  row.promotion_evidence = promotionEvidence;
+  row.finalization_status = 'completed';
+  row.finalization_failure_code = null;
+  row.automation_updated_at = now;
+  row.updated_at = now;
+  return true;
+}
+
 async function internalGetSubmissionDetail(env, submissionId) {
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
@@ -3612,7 +4160,7 @@ async function internalGetSubmissionDetail(env, submissionId) {
       `SELECT id,slug,source_sha256,selected_runtime,workflow_version,published_slug,build_evidence,
               status,release_phase,release_issue_url,release_pr_url,release_pr_number,
               release_branch,release_head_sha,release_merge_sha,release_artifact_hash,
-              modal_app,modal_url,canary_evidence
+              modal_app,modal_url,canary_evidence,promotion_evidence
        FROM submissions
        WHERE id = $1
        LIMIT 1`,
@@ -3625,7 +4173,7 @@ async function internalGetSubmissionDetail(env, submissionId) {
       .prepare(`SELECT id,slug,source_sha256,selected_runtime,workflow_version,published_slug,build_evidence,
                        status,release_phase,release_issue_url,release_pr_url,release_pr_number,
                        release_branch,release_head_sha,release_merge_sha,release_artifact_hash,
-                       modal_app,modal_url,canary_evidence
+                       modal_app,modal_url,canary_evidence,promotion_evidence
                 FROM submissions
                 WHERE id = ?
                 LIMIT 1`)
@@ -3640,7 +4188,7 @@ async function internalGetSubmissionDetail(env, submissionId) {
 function allowedInternalPriorStates(status) {
   if (status === 'needs_review') return ['processing'];
   if (status === 'ready_for_deploy') return ['processing'];
-  if (status === 'ready_for_publish') return ['ready_for_deploy', 'processing'];
+
   if (status === 'failed') return ['processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish'];
   return [];
 }
@@ -3656,6 +4204,7 @@ async function internalSetSubmissionStatus(env, submissionId, status, failureCod
       `UPDATE submissions
        SET status = $1, failure_code = $2, updated_at = CURRENT_TIMESTAMP
        WHERE id = $3 AND status IN (${states.map((_, index) => `$${index + 4}`).join(', ')})
+         AND finalization_id IS NULL
        RETURNING id`,
       params
     ));
@@ -3663,12 +4212,12 @@ async function internalSetSubmissionStatus(env, submissionId, status, failureCod
   }
   if (databaseKind(env) === 'd1') {
     const result = await env.BALANCE_DB
-      .prepare(`UPDATE submissions SET status = ?, failure_code = ?, updated_at = ? WHERE id = ? AND status IN (${states.map(() => '?').join(', ')})`)
+      .prepare(`UPDATE submissions SET status = ?, failure_code = ?, updated_at = ? WHERE id = ? AND status IN (${states.map(() => '?').join(', ')}) AND finalization_id IS NULL`)
       .bind(status, failure, new Date().toISOString(), submissionId, ...states).run();
     return Boolean(result.meta && result.meta.changes);
   }
   for (const record of mockSubmissions.values()) {
-    if (record.id === submissionId && states.includes(record.status)) {
+    if (record.id === submissionId && states.includes(record.status) && !record.finalization_id) {
       record.status = status;
       record.failure_code = failure;
       record.updated_at = new Date().toISOString();
@@ -3794,7 +4343,7 @@ async function internalSetRuntimeDecision(env, submissionId, decision) {
 
 async function internalSetDeployment(env, submissionId, deployment) {
   const evidence = JSON.stringify(deployment.evidence, null, 0);
-  const fromStates = deployment.status === 'ready_for_publish' ? ['processing', 'ready_for_deploy'] : ['processing'];
+  const fromStates = ['processing'];
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-internal-submission-deployment-v1',
@@ -3829,6 +4378,7 @@ async function internalSetDeployment(env, submissionId, deployment) {
 async function internalSetRelease(env, submissionId, release) {
   const now = new Date().toISOString();
   const canary = release.canary ? JSON.stringify(release.canary, null, 0) : null;
+  const promotionEvidence = release.promotionEvidence ? JSON.stringify(release.promotionEvidence, null, 0) : null;
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-internal-submission-release-v1',
@@ -3844,30 +4394,33 @@ async function internalSetRelease(env, submissionId, release) {
            modal_app = $9,
            modal_url = $10,
            canary_evidence = $11,
+           promotion_evidence = $12,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $12
-         AND status IN ('ready_for_deploy', 'ready_for_publish', 'deployed')
+       WHERE id = $13
+         AND status IN ('ready_for_deploy', 'ready_for_publish')
+         AND finalization_id IS NULL
        RETURNING id`,
       [
         release.phase, release.issueUrl, release.prUrl, release.prNumber, release.branch,
         release.headSha, release.mergeSha, release.artifactHash, release.modalApp,
-        release.modalUrl, canary, submissionId,
+        release.modalUrl, canary, promotionEvidence, submissionId,
       ]
     ));
     return result.rowCount === 1;
   }
   if (databaseKind(env) === 'd1') {
     const result = await env.BALANCE_DB
-      .prepare("UPDATE submissions SET release_phase = ?, release_issue_url = ?, release_pr_url = ?, release_pr_number = ?, release_branch = ?, release_head_sha = ?, release_merge_sha = ?, release_artifact_hash = ?, modal_app = ?, modal_url = ?, canary_evidence = ?, updated_at = ? WHERE id = ? AND status IN ('ready_for_deploy', 'ready_for_publish', 'deployed')")
+      .prepare("UPDATE submissions SET release_phase = ?, release_issue_url = ?, release_pr_url = ?, release_pr_number = ?, release_branch = ?, release_head_sha = ?, release_merge_sha = ?, release_artifact_hash = ?, modal_app = ?, modal_url = ?, canary_evidence = ?, promotion_evidence = ?, updated_at = ? WHERE id = ? AND status IN ('ready_for_deploy', 'ready_for_publish') AND finalization_id IS NULL")
       .bind(
         release.phase, release.issueUrl, release.prUrl, release.prNumber, release.branch,
         release.headSha, release.mergeSha, release.artifactHash, release.modalApp,
-        release.modalUrl, canary, now, submissionId,
+        release.modalUrl, canary, promotionEvidence, now, submissionId,
       ).run();
     return Boolean(result.meta && result.meta.changes);
   }
   for (const record of mockSubmissions.values()) {
-    if (record.id === submissionId && ['ready_for_deploy', 'ready_for_publish', 'deployed'].includes(record.status)) {
+    if (record.id === submissionId && ['ready_for_deploy', 'ready_for_publish'].includes(record.status) &&
+        !record.finalization_id) {
       record.release_phase = release.phase;
       record.release_issue_url = release.issueUrl;
       record.release_pr_url = release.prUrl;
@@ -3879,6 +4432,7 @@ async function internalSetRelease(env, submissionId, release) {
       record.modal_app = release.modalApp || null;
       record.modal_url = release.modalUrl || null;
       record.canary_evidence = canary;
+      record.promotion_evidence = promotionEvidence;
       record.updated_at = now;
       return true;
     }
@@ -3899,6 +4453,17 @@ async function internalMarkDeployed(env, submissionId, metadata) {
          AND published_slug IS NOT NULL
          AND workflow_version IS NOT NULL
          AND build_evidence IS NOT NULL
+         AND release_phase = 'promoted'
+         AND finalization_status = 'completed'
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash
+         AND promotion_evidence::jsonb ->> 'status' = 'live'
+         AND promotion_evidence::jsonb -> 'R1' ->> 'status' = 'passed'
+         AND promotion_evidence::jsonb -> 'R2' ->> 'status' = 'passed'
+         AND promotion_evidence::jsonb -> 'R3' ->> 'status' = 'passed'
+         AND promotion_evidence::jsonb -> 'R4' ->> 'status' IN ('published', 'excluded_premium')
        RETURNING id`,
       [deploymentMeta, submissionId]
     ));
@@ -3906,13 +4471,19 @@ async function internalMarkDeployed(env, submissionId, metadata) {
   }
   if (databaseKind(env) === 'd1') {
     const result = await env.BALANCE_DB
-      .prepare("UPDATE submissions SET status = 'deployed', failure_code = NULL, deployment_metadata = ?, updated_at = ?, deployed_at = ? WHERE id = ? AND status = 'ready_for_publish' AND published_slug IS NOT NULL AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL")
+      .prepare("UPDATE submissions SET status = 'deployed', failure_code = NULL, deployment_metadata = ?, updated_at = ?, deployed_at = ? WHERE id = ? AND status = 'ready_for_publish' AND published_slug IS NOT NULL AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL AND release_phase = 'promoted' AND finalization_status = 'completed' AND source_sha256 = finalization_source_sha256 AND release_head_sha = finalization_head_sha AND release_merge_sha = finalization_merge_sha AND release_artifact_hash = finalization_artifact_hash AND json_extract(promotion_evidence, '$.status') = 'live' AND json_extract(promotion_evidence, '$.R1.status') = 'passed' AND json_extract(promotion_evidence, '$.R2.status') = 'passed' AND json_extract(promotion_evidence, '$.R3.status') = 'passed' AND json_extract(promotion_evidence, '$.R4.status') IN ('published', 'excluded_premium')")
       .bind(deploymentMeta, deployedAt, deployedAt, submissionId).run();
     return Boolean(result.meta && result.meta.changes);
   }
   for (const record of mockSubmissions.values()) {
     if (record.id === submissionId && record.status === 'ready_for_publish' &&
-        record.published_slug && record.workflow_version && record.build_evidence) {
+        record.published_slug && record.workflow_version && record.build_evidence &&
+        record.release_phase === 'promoted' && record.finalization_status === 'completed' &&
+        safeSha256(record.source_sha256 || record.sourceSha256) === safeSha256(record.finalization_source_sha256) &&
+        safeGitSha(record.release_head_sha) === safeGitSha(record.finalization_head_sha) &&
+        safeGitSha(record.release_merge_sha) === safeGitSha(record.finalization_merge_sha) &&
+        safeSha256(record.release_artifact_hash) === safeSha256(record.finalization_artifact_hash) &&
+        safePromotionEvidence(record.promotion_evidence)) {
       record.status = 'deployed';
       record.failure_code = null;
       record.deployment_metadata = deploymentMeta;
@@ -4241,7 +4812,7 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
 }
 
 async function getSubmissionApprovalState(env, userId, submissionId) {
-  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence';
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence,promotion_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-submission-approval-state-v1',
@@ -4257,7 +4828,7 @@ async function getSubmissionApprovalState(env, userId, submissionId) {
 }
 
 async function listSubmissions(env, userId, limit) {
-  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence';
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence,promotion_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-submissions-list-v1',
@@ -4279,7 +4850,7 @@ async function listSubmissions(env, userId, limit) {
 }
 
 async function getSubmissionForOwner(env, userId, submissionId) {
-  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence';
+  const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence,promotion_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-submission-detail-v1',

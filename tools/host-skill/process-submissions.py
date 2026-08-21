@@ -408,9 +408,10 @@ def validate_detail_response(value: Any) -> dict[str, Any]:
         "modal_app": row.get("modal_app"),
         "modal_url": row.get("modal_url"),
         "canary": row.get("canary_evidence"),
+        "promotion_evidence": row.get("promotion_evidence"),
     }
     if row.get("release_phase"):
-        normalized = normalize_release_metadata(release)
+        normalized = normalize_release_metadata(release, require_promotion_evidence=False)
         detail.update({
             "release_phase": normalized.get("release_phase"),
             "release_issue_url": normalized.get("issue_url"),
@@ -425,6 +426,8 @@ def validate_detail_response(value: Any) -> dict[str, Any]:
         })
         if normalized.get("canary"):
             detail["canary_evidence"] = normalized["canary"]
+        if normalized.get("release_gates"):
+            detail["promotion_evidence"] = normalized["release_gates"]
     return {key: value for key, value in detail.items() if value is not None}
 
 
@@ -760,9 +763,10 @@ class SubmissionRepository:
                         modal_app = %s,
                         modal_url = %s,
                         canary_evidence = %s,
+                        promotion_evidence = %s,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = %s
-                      AND status IN ('ready_for_deploy', 'ready_for_publish', 'deployed')
+                      AND status IN ('ready_for_deploy', 'ready_for_publish')
                     """,
                     (
                         metadata.get("release_phase"),
@@ -776,6 +780,7 @@ class SubmissionRepository:
                         metadata.get("modal_app"),
                         metadata.get("modal_url"),
                         json.dumps(metadata.get("canary") or {}, sort_keys=True),
+                        json.dumps(metadata.get("release_gates") or {}, sort_keys=True),
                         submission_id,
                     ),
                 )
@@ -790,7 +795,7 @@ class SubmissionRepository:
                        runtime_policy,runtime_compatibility,workflow_version,published_slug,build_evidence,
                        status,release_phase,release_issue_url,release_pr_url,release_pr_number,
                        release_branch,release_head_sha,release_merge_sha,release_artifact_hash,
-                       modal_app,modal_url,canary_evidence,created_at,updated_at,deployed_at
+                       modal_app,modal_url,canary_evidence,promotion_evidence,created_at,updated_at,deployed_at
                 FROM submissions WHERE id = %s
                 """,
                 (submission_id,),
@@ -813,11 +818,22 @@ class SubmissionRepository:
                       AND published_slug IS NOT NULL
                       AND workflow_version IS NOT NULL
                       AND build_evidence IS NOT NULL
+                      AND release_phase = 'promoted'
+                      AND finalization_status = 'completed'
+                      AND finalization_source_sha256 = source_sha256
+                      AND finalization_head_sha = release_head_sha
+                      AND finalization_merge_sha = release_merge_sha
+                      AND finalization_artifact_hash = release_artifact_hash
+                      AND promotion_evidence::jsonb ->> 'status' = 'live'
+                      AND promotion_evidence::jsonb -> 'R1' ->> 'status' = 'passed'
+                      AND promotion_evidence::jsonb -> 'R2' ->> 'status' = 'passed'
+                      AND promotion_evidence::jsonb -> 'R3' ->> 'status' = 'passed'
+                      AND promotion_evidence::jsonb -> 'R4' ->> 'status' IN ('published', 'excluded_premium')
                     """,
                     (submission_id,),
                 )
                 if cursor.rowcount != 1:
-                    raise RuntimeError("submission must be ready_for_publish with published_slug, workflow_version, and build_evidence before it can be marked deployed")
+                    raise RuntimeError("submission must be ready_for_publish with promoted release evidence before it can be marked deployed")
 
 
 def run_checked(command: list[str], cwd: Path = ROOT) -> None:
@@ -1217,7 +1233,11 @@ def slug_from_release_branch(branch: str) -> str:
     raise ValueError("invalid release branch")
 
 
-def normalize_release_metadata(value: dict[str, Any]) -> dict[str, Any]:
+def normalize_release_metadata(
+    value: dict[str, Any],
+    *,
+    require_promotion_evidence: bool = True,
+) -> dict[str, Any]:
     phase = str(value.get("release_phase") or value.get("phase") or "").strip()
     if phase not in RELEASE_PHASES:
         raise ValueError("invalid release phase")
@@ -1276,6 +1296,24 @@ def normalize_release_metadata(value: dict[str, Any]) -> dict[str, Any]:
             safe_canary["checked_at"] = checked_at
         if safe_canary:
             metadata["canary"] = safe_canary
+    release_gates = value.get("release_gates") or value.get("promotion_evidence")
+    if isinstance(release_gates, dict):
+        checked_at = str(release_gates.get("checked_at") or "").strip()
+        safe_gates: dict[str, Any] = {}
+        if release_gates.get("status") == "live" and checked_at and len(checked_at) <= 64:
+            safe_gates = {"status": "live", "checked_at": checked_at}
+            for name in ("R1", "R2", "R3", "R4"):
+                gate = release_gates.get(name)
+                status = str(gate.get("status") or "").strip() if isinstance(gate, dict) else ""
+                allowed = {"published", "excluded_premium"} if name == "R4" else {"passed"}
+                if status not in allowed:
+                    safe_gates = {}
+                    break
+                safe_gates[name] = {"status": status}
+        if safe_gates:
+            metadata["release_gates"] = safe_gates
+    if phase == "promoted" and require_promotion_evidence and "release_gates" not in metadata:
+        raise ValueError("complete promotion evidence is required")
     return metadata
 
 
@@ -2051,6 +2089,7 @@ def release_metadata_from_row(row: dict[str, Any]) -> dict[str, Any]:
         "modal_app": row.get("modal_app"),
         "modal_url": row.get("modal_url"),
         "canary": row.get("canary_evidence"),
+        "promotion_evidence": row.get("promotion_evidence"),
         "selected_runtime": row.get("selected_runtime"),
     }
     normalized = normalize_release_metadata(metadata)
@@ -2134,60 +2173,10 @@ def main() -> int:
             output({"id": submission_id, "status": "ready_for_deploy", "release_phase": "merged_verified"})
             return 0
         if args.deploy_merged_release:
-            submission_id = validate_submission_id(args.deploy_merged_release)
-            row = repository.get(submission_id)
-            if not row:
-                raise ValueError("submission not found")
-            slug = str(row.get("slug") or "")
-            if not SAFE_SLUG_RE.fullmatch(slug):
-                raise ValueError("invalid release slug")
-            selected_runtime = str(row.get("selected_runtime") or "")
-            profile_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
-            skill_path = ROOT / "containers" / slug / "source" / "SKILL.md"
-            release_metadata = release_metadata_from_row(row)
-            release_metadata["selected_runtime"] = selected_runtime
-            adapter = GitHubReleaseAdapter()
-            try:
-                promoted = deploy_merged_release(skill_path, slug, profile_path, release_metadata, adapter)
-            except ReleaseBlocker as blocker:
-                repository.set_status(submission_id, "failed", blocker.code)
-                output({
-                    "id": submission_id,
-                    "status": "blocked",
-                    "failure_code": blocker.code,
-                    "failed_gate": blocker.gate,
-                    "remediation": blocker.remediation,
-                    "slugs": list(getattr(blocker, "slugs", ())),
-                })
-                return 2
-            repository.set_release_metadata(submission_id, promoted)
-            build_evidence = (
-                dict(row["build_evidence"])
-                if isinstance(row.get("build_evidence"), dict)
-                else {}
+            raise RuntimeError(
+                "deploy_merged_release requires the trusted finalizer controller; "
+                "the legacy two-write promotion path is disabled"
             )
-            checks = [
-                str(check)
-                for check in build_evidence.get("checks", [])
-                if isinstance(check, str)
-            ]
-            for check in (
-                "worker_registry_generated",
-                "worker_registry_deployed",
-                "worker_registry_live_smoke",
-            ):
-                if check not in checks:
-                    checks.append(check)
-            build_evidence["checks"] = checks[:20]
-            repository.set_deployment_metadata(
-                submission_id,
-                "ready_for_publish",
-                str(row.get("published_slug") or slug),
-                str(row.get("workflow_version") or ""),
-                build_evidence,
-            )
-            output({"id": submission_id, **promoted})
-            return 0
         submission_id = validate_submission_id(args.id) if args.id else None
         row = repository.claim(
             submission_id,

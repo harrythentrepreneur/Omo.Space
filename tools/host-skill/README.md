@@ -58,5 +58,33 @@ python3 tools/host-skill/process-submissions.py --export-review sub_… --review
 python3 tools/host-skill/process-submissions.py --mark-deployed sub_…
 ```
 
+### Trusted post-merge finalization groundwork
+
+The private Worker bridge owns a separate finalization lease and authorization
+boundary. Finalization routes fail closed unless a distinct
+`RELEASE_FINALIZER_TOKEN` is configured; the untrusted builder token cannot
+claim, advance, promote or mark releases deployed. A trusted deterministic
+controller may claim one `ready_for_deploy` / `merged_verified` submission by
+posting only its selected immutable target-main SHA to
+`/api/internal/finalizations/claim`. The returned `fin_…` generation is bound
+to that SHA, source hash, release head/merge SHAs, artifact hash, runtime and a
+one-hour lease.
+
+Generation-bound status updates follow the runtime-aware sequence
+`claimed -> deploying_modal -> deploying_worker -> verifying_public`
+for Modal-hosted workflows, while Worker-native workflows skip
+`deploying_modal`. From `verifying_public`, the finalizer-only promotion route
+atomically stores sanitized R1-R4 evidence, marks the release promoted and
+ready for publication, and completes the exact generation. Legacy builder
+status, deployment and release routes cannot create publish readiness or a
+promoted release. The protected detail endpoint returns only allowlisted
+identity/state fields. Typed failures become terminal and are not automatically
+reclaimed; only an expired active infrastructure lease can produce a new
+generation. The separate finalizer-only `deployed` transition fails closed
+unless atomic promotion completed with durable sanitized R1-R4 evidence.
+
+This is control-plane groundwork only. It contains no deployment adapter,
+GitHub trigger, production credential, automatic deploy or production write.
+
 Use `--dry-run tools/host-skill/tests/fixtures/sample-submission.json` to test
 the intake/review decision without database writes or deployment.
