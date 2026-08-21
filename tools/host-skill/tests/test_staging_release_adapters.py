@@ -341,11 +341,17 @@ def test_new_readback_requires_exactly_one_new_version_and_a_rollback_predecesso
 def test_wrangler_staging_environment_has_no_routes_crons_or_production_vars():
     config = tomllib.loads(WRANGLER_PATH.read_text(encoding="utf-8"))
     staging = config["env"]["staging"]
+    staging_url = "https://omo-space-omo-release-staging--cognition-staging-label-n-11704d.modal.run"
     assert staging["name"] == "cognition-demos-staging"
     assert staging["workers_dev"] is True
     assert staging["routes"] == []
     assert staging["triggers"] == {"crons": []}
-    assert staging["vars"] == {"ENVIRONMENT": "staging"}
+    assert staging["vars"] == {
+        "ENVIRONMENT": "staging",
+        "LABEL_NORMALIZER_CANARY_MODAL_URL": staging_url,
+    }
+    assert config["vars"].get("LABEL_NORMALIZER_CANARY_MODAL_URL") is None
+    assert staging_url != "https://omo-space--cognition-label-normalizer-canary-api.modal.run"
 
 
 def test_wrangler_is_exact_local_dev_dependency():
