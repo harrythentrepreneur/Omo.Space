@@ -29,6 +29,18 @@ def _command_mode(call: CommandCall) -> str:
     argv = call.argv
     if argv[:3] == ("npx", "--no-install", "wrangler"):
         tail = argv[3:]
+        d1_apply = (
+            "d1", "execute", "BALANCE_DB", "--env", "staging", "--remote", "--file",
+            "./staging-d1-schema.sql", "--yes", "--json",
+        )
+        d1_read = (
+            "d1", "execute", "BALANCE_DB", "--env", "staging", "--remote", "--command",
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;", "--json",
+        )
+        if tail == d1_read:
+            return "read"
+        if tail == d1_apply:
+            return "write"
         if tail[:1] in {("versions",), ("deployments",)} or (tail[:1] == ("deploy",) and "--dry-run" in tail):
             return "read"
         if tail[:1] in {("deploy",), ("rollback",)}:

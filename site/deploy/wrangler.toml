@@ -121,3 +121,9 @@ crons = []
 [env.staging.vars]
 ENVIRONMENT = "staging"
 LABEL_NORMALIZER_CANARY_MODAL_URL = "https://omo-space-omo-release-staging--cognition-staging-label-n-11704d.modal.run"
+
+# Dedicated non-production durable state for the Issue #141 public canary.
+# Wrangler provisions this resource only when D1 edit authority is present and
+# writes the immutable database_id back before the reviewed deployment.
+[[env.staging.d1_databases]]
+binding = "BALANCE_DB"

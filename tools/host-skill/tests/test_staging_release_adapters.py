@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import hashlib
 import json
+import sqlite3
 import sys
 import tomllib
 from dataclasses import replace
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tools" / "host-skill" / "staging_release_adapters.py"
 WRANGLER_PATH = ROOT / "site" / "deploy" / "wrangler.toml"
 PACKAGE_PATH = ROOT / "site" / "deploy" / "package.json"
+STAGING_D1_SCHEMA_PATH = ROOT / "site" / "deploy" / "staging-d1-schema.sql"
 SHA = "a" * 40
 ARTIFACT = "b" * 64
 SLUG = "label-normalizer-canary"
@@ -350,8 +352,62 @@ def test_wrangler_staging_environment_has_no_routes_crons_or_production_vars():
         "ENVIRONMENT": "staging",
         "LABEL_NORMALIZER_CANARY_MODAL_URL": staging_url,
     }
+    assert staging["d1_databases"] == [{"binding": "BALANCE_DB"}]
+    assert config.get("d1_databases") is None
     assert config["vars"].get("LABEL_NORMALIZER_CANARY_MODAL_URL") is None
     assert staging_url != "https://omo-space--cognition-label-normalizer-canary-api.modal.run"
+
+
+def test_staging_d1_schema_is_sqlite_native_and_canary_scoped():
+    sql = STAGING_D1_SCHEMA_PATH.read_text(encoding="utf-8")
+    assert "ALTER TABLE" not in sql
+    assert "TIMESTAMPTZ" not in sql
+    assert "SERIAL" not in sql
+    assert "submissions" not in sql
+    connection = sqlite3.connect(":memory:")
+    connection.executescript(sql)
+    tables = {
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+        )
+    }
+    assert tables == {
+        "api_keys", "credits_ledger", "run_progress", "run_requests", "runs", "users"
+    }
+    columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(run_requests)")
+    }
+    assert {"run_id", "user_id", "idempotency_key", "request_hash", "slug", "state", "response_json"} <= columns
+
+
+def test_staging_d1_apply_and_readback_are_exact_and_fail_closed():
+    mod = load_module()
+    apply = mod.cloudflare_staging_d1_schema_call(ROOT)
+    readback = mod.cloudflare_staging_d1_readback_call(ROOT)
+    assert apply.argv == (
+        "npx", "--no-install", "wrangler", "d1", "execute", "BALANCE_DB",
+        "--env", "staging", "--remote", "--file", "./staging-d1-schema.sql", "--yes", "--json",
+    )
+    assert readback.argv == (
+        "npx", "--no-install", "wrangler", "d1", "execute", "BALANCE_DB",
+        "--env", "staging", "--remote", "--command",
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;", "--json",
+    )
+    rows = [{"name": name} for name in mod.CLOUDFLARE_STAGING_D1_TABLES]
+    assert mod.cloudflare_staging_d1_schema_ready([{"results": rows}]) is True
+    with pytest.raises(mod.AdapterError, match="staging_d1_readback_failed"):
+        mod.cloudflare_staging_d1_schema_ready([{"results": rows[:-1]}])
+    with pytest.raises(mod.AdapterError, match="invalid_staging_command"):
+        mod.CommandCall(
+            (
+                "npx", "--no-install", "wrangler", "d1", "execute", "production-db",
+                "--env", "staging", "--remote", "--file", "./staging-d1-schema.sql", "--yes", "--json",
+            ),
+            ROOT / "site" / "deploy",
+            mod.CLOUDFLARE_ENV_KEYS,
+            120,
+        )
 
 
 def test_wrangler_is_exact_local_dev_dependency():

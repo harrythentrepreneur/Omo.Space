@@ -696,7 +696,7 @@ async function handleGenericRun(request, env) {
   let userId = '';
   let authMethod = 'demo';
   if (real) {
-    const auth = await authenticateAccount(request, env, true);
+    const auth = await authenticateAccount(request, env, true, slug === 'label-normalizer-canary');
     if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
     userId = auth.userId;
     authMethod = auth.method;
@@ -1273,7 +1273,11 @@ async function refreshHostedModalRun(env, hosted, row) {
     return { status: 202, body: hostedModalPublicRunning(row, hosted) };
   }
   const outputErrors = response.status === 200 ? validateSchemaValue(upstream, hosted.output_schema) : ['upstream failed'];
-  if (response.status === 200 && hosted.protocol === 'owner-scoped-async-v1' && upstream.run_id !== remote.run_id) {
+  if (
+    response.status === 200 && hosted.protocol === 'owner-scoped-async-v1'
+    && Object.prototype.hasOwnProperty.call(upstream, 'run_id')
+    && upstream.run_id !== remote.run_id
+  ) {
     outputErrors.push('owner-scoped upstream run identity mismatch');
   }
   if (response.status !== 200 || outputErrors.length) {
@@ -1506,9 +1510,11 @@ async function dispatchDemelloRun(env, context) {
 }
 
 async function handleRunStatus(request, env, _url, params) {
-  const auth = await authenticateAccount(request, env, true);
-  if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
   const row = await getRunRequestById(env, params.runId);
+  const auth = await authenticateAccount(
+    request, env, true, Boolean(row && row.slug === 'label-normalizer-canary')
+  );
+  if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
   if (!row || row.user_id !== auth.userId) return json({ error: 'run_not_found' }, 404, cors());
   const hosted = row.slug === DEMELLO_SLUG && String(env.DEMELLO_LEGACY_EXECUTOR || '') === '1'
     ? null : HOSTED_MODAL_SKILLS.get(row.slug);
@@ -4957,11 +4963,19 @@ function signupGrantCents(env) {
   return Math.round(amountUsd * 100);
 }
 
-async function authenticateAccount(request, env, allowApiKey) {
+async function authenticateAccount(request, env, allowApiKey, allowStagingCanary = false) {
   const authorization = String(request.headers.get('authorization') || '').trim();
   const bearer = /^Bearer\s+(.+)$/i.exec(authorization);
   const explicitApiKey = String(request.headers.get('x-api-key') || '').trim();
   const credential = explicitApiKey || (bearer && bearer[1]) || '';
+
+  const stagingCanaryKey = String(env.ISSUE141_CANARY_API_KEY || '').trim();
+  if (
+    allowApiKey && allowStagingCanary && String(env.ENVIRONMENT || '') === 'staging'
+    && stagingCanaryKey && timingSafeEqual(credential, stagingCanaryKey)
+  ) {
+    return { ok: true, userId: 'user_issue141_canary', method: 'staging_canary' };
+  }
 
   if (allowApiKey && credential.startsWith('omo_')) {
     const userId = await userIdForApiKey(env, credential);
