@@ -106,3 +106,17 @@ DEMO_DAILY_CAP_RUN = "20"
 
 [observability]
 enabled = true
+
+# Issue #141 staging target. `wrangler deploy --env staging` creates the
+# separate `cognition-demos-staging` Worker on workers.dev only. It deliberately
+# inherits no production routes, schedules, bindings, variables, or secrets.
+[env.staging]
+name = "cognition-demos-staging"
+workers_dev = true
+routes = []
+
+[env.staging.triggers]
+crons = []
+
+[env.staging.vars]
+ENVIRONMENT = "staging"

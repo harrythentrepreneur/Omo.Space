@@ -125,5 +125,33 @@ provider adapters, deployment command, write permission or manual dispatch.
 This is an inert controller foundation; it records eligibility but does not
 deploy or finalize a release.
 
+### Staging deployment foundation
+
+`staging_release_adapters.py` defines pure, non-executing command and receipt
+contracts for the first deterministic `label-normalizer-canary` staging proof.
+Modal is fixed to environment `omo-release-staging` and app
+`cognition-staging-label-normalizer-canary`. Cloudflare is fixed to the
+non-routed, unscheduled `cognition-demos-staging` Worker. Wrangler is an exact
+local development dependency; finalization cannot download a moving CLI.
+
+Every deployment receipt is bound to the exact target SHA and artifact hash.
+Modal history uses the installed 1.3.4 `Version`/`Tag` JSON contract; Cloudflare
+reads version annotations separately from deployment traffic/version IDs using
+the pinned Wrangler 4.125.0 contract. Before/after snapshots derive whether the
+exact revision was reused and prove the immediate rollback predecessor for every
+new deployment. Caller-supplied reuse claims are not accepted.
+
+The finalizer validates the exact provider, staging target, environment, SHA,
+artifact hash, version and rollback binding, then durably records the bounded
+receipt before canary/smoke. A later failure attempts rollback in reverse
+Worker-then-Modal order, continues to Modal even if Worker rollback fails, and
+never rolls back a readback-proven reused deployment. Wrangler dry-run evidence
+hashes only compiled `worker.js`; timestamped README and outdir-dependent source
+maps are explicitly non-authoritative.
+
+The module cannot run subprocesses, read credentials, call providers or select
+production. Controlled transports, real staging deployment and the public
+canary remain separate reviewed gates.
+
 Use `--dry-run tools/host-skill/tests/fixtures/sample-submission.json` to test
 the intake/review decision without database writes or deployment.
