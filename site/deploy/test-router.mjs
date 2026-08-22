@@ -2069,7 +2069,7 @@ const rollbackRecord = {
   ...receiptBearingFailed,
   id: 'sub_rollbackrecover01', slug: 'recovery-workflow', selected_runtime: 'modal-hosted',
   status: 'failed', release_phase: 'merged_verified', finalization_id: 'fin_' + '8'.repeat(32),
-  finalization_status: 'failed', finalization_failure_code: 'worker_smoke_failed',
+  finalization_status: 'failed', finalization_failure_code: 'internal_finalizer_failed',
   finalization_target_sha: rollbackTarget, finalization_attempts: 5,
   release_merge_sha: 'c'.repeat(40),
   release_artifact_hash: rollbackArtifact, finalization_artifact_hash: rollbackArtifact,
@@ -2103,7 +2103,7 @@ check('receipt-aware rollback recovery mock: exact target-only boundary preserve
   rollbackRecord.finalization_attempts === 5 && rollbackRecord.finalization_modal_receipt === null &&
   rollbackRecord.finalization_worker_receipt === null && recoverySnapshot.finalization_id === 'fin_' + '8'.repeat(32) &&
   recoverySnapshot.attempt === 5 && recoverySnapshot.target_sha === rollbackTarget &&
-  recoverySnapshot.failure_code === 'worker_smoke_failed' &&
+  recoverySnapshot.failure_code === 'internal_finalizer_failed' &&
   recoverySnapshot.modal_receipt.version_id === 'modal-v7' &&
   recoverySnapshot.worker_receipt.previous_version_id === 'cf-v8' &&
   recoverySnapshot.expected_provider_state.modal.version_id === 'modal-v7' &&
@@ -2176,7 +2176,7 @@ check('receipt-aware rollback recovery Neon: exact immutable CAS stores evidence
   JSON.parse(neonRecoveryCall.values[0]).verified_by === 'trusted_production_finalizer' &&
   neonRecoveryCall.values[8] === JSON.stringify(rollbackModalReceipt) &&
   neonRecoveryCall.values[9] === JSON.stringify(rollbackWorkerReceipt) &&
-  neonRecoveryCall.text.includes("finalization_failure_code = 'worker_smoke_failed'") &&
+  neonRecoveryCall.text.includes("finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed')") &&
   neonRecoveryCall.text.includes("selected_runtime = 'modal-hosted'") &&
   neonRecoveryCall.text.includes('finalization_recovery_receipt IS NULL') &&
   neonRecoveryCall.text.includes('finalization_modal_receipt = $9') &&
