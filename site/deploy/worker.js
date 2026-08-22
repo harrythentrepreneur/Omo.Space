@@ -4084,6 +4084,7 @@ async function internalRecordFinalizationEffect(env, finalizationId, operation, 
 }
 
 function completedFinalizationRow(row) {
+  if (!row) return null;
   const finalization = finalizationClaimRow(row);
   const submissionStatus = String(row.status || '');
   if (!finalization || !['ready_for_publish', 'deployed'].includes(submissionStatus) ||
