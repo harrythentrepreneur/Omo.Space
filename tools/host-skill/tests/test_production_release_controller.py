@@ -287,20 +287,21 @@ def test_receipt_aware_recovery_verifies_ancestry_and_exact_provider_state_witho
     mainline = SimpleNamespace(
         latest_green=lambda: mod.GreenMain(LATEST_GREEN, LATEST_GREEN, mod.WORKFLOW_NAME, "push", "main", "success"),
         is_ancestor=lambda old, new: events.append(("ancestor", old, new)) or (old, new) == (OLD_TARGET, LATEST_GREEN),
+        checkout_detached=lambda sha: events.append(("checkout", sha)) or ROOT,
     )
     store = SimpleNamespace(
         recovery_plan=lambda target: events.append(("plan", target)) or plan,
         recover_rolled_back=lambda target: events.append(("recover", target)) or True,
     )
-    modal = SimpleNamespace(active_version=lambda: events.append("modal_read") or "modal-v6")
-    cloudflare = SimpleNamespace(active_version=lambda: events.append("cloudflare_read") or "cf-v8")
+    modal = SimpleNamespace(active_version=lambda checkout, sha: events.append(("modal_read", checkout, sha)) or "modal-v6")
+    cloudflare = SimpleNamespace(active_version=lambda checkout, sha: events.append(("cloudflare_read", checkout, sha)) or "cf-v8")
 
     assert mod.recover_rolled_back_finalization(mainline, store, modal, cloudflare, OLD_TARGET) == {
         "status": "ready_for_deploy", "target_sha": LATEST_GREEN,
     }
     assert events == [
-        ("ancestor", OLD_TARGET, LATEST_GREEN), ("plan", OLD_TARGET),
-        "modal_read", "cloudflare_read", ("recover", OLD_TARGET),
+        ("ancestor", OLD_TARGET, LATEST_GREEN), ("plan", OLD_TARGET), ("checkout", LATEST_GREEN),
+        ("modal_read", ROOT, LATEST_GREEN), ("cloudflare_read", ROOT, LATEST_GREEN), ("recover", OLD_TARGET),
     ]
 
 
@@ -316,13 +317,14 @@ def test_receipt_aware_recovery_mismatch_never_posts(failure, code):
     mainline = SimpleNamespace(
         latest_green=lambda: mod.GreenMain(LATEST_GREEN, LATEST_GREEN, mod.WORKFLOW_NAME, "push", "main", "success"),
         is_ancestor=lambda old, new: failure != "ancestor",
+        checkout_detached=lambda sha: ROOT,
     )
     store = SimpleNamespace(
         recovery_plan=lambda target: plan,
         recover_rolled_back=lambda target: posts.append(target) or True,
     )
-    modal = SimpleNamespace(active_version=lambda: "wrong" if failure == "modal" else "modal-v6")
-    cloudflare = SimpleNamespace(active_version=lambda: "wrong" if failure == "cloudflare" else "cf-v8")
+    modal = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "modal" else "modal-v6")
+    cloudflare = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "cloudflare" else "cf-v8")
     with pytest.raises(mod.ControllerError) as caught:
         mod.recover_rolled_back_finalization(mainline, store, modal, cloudflare, OLD_TARGET)
     assert caught.value.code == code

@@ -315,6 +315,10 @@ def _active_version(deployments: list[dict[str, Any]]) -> str:
     return version
 
 
+def cloudflare_active_version(deployments: Any) -> str:
+    return _active_version(_list(deployments))
+
+
 def cloudflare_receipt(versions_before: Any, versions_after: Any, deployments_before: Any, deployments_after: Any, target_sha: str, artifact_hash: str) -> DeploymentReceipt:
     sha, artifact = _sha(target_sha), _hash(artifact_hash)
     before_rows, after_rows = _list(versions_before), _list(versions_after)
