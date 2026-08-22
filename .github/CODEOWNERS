@@ -1,0 +1,19 @@
+# Issue #141 trusted release and deployment ownership.
+# Changes to these paths require review from a designated Omo maintainer.
+
+/.github/CODEOWNERS @harrythentrepreneur @kaviru2
+/.github/workflows/ @harrythentrepreneur @kaviru2
+/tools/host-skill/release_*.py @harrythentrepreneur @kaviru2
+/tools/host-skill/process-submissions.py @harrythentrepreneur @kaviru2
+/tools/host-skill/*release*_adapters.py @harrythentrepreneur @kaviru2
+/tools/host-skill/*release*_transport.py @harrythentrepreneur @kaviru2
+/site/deploy/worker.js @harrythentrepreneur @kaviru2
+/site/deploy/wrangler.toml @harrythentrepreneur @kaviru2
+/site/deploy/package.json @harrythentrepreneur @kaviru2
+/site/deploy/package-lock.json @harrythentrepreneur @kaviru2
+/site/deploy/schema.sql @harrythentrepreneur @kaviru2
+/site/deploy/*d1-schema.sql @harrythentrepreneur @kaviru2
+/site/deploy/hosted-skills.generated.mjs @harrythentrepreneur @kaviru2
+/site/deploy/run-manifests/ @harrythentrepreneur @kaviru2
+/site/catalog.js @harrythentrepreneur @kaviru2
+/containers/*/modal_app.py @harrythentrepreneur @kaviru2
