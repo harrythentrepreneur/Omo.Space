@@ -90,8 +90,8 @@ def test_dispatch_payload_is_exact_and_identifier_only() -> None:
             raise AssertionError(f"dispatch accepted forbidden field: {forbidden}")
 
 
-def _fake_nous_jwt(expires_at: int) -> str:
-    payload = base64.urlsafe_b64encode(json.dumps({"exp": expires_at, "scope": "inference:invoke"}).encode()).decode().rstrip("=")
+def _fake_nous_jwt(expires_at: int, scope: str = "inference:invoke") -> str:
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": expires_at, "scope": scope}).encode()).decode().rstrip("=")
     return f"eyJhbGciOiJub25lIn0.{payload}.signature"
 
 
@@ -142,6 +142,21 @@ def test_hermes_environment_rejects_expired_nous_agent_key(tmp_path: Path) -> No
 def test_hermes_environment_rejects_non_three_segment_jwt(tmp_path: Path) -> None:
     builder = load_builder()
     token = _fake_nous_jwt(int(time.time()) + 3600) + ".extra"
+    with pytest.raises(RuntimeError, match="Nous agent key"):
+        builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": token})
+
+
+def test_hermes_environment_accepts_inference_scope_membership(tmp_path: Path) -> None:
+    builder = load_builder()
+    token = _fake_nous_jwt(int(time.time()) + 3600, "profile:read inference:invoke")
+    env = builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": token})
+    auth = json.loads((Path(env["HERMES_HOME"]) / "auth.json").read_text())
+    assert auth["providers"]["nous"]["scope"] == "inference:invoke"
+
+
+def test_hermes_environment_rejects_missing_inference_scope(tmp_path: Path) -> None:
+    builder = load_builder()
+    token = _fake_nous_jwt(int(time.time()) + 3600, "profile:read")
     with pytest.raises(RuntimeError, match="Nous agent key"):
         builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": token})
 

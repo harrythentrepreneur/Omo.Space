@@ -244,10 +244,10 @@ def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]
             raise ValueError("invalid JWT segment count")
         payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
         expires_at = int(payload["exp"])
-        scope = str(payload.get("scope") or "")
+        scopes = set(str(payload.get("scope") or "").split())
     except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise RuntimeError("Nous agent key is invalid") from error
-    if scope != "inference:invoke" or expires_at <= int(time.time()) + 900:
+    if "inference:invoke" not in scopes or expires_at <= int(time.time()) + 900:
         raise RuntimeError("Nous agent key is expired or incorrectly scoped")
     expires_iso = datetime.datetime.fromtimestamp(
         expires_at, datetime.timezone.utc
