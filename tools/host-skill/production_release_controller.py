@@ -34,7 +34,6 @@ from production_release_adapters import (
     cloudflare_preflight_call,
     cloudflare_receipt,
     cloudflare_rollback_call,
-    cloudflare_triggers_deploy_call,
     cloudflare_versions_call,
     modal_deploy_call,
     modal_history_call,
@@ -121,7 +120,7 @@ def _request_json(
     url: str,
     *,
     method: str = "GET",
-    payload: dict[str, Any] | None = None,
+    payload: object | None = None,
     headers: dict[str, str] | None = None,
     timeout: int = 30,
     opener=urllib.request.urlopen,
@@ -499,11 +498,16 @@ class ProductionCloudflareAdapter:
         schedules = self._builder_schedules()
         if schedules == [CLOUDFLARE_BUILDER_CRON]:
             return {"status": "passed", "changed": False}
-        transport = ProductionCommandTransport(
-            source_env=self.source_env, trusted_checkout=str(checkout), trusted_sha=target_sha,
-            allow_mutation=True,
+        account_id = str(self.source_env.get("CLOUDFLARE_ACCOUNT_ID") or "")
+        token = str(self.source_env.get("CLOUDFLARE_API_TOKEN") or "")
+        status, body = _request_json_stage(
+            "cloudflare_schedule_http_failed",
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/workers/scripts/{CLOUDFLARE_TARGET}/schedules",
+            method="PUT", payload=[{"cron": CLOUDFLARE_BUILDER_CRON}],
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=30,
         )
-        transport.run(cloudflare_triggers_deploy_call(checkout))
+        if status != 200 or (body or {}).get("success") is not True:
+            raise ControllerError("cloudflare_schedule_update_failed")
         if self._builder_schedules() != [CLOUDFLARE_BUILDER_CRON]:
             raise ControllerError("cloudflare_schedule_readback_failed")
         return {"status": "passed", "changed": True}
