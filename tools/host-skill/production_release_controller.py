@@ -314,7 +314,8 @@ class HttpFinalizationStore:
         if status == 204:
             return None
         if status != 200:
-            raise ControllerError("finalizer_resume_failed")
+            code = f"finalizer_resume_http_{status}" if isinstance(status, int) and 100 <= status <= 599 else "finalizer_resume_failed"
+            raise ControllerError(code)
         return self._claim(body)
 
     def finalization_detail(self, finalization_id: str) -> dict[str, str]:
