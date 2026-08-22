@@ -1993,7 +1993,7 @@ async function handleSubmission(request, env) {
     let auth = await authenticateAccount(request, env, false);
     if (!auth.ok) {
       const apiKey = String(request.headers.get('x-api-key') || '').trim();
-      const apiKeyOwner = /^omo_[0-9a-f]{32}$/.test(apiKey) ? await userIdForApiKey(env, apiKey) : '';
+      const apiKeyOwner = /^omo_[0-9a-f]{32}$/.test(apiKey) ? await userIdForHashedApiKey(env, apiKey) : '';
       if (apiKeyOwner === 'user_prod_label_normalizer_canary_v1') {
         auth = { ok: true, userId: apiKeyOwner, method: 'production_canary' };
       }
@@ -2128,7 +2128,14 @@ async function handleSubmissionApproval(request, env, _url, params) {
 }
 
 async function handleSubmissionRetry(request, env, _url, params) {
-  const auth = await authenticateAccount(request, env, false);
+  let auth = await authenticateAccount(request, env, false);
+  if (!auth.ok) {
+    const apiKey = String(request.headers.get('x-api-key') || '').trim();
+    const apiKeyOwner = /^omo_[0-9a-f]{32}$/.test(apiKey) ? await userIdForHashedApiKey(env, apiKey) : '';
+    if (apiKeyOwner === 'user_prod_label_normalizer_canary_v1') {
+      auth = { ok: true, userId: apiKeyOwner, method: 'production_canary' };
+    }
+  }
   if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
   const retried = await retryReviewedGatedBuildFailure(env, auth.userId, params.submissionId);
   if (retried.status === 'not_found') return json({ ok: false, error: 'submission_not_found' }, 404, cors(request, env));
@@ -5403,6 +5410,22 @@ async function userIdForApiKey(env, apiKey) {
       return legacy.user_id;
     }
     return '';
+  }
+  return mockApiKeys.get(keyHash) || '';
+}
+
+async function userIdForHashedApiKey(env, apiKey) {
+  if (!/^omo_[0-9a-f]{32}$/.test(apiKey)) return '';
+  const keyHash = await sha256Hex(apiKey);
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-api-key-owner-v1', 'SELECT user_id FROM api_keys WHERE key_hash = $1', [keyHash]
+    ));
+    return result.rows[0] && validUserId(result.rows[0].user_id) ? result.rows[0].user_id : '';
+  }
+  if (databaseKind(env) === 'd1') {
+    const row = await env.BALANCE_DB.prepare('SELECT user_id FROM api_keys WHERE key_hash = ?').bind(keyHash).first();
+    return row && validUserId(row.user_id) ? row.user_id : '';
   }
   return mockApiKeys.get(keyHash) || '';
 }

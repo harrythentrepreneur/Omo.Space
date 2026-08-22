@@ -584,11 +584,35 @@ class ProductionPublicAdapter:
             headers={"X-API-Key": self.api_key, "Content-Type": "application/json"}, timeout=30,
         )
         submission_id = str((body or {}).get("id") or "")
+        submission_status = str((body or {}).get("status") or "")
         if status != 202 or (body or {}).get("slug") != MODAL_ALLOWED_SLUG or not re.fullmatch(
             r"sub_[0-9a-f]{32}", submission_id
+        ) or submission_status not in {
+            "queued", "processing", "needs_review", "ready_for_merge", "ready_for_deploy",
+            "ready_for_publish", "deployed", "failed",
+        } or (
+            submission_status == "failed"
+            and ((body or {}).get("duplicate") is not True or (body or {}).get("changed") is not False)
         ):
             raise ControllerError("production_canary_seed_failed")
-        return {"status": "queued", "submission_id": submission_id}
+        return {"status": "queued", "submission_id": submission_id, "submission_status": submission_status}
+
+    def retry_submission(self, submission_id: str) -> dict[str, str]:
+        if not re.fullmatch(r"sub_[0-9a-f]{32}", submission_id):
+            raise ControllerError("production_canary_retry_failed")
+        status, body = _request_json_stage(
+            "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/submissions/{submission_id}/retry",
+            method="POST", payload={},
+            headers={"X-API-Key": self.api_key, "Content-Type": "application/json"}, timeout=30,
+        )
+        submission = (body or {}).get("submission")
+        if (
+            status != 200 or (body or {}).get("ok") is not True or (body or {}).get("retried") is not True
+            or not isinstance(submission, dict) or submission.get("id") != submission_id
+            or submission.get("slug") != MODAL_ALLOWED_SLUG or submission.get("status") != "queued"
+        ):
+            raise ControllerError("production_canary_retry_failed")
+        return {"status": "retried", "submission_id": submission_id}
 
     def _dispatch(self, claim):
         key = hashlib.sha256(f"v0.1:{claim.target_sha}:{claim.artifact_hash}".encode()).hexdigest()[:40]
@@ -661,6 +685,9 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, str]:
         trusted_checkout = mainline.checkout_detached(result["target_sha"])
         cloudflare.ensure_builder_schedule(trusted_checkout, result["target_sha"])
         seeded = public.seed_submission(trusted_checkout)
+        if seeded.get("submission_status") == "failed":
+            retried = public.retry_submission(seeded["submission_id"])
+            return {**retried, "target_sha": result["target_sha"]}
         return {**seeded, "status": "seeded", "target_sha": result["target_sha"]}
     return result
 

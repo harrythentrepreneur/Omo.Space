@@ -2128,7 +2128,29 @@ const productionCanarySubmissionAccept = await worker.fetch(mkReq('POST', '/api/
   visibility: 'public', runtime_preference: 'modal-hosted',
 }, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv);
 const productionCanarySubmissionAcceptBody = await productionCanarySubmissionAccept.json();
+for (const record of workerTest.mockSubmissions.values()) {
+  if (record.id === productionCanarySubmissionAcceptBody.id) {
+    record.status = 'failed';
+    record.failure_code = 'build_or_deploy_failed';
+    record.selected_runtime = null;
+    record.runtime_policy = null;
+  }
+}
+const productionCanaryRetry = await worker.fetch(mkReq(
+  'POST', `/api/submissions/${productionCanarySubmissionAcceptBody.id}/retry`, {},
+  { 'X-API-Key': productionCanaryKey },
+), productionCanaryEnv);
+const productionCanaryRetryBody = await productionCanaryRetry.json();
+const productionCanaryForeignRetry = await worker.fetch(mkReq(
+  'POST', `/api/submissions/${submitAdded.id}/retry`, {},
+  { 'X-API-Key': productionCanaryKey },
+), productionCanaryEnv);
 const productionCanaryOwner = await workerTest.userIdForApiKey(productionCanaryEnv, productionCanaryKey);
+const hashOnlyCanaryResolver = /async function userIdForHashedApiKey[\s\S]*?(?=async function ensureProductionCanaryIdentity)/.exec(workerSrc)?.[0] || '';
+check('production canary auth: special fallback uses hashed key store only',
+  hashOnlyCanaryResolver.includes('omo-api-key-owner-v1') &&
+  !hashOnlyCanaryResolver.includes('legacy') && !hashOnlyCanaryResolver.includes('users WHERE api_key') &&
+  (workerSrc.match(/apiKeyOwner = .*userIdForHashedApiKey/g) || []).length === 2);
 check('production canary identity: finalizer-only one-time finite principal uses normal API-key auth and exact slug scope',
   builderCanaryProvision.status === 401 && wrongEnvironmentCanaryProvision.status === 503 &&
   canaryProvision.status === 200 && canaryProvisionBody.created === true &&
@@ -2138,6 +2160,9 @@ check('production canary identity: finalizer-only one-time finite principal uses
   productionCanarySubmissionReject.status === 403 &&
   productionCanarySubmissionAccept.status === 202 &&
   productionCanarySubmissionAcceptBody.slug === 'label-normalizer-canary' &&
+  productionCanaryRetry.status === 200 && productionCanaryRetryBody.retried === true &&
+  productionCanaryRetryBody.submission.id === productionCanarySubmissionAcceptBody.id &&
+  productionCanaryRetryBody.submission.status === 'queued' && productionCanaryForeignRetry.status === 404 &&
   productionCanaryOwner === 'user_prod_label_normalizer_canary_v1');
 
 const firstFinalizationId = finalizationRecord.finalization_id;
