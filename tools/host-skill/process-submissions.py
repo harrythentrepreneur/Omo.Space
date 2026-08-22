@@ -67,6 +67,7 @@ SAFE_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 REVIEW_ROOT_ENV = "OMO_BUILD_REVIEW_ROOT"
 SAFE_GITHUB_URL_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(?:issues|pull)/[1-9][0-9]{0,9}$")
 EXPECTED_MODAL_WORKSPACE = "omo-space"
+MODAL_CONFIG_PATH_ALLOWLIST_ENV = "OMO_MODAL_CONFIG_PATH_ALLOWLIST"
 GITHUB_RELEASE_REPO = "harrythentrepreneur/Omo.Space"
 GITHUB_RELEASE_BASE = "main"
 REQUIRED_RELEASE_CHECKS = ("contracts",)
@@ -838,6 +839,40 @@ class SubmissionRepository:
 
 def run_checked(command: list[str], cwd: Path = ROOT) -> None:
     subprocess.run(command, cwd=cwd, check=True)
+
+
+def modal_deploy_environment(environ: dict[str, str] | None = None) -> dict[str, str]:
+    """Return a deploy environment pinned to the reviewed Modal identity."""
+    deploy_env = dict(os.environ if environ is None else environ)
+    config_path = str(deploy_env.get("MODAL_CONFIG_PATH") or "").strip()
+    profile = str(deploy_env.get("MODAL_PROFILE") or "").strip()
+    allowlist_raw = str(deploy_env.get(MODAL_CONFIG_PATH_ALLOWLIST_ENV) or "")
+    allowlisted_paths = {
+        os.path.normpath(candidate.strip())
+        for candidate in allowlist_raw.split(os.pathsep)
+        if candidate.strip() and Path(candidate.strip()).is_absolute()
+    }
+    normalized_config = os.path.normpath(config_path) if config_path and Path(config_path).is_absolute() else ""
+    if (
+        not normalized_config
+        or normalized_config not in allowlisted_paths
+        or profile != EXPECTED_MODAL_WORKSPACE
+    ):
+        raise RuntimeError("Modal deploy identity is not pinned")
+    deploy_env["MODAL_CONFIG_PATH"] = normalized_config
+    deploy_env["MODAL_PROFILE"] = EXPECTED_MODAL_WORKSPACE
+    deploy_env.pop(MODAL_CONFIG_PATH_ALLOWLIST_ENV, None)
+    return deploy_env
+
+
+def deploy_modal_app(modal_app: Path, environ: dict[str, str] | None = None) -> None:
+    """Deploy one reviewed app with an explicit allowlisted config and profile."""
+    subprocess.run(
+        [sys.executable, "-m", "modal", "deploy", str(modal_app)],
+        cwd=ROOT,
+        check=True,
+        env=modal_deploy_environment(environ),
+    )
 
 
 def run_checked_at_stage(command: list[str], cwd: Path, stage: str) -> None:
@@ -1897,7 +1932,7 @@ def deploy_merged_release(
     assert_reviewed_runtime(release_profile_path, selected_runtime)
     assert_modal_workspace(release_profile_path, selected_runtime)
     if selected_runtime == "modal-hosted":
-        run_checked([sys.executable, "-m", "modal", "deploy", str(release_root / "containers" / slug / "modal_app.py")])
+        deploy_modal_app(release_root / "containers" / slug / "modal_app.py")
         direct_modal_canary(slug, release_profile_path)
     elif selected_runtime != "worker-native":
         raise RuntimeError("selected runtime must be worker-native or modal-hosted")

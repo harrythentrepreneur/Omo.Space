@@ -135,6 +135,72 @@ def test_modal_canary_preflight_then_submit_and_poll(monkeypatch, tmp_path: Path
     assert all(call[2]["Modal-secret"] == "secret-test" for call in calls)
 
 
+def test_modal_deploy_requires_explicit_allowlisted_config_and_profile(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    modal_app = tmp_path / "modal_app.py"
+    modal_app.write_text("# reviewed app\n", encoding="utf-8")
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((list(command), kwargs))
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(process.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="Modal deploy identity is not pinned"):
+        process.deploy_modal_app(modal_app, environ={})
+    assert calls == []
+
+    approved_config = tmp_path / "omo-space.toml"
+    deploy_env = {
+        "PATH": "/usr/bin",
+        "MODAL_CONFIG_PATH": str(approved_config),
+        "MODAL_PROFILE": "omo-space",
+        "OMO_MODAL_CONFIG_PATH_ALLOWLIST": str(approved_config),
+    }
+    process.deploy_modal_app(modal_app, environ=deploy_env)
+
+    assert len(calls) == 1
+    command, kwargs = calls[0]
+    assert command == [sys.executable, "-m", "modal", "deploy", str(modal_app)]
+    assert kwargs["check"] is True
+    assert kwargs["env"]["MODAL_CONFIG_PATH"] == str(approved_config)
+    assert kwargs["env"]["MODAL_PROFILE"] == "omo-space"
+    assert "OMO_MODAL_CONFIG_PATH_ALLOWLIST" not in kwargs["env"]
+
+
+def test_modal_deploy_rejects_unapproved_path_or_profile_without_leaking_values(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    modal_app = tmp_path / "modal_app.py"
+    approved_config = tmp_path / "approved.toml"
+    forbidden_config = tmp_path / "SECRET_PATH_SENTINEL.toml"
+    calls = []
+    monkeypatch.setattr(
+        process.subprocess,
+        "run",
+        lambda command, **kwargs: calls.append((command, kwargs)),
+    )
+    base = {
+        "MODAL_CONFIG_PATH": str(approved_config),
+        "MODAL_PROFILE": "omo-space",
+        "OMO_MODAL_CONFIG_PATH_ALLOWLIST": str(approved_config),
+    }
+    for poisoned in (
+        {**base, "MODAL_CONFIG_PATH": str(forbidden_config)},
+        {**base, "MODAL_PROFILE": "SECRET_PROFILE_SENTINEL"},
+        {**base, "OMO_MODAL_CONFIG_PATH_ALLOWLIST": ""},
+        {
+            **base,
+            "MODAL_CONFIG_PATH": "relative-config.toml",
+            "OMO_MODAL_CONFIG_PATH_ALLOWLIST": "relative-config.toml",
+        },
+    ):
+        with pytest.raises(RuntimeError, match="Modal deploy identity is not pinned") as captured:
+            process.deploy_modal_app(modal_app, environ=poisoned)
+        assert "SECRET_PATH_SENTINEL" not in str(captured.value)
+        assert "SECRET_PROFILE_SENTINEL" not in str(captured.value)
+    assert calls == []
+
+
 def test_prepare_release_registers_worker_without_modal_or_wrangler(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     commands: list[list[str]] = []
@@ -238,8 +304,10 @@ def test_deploy_merged_release_fails_closed_when_verified_artifact_hash_differs(
 def test_deploy_merged_release_runs_deploy_only_after_verified_merge(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     commands: list[list[str]] = []
+    modal_deploys: list[Path] = []
     canaries: list[tuple[str, Path]] = []
     monkeypatch.setattr(process, "run_checked", lambda command, cwd=process.ROOT: commands.append(list(command)))
+    monkeypatch.setattr(process, "deploy_modal_app", lambda modal_app, environ=None: modal_deploys.append(modal_app))
     monkeypatch.setattr(process, "direct_modal_canary", lambda slug, profile_path, timeout_seconds=240: canaries.append((slug, profile_path)))
     monkeypatch.setattr(
         process,
@@ -279,7 +347,7 @@ def test_deploy_merged_release_runs_deploy_only_after_verified_merge(monkeypatch
     assert result["release_gates"]["R3"]["slugs"]["facebook-ads-copywriter"]["status"] == 401
     assert result["release_gates"]["R4"]["status"] == "published"
     assert oss_publishes == [("facebook-ads-copywriter", process.ROOT)]
-    assert any("modal deploy" in command for command in flattened)
+    assert modal_deploys == [process.ROOT / "containers" / "facebook-ads-copywriter" / "modal_app.py"]
     assert "npm ci" in flattened
     assert any("wrangler@4.123.0 deploy" in command for command in flattened)
     assert flattened.index("npm ci") < next(index for index, command in enumerate(flattened) if "wrangler@4.123.0 deploy" in command)
