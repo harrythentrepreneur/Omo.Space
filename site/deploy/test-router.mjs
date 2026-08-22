@@ -2065,6 +2065,11 @@ const rollbackWorkerReceipt = workerTest.safeDeploymentReceipt({
   target_sha: rollbackTarget, artifact_hash: rollbackArtifact, version_id: 'cf-v9',
   previous_version_id: 'cf-v8', reused: false, rollback_token: 'cf-v8', status: 'passed',
 }, 'worker_deploy', rollbackTarget);
+const priorRecoveryEvidence = {
+  finalization_id: 'fin_' + '7'.repeat(32), attempt: 4, target_sha: '7'.repeat(40),
+  verified_by: 'trusted_production_finalizer', recovered_at: '2026-08-21T00:00:00.000Z',
+  modal_receipt: {}, worker_receipt: {}, expected_provider_state: {},
+};
 const rollbackRecord = {
   ...receiptBearingFailed,
   id: 'sub_rollbackrecover01', slug: 'recovery-workflow', selected_runtime: 'modal-hosted',
@@ -2073,9 +2078,9 @@ const rollbackRecord = {
   finalization_target_sha: rollbackTarget, finalization_attempts: 5,
   release_merge_sha: 'c'.repeat(40),
   release_artifact_hash: rollbackArtifact, finalization_artifact_hash: rollbackArtifact,
+  finalization_recovery_receipt: JSON.stringify(priorRecoveryEvidence),
   finalization_modal_receipt: JSON.stringify(rollbackModalReceipt),
   finalization_worker_receipt: JSON.stringify(rollbackWorkerReceipt),
-  finalization_recovery_receipt: null,
 };
 workerTest.mockSubmissions.set(rollbackRecord.id, rollbackRecord);
 const recoveryPlanResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recovery-plan', {
@@ -2089,7 +2094,8 @@ const recoveryResponse = await worker.fetch(mkReq('POST', '/api/internal/finaliz
   target_sha: rollbackTarget,
 }, finalizerHeaders), buildEnv);
 const recoveryBody = await recoveryResponse.json();
-const recoverySnapshot = JSON.parse(rollbackRecord.finalization_recovery_receipt || 'null');
+const recoveryHistory = JSON.parse(rollbackRecord.finalization_recovery_receipt || 'null');
+const recoverySnapshot = recoveryHistory[1];
 const recoveryReplay = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recover-rolled-back', {
   target_sha: rollbackTarget,
 }, finalizerHeaders), buildEnv);
@@ -2101,7 +2107,9 @@ check('receipt-aware rollback recovery mock: exact target-only boundary preserve
   recoveryBody.status === 'ready_for_deploy' && recoveryReplay.status === 409 &&
   rollbackRecord.status === 'ready_for_deploy' && rollbackRecord.finalization_id === null &&
   rollbackRecord.finalization_attempts === 5 && rollbackRecord.finalization_modal_receipt === null &&
-  rollbackRecord.finalization_worker_receipt === null && recoverySnapshot.finalization_id === 'fin_' + '8'.repeat(32) &&
+  rollbackRecord.finalization_worker_receipt === null && Array.isArray(recoveryHistory) && recoveryHistory.length === 2 &&
+  JSON.stringify(recoveryHistory[0]) === JSON.stringify(priorRecoveryEvidence) &&
+  recoverySnapshot.finalization_id === 'fin_' + '8'.repeat(32) &&
   recoverySnapshot.attempt === 5 && recoverySnapshot.target_sha === rollbackTarget &&
   recoverySnapshot.failure_code === 'internal_finalizer_failed' &&
   recoverySnapshot.modal_receipt.version_id === 'modal-v7' &&
@@ -2163,7 +2171,7 @@ neonFailedFinalizationRow = {
   finalization_artifact_hash: rollbackArtifact, finalization_attempts: 5,
   finalization_modal_receipt: JSON.stringify(rollbackModalReceipt),
   finalization_worker_receipt: JSON.stringify(rollbackWorkerReceipt),
-  finalization_recovery_receipt: null,
+  finalization_recovery_receipt: JSON.stringify(priorRecoveryEvidence),
 };
 neonRecoveryRow = { id: rollbackRecord.id };
 const neonRecovered = await workerTest.internalRecoverRolledBackFinalization(
@@ -2171,14 +2179,15 @@ const neonRecovered = await workerTest.internalRecoverRolledBackFinalization(
 );
 const neonRecoveryCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-recover-rolled-back-v1');
 check('receipt-aware rollback recovery Neon: exact immutable CAS stores evidence once and clears active generation',
-  neonRecovered === true && neonRecoveryCall.values.length === 10 &&
+  neonRecovered === true && neonRecoveryCall.values.length === 11 &&
   neonRecoveryCall.values[3] === rollbackTarget &&
-  JSON.parse(neonRecoveryCall.values[0]).verified_by === 'trusted_production_finalizer' &&
+  JSON.parse(neonRecoveryCall.values[0])[1].verified_by === 'trusted_production_finalizer' &&
   neonRecoveryCall.values[8] === JSON.stringify(rollbackModalReceipt) &&
   neonRecoveryCall.values[9] === JSON.stringify(rollbackWorkerReceipt) &&
+  neonRecoveryCall.values[10] === JSON.stringify(priorRecoveryEvidence) &&
   neonRecoveryCall.text.includes("finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed')") &&
   neonRecoveryCall.text.includes("selected_runtime = 'modal-hosted'") &&
-  neonRecoveryCall.text.includes('finalization_recovery_receipt IS NULL') &&
+  neonRecoveryCall.text.includes('finalization_recovery_receipt IS NOT DISTINCT FROM $11') &&
   neonRecoveryCall.text.includes('finalization_modal_receipt = $9') &&
   neonRecoveryCall.text.includes('finalization_worker_receipt = $10'));
 neonFailedFinalizationRow = null;
@@ -3045,7 +3054,7 @@ const d1RecoveryRecord = {
   finalization_artifact_hash: rollbackArtifact, finalization_attempts: 5,
   finalization_modal_receipt: JSON.stringify(rollbackModalReceipt),
   finalization_worker_receipt: JSON.stringify(rollbackWorkerReceipt),
-  finalization_recovery_receipt: null,
+  finalization_recovery_receipt: JSON.stringify(priorRecoveryEvidence),
 };
 delete d1RecoveryRecord.failure_code;
 const d1Recovery = d1DatabaseForFinalization(d1RecoveryRecord);
@@ -3057,13 +3066,15 @@ const d1RecoveryClaim = await workerTest.internalClaimFinalization(d1RecoveryEnv
 const d1RecoveryAfter = d1Recovery.db.prepare(
   'SELECT status,finalization_id,finalization_target_sha,finalization_attempts,finalization_recovery_receipt FROM submissions WHERE id = ?'
 ).get(rollbackRecord.id);
-const d1RecoveryEvidence = JSON.parse(d1RecoveryAfter.finalization_recovery_receipt);
+const d1RecoveryHistory = JSON.parse(d1RecoveryAfter.finalization_recovery_receipt);
+const d1RecoveryEvidence = d1RecoveryHistory[1];
 check('receipt-aware rollback recovery D1: real SQLite CAS has one winner and ordinary next claim preserves evidence',
   d1Recovered === true && d1RecoveryReplay === false && d1RecoveryClaim &&
   d1RecoveryClaim.target_sha === d1RecoveryFreshTarget && d1RecoveryClaim.attempts === 6 &&
   d1RecoveryAfter.finalization_id !== 'fin_' + '8'.repeat(32) &&
   d1RecoveryAfter.finalization_target_sha === d1RecoveryFreshTarget &&
-  d1RecoveryAfter.finalization_attempts === 6 &&
+  d1RecoveryAfter.finalization_attempts === 6 && Array.isArray(d1RecoveryHistory) && d1RecoveryHistory.length === 2 &&
+  JSON.stringify(d1RecoveryHistory[0]) === JSON.stringify(priorRecoveryEvidence) &&
   d1RecoveryEvidence.target_sha === rollbackTarget &&
   d1RecoveryEvidence.modal_receipt.version_id === 'modal-v7' &&
   d1RecoveryEvidence.worker_receipt.previous_version_id === 'cf-v8');

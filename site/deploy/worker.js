@@ -4227,10 +4227,28 @@ function canonicalStoredReceipt(raw, operation, targetSha) {
   return receipt && canonicalDeploymentReceipt(receipt) === raw ? receipt : null;
 }
 
+function recoveryHistory(raw) {
+  if (raw == null) return [];
+  if (typeof raw !== 'string' || !raw || raw.length > 256 * 1024) return null;
+  let value;
+  try { value = JSON.parse(raw); } catch { return null; }
+  const history = Array.isArray(value) ? value : [value];
+  if (!history.length || history.length > 32 || history.some((item) =>
+    !item || typeof item !== 'object' || Array.isArray(item) ||
+    item.verified_by !== 'trusted_production_finalizer' ||
+    !/^fin_[0-9a-f]{32}$/.test(String(item.finalization_id || '')) ||
+    !/^[0-9a-f]{40}$/.test(String(item.target_sha || '')) ||
+    !Number.isInteger(item.attempt) || item.attempt < 1 ||
+    typeof item.recovered_at !== 'string')) return null;
+  return history;
+}
+
 function recoveryCandidate(row) {
+  if (!row) return null;
   const failed = failedFinalizationRow(row);
+  const history = recoveryHistory(row.finalization_recovery_receipt);
   if (!failed || !['worker_smoke_failed', 'internal_finalizer_failed'].includes(failed.failure_code) ||
-      safeRuntime(row.selected_runtime) !== 'modal-hosted' || row.finalization_recovery_receipt != null) return null;
+      safeRuntime(row.selected_runtime) !== 'modal-hosted' || history == null) return null;
   const slug = safeSlug(row.slug);
   const modalReceipt = canonicalStoredReceipt(row.finalization_modal_receipt, 'modal_deploy', failed.target_sha);
   const workerReceipt = canonicalStoredReceipt(row.finalization_worker_receipt, 'worker_deploy', failed.target_sha);
@@ -4238,7 +4256,7 @@ function recoveryCandidate(row) {
       modalReceipt.target !== `cognition-${slug}` || modalReceipt.environment !== 'main' ||
       workerReceipt.target !== 'cognition-demos' || workerReceipt.environment !== 'production' ||
       modalReceipt.artifact_hash !== failed.artifact_hash || workerReceipt.artifact_hash !== failed.artifact_hash) return null;
-  return { row, failed, modalReceipt, workerReceipt };
+  return { row, failed, modalReceipt, workerReceipt, history };
 }
 
 function expectedRecoveryVersion(receipt, provider) {
@@ -4311,7 +4329,10 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
   if (!candidate) return false;
   const { failed, row } = candidate;
   const recoveredAt = new Date().toISOString();
-  const snapshot = recoverySnapshot(candidate, recoveredAt);
+  const currentSnapshot = recoverySnapshot(candidate, recoveredAt);
+  const snapshot = candidate.history.length
+    ? JSON.stringify([...candidate.history, JSON.parse(currentSnapshot)])
+    : currentSnapshot;
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-internal-finalization-recover-rolled-back-v1',
@@ -4325,7 +4346,7 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
 +       WHERE id = $2 AND finalization_id = $3 AND finalization_target_sha = $4
 +         AND finalization_status = 'failed' AND finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed')
 +         AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
-+         AND selected_runtime = 'modal-hosted' AND finalization_recovery_receipt IS NULL
++         AND selected_runtime = 'modal-hosted' AND finalization_recovery_receipt IS NOT DISTINCT FROM $11
 +         AND source_sha256 = $5 AND finalization_source_sha256 = $5
 +         AND release_head_sha = $6 AND finalization_head_sha = $6
 +         AND release_merge_sha = $7 AND finalization_merge_sha = $7
@@ -4333,7 +4354,8 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
 +         AND finalization_modal_receipt = $9 AND finalization_worker_receipt = $10
 +       RETURNING id`.replace(/^\+/gm, ''),
       [snapshot, failed.submission_id, failed.id, targetSha, failed.source_sha256, failed.head_sha,
-        failed.merge_sha, failed.artifact_hash, row.finalization_modal_receipt, row.finalization_worker_receipt]
+        failed.merge_sha, failed.artifact_hash, row.finalization_modal_receipt, row.finalization_worker_receipt,
+        row.finalization_recovery_receipt]
     ));
     return result.rowCount === 1;
   }
@@ -4348,19 +4370,20 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
 +       WHERE id = ? AND finalization_id = ? AND finalization_target_sha = ?
 +         AND finalization_status = 'failed' AND finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed')
 +         AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
-+         AND selected_runtime = 'modal-hosted' AND finalization_recovery_receipt IS NULL
++         AND selected_runtime = 'modal-hosted' AND finalization_recovery_receipt IS ?
 +         AND source_sha256 = ? AND finalization_source_sha256 = ?
 +         AND release_head_sha = ? AND finalization_head_sha = ?
 +         AND release_merge_sha = ? AND finalization_merge_sha = ?
 +         AND release_artifact_hash = ? AND finalization_artifact_hash = ?
 +         AND finalization_modal_receipt = ? AND finalization_worker_receipt = ?`.replace(/^\+/gm, '')
     ).bind(snapshot, recoveredAt, failed.submission_id, failed.id, targetSha,
+      row.finalization_recovery_receipt,
       failed.source_sha256, failed.source_sha256, failed.head_sha, failed.head_sha,
       failed.merge_sha, failed.merge_sha, failed.artifact_hash, failed.artifact_hash,
       row.finalization_modal_receipt, row.finalization_worker_receipt).run();
     return Boolean(result.meta && result.meta.changes);
   }
-  if (row.finalization_recovery_receipt != null || recoveryCandidate(row) == null) return false;
+  if (recoveryCandidate(row) == null) return false;
   row.status = 'ready_for_deploy';
   row.finalization_recovery_receipt = snapshot;
   for (const field of ['id', 'status', 'target_sha', 'source_sha256', 'head_sha', 'merge_sha',
