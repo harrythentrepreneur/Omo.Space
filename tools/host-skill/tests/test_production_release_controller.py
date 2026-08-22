@@ -151,6 +151,48 @@ def test_finalization_store_treats_only_literal_204_as_idle():
     assert caught.value.code == "invalid_finalizer_response"
 
 
+def test_http_failures_are_mapped_to_secret_free_trust_boundary_stages(monkeypatch, tmp_path):
+    mod = load_module()
+
+    def network_failure(*args, **kwargs):
+        raise mod.urllib.error.URLError("SENTINEL_MUST_NOT_ESCAPE")
+
+    github = mod.GitHubMainlineAdapter(tmp_path, SHA, 123, 1, "token", opener=network_failure)
+    with pytest.raises(mod.ControllerError) as caught:
+        github.latest_green()
+    assert caught.value.code == "github_http_failed" and "SENTINEL" not in str(caught.value)
+    assert caught.value.__cause__ is None and caught.value.__context__ is None
+
+    store = mod.HttpFinalizationStore("token", opener=network_failure)
+    with pytest.raises(mod.ControllerError) as caught:
+        store.claim(SHA)
+    assert caught.value.code == "finalizer_http_failed" and "SENTINEL" not in str(caught.value)
+
+    def typed_failure(*args, **kwargs):
+        raise mod.ControllerError("http_request_failed")
+
+    monkeypatch.setattr(mod, "_request_json", typed_failure)
+    claim = SimpleNamespace(submission_id="sub_12345678", target_sha=SHA, artifact_hash=ARTIFACT)
+    modal = mod.ProductionModalAdapter({})
+    with pytest.raises(mod.ControllerError) as caught:
+        modal.canary(claim, ROOT, {})
+    assert caught.value.code == "modal_canary_http_failed"
+
+    public = object.__new__(mod.ProductionPublicAdapter)
+    public.store, public.api_key = SimpleNamespace(), "omo_" + "1" * 32
+    with pytest.raises(mod.ControllerError) as caught:
+        public.verify_public(claim, ROOT)
+    assert caught.value.code == "public_canary_http_failed"
+
+    def non_http_failure(*args, **kwargs):
+        raise mod.ControllerError("modal_result_url_invalid")
+
+    monkeypatch.setattr(mod, "_request_json", non_http_failure)
+    with pytest.raises(mod.ControllerError) as caught:
+        mod._request_json_stage("modal_canary_http_failed", "https://example.invalid")
+    assert caught.value.code == "modal_result_url_invalid"
+
+
 def test_modal_canary_requires_exact_terminal_fixture(monkeypatch):
     mod = load_module()
     claim = SimpleNamespace(submission_id="sub_12345678")

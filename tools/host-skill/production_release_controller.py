@@ -139,6 +139,24 @@ def _request_json(
         raise ControllerError("http_request_failed") from None
 
 
+def _request_json_stage(stage: str, *args, **kwargs) -> tuple[int, dict[str, Any] | None]:
+    if stage not in {
+        "github_http_failed", "finalizer_http_failed",
+        "modal_canary_http_failed", "public_canary_http_failed",
+    }:
+        raise ControllerError("invalid_http_stage")
+    mapped = False
+    try:
+        return _request_json(*args, **kwargs)
+    except ControllerError as error:
+        if not error.code.startswith("http_"):
+            raise
+        mapped = True
+    if mapped:
+        raise ControllerError(stage)
+    raise ControllerError("invalid_http_stage")
+
+
 class GitHubMainlineAdapter:
     def __init__(
         self, checkout: Path, trigger_sha: str, run_id: int, run_attempt: int,
@@ -156,7 +174,8 @@ class GitHubMainlineAdapter:
             raise ControllerError("invalid_github_configuration")
 
     def _api(self, path: str) -> dict[str, Any]:
-        status, body = _request_json(
+        status, body = _request_json_stage(
+            "github_http_failed",
             f"https://api.github.com/repos/{REPOSITORY}{path}",
             headers={"Authorization": f"Bearer {self.token}", "X-GitHub-Api-Version": "2022-11-28"},
             opener=self.opener,
@@ -257,7 +276,8 @@ class HttpFinalizationStore:
         self.claims: dict[str, FinalizationClaim] = {}
 
     def _post(self, path: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
-        return _request_json(
+        return _request_json_stage(
+            "finalizer_http_failed",
             self.base_url + path, method="POST", payload=payload,
             headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
             opener=self.opener,
@@ -387,7 +407,8 @@ class ProductionModalAdapter:
             "Modal-Key": self.source_env.get("HOSTED_MODAL_PROXY_TOKEN_ID", ""),
             "Modal-Secret": self.source_env.get("HOSTED_MODAL_PROXY_TOKEN_SECRET", ""),
         }
-        status, body = _request_json(
+        status, body = _request_json_stage(
+            "modal_canary_http_failed",
             endpoint, method="POST", payload=payload, headers=headers, timeout=60, opener=MODAL_OPENER
         )
         if status != 202 or not body or not isinstance(body.get("result_url"), str):
@@ -398,7 +419,10 @@ class ProductionModalAdapter:
             return {"status": "failed"}
         result = None
         for _ in range(30):
-            poll_status, poll = _request_json(result_url, headers=headers, timeout=30, opener=MODAL_OPENER)
+            poll_status, poll = _request_json_stage(
+                "modal_canary_http_failed", result_url,
+                headers=headers, timeout=30, opener=MODAL_OPENER
+            )
             if poll_status == 200 and poll:
                 result = poll
                 break
@@ -491,7 +515,10 @@ class ProductionPublicAdapter:
             "labels": [" Green Apple ", "green-apple", "Class 2B"], "prefix": "item",
         }}
         headers = {"X-API-Key": self.api_key, "Idempotency-Key": f"v0.1-{key}", "Content-Type": "application/json"}
-        return _request_json(f"{PUBLIC_ORIGIN}/api/run", method="POST", payload=payload, headers=headers, timeout=60), headers, payload
+        return _request_json_stage(
+            "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/run",
+            method="POST", payload=payload, headers=headers, timeout=60,
+        ), headers, payload
 
     def verify_public(self, claim, checkout):
         (status, body), headers, payload = self._dispatch(claim)
@@ -500,8 +527,9 @@ class ProductionPublicAdapter:
         run_id = body["run_id"]
         terminal = None
         for _ in range(60):
-            poll_status, poll = _request_json(
-                f"{PUBLIC_ORIGIN}/api/run/{run_id}", headers={"X-API-Key": self.api_key}, timeout=30
+            poll_status, poll = _request_json_stage(
+                "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/run/{run_id}",
+                headers={"X-API-Key": self.api_key}, timeout=30
             )
             if poll_status == 200 and poll and poll.get("status") in {"succeeded", "failed", "refunded"}:
                 terminal = poll
