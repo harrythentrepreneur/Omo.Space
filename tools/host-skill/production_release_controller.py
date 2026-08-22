@@ -845,7 +845,17 @@ class ProductionPublicAdapter:
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 raw = response.read(256 * 1024)
-                ok = response.status == 200 and MODAL_ALLOWED_SLUG.encode() in raw
+                final = urllib.parse.urlsplit(response.geturl())
+                query = urllib.parse.parse_qs(final.query, strict_parsing=True)
+                ok = (
+                    response.status == 200
+                    and final.scheme == "https"
+                    and final.hostname == urllib.parse.urlsplit(PUBLIC_ORIGIN).hostname
+                    and final.port is None and final.username is None and final.password is None
+                    and final.path == "/run" and not final.fragment
+                    and query == {"slug": [MODAL_ALLOWED_SLUG]}
+                    and b"<title>Run a workflow | Omo</title>" in raw
+                )
         except Exception:
             ok = False
         return {"status": "published" if ok else "failed"}
