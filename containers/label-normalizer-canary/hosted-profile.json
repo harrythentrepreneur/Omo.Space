@@ -323,7 +323,7 @@
     "effective": "modal-hosted",
     "reason": "worker_executor_contract_not_satisfied",
     "recommended": "modal-hosted",
-    "requested": "auto"
+    "requested": "modal-hosted"
   },
   "schema_version": "omo.hosted-profile/v1",
   "server_catalog": {
