@@ -313,6 +313,96 @@ def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
     assert calls[1][0].endswith(run_id)
 
 
+def test_public_canary_seed_uses_only_canonical_exact_checkout_source(monkeypatch):
+    mod = load_module()
+    calls = []
+
+    def request_json_stage(stage, url, **kwargs):
+        calls.append((stage, url, kwargs))
+        return 202, {"id": "sub_" + "1" * 32, "slug": "label-normalizer-canary"}
+
+    monkeypatch.setattr(mod, "_request_json_stage", request_json_stage)
+    provisioned = []
+    adapter = mod.ProductionPublicAdapter(
+        SimpleNamespace(provision_canary_identity=lambda: provisioned.append(True)),
+        "omo_" + "1" * 32,
+    )
+    assert adapter.seed_submission(ROOT) == {"status": "queued", "submission_id": "sub_" + "1" * 32}
+    assert provisioned == [True]
+    stage, url, kwargs = calls[0]
+    source = (ROOT / "containers/label-normalizer-canary/source/SKILL.md").read_text()
+    assert stage == "public_canary_http_failed" and url == mod.PUBLIC_ORIGIN + "/api/submit"
+    assert kwargs["headers"] == {"X-API-Key": "omo_" + "1" * 32, "Content-Type": "application/json"}
+    assert kwargs["payload"] == {
+        "name": "Label normalizer canary", "content": source,
+        "visibility": "public", "runtime_preference": "modal-hosted",
+    }
+
+
+def test_public_canary_seed_rejects_parent_symlink_tamper_and_oversize(monkeypatch, tmp_path):
+    mod = load_module()
+    store = SimpleNamespace(provision_canary_identity=lambda: None)
+    adapter = mod.ProductionPublicAdapter(store, "omo_" + "1" * 32)
+    monkeypatch.setattr(mod, "_request_json_stage", lambda *args, **kwargs: pytest.fail("must not submit"))
+
+    external = tmp_path / "external"
+    external.mkdir()
+    (external / "source").mkdir()
+    (external / "source/SKILL.md").write_bytes(
+        (ROOT / "containers/label-normalizer-canary/source/SKILL.md").read_bytes()
+    )
+    linked = tmp_path / "linked"
+    (linked / "containers").mkdir(parents=True)
+    (linked / "containers/label-normalizer-canary").symlink_to(external, target_is_directory=True)
+    with pytest.raises(mod.ControllerError, match="production_canary_source_invalid"):
+        adapter.seed_submission(linked)
+
+    for name, raw in (("tampered", b"---\nname: label-normalizer-canary\n---\nwrong\n"),
+                      ("oversized", b"x" * (mod.CANARY_SOURCE_MAX_BYTES + 1))):
+        checkout = tmp_path / name
+        source_dir = checkout / "containers/label-normalizer-canary/source"
+        source_dir.mkdir(parents=True)
+        (source_dir / "SKILL.md").write_bytes(raw)
+        with pytest.raises(mod.ControllerError, match="production_canary_source_invalid"):
+            adapter.seed_submission(checkout)
+
+
+def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatch, tmp_path):
+    mod = load_module()
+    order = []
+    target = tmp_path / "target"
+    target.mkdir()
+
+    class Mainline:
+        def __init__(self, checkout, *args):
+            assert checkout == target
+
+        def checkout_detached(self, sha):
+            order.append(("checkout", sha))
+            return target
+
+    class Public:
+        def __init__(self, store, key):
+            assert key == "omo_" + "1" * 32
+
+        def seed_submission(self, checkout):
+            order.append(("seed", checkout))
+            return {"status": "queued", "submission_id": "sub_" + "2" * 32}
+
+    monkeypatch.setattr(mod, "GitHubMainlineAdapter", Mainline)
+    monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token: object())
+    monkeypatch.setattr(mod, "ProductionModalAdapter", lambda env: object())
+    monkeypatch.setattr(mod, "ProductionCloudflareAdapter", lambda env: object())
+    monkeypatch.setattr(mod, "ProductionPublicAdapter", Public)
+    monkeypatch.setattr(mod, "run_finalizer", lambda *args, **kwargs: order.append(("finalizer", SHA)) or {"status": "idle", "target_sha": SHA})
+    result = mod.run_once(SimpleNamespace(trigger_sha=SHA, run_id="1", run_attempt="1"), {
+        "GITHUB_WORKSPACE": str(tmp_path), "GITHUB_TOKEN": "token",
+        "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
+    })
+    assert order == [("finalizer", SHA), ("checkout", SHA), ("seed", target)]
+    assert result == {"status": "seeded", "target_sha": SHA, "submission_id": "sub_" + "2" * 32}
+
+
 def test_controller_cli_rejects_every_user_selectable_or_malformed_identity(capsys):
     mod = load_module()
     assert mod.main(["--trigger-sha", "bad", "--run-id", "1", "--run-attempt", "1"]) == 2
