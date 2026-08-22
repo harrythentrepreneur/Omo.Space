@@ -487,7 +487,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 raise RuntimeError("claimed source validation failed")
 
             stage = "private_handoff"
-            review_dir = root / "review"
+            review_dir = checkout / ".omo-review"
             review_dir.mkdir(mode=0o700)
             review_path = review_dir / "SKILL.md"
             descriptor = os.open(review_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

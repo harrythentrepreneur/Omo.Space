@@ -216,6 +216,13 @@ def test_prompt_contains_private_path_but_not_source_bytes(tmp_path: Path) -> No
     assert "c" * 40 in prompt
 
 
+def test_private_review_handoff_is_inside_disposable_untrusted_checkout_only() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert 'review_dir = checkout / ".omo-review"' in source
+    assert 'review_dir = root / "review"' not in source
+    assert 'trusted-repo' in source
+
+
 def test_completion_requires_release_and_runtime_evidence() -> None:
     builder = load_builder()
     submission_id = "sub_abcdefgh12345678"
