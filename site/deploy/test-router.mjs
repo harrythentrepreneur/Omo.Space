@@ -423,7 +423,7 @@ function check(name, cond) {
 check('Neon: Worker never caches request-bound Pool I/O in module scope',
   !workerSrc.includes('let neonPool') &&
   workerSrc.includes("neon(url, { fullResults: true })") &&
-  (workerSrc.match(/await client\.release\(\)/g) || []).length === 10);
+  (workerSrc.match(/await client\.release\(\)/g) || []).length === 11);
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
@@ -1528,6 +1528,39 @@ check('internal finalization receipt migration: finalizer-only exact additive SQ
     present: ['finalization_modal_receipt', 'finalization_worker_receipt'], missing: [],
   }) &&
   !JSON.stringify(receiptSchemaBody).includes('attacker_column'));
+
+neonSqlCalls.length = 0;
+const finalizationSchemaBuilder = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/schema/migrate', {}, internalHeaders), migrationEnv,
+);
+const finalizationSchemaMigration = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/schema/migrate', {}, finalizerHeaders), migrationEnv,
+);
+const finalizationSchemaMigrationBody = await finalizationSchemaMigration.json();
+const expectedFinalizationColumns = [
+  'promotion_evidence', 'finalization_id', 'finalization_status', 'finalization_target_sha',
+  'finalization_source_sha256', 'finalization_head_sha', 'finalization_merge_sha',
+  'finalization_artifact_hash', 'finalization_claimed_at', 'finalization_lease_expires_at',
+  'finalization_attempts', 'finalization_failure_code', 'finalization_modal_receipt',
+  'finalization_worker_receipt', 'automation_updated_at',
+];
+const expectedFinalizationSql = [
+  'BEGIN',
+  ...workerTest.SUBMISSIONS_SCHEMA_MIGRATIONS
+    .filter(([name]) => expectedFinalizationColumns.includes(name))
+    .map(([, sql]) => sql),
+  'COMMIT', 'RELEASE', 'POOL_END',
+];
+check('internal finalization schema migration: finalizer-only complete fixed additive columns',
+  finalizationSchemaBuilder.status === 401 &&
+  finalizationSchemaMigration.status === 200 &&
+  JSON.stringify(finalizationSchemaMigrationBody.applied) === JSON.stringify(expectedFinalizationColumns) &&
+  JSON.stringify(neonSqlCalls.map((call) => call.text)) === JSON.stringify(expectedFinalizationSql) &&
+  neonSqlCalls.slice(1, 1 + expectedFinalizationColumns.length).every((call) =>
+    Array.isArray(call.values) && call.values.length === 0 &&
+    /^omo-finalization-schema-migrate-[a-z0-9_]+-v1$/.test(call.name || '') &&
+    call.text.includes('ADD COLUMN IF NOT EXISTS')
+  ));
 
 for (const record of workerTest.mockSubmissions.values()) {
   if (record.id === submitAuto.id) {
