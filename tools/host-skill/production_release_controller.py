@@ -484,9 +484,10 @@ class ProductionCloudflareAdapter:
             f"https://api.cloudflare.com/client/v4/accounts/{account_id}/workers/scripts/{CLOUDFLARE_TARGET}/schedules",
             headers={"Authorization": f"Bearer {token}"}, timeout=30,
         )
-        rows = (body or {}).get("result")
+        result = (body or {}).get("result")
+        rows = result.get("schedules") if isinstance(result, dict) and set(result) == {"schedules"} else None
         if status != 200 or (body or {}).get("success") is not True or not isinstance(rows, list) or any(
-            not isinstance(row, dict) or set(row).isdisjoint({"cron"}) for row in rows
+            not isinstance(row, dict) or "cron" not in row for row in rows
         ):
             raise ControllerError("cloudflare_schedule_readback_failed")
         schedules = [str(row.get("cron") or "") for row in rows]
