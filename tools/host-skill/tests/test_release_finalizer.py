@@ -264,13 +264,48 @@ def test_worker_native_success_skips_modal_and_completes_exact_order():
     assert store.events[-1] == ("submission_detail", store.claim_value.submission_id)
     assert store.submission_status == "deployed"
     assert store.gates == {
-        "status": "live",
-        "checked_at": "2026-08-21T00:00:00Z",
-        "R1": {"status": "passed"},
-        "R2": {"status": "passed"},
-        "R3": {"status": "passed"},
-        "R4": {"status": "excluded_premium"},
+        "status": "live", "checked_at": "2026-08-21T00:00:00Z",
+        "R1": {"status": "passed"}, "R2": {"status": "passed"},
+        "R3": {"status": "passed"}, "R4": {"status": "excluded_premium"},
     }
+
+
+def test_explicit_production_targets_accept_only_production_receipts():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="modal-hosted")
+    targets = mod.DeploymentTargets(
+        "cognition-label-normalizer-canary", "main", "cognition-demos", "production"
+    )
+
+    def modal_deploy(claim, checkout):
+        modal.events.append("deploy")
+        return {
+            "status": "passed", "provider": "modal", "target": targets.modal_target,
+            "environment": targets.modal_environment, "target_sha": claim.target_sha,
+            "artifact_hash": claim.artifact_hash, "version_id": "modal-v2",
+            "previous_version_id": "modal-v1", "reused": False, "rollback_token": "modal-v1",
+        }
+
+    def worker_deploy(claim, checkout):
+        cloudflare.events.append("deploy_worker")
+        return {
+            "status": "passed", "provider": "cloudflare", "target": targets.cloudflare_target,
+            "environment": targets.cloudflare_environment, "target_sha": claim.target_sha,
+            "artifact_hash": claim.artifact_hash, "version_id": "worker-v2",
+            "previous_version_id": "worker-v1", "reused": False, "rollback_token": "worker-v1",
+        }
+
+    modal.deploy = modal_deploy
+    cloudflare.deploy_worker = worker_deploy
+    result = mod.run_finalizer(
+        mainline, store, modal, cloudflare, vercel, targets=targets
+    )
+    assert result["status"] == "deployed"
+    assert store.effects["modal_deploy"]["environment"] == "main"
+    assert store.effects["worker_deploy"]["environment"] == "production"
+
+    bad = dict(store.effects["worker_deploy"], target="cognition-demos-staging")
+    with pytest.raises(mod.FinalizerError):
+        mod._deployment_receipt(bad, store.claim_value, "cloudflare", targets)
 
 
 def test_superseded_trigger_exits_before_claim_or_provider_effect():

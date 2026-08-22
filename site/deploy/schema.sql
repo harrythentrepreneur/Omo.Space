@@ -259,6 +259,8 @@ CREATE TABLE IF NOT EXISTS submissions (
   finalization_lease_expires_at TEXT,
   finalization_attempts INTEGER NOT NULL DEFAULT 0,
   finalization_failure_code TEXT,
+  finalization_modal_receipt TEXT,
+  finalization_worker_receipt TEXT,
   automation_updated_at TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
@@ -301,6 +303,8 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_claimed_at TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_lease_expires_at TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_attempts INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_failure_code TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_modal_receipt TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_worker_receipt TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS automation_updated_at TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_submissions_status_created
