@@ -413,9 +413,9 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
 def test_cloudflare_builder_schedule_is_applied_and_read_back_exactly(monkeypatch):
     mod = load_module()
     responses = [
-        (200, {"success": True, "result": []}),
-        (200, {"success": True, "result": [{"cron": "*/1 * * * *"}]}),
-        (200, {"success": True, "result": [{"cron": "*/1 * * * *"}]}),
+        (200, {"success": True, "result": {"schedules": []}}),
+        (200, {"success": True, "result": {"schedules": [{"cron": "*/1 * * * *"}]}}),
+        (200, {"success": True, "result": {"schedules": [{"cron": "*/1 * * * *"}]}}),
     ]
     requests = []
 
@@ -435,7 +435,7 @@ def test_cloudflare_builder_schedule_is_applied_and_read_back_exactly(monkeypatc
     assert requests[1][2]["headers"] == {
         "Authorization": "Bearer token", "Content-Type": "application/json",
     }
-    responses.append((200, {"success": True, "result": [{"cron": "*/1 * * * *"}]}))
+    responses.append((200, {"success": True, "result": {"schedules": [{"cron": "*/1 * * * *"}]}}))
     assert adapter.ensure_builder_schedule(ROOT, SHA) == {"status": "passed", "changed": False}
     assert len(requests) == 4
 
