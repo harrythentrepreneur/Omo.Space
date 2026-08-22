@@ -10,7 +10,8 @@
 
 <p align="center">
   <a href="https://omo.space"><img src="https://img.shields.io/badge/live-omo.space-17352c?style=flat-square" alt="Omo is live at omo.space"></a>
-  <img src="https://img.shields.io/badge/local_checks-passing-2d6a4f?style=flat-square" alt="Local checks passing">
+  <a href="https://github.com/harrythentrepreneur/Omo.Space/releases/tag/v0.1.0"><img src="https://img.shields.io/badge/release-v0.1.0-ff8f70?style=flat-square" alt="Omo.Space v0.1.0"></a>
+  <a href="https://github.com/harrythentrepreneur/Omo.Space/actions/workflows/generated-workflow-contracts.yml"><img src="https://github.com/harrythentrepreneur/Omo.Space/actions/workflows/generated-workflow-contracts.yml/badge.svg?branch=main" alt="Workflow contracts"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-ffb89d?style=flat-square" alt="MIT License"></a>
 </p>
 
@@ -37,6 +38,67 @@ wordmark**: approachable on the storefront, rigorous underneath.
 - Schema-driven forms and results backed by the
   [input](./research/input-ui-library.md) and
   [output](./research/output-ui-library.md) UI libraries.
+
+## How it works
+
+```text
+Browser / API client
+        |
+        v
+Vercel storefront at omo.space
+        |
+        | /api/*
+        v
+Cloudflare Worker control plane
+  - authentication and workflow ownership
+  - catalog, schemas and server-owned pricing
+  - idempotency, credits, settlement and refunds
+        |
+        +----------------------+----------------------+
+        |                                             |
+        v                                             v
+Worker-native adapter                         Modal Proxy Auth
+                                                      |
+                                                      v
+                                            Generated Modal runtime
+                                                      |
+                                                      v
+                                           Reviewed model/provider
+        |                                             |
+        +----------------------+----------------------+
+                               v
+                    authoritative result in Neon/D1
+                               |
+                               v
+                      browser polling and replay
+```
+
+The storefront is a static Vercel deployment. The Cloudflare Worker owns
+authentication, billing, workflow identity and lifecycle state. Modal is an
+execution plane, not the public source of truth. Neon Postgres is the preferred
+durable store, with D1 support and an in-memory mode for local tests.
+
+Creator releases follow a separate trusted path:
+
+```text
+SKILL.md submission -> queue -> review -> deterministic compile -> tests and cost
+  -> Git PR and CI -> exact-revision finalizer -> provider canaries -> promoted -> deployed
+```
+
+Every release generation is bound to an immutable target commit, source hash,
+release head and merge commits, artifact hash and runtime. Provider effects are
+recorded as canonical receipts before later promotion gates run.
+
+## v0.1.0 release status
+
+The first stable release was promoted from exact commit
+[`15ac8fe`](https://github.com/harrythentrepreneur/Omo.Space/commit/15ac8fe27c3e81f95939e5acd80bdc0cbbf97fd7).
+The production canary completed through the public Worker-to-Modal path,
+returned the expected structured output, replayed idempotently and finished
+with authoritative `completed`, `promoted` and `deployed` lifecycle evidence.
+
+- [Read the full v0.1.0 release notes](https://github.com/harrythentrepreneur/Omo.Space/releases/tag/v0.1.0)
+- [Read the complete changelog](./CHANGELOG.md)
 
 ## Try it—no code needed
 
@@ -74,20 +136,21 @@ capabilities stop safely until a human review clears them. Read the
 | [Audio Symbolic Animation](./containers/audio-symbolic-animation/) | Fail-closed (`503`); capabilities and cost incomplete | Projected $24.34 · not chargeable |
 | [de Mello Awake](./containers/demello-awake/) | Private staging, 0% traffic; paid path fail-closed | No paid quote · $0.10 floor only |
 
-The direct Modal proofs are complete for Woven and Facebook Ads. Production
-marketplace routing still requires the final Cloudflare Worker authorization
-and canary described in the runbook.
+Workflow readiness remains profile-specific. The marketplace release control
+plane and canonical public canary are production-verified; each individual
+workflow still carries its own capability, provider, artifact and pricing
+evidence.
 
 ## Tech stack
 
-- **Vercel** — static storefront and preview deployments.
-- **Cloudflare Workers** — API routing, credits, workflow dispatch, and
+- **Vercel** — static storefront, canonical routes and preview deployments.
+- **Cloudflare Workers** — API routing, authentication, credits, workflow dispatch, and
   webhooks.
 - **Clerk** — authentication and signed sessions.
 - **Neon Postgres** — accounts, immutable credit ledger, runs, and purchases.
 - **Modal** — scale-to-zero hosted workflow execution.
-- **Stripe** — checkout and top-up integration; production keys are pending,
-  so live payments are landing soon.
+- **Stripe** — server-priced checkout and replay-safe top-up webhooks when live
+  provider credentials are configured.
 
 ## Repository map
 
@@ -98,7 +161,8 @@ and canary described in the runbook.
 ├── containers/          # Generated and reviewed hosted workflow bundles
 ├── tools/host-skill/    # SKILL.md compile, test, price, and register pipeline
 ├── packages/skill-to-modal/ # Deterministic compiler and reviewed profiles
-└── research/             # Runbooks, product research, and decision records
+├── research/             # Runbooks, product research, and decision records
+└── CHANGELOG.md          # Full project history through stable releases
 ```
 
 ## Tests
@@ -108,10 +172,10 @@ All suites run locally without production keys or paid provider calls.
 | Suite | Coverage | Command |
 | --- | ---: | --- |
 | Balance and API keys | 22 checks | `node site/deploy/test-balance.mjs` |
-| Worker router and ledger | 108+ checks | `node site/deploy/test-router.mjs` |
+| Worker router and ledger | 245 checks | `node site/deploy/test-router.mjs` |
 | Cost model | 11 checks | `node site/deploy/test-cost.mjs` |
 | Worker response parsing | 17 checks | `node site/deploy/test-workers.mjs` |
-| Compiler and hosting pipeline | Contract suite | `python3 -m pytest -q -p no:cacheprovider packages/skill-to-modal/tests tools/host-skill/tests` |
+| Compiler, hosting and render pipeline | 383 checks at v0.1.0 | `python3 -m pytest -q -p no:cacheprovider packages/skill-to-modal/tests tools/host-skill/tests tools/render/tests` |
 | Container contracts | One isolated suite per container | `python3 -m pytest -q -p no:cacheprovider containers/<slug>/tests/test_contract.py` |
 
 Run the JavaScript suites together:
@@ -126,6 +190,12 @@ node site/deploy/test-workers.mjs
 Container contract files run in separate pytest processes because several use
 the same module name. The complete release checklist lives in the
 [hosting runbook](./research/hosting-runbook.md#full-verification).
+
+## Releases and changelog
+
+- [Latest release: Omo.Space v0.1.0](https://github.com/harrythentrepreneur/Omo.Space/releases/tag/v0.1.0)
+- [Project changelog](./CHANGELOG.md)
+- [All releases](https://github.com/harrythentrepreneur/Omo.Space/releases)
 
 ## Contributing
 
