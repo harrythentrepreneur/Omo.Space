@@ -187,6 +187,9 @@ def _require_passed(receipt: object, code: str) -> None:
 
 _PHASE1_FAILURE_CODES = {
     "credential_preflight_failed",
+    "modal_preflight_failed",
+    "worker_preflight_failed",
+    "public_preflight_failed",
     "modal_deploy_failed",
     "modal_canary_failed",
     "worker_deploy_failed",
@@ -363,13 +366,19 @@ def run_finalizer(
 
         # All identity/config preflights happen after supersession checks and before
         # the first provider effect or lifecycle advance.
-        try:
-            if claim.runtime == "modal-hosted":
+        if claim.runtime == "modal-hosted":
+            try:
                 modal.preflight(claim, checkout)
+            except Exception as error:
+                raise FinalizerError("modal_preflight_failed") from error
+        try:
             cloudflare.preflight(claim, checkout)
+        except Exception as error:
+            raise FinalizerError("worker_preflight_failed") from error
+        try:
             vercel.preflight(claim)
         except Exception as error:
-            raise FinalizerError("credential_preflight_failed") from error
+            raise FinalizerError("public_preflight_failed") from error
 
         if claim.runtime == "modal-hosted":
             store.advance(claim, "deploying_modal")

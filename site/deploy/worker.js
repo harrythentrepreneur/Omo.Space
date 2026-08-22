@@ -254,6 +254,9 @@ const SAFE_RELEASE_BRANCH_RE = /^omo-release\/sub_[A-Za-z0-9_-]{8,100}-[a-z0-9]+
 const RELEASE_PHASES = new Set(['compiled', 'pr_open', 'ci_passed', 'merged_verified', 'promoted', 'failed']);
 const FINALIZATION_FAILURE_CODES = new Set([
   'credential_preflight_failed',
+  'modal_preflight_failed',
+  'worker_preflight_failed',
+  'public_preflight_failed',
   'modal_deploy_failed',
   'modal_canary_failed',
   'worker_deploy_failed',
@@ -4225,6 +4228,7 @@ async function internalResumeFailedFinalization(env, targetSha) {
          SELECT id, finalization_id
          FROM submissions
          WHERE finalization_target_sha = $1 AND finalization_status = 'failed'
+           AND finalization_failure_code = ANY($2::text[])
            AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
            AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL
            AND source_sha256 = finalization_source_sha256
@@ -4249,7 +4253,7 @@ async function internalResumeFailedFinalization(env, targetSha) {
          AND submission.finalization_target_sha = $1
          AND submission.finalization_status = 'failed'
        RETURNING submission.id`,
-      [targetSha]
+      [targetSha, Array.from(FINALIZATION_FAILURE_CODES)]
     ));
     return result.rowCount === 1;
   }

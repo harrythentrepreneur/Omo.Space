@@ -644,15 +644,22 @@ def test_fake_only_cli_rejects_provider_or_credential_selection(tmp_path, forbid
     assert output == '{"error":"invalid_scenario"}'
 
 
-@pytest.mark.parametrize("adapter_name", ["modal", "cloudflare", "vercel"])
-def test_every_preflight_failure_is_persisted_before_provider_effect(adapter_name):
+@pytest.mark.parametrize(
+    ("adapter_name", "expected_code"),
+    [
+        ("modal", "modal_preflight_failed"),
+        ("cloudflare", "worker_preflight_failed"),
+        ("vercel", "public_preflight_failed"),
+    ],
+)
+def test_every_preflight_failure_is_persisted_before_provider_effect(adapter_name, expected_code):
     runtime = "modal-hosted" if adapter_name == "modal" else "worker-native"
     mod, mainline, store, modal, cloudflare, vercel = components(runtime=runtime)
     {"modal": modal, "cloudflare": cloudflare, "vercel": vercel}[adapter_name].fail_on = "preflight"
     with pytest.raises(mod.FinalizerError) as caught:
         mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
-    assert caught.value.code == "credential_preflight_failed"
-    assert store.events[-1] == ("advance", "failed", "credential_preflight_failed")
+    assert caught.value.code == expected_code
+    assert store.events[-1] == ("advance", "failed", expected_code)
     assert "deploy" not in modal.events
     assert "deploy_worker" not in cloudflare.events
     assert "verify_public" not in vercel.events
