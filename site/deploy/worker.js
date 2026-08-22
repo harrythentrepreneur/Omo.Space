@@ -261,6 +261,7 @@ const FINALIZATION_FAILURE_CODES = new Set([
   'public_verification_failed',
   'superseded_main',
   'internal_finalizer_failed',
+  'release_head_not_ancestor',
 ]);
 const EXPECTED_MODAL_WORKSPACE = 'omo-space';
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
@@ -419,6 +420,10 @@ function dynamicRoute(pathname) {
   if (internalFinalizationClaim) return { handler: handleInternalFinalizationClaim, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationResumeCompleted = /^\/api\/internal\/finalizations\/resume-completed$/.exec(pathname);
   if (internalFinalizationResumeCompleted) return { handler: handleInternalFinalizationResumeCompleted, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationFailed = /^\/api\/internal\/finalizations\/failed$/.exec(pathname);
+  if (internalFinalizationFailed) return { handler: handleInternalFinalizationFailed, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationResumeFailed = /^\/api\/internal\/finalizations\/resume-failed$/.exec(pathname);
+  if (internalFinalizationResumeFailed) return { handler: handleInternalFinalizationResumeFailed, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationResumeProbe = /^\/api\/internal\/finalizations\/resume-probe$/.exec(pathname);
   if (internalFinalizationResumeProbe) return { handler: handleInternalFinalizationResumeProbe, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationRegistrySlugs = /^\/api\/internal\/finalizations\/registry-slugs$/.exec(pathname);
@@ -2816,6 +2821,33 @@ async function handleInternalFinalizationResumeCompleted(request, env) {
   return internalJson({ ok: true, finalization }, 200);
 }
 
+async function handleInternalFinalizationFailed(request, env) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+    return internalJson({ error: 'invalid_failed_finalization_inspection' }, 400);
+  }
+  const targetSha = safeGitSha(parsed.body.target_sha);
+  if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
+  const finalization = failedFinalizationRow(await internalInspectFailedFinalization(env, targetSha));
+  if (!finalization) return new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
+  return internalJson({ ok: true, finalization }, 200);
+}
+
+async function handleInternalFinalizationResumeFailed(request, env) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+    return internalJson({ error: 'invalid_failed_finalization_resume' }, 400);
+  }
+  const targetSha = safeGitSha(parsed.body.target_sha);
+  if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
+  const requeued = await internalResumeFailedFinalization(env, targetSha);
+  return requeued
+    ? internalJson({ ok: true, status: 'ready_for_deploy' }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
 async function handleInternalFinalizationResumeProbe(request, env) {
   const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
@@ -4113,6 +4145,157 @@ function completedFinalizationRow(row) {
       safeSha256(row.release_artifact_hash) !== safeSha256(row.finalization_artifact_hash) ||
       !safePromotionEvidence(row.promotion_evidence)) return null;
   return { ...finalization, status: 'completed', submission_status: submissionStatus };
+}
+
+function failedFinalizationRow(row) {
+  if (!row) return null;
+  const id = String(row.finalization_id || '');
+  const submissionId = safeSubmissionId(row.id);
+  const submissionStatus = String(row.status || '');
+  const releasePhase = String(row.release_phase || '');
+  const failureCode = String(row.finalization_failure_code || '').trim();
+  const targetSha = safeGitSha(row.finalization_target_sha);
+  const sourceSha256 = safeSha256(row.finalization_source_sha256);
+  const headSha = safeGitSha(row.finalization_head_sha);
+  const mergeSha = safeGitSha(row.finalization_merge_sha);
+  const artifactHash = safeSha256(row.finalization_artifact_hash);
+  const attempts = Number(row.finalization_attempts);
+  if (!/^fin_[a-f0-9]{32}$/.test(id) || !submissionId ||
+      String(row.finalization_status || '') !== 'failed' || !FINALIZATION_FAILURE_CODES.has(failureCode) ||
+      !['ready_for_deploy', 'failed'].includes(submissionStatus) || releasePhase !== 'merged_verified' ||
+      !targetSha || !sourceSha256 || !headSha || !mergeSha || !artifactHash ||
+      safeSha256(row.source_sha256 || row.sourceSha256) !== sourceSha256 ||
+      safeGitSha(row.release_head_sha) !== headSha || safeGitSha(row.release_merge_sha) !== mergeSha ||
+      safeSha256(row.release_artifact_hash) !== artifactHash ||
+      !Number.isSafeInteger(attempts) || attempts < 1) return null;
+  return {
+    id, status: 'failed', failure_code: failureCode, submission_id: submissionId,
+    submission_status: submissionStatus, release_phase: releasePhase, target_sha: targetSha,
+    source_sha256: sourceSha256, head_sha: headSha, merge_sha: mergeSha,
+    artifact_hash: artifactHash, attempts,
+    modal_receipt_present: row.modal_receipt_present === true || row.finalization_modal_receipt != null,
+    worker_receipt_present: row.worker_receipt_present === true || row.finalization_worker_receipt != null,
+  };
+}
+
+async function internalInspectFailedFinalization(env, targetSha) {
+  const columns = `id,slug,selected_runtime,status,release_phase,source_sha256,release_head_sha,release_merge_sha,
+    release_artifact_hash,finalization_id,finalization_status,finalization_target_sha,
+    finalization_source_sha256,finalization_head_sha,finalization_merge_sha,
+    finalization_artifact_hash,finalization_attempts,finalization_failure_code,
+    finalization_modal_receipt,finalization_worker_receipt,
+    (finalization_modal_receipt IS NOT NULL) AS modal_receipt_present,
+    (finalization_worker_receipt IS NOT NULL) AS worker_receipt_present`;
+  const filters = `finalization_status = 'failed' AND finalization_target_sha = $1
+    AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
+    AND source_sha256 = finalization_source_sha256
+    AND release_head_sha = finalization_head_sha
+    AND release_merge_sha = finalization_merge_sha
+    AND release_artifact_hash = finalization_artifact_hash`;
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-failed-v1',
+      `SELECT ${columns} FROM submissions WHERE ${filters}
+       ORDER BY automation_updated_at DESC, id ASC LIMIT 1`,
+      [targetSha]
+    ));
+    return result.rows[0] || null;
+  }
+  if (databaseKind(env) === 'd1') {
+    return await env.BALANCE_DB.prepare(
+      `SELECT ${columns.replaceAll('$1', '?')} FROM submissions
+       WHERE ${filters.replaceAll('$1', '?')}
+       ORDER BY automation_updated_at DESC, id ASC LIMIT 1`
+    ).bind(targetSha).first();
+  }
+  return Array.from(mockSubmissions.values())
+    .filter((record) => record.finalization_status === 'failed' &&
+      record.finalization_target_sha === targetSha && ['ready_for_deploy', 'failed'].includes(record.status) &&
+      record.release_phase === 'merged_verified')
+    .sort((a, b) => String(b.automation_updated_at || '').localeCompare(String(a.automation_updated_at || '')) ||
+      String(a.id || '').localeCompare(String(b.id || '')))[0] || null;
+}
+
+async function internalResumeFailedFinalization(env, targetSha) {
+  const now = new Date().toISOString();
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-resume-failed-v1',
+      `WITH candidate AS (
+         SELECT id, finalization_id
+         FROM submissions
+         WHERE finalization_target_sha = $1 AND finalization_status = 'failed'
+           AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
+           AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL
+           AND source_sha256 = finalization_source_sha256
+           AND release_head_sha = finalization_head_sha
+           AND release_merge_sha = finalization_merge_sha
+           AND release_artifact_hash = finalization_artifact_hash
+         ORDER BY automation_updated_at DESC, id ASC
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1
+       )
+       UPDATE submissions AS submission
+       SET status = 'ready_for_deploy', finalization_id = NULL, finalization_status = NULL,
+           finalization_target_sha = NULL, finalization_source_sha256 = NULL,
+           finalization_head_sha = NULL, finalization_merge_sha = NULL,
+           finalization_artifact_hash = NULL, finalization_claimed_at = NULL,
+           finalization_lease_expires_at = NULL, finalization_failure_code = NULL,
+           finalization_modal_receipt = NULL, finalization_worker_receipt = NULL,
+           automation_updated_at = CURRENT_TIMESTAMP
+       FROM candidate
+       WHERE submission.id = candidate.id
+         AND submission.finalization_id = candidate.finalization_id
+         AND submission.finalization_target_sha = $1
+         AND submission.finalization_status = 'failed'
+       RETURNING submission.id`,
+      [targetSha]
+    ));
+    return result.rowCount === 1;
+  }
+  const row = await internalInspectFailedFinalization(env, targetSha);
+  const failed = failedFinalizationRow(row);
+  if (!failed || failed.modal_receipt_present || failed.worker_receipt_present) return false;
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `UPDATE submissions
+       SET status = 'ready_for_deploy', finalization_id = NULL, finalization_status = NULL,
+           finalization_target_sha = NULL, finalization_source_sha256 = NULL,
+           finalization_head_sha = NULL, finalization_merge_sha = NULL,
+           finalization_artifact_hash = NULL, finalization_claimed_at = NULL,
+           finalization_lease_expires_at = NULL, finalization_failure_code = NULL,
+           finalization_modal_receipt = NULL, finalization_worker_receipt = NULL,
+           automation_updated_at = ?
+       WHERE id = ? AND finalization_id = ? AND finalization_target_sha = ?
+         AND finalization_status = 'failed' AND status IN ('ready_for_deploy', 'failed')
+         AND release_phase = 'merged_verified'
+         AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL
+         AND source_sha256 = ? AND finalization_source_sha256 = ?
+         AND release_head_sha = ? AND finalization_head_sha = ?
+         AND release_merge_sha = ? AND finalization_merge_sha = ?
+         AND release_artifact_hash = ? AND finalization_artifact_hash = ?`
+    ).bind(
+      now, failed.submission_id, failed.id, targetSha,
+      failed.source_sha256, failed.source_sha256, failed.head_sha, failed.head_sha,
+      failed.merge_sha, failed.merge_sha, failed.artifact_hash, failed.artifact_hash,
+    ).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  row.status = 'ready_for_deploy';
+  row.finalization_id = null;
+  row.finalization_status = null;
+  row.finalization_target_sha = null;
+  row.finalization_source_sha256 = null;
+  row.finalization_head_sha = null;
+  row.finalization_merge_sha = null;
+  row.finalization_artifact_hash = null;
+  row.finalization_claimed_at = null;
+  row.finalization_lease_expires_at = null;
+  row.finalization_failure_code = null;
+  row.finalization_modal_receipt = null;
+  row.finalization_worker_receipt = null;
+  row.automation_updated_at = now;
+  return true;
 }
 
 async function inspectFinalizationResumeQuery(env) {

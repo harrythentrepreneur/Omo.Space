@@ -44,6 +44,7 @@ from production_release_adapters import (
 from production_release_transport import ProductionCommandTransport
 from release_finalizer import (
     DeploymentTargets,
+    FailedFinalization,
     FinalizationClaim,
     FinalizerError,
     GreenMain,
@@ -235,6 +236,13 @@ class GitHubMainlineAdapter:
         )
         return result.returncode == 0
 
+    def trees_equal(self, left: str, right: str) -> bool:
+        if not SAFE_SHA_RE.fullmatch(left) or not SAFE_SHA_RE.fullmatch(right):
+            return False
+        left_tree = self._git("rev-parse", f"{left}^{{tree}}").strip().lower()
+        right_tree = self._git("rev-parse", f"{right}^{{tree}}").strip().lower()
+        return bool(SAFE_SHA_RE.fullmatch(left_tree) and left_tree == right_tree)
+
     def read_blob(self, sha: str, path: str) -> bytes:
         return self._git("show", f"{sha}:{path}", text=False)
 
@@ -321,6 +329,49 @@ class HttpFinalizationStore:
             code = f"finalizer_resume_http_{status}" if isinstance(status, int) and 100 <= status <= 599 else "finalizer_resume_failed"
             raise ControllerError(code)
         return self._claim(body)
+
+    def inspect_failed(self, target_sha: str) -> FailedFinalization | None:
+        status, body = self._post("/api/internal/finalizations/failed", {"target_sha": target_sha})
+        if status == 204:
+            return None
+        if status != 200 or not body or body.get("ok") is not True or not isinstance(body.get("finalization"), dict):
+            raise ControllerError("invalid_finalizer_response")
+        value = body["finalization"]
+        expected = {
+            "id", "status", "failure_code", "submission_id", "submission_status", "release_phase",
+            "target_sha", "source_sha256", "head_sha", "merge_sha", "artifact_hash", "attempts",
+            "modal_receipt_present", "worker_receipt_present",
+        }
+        try:
+            failed = FailedFinalization(**value)
+        except (TypeError, ValueError):
+            raise ControllerError("invalid_finalizer_response") from None
+        if (
+            set(value) != expected or not re.fullmatch(r"fin_[0-9a-f]{32}", failed.id)
+            or not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", failed.submission_id)
+            or failed.status != "failed" or failed.failure_code not in {
+                "credential_preflight_failed", "modal_deploy_failed", "modal_canary_failed",
+                "worker_deploy_failed", "worker_smoke_failed", "public_verification_failed",
+                "superseded_main", "internal_finalizer_failed", "release_head_not_ancestor",
+            }
+            or failed.submission_status not in {"ready_for_deploy", "failed"}
+            or failed.release_phase != "merged_verified" or failed.target_sha != target_sha
+            or not SAFE_SHA_RE.fullmatch(failed.target_sha) or not SAFE_SHA_RE.fullmatch(failed.head_sha)
+            or not SAFE_SHA_RE.fullmatch(failed.merge_sha)
+            or not re.fullmatch(r"[0-9a-f]{64}", failed.source_sha256)
+            or not re.fullmatch(r"[0-9a-f]{64}", failed.artifact_hash)
+            or type(failed.attempts) is not int or failed.attempts < 1
+            or type(failed.modal_receipt_present) is not bool or type(failed.worker_receipt_present) is not bool
+        ):
+            raise ControllerError("invalid_finalizer_response")
+        return failed
+
+    def resume_failed(self, target_sha: str) -> bool:
+        status, body = self._post("/api/internal/finalizations/resume-failed", {"target_sha": target_sha})
+        if status != 200 or body != {"ok": True, "status": "ready_for_deploy"}:
+            code = f"finalizer_failed_resume_http_{status}" if isinstance(status, int) and 100 <= status <= 599 else "finalizer_failed_resume_failed"
+            raise ControllerError(code)
+        return True
 
     def finalization_detail(self, finalization_id: str) -> dict[str, str]:
         status, body = self._post(f"/api/internal/finalizations/{finalization_id}/detail", {})
@@ -680,7 +731,12 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, str]:
     modal = ProductionModalAdapter(env)
     cloudflare = ProductionCloudflareAdapter(env)
     public = ProductionPublicAdapter(store, env.get("PRODUCTION_CANARY_API_KEY", ""))
-    result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
+    if bool(getattr(args, "resume_failed", False)):
+        result = run_finalizer(
+            mainline, store, modal, cloudflare, public, targets=TARGETS, resume_failed=True
+        )
+    else:
+        result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
     if result.get("status") == "idle":
         trusted_checkout = mainline.checkout_detached(result["target_sha"])
         cloudflare.ensure_builder_schedule(trusted_checkout, result["target_sha"])
@@ -697,6 +753,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--trigger-sha", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--run-attempt", required=True)
+    parser.add_argument("--resume-failed", action="store_true")
     args = parser.parse_args(argv)
     if not SAFE_SHA_RE.fullmatch(args.trigger_sha) or not SAFE_ID_RE.fullmatch(args.run_id) or not SAFE_ID_RE.fullmatch(args.run_attempt):
         print('{"error":"invalid_controller_input"}')

@@ -179,6 +179,56 @@ def test_finalization_resume_preserves_only_bounded_http_status():
     assert "SENTINEL" not in str(caught.value)
 
 
+def test_failed_finalization_http_envelopes_are_exact_and_secret_free():
+    mod = load_module()
+    requests = []
+    failed = {
+        "id": "fin_" + "1" * 32, "status": "failed",
+        "failure_code": "release_head_not_ancestor", "submission_id": "sub_12345678",
+        "submission_status": "ready_for_deploy", "release_phase": "merged_verified",
+        "target_sha": SHA, "source_sha256": "e" * 64, "head_sha": "d" * 40,
+        "merge_sha": "c" * 40, "artifact_hash": ARTIFACT, "attempts": 1,
+        "modal_receipt_present": False, "worker_receipt_present": False,
+    }
+    claim = {
+        "id": "fin_" + "2" * 32, "submission_id": "sub_12345678",
+        "slug": "label-normalizer-canary", "runtime": "modal-hosted", "target_sha": SHA,
+        "merge_sha": "c" * 40, "head_sha": "d" * 40, "source_sha256": "e" * 64,
+        "artifact_hash": ARTIFACT, "lease_expires_at": "2099-01-01T00:00:00Z", "attempts": 2,
+    }
+
+    def opener(request, timeout):
+        requests.append(request)
+        assert json.loads(request.data) == {"target_sha": SHA}
+        if request.full_url.endswith("/failed"):
+            return Response({"ok": True, "finalization": failed})
+        if request.full_url.endswith("/resume-failed"):
+            return Response({"ok": True, "status": "ready_for_deploy"})
+        raise AssertionError(request.full_url)
+
+    store = mod.HttpFinalizationStore("finalizer-secret", opener=opener)
+    assert store.inspect_failed(SHA) == mod.FailedFinalization(**failed)
+    assert store.resume_failed(SHA) is True
+    assert [request.full_url.rsplit('/', 1)[-1] for request in requests] == ["failed", "resume-failed"]
+
+
+def test_failed_finalization_client_rejects_extra_or_malformed_safe_fields():
+    mod = load_module()
+    base = {
+        "id": "fin_" + "1" * 32, "status": "failed", "failure_code": "worker_deploy_failed",
+        "submission_id": "sub_12345678", "submission_status": "ready_for_deploy",
+        "release_phase": "merged_verified", "target_sha": SHA, "source_sha256": "e" * 64,
+        "head_sha": "d" * 40, "merge_sha": "c" * 40, "artifact_hash": ARTIFACT,
+        "attempts": 1, "modal_receipt_present": False, "worker_receipt_present": False,
+    }
+    for body in ({**base, "receipt": {"secret": "leak"}}, {**base, "head_sha": "bad"}):
+        store = mod.HttpFinalizationStore(
+            "token", opener=lambda request, timeout, body=body: Response({"ok": True, "finalization": body})
+        )
+        with pytest.raises(mod.ControllerError, match="invalid_finalizer_response"):
+            store.inspect_failed(SHA)
+
+
 def test_http_failures_are_mapped_to_secret_free_trust_boundary_stages(monkeypatch, tmp_path):
     mod = load_module()
 

@@ -132,6 +132,8 @@ let neonFinalizationClaimRow = null;
 let neonFinalizationDetailRow = null;
 let neonFinalizationStatusRow = null;
 let neonCompletedFinalizationRow = null;
+let neonFailedFinalizationRow = null;
+let neonFailedResumeRow = null;
 let neonFinalizationRegistryRows = [];
 let neonFinalizationEffectRow = null;
 
@@ -174,6 +176,12 @@ class MockPool {
         }
         if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
           return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        if (entry.name === 'omo-internal-finalization-failed-v1') {
+          return neonFailedFinalizationRow ? { rows: [neonFailedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        if (entry.name === 'omo-internal-finalization-resume-failed-v1') {
+          return neonFailedResumeRow ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -355,10 +363,14 @@ const sandbox = {
               ? 'omo-internal-submission-detail-v1'
               : text.includes('WITH candidate AS') && text.includes('build_claimed_at')
                 ? 'omo-internal-submission-claim-v1'
-              : text.includes('WITH candidate AS') && text.includes('finalization_id')
+              : text.includes('WITH candidate AS') && text.includes('finalization_id') && text.includes("finalization_status = 'claimed'")
                 ? 'omo-internal-finalization-claim-v1'
               : text.includes("status IN ('ready_for_publish', 'deployed')") && text.includes("finalization_status = 'completed'") && text.includes('SELECT')
                 ? 'omo-internal-finalization-resume-completed-v1'
+              : text.includes("finalization_status = 'failed'") && text.includes('finalization_modal_receipt IS NOT NULL') && text.includes('SELECT')
+                ? 'omo-internal-finalization-failed-v1'
+              : text.includes("SET status = 'ready_for_deploy'") && text.includes('finalization_id = NULL') && text.includes("finalization_status = 'failed'")
+                ? 'omo-internal-finalization-resume-failed-v1'
               : text.includes('SELECT DISTINCT published_slug')
                 ? 'omo-internal-finalization-registry-slugs-v1'
               : text.includes('SET finalization_modal_receipt =')
@@ -392,6 +404,12 @@ const sandbox = {
       if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
         return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-internal-finalization-failed-v1') {
+        return neonFailedFinalizationRow ? { rows: [neonFailedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (entry.name === 'omo-internal-finalization-resume-failed-v1') {
+        return neonFailedResumeRow ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
       if (entry.name === 'omo-internal-finalization-registry-slugs-v1') {
         return { rows: neonFinalizationRegistryRows, rowCount: neonFinalizationRegistryRows.length };
       }
@@ -412,7 +430,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, internalRecordFinalizationEffect, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, internalRecordFinalizationEffect, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -1934,6 +1952,113 @@ check('internal completed finalization resume Neon: exact target and immutable c
   neonSqlCalls.some((call) => call.text === 'RELEASE') &&
   neonSqlCalls.some((call) => call.text === 'POOL_END'));
 neonCompletedFinalizationRow = null;
+const failedRecoveryTarget = '4'.repeat(40);
+const failedRecoveryRecord = {
+  id: 'sub_failedfinalization01', slug: 'failed-workflow', source_sha256: 'a'.repeat(64),
+  selected_runtime: 'worker-native', status: 'failed', failure_code: 'build_or_deploy_failed',
+  release_phase: 'merged_verified', published_slug: 'failed-workflow', workflow_version: 'failed-workflow@1.0.0',
+  build_evidence: JSON.stringify({ checks: ['trusted_compile'], source_sha256: 'a'.repeat(64) }),
+  release_issue_url: 'https://github.com/omo-space/marketplace/issues/71',
+  release_pr_url: 'https://github.com/omo-space/marketplace/pull/72', release_pr_number: 72,
+  release_branch: 'omo-release/sub_failedfinalization01-failed-workflow',
+  release_head_sha: 'b'.repeat(40), release_merge_sha: 'c'.repeat(40), release_artifact_hash: 'd'.repeat(64),
+  finalization_id: 'fin_' + '4'.repeat(32), finalization_status: 'failed',
+  finalization_failure_code: 'release_head_not_ancestor', finalization_target_sha: failedRecoveryTarget,
+  finalization_source_sha256: 'a'.repeat(64), finalization_head_sha: 'b'.repeat(40),
+  finalization_merge_sha: 'c'.repeat(40), finalization_artifact_hash: 'd'.repeat(64),
+  finalization_lease_expires_at: '2026-08-21T00:00:00Z', finalization_attempts: 1,
+  finalization_modal_receipt: null, finalization_worker_receipt: null,
+  updated_at: '2026-08-21T00:00:00Z', automation_updated_at: '2026-08-21T00:00:00Z',
+};
+workerTest.mockSubmissions.set(failedRecoveryRecord.id, failedRecoveryRecord);
+const builderFailedInspect = await worker.fetch(mkReq('POST', '/api/internal/finalizations/failed', {
+  target_sha: failedRecoveryTarget,
+}, internalHeaders), buildEnv);
+const failedInspect = await worker.fetch(mkReq('POST', '/api/internal/finalizations/failed', {
+  target_sha: failedRecoveryTarget,
+}, finalizerHeaders), buildEnv);
+const failedInspectBody = await failedInspect.json();
+const failedInspectExtra = await worker.fetch(mkReq('POST', '/api/internal/finalizations/failed', {
+  target_sha: failedRecoveryTarget, receipts: true,
+}, finalizerHeaders), buildEnv);
+const failedResume = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-failed', {
+  target_sha: failedRecoveryTarget,
+}, finalizerHeaders), buildEnv);
+const failedResumeBody = await failedResume.json();
+const failedResumeReplay = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-failed', {
+  target_sha: failedRecoveryTarget,
+}, finalizerHeaders), buildEnv);
+check('failed finalization diagnosis/resume mock: finalizer-only exact safe envelope requeues once for a fresh standard claim',
+  builderFailedInspect.status === 401 && failedInspect.status === 200 && failedInspectExtra.status === 400 &&
+  Object.keys(failedInspectBody.finalization).sort().join(',') === [
+    'artifact_hash', 'attempts', 'failure_code', 'head_sha', 'id', 'merge_sha',
+    'modal_receipt_present', 'release_phase', 'source_sha256', 'status', 'submission_id',
+    'submission_status', 'target_sha', 'worker_receipt_present',
+  ].sort().join(',') &&
+  failedInspectBody.finalization.failure_code === 'release_head_not_ancestor' &&
+  failedInspectBody.finalization.modal_receipt_present === false &&
+  failedResume.status === 200 && failedResumeBody.status === 'ready_for_deploy' &&
+  failedRecoveryRecord.status === 'ready_for_deploy' && failedRecoveryRecord.finalization_id === null &&
+  failedRecoveryRecord.finalization_status === null && failedResumeReplay.status === 409);
+
+const receiptBearingFailed = { ...failedRecoveryRecord,
+  id: 'sub_receiptfailedfinal01', finalization_id: 'fin_' + '5'.repeat(32),
+  finalization_status: 'failed', finalization_failure_code: 'worker_smoke_failed',
+  finalization_target_sha: '5'.repeat(40), finalization_attempts: 3,
+  finalization_source_sha256: 'a'.repeat(64), finalization_head_sha: 'b'.repeat(40),
+  finalization_merge_sha: 'c'.repeat(40), finalization_artifact_hash: 'd'.repeat(64),
+  finalization_lease_expires_at: '2026-08-21T00:00:00Z',
+  finalization_worker_receipt: '{"recorded":true}', finalization_modal_receipt: null,
+  status: 'ready_for_deploy',
+};
+workerTest.mockSubmissions.set(receiptBearingFailed.id, receiptBearingFailed);
+const receiptFailedInspect = await worker.fetch(mkReq('POST', '/api/internal/finalizations/failed', {
+  target_sha: '5'.repeat(40),
+}, finalizerHeaders), buildEnv);
+const receiptFailedInspectBody = await receiptFailedInspect.json();
+const receiptFailedResume = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-failed', {
+  target_sha: '5'.repeat(40),
+}, finalizerHeaders), buildEnv);
+receiptBearingFailed.release_merge_sha = 'f'.repeat(40);
+const malformedFailedResume = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-failed', {
+  target_sha: '5'.repeat(40),
+}, finalizerHeaders), buildEnv);
+check('failed finalization resume mock: receipt-bearing, malformed identity, wrong state, and replay fail closed',
+  receiptFailedInspect.status === 200 && receiptFailedInspectBody.finalization.worker_receipt_present === true &&
+  !JSON.stringify(receiptFailedInspectBody).includes('recorded') && receiptFailedResume.status === 409 &&
+  malformedFailedResume.status === 409);
+
+neonSqlCalls.length = 0;
+neonFailedFinalizationRow = { ...receiptBearingFailed, release_merge_sha: 'c'.repeat(40),
+  modal_receipt_present: false, worker_receipt_present: true };
+const neonFailedInspect = await workerTest.internalInspectFailedFinalization(
+  { NEON_DATABASE_URL: 'postgres://example' }, '5'.repeat(40)
+);
+const neonFailedInspectCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-failed-v1');
+neonFailedResumeRow = { ...failedRecoveryRecord, finalization_id: 'fin_' + '6'.repeat(32),
+  finalization_target_sha: '6'.repeat(40), finalization_attempts: 4,
+  finalization_lease_expires_at: '2099-08-21T00:00:00Z' };
+const neonFailedResumed = await workerTest.internalResumeFailedFinalization(
+  { NEON_DATABASE_URL: 'postgres://example' }, '6'.repeat(40)
+);
+const neonFailedResumeCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-resume-failed-v1');
+check('failed finalization Neon SQL: exact target, complete immutable equality, and no-receipt requeue CAS',
+  workerTest.failedFinalizationRow(neonFailedInspect).worker_receipt_present === true &&
+  neonFailedInspectCall.values[0] === '5'.repeat(40) &&
+  neonFailedInspectCall.text.includes('source_sha256 = finalization_source_sha256') &&
+  neonFailedInspectCall.text.includes('release_artifact_hash = finalization_artifact_hash') &&
+  neonFailedResumeCall.values.includes('6'.repeat(40)) &&
+  neonFailedResumeCall.text.includes("finalization_status = 'failed'") &&
+  neonFailedResumeCall.text.includes("status IN ('ready_for_deploy', 'failed')") &&
+  neonFailedResumeCall.text.includes('FOR UPDATE SKIP LOCKED') &&
+  neonFailedResumeCall.text.includes('submission.id = candidate.id') &&
+  neonFailedResumeCall.text.includes('submission.finalization_id = candidate.finalization_id') &&
+  neonFailedResumeCall.text.includes('finalization_modal_receipt IS NULL') &&
+  neonFailedResumeCall.text.includes('release_merge_sha = finalization_merge_sha') &&
+  neonFailedResumed === true);
+neonFailedFinalizationRow = null;
+neonFailedResumeRow = null;
+workerTest.mockSubmissions.delete(failedRecoveryRecord.id);
 const builderFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
   target_sha: '3'.repeat(40),
 }, internalHeaders), buildEnv);
@@ -2743,6 +2868,48 @@ check('internal completed finalization resume D1: real SQLite returns publish-re
   workerTest.completedFinalizationRow(d1CompletedAfterDeploy).submission_status === 'deployed');
 d1Completed.db.close();
 
+const d1FailedTarget = '7'.repeat(40);
+const d1Failed = d1DatabaseForFinalization({
+  id: 'sub_d1failedfinal01', slug: 'd1-failed-final', source_sha256: '8'.repeat(64),
+  selected_runtime: 'worker-native', status: 'failed',
+  release_phase: 'merged_verified', published_slug: 'd1-failed-final',
+  workflow_version: 'd1-failed-final@1.0.0',
+  build_evidence: JSON.stringify({ checks: ['trusted_compile'], source_sha256: '8'.repeat(64) }),
+  release_issue_url: 'https://github.com/omo-space/marketplace/issues/81',
+  release_pr_url: 'https://github.com/omo-space/marketplace/pull/82', release_pr_number: 82,
+  release_branch: 'omo-release/sub_d1failedfinal01-d1-failed-final',
+  release_head_sha: '9'.repeat(40), release_merge_sha: 'a'.repeat(40),
+  release_artifact_hash: 'b'.repeat(64), finalization_id: 'fin_' + '7'.repeat(32),
+  finalization_status: 'failed', finalization_failure_code: 'release_head_not_ancestor',
+  finalization_target_sha: d1FailedTarget, finalization_source_sha256: '8'.repeat(64),
+  finalization_head_sha: '9'.repeat(40), finalization_merge_sha: 'a'.repeat(40),
+  finalization_artifact_hash: 'b'.repeat(64), finalization_attempts: 1,
+  finalization_lease_expires_at: '2026-08-21T00:00:00Z', finalization_modal_receipt: null,
+  finalization_worker_receipt: null, automation_updated_at: '2026-08-21T00:00:00Z',
+  updated_at: '2026-08-21T00:00:00Z',
+});
+const d1FailedEnv = { BALANCE_DB: d1Failed.binding };
+const d1FailedBefore = workerTest.failedFinalizationRow(
+  await workerTest.internalInspectFailedFinalization(d1FailedEnv, d1FailedTarget)
+);
+const d1FailedRequeued = await workerTest.internalResumeFailedFinalization(d1FailedEnv, d1FailedTarget);
+const d1FreshTarget = 'c'.repeat(40);
+const d1FailedResumed = await workerTest.internalClaimFinalization(d1FailedEnv, d1FreshTarget);
+const d1FailedReplay = await workerTest.internalResumeFailedFinalization(d1FailedEnv, d1FailedTarget);
+const d1FailedAfter = d1Failed.db.prepare(
+  'SELECT status,finalization_id,finalization_status,finalization_attempts,finalization_failure_code FROM submissions WHERE id = ?'
+).get('sub_d1failedfinal01');
+
+check('internal failed finalization resume D1: real SQLite requeues once, then standard claim binds fresh green target',
+  d1FailedBefore.failure_code === 'release_head_not_ancestor' &&
+  d1FailedBefore.modal_receipt_present === false && d1FailedBefore.worker_receipt_present === false &&
+  d1FailedRequeued === true && d1FailedResumed && d1FailedResumed.target_sha === d1FreshTarget &&
+  d1FailedResumed.id !== 'fin_' + '7'.repeat(32) && d1FailedResumed.attempts === 2 &&
+  d1FailedReplay === false && d1FailedAfter.status === 'ready_for_deploy' &&
+  d1FailedAfter.finalization_status === 'claimed' && d1FailedAfter.finalization_attempts === 2 &&
+  d1FailedAfter.finalization_failure_code === null);
+d1Failed.db.close();
+
 function d1DatabaseForMergedRelease(record) {
   const db = new DatabaseSync(':memory:');
   db.exec(`CREATE TABLE submissions (
@@ -3194,12 +3361,13 @@ const facebookLateMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=u
 const facebookLateHeaders = { 'X-API-Key': facebookLateMe.api_key, 'Idempotency-Key': 'facebook-router-late-success' };
 const facebookLatePromise = worker.fetch(mkReq('POST', '/api/run', facebookInput, facebookLateHeaders), facebookEnv);
 let facebookLateRow = null;
-for (let attempt = 0; attempt < 100; attempt += 1) {
+for (let attempt = 0; attempt < 500; attempt += 1) {
   facebookLateRow = Array.from(workerTest.mockRunRequests.values()).find((row) => row.idempotency_key === 'facebook-router-late-success') || null;
   if (facebookLateRow && facebookLateRow.state === 'running') break;
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setTimeout(resolve, 1));
 }
 check('hosted registry: Worker-native race fixture reaches a running provider call', facebookLateRow && facebookLateRow.state === 'running');
+if (!facebookLateRow) throw new Error('facebook late-success fixture did not create a run row');
 facebookLateRow.updated_at = new Date(Date.now() - 61 * 1000).toISOString();
 const facebookBeforeTimeout = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_facebook_late', {}), { ...env, RUN_RESERVATION_TTL_SECONDS: '60' })).json();
 check('hosted registry: Worker-native run is not stale before provider timeout plus safety buffer', facebookLateRow.state === 'running' && facebookBeforeTimeout.balance_usd === 4.9);
