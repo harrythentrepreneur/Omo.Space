@@ -319,6 +319,16 @@ def cloudflare_active_version(deployments: Any) -> str:
     return _active_version(_list(deployments))
 
 
+def cloudflare_target_present(versions: Any, target_sha: str) -> bool:
+    sha = _sha(target_sha)
+    return any(
+        isinstance(row.get("annotations"), dict)
+        and row["annotations"].get("workers/message") == f"issue141:{sha}"
+        and SAFE_VERSION_RE.fullmatch(str(row.get("id") or ""))
+        for row in _list(versions)
+    )
+
+
 def cloudflare_receipt(versions_before: Any, versions_after: Any, deployments_before: Any, deployments_after: Any, target_sha: str, artifact_hash: str) -> DeploymentReceipt:
     sha, artifact = _sha(target_sha), _hash(artifact_hash)
     before_rows, after_rows = _list(versions_before), _list(versions_after)
@@ -327,9 +337,12 @@ def cloudflare_receipt(versions_before: Any, versions_after: Any, deployments_be
     matches = lambda rows: [row for row in rows if isinstance(row.get("annotations"), dict) and row["annotations"].get("workers/message") == message and SAFE_VERSION_RE.fullmatch(str(row.get("id") or ""))]
     before_match, after_match = matches(before_rows), matches(after_rows)
     active_before, active_after = _active_version(before_deployments), _active_version(after_deployments)
-    if len(before_match) == 1:
-        version = str(before_match[0]["id"])
-        if len(after_match) != 1 or str(after_match[0]["id"]) != version or active_after != version:
+    if before_match:
+        version = active_before
+        before_ids = {str(row["id"]) for row in before_match}
+        after_ids = {str(row["id"]) for row in after_match}
+        if (before_rows != after_rows or before_deployments != after_deployments or
+                before_ids != after_ids or version not in before_ids or active_after != version):
             raise AdapterError("production_readback_failed")
         return DeploymentReceipt("cloudflare", CLOUDFLARE_TARGET, "production", sha, artifact, version, None, True, None)
     if before_match or len(after_match) != 1:

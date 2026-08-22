@@ -222,6 +222,22 @@ def test_cloudflare_readback_binds_message_active_version_and_rollback():
         )
 
 
+def test_cloudflare_readback_adopts_active_exact_target_without_mutation():
+    mod = load_module()
+    rows = [
+        {"id": "cf-old", "annotations": {"workers/message": "old"}},
+        {"id": "cf-first", "annotations": {"workers/message": f"issue141:{SHA}"}},
+        {"id": "cf-active", "annotations": {"workers/message": f"issue141:{SHA}"}},
+    ]
+    deployments = [
+        {"id": "dep-old", "versions": [{"version_id": "cf-old", "percentage": 100}]},
+        {"id": "dep-active", "versions": [{"version_id": "cf-active", "percentage": 100}]},
+    ]
+    receipt = mod.cloudflare_receipt(rows, rows, deployments, deployments, SHA, ARTIFACT)
+    assert receipt.version_id == "cf-active"
+    assert receipt.reused is True and receipt.previous_version_id is None
+
+
 def test_bundle_hash_reads_only_bounded_authoritative_worker(tmp_path):
     mod = load_module()
     outdir = tmp_path / "out"
