@@ -68,6 +68,71 @@ TARGETS = DeploymentTargets(MODAL_TARGET, MODAL_ENVIRONMENT, CLOUDFLARE_TARGET, 
 MODAL_CANARY_ORIGIN = "https://omo-space--cognition-label-normalizer-canary-api.modal.run"
 
 
+def _validate_recovery_receipt(value: object, provider: str, target_sha: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ControllerError("invalid_recovery_plan")
+    required = {
+        "artifact_hash", "environment", "previous_version_id", "provider", "reused",
+        "rollback_token", "status", "target", "target_sha", "version_id",
+    }
+    expected_target = MODAL_TARGET if provider == "modal" else CLOUDFLARE_TARGET
+    expected_environment = MODAL_ENVIRONMENT if provider == "modal" else "production"
+    previous = value.get("previous_version_id")
+    reused = value.get("reused")
+    version_re = r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}"
+    if (
+        set(value) != required or value.get("provider") != provider
+        or value.get("target") != expected_target or value.get("environment") != expected_environment
+        or value.get("target_sha") != target_sha or value.get("status") != "passed"
+        or not re.fullmatch(r"[0-9a-f]{64}", str(value.get("artifact_hash") or ""))
+        or not re.fullmatch(version_re, str(value.get("version_id") or ""))
+        or type(reused) is not bool
+        or (previous is not None and not re.fullmatch(version_re, str(previous)))
+        or value.get("rollback_token") != previous
+        or (reused is True and previous is not None)
+        or (reused is False and previous is None)
+    ):
+        raise ControllerError("invalid_recovery_plan")
+    return value
+
+
+def _validate_recovery_plan(value: object, target_sha: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {"target_sha", "modal", "cloudflare"} or value.get("target_sha") != target_sha:
+        raise ControllerError("invalid_recovery_plan")
+    for provider in ("modal", "cloudflare"):
+        item = value.get(provider)
+        if not isinstance(item, dict) or set(item) != {"receipt", "expected_active_version_id"}:
+            raise ControllerError("invalid_recovery_plan")
+        receipt = _validate_recovery_receipt(item.get("receipt"), provider, target_sha)
+        expected = receipt["version_id"] if receipt["reused"] else receipt["previous_version_id"]
+        if item.get("expected_active_version_id") != expected:
+            raise ControllerError("invalid_recovery_plan")
+    return value
+
+
+def recover_rolled_back_finalization(mainline, store, modal, cloudflare, target_sha: str) -> dict[str, str]:
+    if not SAFE_SHA_RE.fullmatch(target_sha):
+        raise ControllerError("invalid_recovery_target")
+    latest = mainline.latest_green()
+    if (
+        latest.workflow != WORKFLOW_NAME or latest.event != "push" or latest.branch != BRANCH
+        or latest.conclusion != "success" or latest.trigger_sha != latest.target_sha
+        or not SAFE_SHA_RE.fullmatch(latest.target_sha)
+    ):
+        raise ControllerError("invalid_green_main")
+    if not mainline.is_ancestor(target_sha, latest.target_sha):
+        raise ControllerError("recovery_target_not_ancestor")
+    plan = store.recovery_plan(target_sha)
+    _validate_recovery_plan(plan, target_sha)
+    if modal.active_version() != plan["modal"]["expected_active_version_id"]:
+        raise ControllerError("modal_recovery_readback_mismatch")
+    if cloudflare.active_version() != plan["cloudflare"]["expected_active_version_id"]:
+        raise ControllerError("cloudflare_recovery_readback_mismatch")
+    if not store.recover_rolled_back(target_sha):
+        raise ControllerError("recovery_conflict")
+    return {"status": "ready_for_deploy", "target_sha": latest.target_sha}
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -374,6 +439,20 @@ class HttpFinalizationStore:
         if status != 200 or body != {"ok": True, "status": "ready_for_deploy"}:
             code = f"finalizer_failed_resume_http_{status}" if isinstance(status, int) and 100 <= status <= 599 else "finalizer_failed_resume_failed"
             raise ControllerError(code)
+        return True
+
+    def recovery_plan(self, target_sha: str) -> dict[str, Any]:
+        status, body = self._post("/api/internal/finalizations/recovery-plan", {"target_sha": target_sha})
+        if status != 200 or not body or body.get("ok") is not True:
+            raise ControllerError("invalid_recovery_plan")
+        plan = body.get("recovery")
+        _validate_recovery_plan(plan, target_sha)
+        return plan
+
+    def recover_rolled_back(self, target_sha: str) -> bool:
+        status, body = self._post("/api/internal/finalizations/recover-rolled-back", {"target_sha": target_sha})
+        if status != 200 or body != {"ok": True, "status": "ready_for_deploy"}:
+            raise ControllerError("recovery_conflict")
         return True
 
     def finalization_detail(self, finalization_id: str) -> dict[str, str]:
