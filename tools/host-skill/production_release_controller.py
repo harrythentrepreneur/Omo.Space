@@ -589,7 +589,11 @@ class ProductionCloudflareAdapter:
         ))
 
     def smoke_worker(self, claim, deploy_receipt):
-        request = urllib.request.Request(f"{PUBLIC_ORIGIN}/api/me", method="GET")
+        request = urllib.request.Request(
+            f"{PUBLIC_ORIGIN}/api/me",
+            headers={"User-Agent": "OmoProductionFinalizer/1.0", "Accept": "application/json"},
+            method="GET",
+        )
         try:
             urllib.request.urlopen(request, timeout=30)
         except urllib.error.HTTPError as error:
