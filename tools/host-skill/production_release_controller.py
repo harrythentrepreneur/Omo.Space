@@ -305,7 +305,8 @@ class HttpFinalizationStore:
         if status == 204:
             return None
         if status != 200:
-            raise ControllerError("finalizer_claim_failed")
+            code = f"finalizer_claim_http_{status}" if isinstance(status, int) and 100 <= status <= 599 else "finalizer_claim_failed"
+            raise ControllerError(code)
         return self._claim(body)
 
     def resume_completed(self, target_sha: str) -> FinalizationClaim | None:
