@@ -193,6 +193,17 @@ def test_http_failures_are_mapped_to_secret_free_trust_boundary_stages(monkeypat
     assert caught.value.code == "modal_result_url_invalid"
 
 
+def test_http_status_is_preserved_without_reading_or_retaining_error_body():
+    mod = load_module()
+
+    def bad_gateway(request, timeout):
+        raise mod.urllib.error.HTTPError(
+            request.full_url, 502, "SENTINEL_MUST_NOT_ESCAPE", {}, io.BytesIO(b"SENTINEL_BODY")
+        )
+
+    assert mod._request_json("https://example.invalid", opener=bad_gateway) == (502, None)
+
+
 def test_modal_canary_requires_exact_terminal_fixture(monkeypatch):
     mod = load_module()
     claim = SimpleNamespace(submission_id="sub_12345678")
