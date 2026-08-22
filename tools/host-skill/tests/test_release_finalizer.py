@@ -72,6 +72,10 @@ class Mainline:
         self.calls.append(("ancestor", older, newer))
         return (older, newer) in {(HEAD, MERGE), (MERGE, TARGET)}
 
+    def trees_equal(self, left, right):
+        self.calls.append(("trees_equal", left, right))
+        return False
+
     def read_blob(self, sha, path):
         self.calls.append(("read_blob", sha, path))
         return self.entries[path]
@@ -117,10 +121,11 @@ class Store:
         self.gates = None
         self.effects: dict[str, dict] = {}
         self.fail_on: str | None = None
+        self.failed_inspection = None
 
     def claim(self, target_sha):
         self.events.append(("claim", target_sha))
-        if self.state == "completed" or self.submission_status == "deployed":
+        if self.state in {"completed", "failed"} or self.submission_status == "deployed":
             return None
         return self.claim_value
 
@@ -129,6 +134,20 @@ class Store:
         if self.state == "completed" and self.claim_value.target_sha == target_sha:
             return self.claim_value
         return None
+
+    def inspect_failed(self, target_sha):
+        self.events.append(("inspect_failed", target_sha))
+        return self.failed_inspection
+
+    def resume_failed(self, target_sha):
+        self.events.append(("resume_failed", target_sha))
+        if self.failed_inspection and self.failed_inspection.target_sha == target_sha:
+            self.failed_inspection = None
+            self.state = "requeued"
+            self.submission_status = "ready_for_deploy"
+            self.claim_value = replace(self.claim_value, id="fin_" + "2" * 32, attempts=2)
+            return True
+        return False
 
     def finalization_detail(self, finalization_id):
         self.events.append(("finalization_detail", finalization_id))
@@ -476,8 +495,9 @@ def test_provenance_guards_fail_before_provider_effect(mutation, code):
 
     with pytest.raises(mod.FinalizerError) as caught:
         mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
-    assert caught.value.code == "internal_finalizer_failed"
-    assert store.events[-1] == ("advance", "failed", "internal_finalizer_failed")
+    expected = "release_head_not_ancestor" if mutation == "head_ancestry" else "internal_finalizer_failed"
+    assert caught.value.code == expected
+    assert store.events[-1] == ("advance", "failed", expected)
     assert modal.events == cloudflare.events == vercel.events == []
 
 
@@ -759,3 +779,66 @@ def test_committed_terminal_write_is_resumed_without_duplicate_provider_effect(c
     result = mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
     assert result == {"status": "deployed", "submission_id": "sub_12345678", "target_sha": TARGET}
     assert journal.events == first_effects
+
+
+def test_squash_merge_with_exact_reviewed_tree_is_accepted():
+    mod, mainline, store, modal, cloudflare, vercel = components()
+    original = mainline.is_ancestor
+    mainline.is_ancestor = lambda older, newer: False if (older, newer) == (HEAD, MERGE) else original(older, newer)
+    mainline.trees_equal = lambda left, right: (left, right) == (HEAD, MERGE)
+
+    result = mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert result["status"] == "deployed"
+
+
+def test_squash_merge_with_different_tree_fails_closed_with_typed_code():
+    mod, mainline, store, modal, cloudflare, vercel = components()
+    mainline.is_ancestor = lambda older, newer: (older, newer) == (MERGE, TARGET)
+    mainline.trees_equal = lambda left, right: False
+
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert caught.value.code == "release_head_not_ancestor"
+    assert store.events[-1] == ("advance", "failed", "release_head_not_ancestor")
+    assert modal.events == cloudflare.events == vercel.events == []
+
+
+def test_failed_generation_is_diagnosed_before_completed_resume_and_surfaces_typed_code():
+    mod, mainline, store, modal, cloudflare, vercel = components()
+    store.state = "failed"
+    store.failed_inspection = mod.FailedFinalization(
+        id=store.claim_value.id, submission_id=store.claim_value.submission_id,
+        status="failed", failure_code="release_head_not_ancestor",
+        submission_status="ready_for_deploy", release_phase="merged_verified",
+        target_sha=TARGET, source_sha256=store.claim_value.source_sha256,
+        head_sha=HEAD, merge_sha=MERGE, artifact_hash=store.claim_value.artifact_hash,
+        attempts=1, modal_receipt_present=False, worker_receipt_present=False,
+    )
+
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert caught.value.code == "release_head_not_ancestor"
+    assert store.events == [("claim", TARGET), ("inspect_failed", TARGET)]
+    assert modal.events == cloudflare.events == vercel.events == []
+
+
+def test_controlled_failed_resume_uses_fresh_generation_then_runs_normally():
+    mod, mainline, store, modal, cloudflare, vercel = components()
+    store.state = "failed"
+    store.failed_inspection = mod.FailedFinalization(
+        id=store.claim_value.id, submission_id=store.claim_value.submission_id,
+        status="failed", failure_code="release_head_not_ancestor",
+        submission_status="failed", release_phase="merged_verified",
+        target_sha=TARGET, source_sha256=store.claim_value.source_sha256,
+        head_sha=HEAD, merge_sha=MERGE, artifact_hash=store.claim_value.artifact_hash,
+        attempts=1, modal_receipt_present=False, worker_receipt_present=False,
+    )
+
+    result = mod.run_finalizer(mainline, store, modal, cloudflare, vercel, resume_failed=True)
+
+    assert result["status"] == "deployed"
+    assert ("inspect_failed", TARGET) in store.events
+    assert ("resume_failed", TARGET) in store.events

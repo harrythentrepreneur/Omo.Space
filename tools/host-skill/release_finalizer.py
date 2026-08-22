@@ -56,9 +56,28 @@ class FinalizationClaim:
     attempts: int
 
 
+@dataclass(frozen=True)
+class FailedFinalization:
+    id: str
+    status: Literal["failed"]
+    failure_code: str
+    submission_id: str
+    submission_status: Literal["ready_for_deploy", "failed"]
+    release_phase: Literal["merged_verified"]
+    target_sha: str
+    source_sha256: str
+    head_sha: str
+    merge_sha: str
+    artifact_hash: str
+    attempts: int
+    modal_receipt_present: bool
+    worker_receipt_present: bool
+
+
 class MainlineAdapter(Protocol):
     def latest_green(self) -> GreenMain: ...
     def is_ancestor(self, older: str, newer: str) -> bool: ...
+    def trees_equal(self, left: str, right: str) -> bool: ...
     def read_blob(self, sha: str, path: str) -> bytes: ...
     def list_tree(self, sha: str, prefix: str) -> dict[str, bytes]: ...
     def checkout_detached(self, sha: str) -> Path: ...
@@ -70,6 +89,8 @@ class MainlineAdapter(Protocol):
 class FinalizationStore(Protocol):
     def claim(self, target_sha: str) -> FinalizationClaim | None: ...
     def resume_completed(self, target_sha: str) -> FinalizationClaim | None: ...
+    def inspect_failed(self, target_sha: str) -> FailedFinalization | None: ...
+    def resume_failed(self, target_sha: str) -> bool: ...
     def finalization_detail(self, finalization_id: str) -> dict[str, str]: ...
     def submission_detail(self, submission_id: str) -> dict[str, str]: ...
     def required_registry_slugs(self) -> set[str]: ...
@@ -128,7 +149,9 @@ def _verify_provenance(
     _validate_claim_shape(claim)
     if claim.target_sha != target_sha:
         raise FinalizerError("claim_target_mismatch")
-    if not mainline.is_ancestor(claim.head_sha, claim.merge_sha):
+    if not mainline.is_ancestor(claim.head_sha, claim.merge_sha) and not mainline.trees_equal(
+        claim.head_sha, claim.merge_sha
+    ):
         raise FinalizerError("release_head_not_ancestor")
     if not mainline.is_ancestor(claim.merge_sha, target_sha):
         raise FinalizerError("release_merge_not_ancestor")
@@ -171,7 +194,30 @@ _PHASE1_FAILURE_CODES = {
     "public_verification_failed",
     "superseded_main",
     "internal_finalizer_failed",
+    "release_head_not_ancestor",
 }
+
+
+def _validate_failed_finalization(value: FailedFinalization, target_sha: str) -> None:
+    if (
+        not isinstance(value, FailedFinalization)
+        or not re.fullmatch(r"fin_[0-9a-f]{32}", value.id)
+        or not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", value.submission_id)
+        or value.status != "failed"
+        or value.failure_code not in _PHASE1_FAILURE_CODES
+        or value.submission_status not in {"ready_for_deploy", "failed"}
+        or value.release_phase != "merged_verified"
+        or value.target_sha != target_sha
+        or not SAFE_GIT_SHA_RE.fullmatch(value.target_sha)
+        or not SAFE_GIT_SHA_RE.fullmatch(value.head_sha)
+        or not SAFE_GIT_SHA_RE.fullmatch(value.merge_sha)
+        or not SAFE_SHA256_RE.fullmatch(value.source_sha256)
+        or not SAFE_SHA256_RE.fullmatch(value.artifact_hash)
+        or value.attempts < 1
+        or type(value.modal_receipt_present) is not bool
+        or type(value.worker_receipt_present) is not bool
+    ):
+        raise FinalizerError("internal_finalizer_failed")
 
 
 def _record_failure(store, claim: FinalizationClaim, code: str) -> str:
@@ -274,7 +320,8 @@ def _rollback_new_deployments(claim, modal, cloudflare, modal_receipt, worker_re
 
 
 def run_finalizer(
-    mainline, store, modal, cloudflare, vercel, *, targets: DeploymentTargets = STAGING_TARGETS
+    mainline, store, modal, cloudflare, vercel, *, targets: DeploymentTargets = STAGING_TARGETS,
+    resume_failed: bool = False,
 ) -> dict[str, str]:
     """Finalize at most one release through injected deterministic adapters."""
     green = mainline.latest_green()
@@ -284,10 +331,23 @@ def run_finalizer(
 
     claim = store.claim(green.target_sha)
     if claim is None:
-        resumed = store.resume_completed(green.target_sha)
-        if resumed is None:
-            return {"status": "idle", "target_sha": green.target_sha}
-        return _resume_completed(store, resumed, green.target_sha)
+        failed = store.inspect_failed(green.target_sha)
+        if failed is not None:
+            _validate_failed_finalization(failed, green.target_sha)
+            if not resume_failed:
+                raise FinalizerError(failed.failure_code)
+            if failed.modal_receipt_present or failed.worker_receipt_present:
+                raise FinalizerError("failed_finalization_receipts_present")
+            if not store.resume_failed(green.target_sha):
+                raise FinalizerError("failed_finalization_resume_conflict")
+            claim = store.claim(green.target_sha)
+            if claim is None:
+                raise FinalizerError("failed_finalization_resume_conflict")
+        else:
+            resumed = store.resume_completed(green.target_sha)
+            if resumed is None:
+                return {"status": "idle", "target_sha": green.target_sha}
+            return _resume_completed(store, resumed, green.target_sha)
     promoted = False
     modal_receipt = None
     worker_receipt = None
