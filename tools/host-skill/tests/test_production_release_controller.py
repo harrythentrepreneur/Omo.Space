@@ -573,6 +573,25 @@ def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
     assert calls[1][0].endswith(run_id)
 
 
+def test_publication_verifies_canonical_run_redirect_and_title(monkeypatch):
+    mod = load_module()
+
+    class HtmlResponse:
+        status = 200
+        def read(self, size=-1):
+            return b"<html><head><title>Run a workflow | Omo</title></head></html>"
+        def geturl(self):
+            return mod.PUBLIC_ORIGIN + "/run?slug=" + mod.MODAL_ALLOWED_SLUG
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(mod.urllib.request, "urlopen", lambda request, timeout: HtmlResponse())
+    adapter = mod.ProductionPublicAdapter(SimpleNamespace(), "omo_" + "1" * 32)
+    assert adapter.verify_publication(SimpleNamespace(), ROOT) == {"status": "published"}
+
+
 def test_public_canary_seed_uses_only_canonical_exact_checkout_source(monkeypatch):
     mod = load_module()
     calls = []
