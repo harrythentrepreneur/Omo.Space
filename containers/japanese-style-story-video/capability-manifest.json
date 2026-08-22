@@ -1,14 +1,15 @@
 {
   "allowlist": [
     "sample_media_pipeline",
-    "single_llm"
+    "single_llm",
+    "skill_builder"
   ],
   "approved": [
     "domain_state@1.0.0",
     "video_processing@1.0.0"
   ],
   "blockers": [],
-  "contract_digest": "sha256:a71cb4553dde929ce040545eab0bbf0b5a99356327aba9dd8b111c15ac7463ab",
+  "contract_digest": "sha256:cb9caf5bc24c187a67c115aba9fc88a81e18063c2f3d70d3be566176c22c4ba4",
   "decision": "approved",
   "execution_kind": "sample_media_pipeline",
   "generated": {
@@ -116,8 +117,8 @@
       "name": "runtime.state:per_run"
     }
   ],
-  "registry_digest": "sha256:2771cf6fa016f5c9ef20d96ec08297a4ac15d236958ecff7ab423e87489da050",
-  "registry_version": "1.1.0",
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
   "requested": [
     "allowlisted-bundled-audio-read",
     "reviewed-transcript-read",

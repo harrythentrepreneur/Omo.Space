@@ -1,6 +1,8 @@
 {
   "catalog": {
+    "active": true,
     "category": "ops",
+    "chargeable": true,
     "cover": null,
     "demoCap": "CPU-only deterministic canary; zero provider calls",
     "desc": "Normalize a bounded list of human labels into deterministic uppercase identifiers, preserving order and reporting duplicates.",
@@ -31,6 +33,8 @@
     "runManifest": "run-manifests/label-normalizer-canary.json",
     "runPrice": 0.1,
     "slug": "label-normalizer-canary",
+    "status": "ready",
+    "statusLabel": "Ready",
     "tags": [
       "deterministic",
       "text",
@@ -59,7 +63,7 @@
       ]
     }
   },
-  "catalog_managed": false,
+  "catalog_managed": true,
   "generator": "tools/host-skill/1.0.0",
   "run_manifest": {
     "chargeable": true,

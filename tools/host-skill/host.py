@@ -427,6 +427,8 @@ def build_hosted_profile(
     slug = require_text(market.get("slug"), "slug")
     if not SLUG_RE.fullmatch(slug):
         raise ValueError("marketplace.slug must be lowercase kebab-case")
+    if market.get("catalog_managed") is False:
+        raise ValueError("publishable hosted workflows must use the public catalog")
     if not container_manifest.get("readiness", {}).get("can_submit"):
         raise ValueError("blocked containers cannot be registered as runnable")
     if not container_manifest.get("pricing", {}).get("chargeable"):
@@ -552,6 +554,10 @@ def build_hosted_profile(
         "workflow": {"steps": workflow_steps},
         "runPrice": price_usd,
         "runManifest": f"run-manifests/{slug}.json",
+        "status": "ready",
+        "statusLabel": "Ready",
+        "chargeable": True,
+        "active": True,
         "icon": None,
     }
     runtime = {
@@ -605,7 +611,7 @@ def build_hosted_profile(
     return {
         "schema_version": "omo.hosted-profile/v1",
         "generator": "tools/host-skill/1.0.0",
-        "catalog_managed": bool(market.get("catalog_managed", True)),
+        "catalog_managed": True,
         "catalog": catalog,
         "run_manifest": run_manifest,
         "runtime_placement": placement,

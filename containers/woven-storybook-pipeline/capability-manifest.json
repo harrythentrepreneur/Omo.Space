@@ -1,13 +1,15 @@
 {
   "allowlist": [
-    "single_llm"
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
   ],
   "approved": [
     "book_pdf_renderer@1.0.0",
     "whatsapp_zip_adapter@1.0.0"
   ],
   "blockers": [],
-  "contract_digest": "sha256:3d27f13ef3d4dba31280fbe8a9bc0e49549a0ba35375dcb229ff3fa980e0e536",
+  "contract_digest": "sha256:70ad04461856430f2cd15f500fac1e3bdf7e3bd26795e446abee628d0a9cb840",
   "decision": "approved",
   "execution_kind": "single_llm",
   "generated": {
@@ -101,8 +103,8 @@
       "name": "input.adapt:whatsapp_export_zip"
     }
   ],
-  "registry_digest": "sha256:76b676b19c93992909ef480d47b8c415e2b1ade8c5f786db0df61b02ad1f5520",
-  "registry_version": "1.0.0",
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
   "requested": [
     "opencode-go-chat-completions",
     "schema-validated-json-output",
@@ -154,6 +156,7 @@
       "version": "1.0.0"
     }
   ],
+  "skill_owned_resources": [],
   "slug": "woven-storybook-pipeline",
   "source_sha256": "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf",
   "workflow_blockers": []

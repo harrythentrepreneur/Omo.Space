@@ -142,6 +142,7 @@ def test_manifest_and_capabilities_are_honest() -> None:
     assert capabilities["contract_digest"].startswith("sha256:")
 
 
+
 def _chat_zip(entries: dict[str, str]) -> dict[str, str]:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:

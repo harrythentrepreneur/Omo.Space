@@ -485,6 +485,8 @@ const facebookListing = catalogSandbox.window.OMO_CATALOG.find((listing) => list
 const facebookRunManifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'run-manifests', 'facebook-ads-copywriter.json'), 'utf8'));
 const facebookContainerInput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'schemas', 'input.json'), 'utf8'));
 const facebookContainerOutput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'schemas', 'output.json'), 'utf8'));
+const labelNormalizerListing = catalogSandbox.window.OMO_CATALOG.find((listing) => listing.slug === 'label-normalizer-canary');
+const labelNormalizerRunManifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'run-manifests', 'label-normalizer-canary.json'), 'utf8'));
 const canonical = (value) => Array.isArray(value)
   ? value.map(canonical)
   : value && typeof value === 'object'
@@ -508,6 +510,27 @@ check('run manifest: Woven browser schemas stay aligned with generated container
 check('catalog: Woven listing and hosted manifest publish the same $0.40 run price', wovenListing.runPrice === 0.4 && wovenRunManifest.price_usd === 0.4 && wovenListing.runManifest === 'run-manifests/woven-relationship-book-maker.json');
 check('run manifest: Facebook Ads browser schemas stay aligned with its generated container', JSON.stringify(canonical(facebookRunManifest.input_schema)) === JSON.stringify(canonical(facebookContainerInput)) && JSON.stringify(canonical(facebookRunManifest.output_schema)) === JSON.stringify(canonical(facebookContainerOutput)));
 check('catalog: Facebook Ads listing and hosted manifest publish the modeled $0.10 price', facebookListing.runPrice === 0.1 && facebookRunManifest.price_usd === 0.1 && facebookListing.runManifest === 'run-manifests/facebook-ads-copywriter.json');
+check('catalog: every deployed label-normalizer release has a public runnable listing',
+  Boolean(labelNormalizerListing) &&
+  labelNormalizerListing.active === true &&
+  labelNormalizerListing.chargeable === true &&
+  labelNormalizerListing.runManifest === 'run-manifests/label-normalizer-canary.json' &&
+  labelNormalizerRunManifest.price_usd === 0.1 &&
+  catalogSandbox.window.OMO_VISIBLE_CATALOG.some((listing) => listing.slug === 'label-normalizer-canary'));
+const derivedPublicSlugs = catalogSandbox.window.OMO_CATALOG
+  .filter(catalogSandbox.window.OMO_IS_PUBLIC_RUNNABLE)
+  .map((listing) => listing.slug)
+  .sort();
+check('catalog: public workflow visibility is derived from every runnable listing rather than a manual allowlist',
+  JSON.stringify([...catalogSandbox.window.OMO_VISIBLE_SLUGS].sort()) === JSON.stringify(derivedPublicSlugs));
+check('catalog: blocked previews cannot become public merely by carrying a run manifest',
+  catalogSandbox.window.OMO_IS_PUBLIC_RUNNABLE({
+    slug: 'blocked-preview', runManifest: 'run-manifests/blocked-preview.json', status: 'coming-soon',
+  }) === false);
+check('catalog: missing review-state fields fail closed even when a run manifest exists',
+  catalogSandbox.window.OMO_IS_PUBLIC_RUNNABLE({
+    slug: 'unverified-preview', runManifest: 'run-manifests/unverified-preview.json',
+  }) === false);
 check('catalog cards: per-run prices render to two decimal places', indexSource.includes("Number(p.runPrice || p.priceRun || 0).toFixed(2)"));
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
 check('run page: textarea array inputs accept one item per line and examples preserve lines', runPageSource.includes("component: 'ArrayTextField'") && runPageSource.includes("value = multilineArrayValue(control.value)") && runPageSource.includes("values[key].join('\\n')"));

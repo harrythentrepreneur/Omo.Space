@@ -154,6 +154,7 @@ def test_prepare_release_registers_worker_without_modal_or_wrangler(monkeypatch,
     assert len(register_commands) == 2
     assert all(str(profile_path) in command for command in register_commands)
     assert all("-m modal" not in " ".join(command) for command in commands)
+    assert ["node", "scripts/prerender-listings.mjs"] in commands
 
 
 def test_prepare_release_for_modal_does_not_deploy_or_canary_before_merge(monkeypatch, tmp_path: Path) -> None:
@@ -801,10 +802,16 @@ def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path:
     run_manifests.mkdir(parents=True)
     aliased = run_manifests / "education-workflow-pro.json"
     aliased.write_text("{}", encoding="utf-8")
+    workflow_page = tmp_path / "site" / "workflows" / "education-workflow-pro" / "index.html"
+    workflow_page.parent.mkdir(parents=True)
+    workflow_page.write_text("published", encoding="utf-8")
+    sitemap = tmp_path / "site" / "sitemap.xml"
+    sitemap.write_text("<urlset />", encoding="utf-8")
 
-    assert "site/run-manifests/education-workflow-pro.json" in process.release_allowlisted_paths(
-        slug, root=tmp_path
-    )
+    allowed = process.release_allowlisted_paths(slug, root=tmp_path)
+    assert "site/run-manifests/education-workflow-pro.json" in allowed
+    assert "site/workflows/education-workflow-pro/index.html" in allowed
+    assert "site/sitemap.xml" in allowed
 
 
 def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> None:

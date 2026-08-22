@@ -1,6 +1,8 @@
 {
   "catalog": {
+    "active": true,
     "category": "content",
+    "chargeable": true,
     "cover": "covers/woven-relationship-book-maker.svg",
     "demoCap": "Hosted run: WhatsApp ZIP or story fields to a PDF keepsake",
     "desc": "Upload a WhatsApp export ZIP or share your story fields directly. Woven derives a factual relationship brief, writes a warm chaptered story, and delivers a beautiful PDF keepsake for $0.40. Markdown and the page plan remain available; unparseable or oversized ZIPs fail with a typed blocker.",
@@ -35,6 +37,8 @@
     "runManifest": "run-manifests/woven-relationship-book-maker.json",
     "runPrice": 0.4,
     "slug": "woven-relationship-book-maker",
+    "status": "ready",
+    "statusLabel": "Ready",
     "tags": [
       "books",
       "copy",
@@ -73,7 +77,7 @@
       ]
     }
   },
-  "catalog_managed": false,
+  "catalog_managed": true,
   "generator": "tools/host-skill/1.0.0",
   "run_manifest": {
     "chargeable": true,
@@ -730,6 +734,7 @@
       "title": "Completed Woven PDF keepsake",
       "type": "object"
     },
+    "protocol": "modal-function-call-v1",
     "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
     "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
     "reviewed_source_sha256": "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf",

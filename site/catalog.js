@@ -1299,6 +1299,10 @@ window.OMO_CATALOG = [
     },
     "runPrice": 0.4,
     "runManifest": "run-manifests/woven-relationship-book-maker.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "icon": null
   },
   {
@@ -1337,6 +1341,10 @@ window.OMO_CATALOG = [
     "priceOwn": 29,
     "promise": "Turn verified product facts into three launch-ready Facebook ad variants.",
     "runManifest": "run-manifests/facebook-ads-copywriter.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "runPrice": 0.1,
     "slug": "facebook-ads-copywriter",
     "tags": [
@@ -4517,6 +4525,10 @@ window.OMO_CATALOG = [
     "priceOwn": 29.0,
     "promise": "Turn raw customer comments into faithful themes and practical next actions.",
     "runManifest": "run-manifests/customer-feedback-theme-finder.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "runPrice": 0.1,
     "slug": "customer-feedback-theme-finder",
     "tags": [
@@ -4540,6 +4552,70 @@ window.OMO_CATALOG = [
         {
           "label": "Finding evidence-backed themes",
           "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  }
+  ,{
+    "active": true,
+    "category": "ops",
+    "chargeable": true,
+    "cover": null,
+    "demoCap": "CPU-only deterministic canary; zero provider calls",
+    "desc": "Normalize a bounded list of human labels into deterministic uppercase identifiers, preserving order and reporting duplicates.",
+    "emoji": "\ud83e\uddea",
+    "exampleIn": "Green Apple \u00b7 green-apple \u00b7 Class 2B",
+    "exampleOut": [
+      "ITEM_GREEN_APPLE",
+      "ITEM_CLASS_2B",
+      "duplicate index evidence"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "labels: 1\u201350 bounded strings",
+      "prefix: optional ASCII identifier prefix"
+    ],
+    "maker": "Omo",
+    "makerName": "Omo Studio",
+    "name": "Label Normalizer Canary",
+    "niche": "developer-tools",
+    "outputs": [
+      "ordered identifiers",
+      "duplicate indexes and counts"
+    ],
+    "priceMaintain": 0.0,
+    "priceOwn": 0.0,
+    "promise": "Normalize bounded labels into deterministic uppercase identifiers.",
+    "runManifest": "run-manifests/label-normalizer-canary.json",
+    "runPrice": 0.1,
+    "slug": "label-normalizer-canary",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "tags": [
+      "deterministic",
+      "text",
+      "canary",
+      "testing"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 \u00b7 2026-08-16",
+    "workflow": {
+      "steps": [
+        {
+          "label": "label_normalizer.normalize",
+          "role": "normalize",
+          "type": "pipeline"
+        },
+        {
+          "label": "Validating bounded labels",
+          "role": "validate",
+          "type": "pipeline"
+        },
+        {
+          "label": "Normalizing identifiers",
+          "role": "normalize",
           "type": "pipeline"
         }
       ]
@@ -4585,6 +4661,10 @@ window.OMO_CATALOG = [
     "priceOwn": 29.0,
     "promise": "Turn pasted Meta Ads evidence into a source-grounded account diagnosis with measurement caveats, prioritized next steps, and draft-only changes.",
     "runManifest": "run-manifests/meta-ads-audit.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "runPrice": 0.1,
     "slug": "meta-ads-audit",
     "tags": [
@@ -4652,6 +4732,10 @@ window.OMO_CATALOG = [
     "priceOwn": 29.0,
     "promise": "Review a Meta creative inventory for concept strength, platform fit, message match, fatigue evidence, accessibility, policy checks, and the next focused test.",
     "runManifest": "run-manifests/meta-creative-audit.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "runPrice": 0.1,
     "slug": "meta-creative-audit",
     "tags": [
@@ -4721,6 +4805,10 @@ window.OMO_CATALOG = [
     "priceOwn": 29.0,
     "promise": "Turn a product brief, hook, and verified proof points into a natural creator-ready UGC ad script with delivery notes and safe visual pairing.",
     "runManifest": "run-manifests/ugc-scriptwriter.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "runPrice": 0.1,
     "slug": "ugc-scriptwriter",
     "tags": [
@@ -4790,6 +4878,10 @@ window.OMO_CATALOG = [
     "priceOwn": 29.0,
     "promise": "Build a rights-aware UGC system covering customer content, creator briefs, reviews, paid-social reuse, compliance checks, and the next 14 days.",
     "runManifest": "run-manifests/ugc-strategy.json",
+    "status": "ready",
+    "statusLabel": "Ready",
+    "chargeable": true,
+    "active": true,
     "runPrice": 0.1,
     "slug": "ugc-strategy",
     "tags": [
@@ -7632,28 +7724,20 @@ window.OMO_CATALOG = [
   ]
 );
 
-// Storefront visibility is intentionally separate from the full catalog so
-// every listing can be restored without changing or deleting catalog data.
-window.OMO_VISIBLE_SLUGS = [
-  'japanese-style-story-video',
-  'woven-relationship-book-maker',
-  'customer-feedback-theme-finder',
-  'facebook-ads-copywriter',
-  'meta-ads-audit',
-  'meta-creative-audit',
-  'ugc-scriptwriter',
-  'ugc-strategy',
-  'decodable-sentence-creator',
-  'digraph-spotter',
-  'grapheme-to-phoneme-converter',
-  'phoneme-counter',
-  'phonics-list-generator',
-  'phonics-reading-error-coach',
-  'phonics-rule-explainer',
-  'story-idea-generator',
-  'syllable-splitter-and-counter',
-  'skill-md-to-hosted-workflow'
-];
+// Omo has no private workflow product yet. Every reviewed runnable listing is
+// public; blocked previews stay non-runnable and cannot enter this projection.
+window.OMO_IS_PUBLIC_RUNNABLE = function (listing) {
+  return !!(
+    listing &&
+    listing.runManifest &&
+    listing.status === 'ready' &&
+    listing.active === true &&
+    listing.chargeable === true
+  );
+};
+window.OMO_VISIBLE_SLUGS = window.OMO_CATALOG
+  .filter(window.OMO_IS_PUBLIC_RUNNABLE)
+  .map(function (listing) { return listing.slug; });
 window.OMO_VISIBLE_CATALOG = window.OMO_CATALOG.filter(function (listing) {
   return listing && window.OMO_VISIBLE_SLUGS.indexOf(listing.slug) !== -1;
 });

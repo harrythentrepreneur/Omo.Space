@@ -1,1 +1,1 @@
-"""Japanese Story Video owned procedural sumi-e executor."""
+"""Generated skill-owned resource package."""

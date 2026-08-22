@@ -156,7 +156,7 @@ def test_host_registration_supports_owned_native_media_executor() -> None:
     pricing = json.loads(files["pricing-report.json"])
     hosted = host.build_hosted_profile(profile, manifest, pricing)
 
-    assert hosted["catalog_managed"] is False
+    assert hosted["catalog_managed"] is True
     assert hosted["runtime_placement"]["effective"] == "modal-hosted"
     assert hosted["runtime"]["protocol"] == "owner-scoped-async-v1"
     assert hosted["runtime"]["run_price_cents"] == 10
@@ -182,7 +182,7 @@ def test_host_registration_supports_owned_native_builder_service() -> None:
     pricing = json.loads(files["pricing-report.json"])
     hosted = host.build_hosted_profile(profile, manifest, pricing)
 
-    assert hosted["catalog_managed"] is False
+    assert hosted["catalog_managed"] is True
     assert hosted["runtime_placement"]["effective"] == "modal-hosted"
     assert hosted["runtime"]["protocol"] == "owner-scoped-async-v1"
     assert hosted["runtime"]["run_price_cents"] == 500
@@ -192,6 +192,14 @@ def test_host_registration_supports_owned_native_builder_service() -> None:
     assert hosted["server_catalog"]["model"] == "native-builder"
     assert hosted["server_catalog"]["max_tokens"] == 0
     assert hosted["run_manifest"]["price_usd"] == 5.0
+
+
+def test_publishable_hosted_profile_rejects_private_catalog_opt_out() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["marketplace"]["catalog_managed"] = False
+
+    with pytest.raises(ValueError, match="public catalog"):
+        host.build_hosted_profile(profile, manifest, pricing)
 
 
 def test_catalog_patch_is_idempotent() -> None:

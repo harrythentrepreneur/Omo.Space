@@ -5172,6 +5172,7 @@ export const HOSTED_MODAL_SKILL_ROWS = [
         "title": "Completed Woven PDF keepsake",
         "type": "object"
       },
+      "protocol": "modal-function-call-v1",
       "proxy_token_id_env": "HOSTED_MODAL_PROXY_TOKEN_ID",
       "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
       "reviewed_source_sha256": "6297f14dfc8d4815efc041316e5c19df7faf4cb31dae3f73a0badc09101b90bf",

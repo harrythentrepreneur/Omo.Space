@@ -163,7 +163,7 @@
     "type": "object"
   },
   "marketplace": {
-    "catalog_managed": false,
+    "catalog_managed": true,
     "category": "content",
     "cover": "covers/japanese-style-story-video.svg",
     "demo_cap": "Hosted milestone: bundled 10-second sample",

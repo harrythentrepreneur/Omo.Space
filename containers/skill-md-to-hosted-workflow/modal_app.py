@@ -520,7 +520,7 @@ def _candidate_profile(
             f"Maximum output tokens: {max_output_tokens}",
         ],
         "marketplace": {
-            "catalog_managed": False,
+            "catalog_managed": True,
             "slug": parsed["slug"],
             "title": title or parsed["name"],
             "emoji": "⚙️",

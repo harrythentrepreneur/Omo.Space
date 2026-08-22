@@ -4,7 +4,7 @@ slug: woven-storybook-pipeline
 version: "0.3.0"
 status: ready
 generated:
-  compiler: skill-to-modal/0.2.3
+  compiler: skill-to-modal/0.6.0
   hand_edit_allowed: false
 source:
   kind: vendored-skill-md

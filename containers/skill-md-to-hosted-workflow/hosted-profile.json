@@ -1,6 +1,8 @@
 {
   "catalog": {
+    "active": true,
     "category": "ops",
+    "chargeable": true,
     "cover": "covers/thumb-skill-md-to-hosted-workflow-v5.webp",
     "demoCap": "Fixture-only build analysis; zero provider calls",
     "desc": "Submit one bounded SKILL.md plus an explicit machine-readable contract. Omo treats it as hostile text, builds the smallest reviewed profile, compiles it with the canonical compiler, validates one fixture, and prices the candidate from the canonical cost model. V1 does not call a provider, deploy the generated candidate, or claim semantic proof; unsupported capabilities and unknown costs return typed blockers.",
@@ -35,6 +37,8 @@
     "runManifest": "run-manifests/skill-md-to-hosted-workflow.json",
     "runPrice": 5.0,
     "slug": "skill-md-to-hosted-workflow",
+    "status": "ready",
+    "statusLabel": "Ready",
     "tags": [
       "skill-md",
       "workflow-builder",
@@ -93,7 +97,7 @@
       ]
     }
   },
-  "catalog_managed": false,
+  "catalog_managed": true,
   "generator": "tools/host-skill/1.0.0",
   "run_manifest": {
     "chargeable": true,

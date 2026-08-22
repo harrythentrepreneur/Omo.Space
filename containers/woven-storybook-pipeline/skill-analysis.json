@@ -13,7 +13,7 @@
     "type": "book_pdf",
     "volume_name": "omo-woven-storybook-artifacts"
   },
-  "compiler": "skill-to-modal/0.2.3",
+  "compiler": "skill-to-modal/0.6.0",
   "cost_drivers": [
     "One DeepSeek V4 Flash drafting call, plus one bounded extraction call only for WhatsApp ZIP inputs",
     "Modal CPU, deterministic ReportLab composition, artifact persistence, request latency, and schema-invalid provider retries",

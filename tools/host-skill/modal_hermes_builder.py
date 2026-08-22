@@ -41,7 +41,7 @@ DISPATCH_LEASE_SECONDS = 7200
 SAFE_FAILURE_STAGES = {
     "checkout", "processor_import", "claim", "source_validation",
     "private_handoff", "hermes", "trusted_release", "release_evidence",
-    "trusted_compile", "trusted_register", "trusted_check", "worker_contracts",
+    "trusted_compile", "trusted_register", "trusted_check", "trusted_prerender", "worker_contracts",
     "release_issue_lookup", "release_issue_create", "release_worktree",
     "release_push", "release_pr_lookup", "release_pr_create", "release_pr_view",
     "release_merge", "release_command", "modal_deploy", "worker_dependencies", "worker_deploy",
