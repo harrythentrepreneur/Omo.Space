@@ -2074,7 +2074,7 @@ const rollbackRecord = {
   ...receiptBearingFailed,
   id: 'sub_rollbackrecover01', slug: 'recovery-workflow', selected_runtime: 'modal-hosted',
   status: 'failed', release_phase: 'merged_verified', finalization_id: 'fin_' + '8'.repeat(32),
-  finalization_status: 'failed', finalization_failure_code: 'internal_finalizer_failed',
+  finalization_status: 'failed', finalization_failure_code: 'public_verification_failed',
   finalization_target_sha: rollbackTarget, finalization_attempts: 5,
   release_merge_sha: 'c'.repeat(40),
   release_artifact_hash: rollbackArtifact, finalization_artifact_hash: rollbackArtifact,
@@ -2089,6 +2089,7 @@ const lateWorkerReceipt = workerTest.safeDeploymentReceipt({
 }, 'worker_deploy', rollbackTarget);
 const lateEffectRecord = {
   ...rollbackRecord, id: 'sub_lateeffectreconcile01', finalization_id: 'fin_' + 'e'.repeat(32),
+  finalization_failure_code: 'internal_finalizer_failed',
   finalization_modal_receipt: JSON.stringify(rollbackModalReceipt), finalization_worker_receipt: null,
 };
 workerTest.mockSubmissions.set(lateEffectRecord.id, lateEffectRecord);
@@ -2139,7 +2140,7 @@ check('receipt-aware rollback recovery mock: exact target-only boundary preserve
   JSON.stringify(recoveryHistory[0]) === JSON.stringify(priorRecoveryEvidence) &&
   recoverySnapshot.finalization_id === 'fin_' + '8'.repeat(32) &&
   recoverySnapshot.attempt === 5 && recoverySnapshot.target_sha === rollbackTarget &&
-  recoverySnapshot.failure_code === 'internal_finalizer_failed' &&
+  recoverySnapshot.failure_code === 'public_verification_failed' &&
   recoverySnapshot.modal_receipt.version_id === 'modal-v7' &&
   recoverySnapshot.worker_receipt.previous_version_id === 'cf-v8' &&
   recoverySnapshot.expected_provider_state.modal.version_id === 'modal-v7' &&
@@ -2213,7 +2214,7 @@ check('receipt-aware rollback recovery Neon: exact immutable CAS stores evidence
   neonRecoveryCall.values[8] === JSON.stringify(rollbackModalReceipt) &&
   neonRecoveryCall.values[9] === JSON.stringify(rollbackWorkerReceipt) &&
   neonRecoveryCall.values[10] === JSON.stringify(priorRecoveryEvidence) &&
-  neonRecoveryCall.text.includes("finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed')") &&
+  neonRecoveryCall.text.includes("finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed', 'public_verification_failed')") &&
   neonRecoveryCall.text.includes("selected_runtime = 'modal-hosted'") &&
   neonRecoveryCall.text.includes('finalization_recovery_receipt IS NOT DISTINCT FROM $11') &&
   neonRecoveryCall.text.includes('finalization_modal_receipt = $9') &&
