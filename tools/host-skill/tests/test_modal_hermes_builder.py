@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import base64
 import importlib.util
 import json
 import os
 import sys
 import time
 from pathlib import Path
+
+import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "modal_hermes_builder.py"
 
@@ -87,10 +90,16 @@ def test_dispatch_payload_is_exact_and_identifier_only() -> None:
             raise AssertionError(f"dispatch accepted forbidden field: {forbidden}")
 
 
-def test_hermes_environment_is_fresh_locked_down_and_opencode_go(tmp_path: Path) -> None:
+def _fake_nous_jwt(expires_at: int) -> str:
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": expires_at, "scope": "inference:invoke"}).encode()).decode().rstrip("=")
+    return f"eyJhbGciOiJub25lIn0.{payload}.signature"
+
+
+def test_hermes_environment_is_fresh_locked_down_and_nous_scoped(tmp_path: Path) -> None:
     builder = load_builder()
+    token = _fake_nous_jwt(int(time.time()) + 3600)
     env = builder.hermes_environment(tmp_path, {
-        "OPENCODE_GO_API_KEY": "provider-secret",
+        "NOUS_AGENT_KEY": token,
         "BUILD_WORKER_TOKEN": "worker-secret",
         "GH_TOKEN": "github-secret",
         "TELEGRAM_BOT_TOKEN": "remove-me",
@@ -102,17 +111,51 @@ def test_hermes_environment_is_fresh_locked_down_and_opencode_go(tmp_path: Path)
     assert home.parent == tmp_path
     assert env["HOME"] == str(home)
     config = json.loads((home / "config.yaml").read_text())
-    assert config["model"] == {"provider": "opencode-go", "default": "minimax-m2.7"}
+    assert config["model"] == {"provider": "nous", "default": "Hermes-4-70B"}
     assert config["memory"] == {"memory_enabled": False, "user_profile_enabled": False}
     assert config["gateway"]["enabled"] is False
     assert config["cron"]["enabled"] is False
-    assert env["OPENCODE_GO_API_KEY"] == "provider-secret"
+    auth = json.loads((home / "auth.json").read_text())
+    assert auth["active_provider"] == "nous"
+    assert auth["providers"]["nous"]["agent_key"] == token
+    assert auth["providers"]["nous"]["scope"] == "inference:invoke"
+    assert set(auth["providers"]["nous"]) == {
+        "agent_key", "agent_key_expires_at", "scope", "inference_base_url",
+    }
+    assert "refresh_token" not in auth["providers"]["nous"]
+    assert "NOUS_AGENT_KEY" not in env
+    assert env["HERMES_NOUS_MIN_KEY_TTL_SECONDS"] == "900"
     assert "BUILD_WORKER_TOKEN" not in env
     assert "GH_TOKEN" not in env
     assert "TELEGRAM_BOT_TOKEN" not in env
     assert "WHATSAPP_ALLOWED_USERS" not in env
     assert "STRIPE_SECRET_KEY" not in env
     assert "CLOUDFLARE_API_TOKEN" not in env
+
+
+def test_hermes_environment_rejects_expired_nous_agent_key(tmp_path: Path) -> None:
+    builder = load_builder()
+    with pytest.raises(RuntimeError, match="Nous agent key"):
+        builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": _fake_nous_jwt(int(time.time()) - 1)})
+
+
+def test_hermes_environment_rejects_non_three_segment_jwt(tmp_path: Path) -> None:
+    builder = load_builder()
+    token = _fake_nous_jwt(int(time.time()) + 3600) + ".extra"
+    with pytest.raises(RuntimeError, match="Nous agent key"):
+        builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": token})
+
+
+def test_builder_model_is_fixed_not_environment_selected() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert 'model = DEFAULT_MODEL' in source
+    assert 'environ.get("OMO_BUILDER_MODEL"' not in source
+
+
+def test_builder_declares_separate_nous_secret() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert 'modal.Secret.from_name(NOUS_SECRET_NAME)' in source
+    assert 'NOUS_SECRET_NAME = "omo-hermes-builder-nous"' in source
 
 
 def test_hermes_failure_classifier_is_closed_and_never_returns_raw_text() -> None:
