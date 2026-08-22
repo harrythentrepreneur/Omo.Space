@@ -263,26 +263,43 @@ def _list(value: Any) -> list[dict[str, Any]]:
     return value
 
 
+def modal_history_snapshot(value: Any) -> list[tuple[str, str | None]]:
+    normalized: list[tuple[str, str | None]] = []
+    seen: set[str] = set()
+    for row in _list(value):
+        if "Version" not in row or "Tag" not in row:
+            raise AdapterError("production_readback_failed")
+        version, tag = row["Version"], row["Tag"]
+        if type(version) is not str or not SAFE_VERSION_RE.fullmatch(version) or version in seen:
+            raise AdapterError("production_readback_failed")
+        if tag is not None and (type(tag) is not str or not SAFE_SHA_RE.fullmatch(tag.lower())):
+            raise AdapterError("production_readback_failed")
+        seen.add(version)
+        normalized.append((version, tag.lower() if isinstance(tag, str) else None))
+    return normalized
+
+
 def modal_receipt(before: Any, after: Any, slug: str, target_sha: str, artifact_hash: str) -> DeploymentReceipt:
     if str(slug or "").strip() != MODAL_ALLOWED_SLUG:
         raise AdapterError("invalid_production_target")
     sha, artifact = _sha(target_sha), _hash(artifact_hash)
-    before_rows, after_rows = _list(before), _list(after)
-    matches = lambda rows: [row for row in rows if str(row.get("Tag") or "").lower() == sha and SAFE_VERSION_RE.fullmatch(str(row.get("Version") or ""))]
-    before_match, after_match = matches(before_rows), matches(after_rows)
-    if len(before_match) == 1:
-        version = str(before_match[0]["Version"])
-        if len(after_match) != 1 or str(after_match[0]["Version"]) != version:
+    before_history, after_history = modal_history_snapshot(before), modal_history_snapshot(after)
+    before_match = [version for version, tag in before_history if tag == sha]
+    if before_match:
+        if after_history != before_history:
             raise AdapterError("production_readback_failed")
-        return DeploymentReceipt("modal", MODAL_TARGET, MODAL_ENVIRONMENT, sha, artifact, version, None, True, None)
-    if before_match or len(after_match) != 1 or not before_rows:
+        return DeploymentReceipt(
+            "modal", MODAL_TARGET, MODAL_ENVIRONMENT, sha, artifact,
+            before_match[0], None, True, None,
+        )
+    if (
+        not before_history or len(after_history) != len(before_history) + 1
+        or after_history[1:] != before_history or after_history[0][1] != sha
+        or after_history[0][0] in {version for version, _ in before_history}
+    ):
         raise AdapterError("production_readback_failed")
-    version = str(after_match[0]["Version"])
-    before_versions = {str(row.get("Version")) for row in before_rows if SAFE_VERSION_RE.fullmatch(str(row.get("Version") or ""))}
-    after_versions = {str(row.get("Version")) for row in after_rows if SAFE_VERSION_RE.fullmatch(str(row.get("Version") or ""))}
-    previous = str(before_rows[0].get("Version") or "")
-    if after_versions - before_versions != {version} or not SAFE_VERSION_RE.fullmatch(previous) or str(after_rows[0].get("Version") or "") != version:
-        raise AdapterError("production_readback_failed")
+    version = after_history[0][0]
+    previous = before_history[0][0]
     return DeploymentReceipt("modal", MODAL_TARGET, MODAL_ENVIRONMENT, sha, artifact, version, previous, False, previous)
 
 

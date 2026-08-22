@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from production_release_adapters import (
+    AdapterError,
     CLOUDFLARE_BUILDER_CRON,
     CLOUDFLARE_TARGET,
     MODAL_ALLOWED_SLUG,
@@ -36,6 +37,7 @@ from production_release_adapters import (
     cloudflare_rollback_call,
     cloudflare_versions_call,
     modal_deploy_call,
+    modal_history_snapshot,
     modal_history_call,
     modal_preflight_call,
     modal_receipt,
@@ -452,6 +454,14 @@ class ProductionModalAdapter:
     def deploy(self, claim, checkout):
         transport = self._transport(claim, checkout, True)
         before = transport.run_json(modal_history_call(checkout, claim.slug))
+        before_history = modal_history_snapshot(before)
+        if not before_history:
+            raise AdapterError("production_readback_failed")
+        if any(tag == claim.target_sha for _, tag in before_history):
+            after = transport.run_json(modal_history_call(checkout, claim.slug))
+            return asdict(modal_receipt(
+                before, after, claim.slug, claim.target_sha, claim.artifact_hash
+            ))
         transport.run(modal_deploy_call(checkout, claim.slug, claim.target_sha))
         after = transport.run_json(modal_history_call(checkout, claim.slug))
         return asdict(modal_receipt(before, after, claim.slug, claim.target_sha, claim.artifact_hash))

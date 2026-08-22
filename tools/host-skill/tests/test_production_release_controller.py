@@ -341,6 +341,87 @@ def test_modal_canary_rejects_cross_origin_result_url_before_credentialed_poll(m
     assert calls[0][1]["opener"] == mod.MODAL_OPENER
 
 
+def test_modal_deploy_reuses_existing_exact_tag_without_mutation(monkeypatch):
+    mod = load_module()
+    rows = [
+        {"Version": "v5", "Tag": SHA},
+        {"Version": "v4", "Tag": SHA},
+        {"Version": "v3", "Tag": "c" * 40},
+    ]
+    calls = []
+
+    class Transport:
+        def run_json(self, call):
+            calls.append(("read", call.argv))
+            return rows
+
+        def run(self, call):
+            calls.append(("write", call.argv))
+            raise AssertionError("existing exact tag must not redeploy")
+
+    adapter = mod.ProductionModalAdapter({})
+    monkeypatch.setattr(adapter, "_transport", lambda claim, checkout, mutate=False: Transport())
+    claim = SimpleNamespace(
+        id="fin_" + "1" * 32, slug="label-normalizer-canary",
+        target_sha=SHA, artifact_hash=ARTIFACT,
+    )
+    receipt = adapter.deploy(claim, ROOT)
+    assert receipt["status"] == "passed" and receipt["reused"] is True
+    assert receipt["version_id"] == "v5"
+    assert [kind for kind, _ in calls] == ["read", "read"]
+
+
+def test_modal_deploy_rejects_changed_reuse_history_without_mutation(monkeypatch):
+    mod = load_module()
+    first = [{"Version": "v5", "Tag": SHA}, {"Version": "v4", "Tag": SHA}]
+    second = list(reversed(first))
+    reads, calls = [first, second], []
+
+    class Transport:
+        def run_json(self, call):
+            calls.append("read")
+            return reads.pop(0)
+
+        def run(self, call):
+            calls.append("write")
+            raise AssertionError("changed reuse history must not deploy")
+
+    adapter = mod.ProductionModalAdapter({})
+    monkeypatch.setattr(adapter, "_transport", lambda claim, checkout, mutate=False: Transport())
+    claim = SimpleNamespace(
+        id="fin_" + "1" * 32, slug="label-normalizer-canary",
+        target_sha=SHA, artifact_hash=ARTIFACT,
+    )
+    with pytest.raises(RuntimeError, match="production_readback_failed"):
+        adapter.deploy(claim, ROOT)
+    assert calls == ["read", "read"]
+
+
+@pytest.mark.parametrize("baseline", [[], [{"Version": "v2"}]])
+def test_modal_deploy_validates_baseline_before_mutation(monkeypatch, baseline):
+    mod = load_module()
+    calls = []
+
+    class Transport:
+        def run_json(self, call):
+            calls.append("read")
+            return baseline
+
+        def run(self, call):
+            calls.append("write")
+            raise AssertionError("malformed baseline must not deploy")
+
+    adapter = mod.ProductionModalAdapter({})
+    monkeypatch.setattr(adapter, "_transport", lambda claim, checkout, mutate=False: Transport())
+    claim = SimpleNamespace(
+        id="fin_" + "1" * 32, slug="label-normalizer-canary",
+        target_sha=SHA, artifact_hash=ARTIFACT,
+    )
+    with pytest.raises(RuntimeError, match="production_readback_failed"):
+        adapter.deploy(claim, ROOT)
+    assert calls == ["read"]
+
+
 def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
     mod = load_module()
     run_id = "run_" + "1" * 32
