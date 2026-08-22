@@ -103,6 +103,7 @@ def test_github_trigger_run_attempt_mismatch_fails_closed(tmp_path):
 
 def test_finalization_store_uses_only_fixed_finalizer_routes_and_redacts_token():
     mod = load_module()
+    assert mod.WORKER_BASE_URL == "https://omo.space"
     requests = []
     finalization = {
         "id": "fin_" + "1" * 32, "submission_id": "sub_12345678",
