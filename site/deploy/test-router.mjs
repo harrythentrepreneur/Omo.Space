@@ -443,7 +443,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, internalRecordFinalizationEffect, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -2082,6 +2082,34 @@ const rollbackRecord = {
   finalization_modal_receipt: JSON.stringify(rollbackModalReceipt),
   finalization_worker_receipt: JSON.stringify(rollbackWorkerReceipt),
 };
+const lateWorkerReceipt = workerTest.safeDeploymentReceipt({
+  provider: 'cloudflare', target: 'cognition-demos', environment: 'production',
+  target_sha: rollbackTarget, artifact_hash: rollbackArtifact, version_id: 'cf-current',
+  previous_version_id: null, reused: true, rollback_token: null, status: 'passed',
+}, 'worker_deploy', rollbackTarget);
+const lateEffectRecord = {
+  ...rollbackRecord, id: 'sub_lateeffectreconcile01', finalization_id: 'fin_' + 'e'.repeat(32),
+  finalization_modal_receipt: JSON.stringify(rollbackModalReceipt), finalization_worker_receipt: null,
+};
+workerTest.mockSubmissions.set(lateEffectRecord.id, lateEffectRecord);
+check('failed finalization effect reconciliation: exact receipt passes generation guard',
+  workerTest.finalizationGenerationAllowsEffect(
+    lateEffectRecord, 'worker_deploy', rollbackTarget, lateWorkerReceipt
+  ) === true);
+const lateEffectRecorded = await workerTest.internalRecordFinalizationEffect(
+  buildEnv, lateEffectRecord.finalization_id, 'worker_deploy', rollbackTarget, lateWorkerReceipt
+);
+const lateEffectReplay = await workerTest.internalRecordFinalizationEffect(
+  buildEnv, lateEffectRecord.finalization_id, 'worker_deploy', rollbackTarget, lateWorkerReceipt
+);
+check('failed finalization effect reconciliation: exact reused Worker receipt records once',
+  lateEffectRecorded === 'recorded');
+check('failed finalization effect reconciliation: identical receipt replays',
+  lateEffectReplay === 'replayed');
+check('failed finalization effect reconciliation: canonical receipt persists',
+  lateEffectRecord.finalization_worker_receipt != null &&
+  JSON.parse(lateEffectRecord.finalization_worker_receipt).version_id === 'cf-current');
+workerTest.mockSubmissions.delete(lateEffectRecord.id);
 workerTest.mockSubmissions.set(rollbackRecord.id, rollbackRecord);
 const recoveryPlanResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recovery-plan', {
   target_sha: rollbackTarget,

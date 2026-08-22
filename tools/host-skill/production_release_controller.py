@@ -30,6 +30,7 @@ from production_release_adapters import (
     MODAL_TARGET,
     PUBLIC_ORIGIN,
     cloudflare_active_version,
+    cloudflare_target_present,
     cloudflare_bundle_sha256,
     cloudflare_deploy_call,
     cloudflare_deployments_call,
@@ -680,6 +681,13 @@ class ProductionCloudflareAdapter:
         transport = self._transport(claim, checkout, True)
         versions_before = transport.run_json(cloudflare_versions_call(checkout))
         deployments_before = transport.run_json(cloudflare_deployments_call(checkout))
+        if cloudflare_target_present(versions_before, claim.target_sha):
+            versions_after = transport.run_json(cloudflare_versions_call(checkout))
+            deployments_after = transport.run_json(cloudflare_deployments_call(checkout))
+            return asdict(cloudflare_receipt(
+                versions_before, versions_after, deployments_before, deployments_after,
+                claim.target_sha, claim.artifact_hash,
+            ))
         transport.run(cloudflare_deploy_call(checkout, claim.target_sha))
         self.ensure_builder_schedule(checkout, claim.target_sha)
         versions_after = transport.run_json(cloudflare_versions_call(checkout))

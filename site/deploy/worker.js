@@ -4077,8 +4077,6 @@ function canonicalDeploymentReceipt(receipt) {
 function finalizationGenerationAllowsEffect(row, operation, targetSha, receipt, now = Date.now()) {
   if (!row || row.finalization_target_sha !== targetSha || receipt.target_sha !== targetSha ||
       safeSha256(row.finalization_artifact_hash) !== receipt.artifact_hash) return false;
-  const expiry = Date.parse(String(row.finalization_lease_expires_at || ''));
-  if (!Number.isFinite(expiry) || expiry <= now || ['completed', 'failed'].includes(String(row.finalization_status || ''))) return false;
   if (safeSha256(row.source_sha256 || row.sourceSha256) !== safeSha256(row.finalization_source_sha256) ||
       safeGitSha(row.release_head_sha) !== safeGitSha(row.finalization_head_sha) ||
       safeGitSha(row.release_merge_sha) !== safeGitSha(row.finalization_merge_sha) ||
@@ -4087,6 +4085,15 @@ function finalizationGenerationAllowsEffect(row, operation, targetSha, receipt, 
   const slug = safeSlug(row.slug);
   if ((operation === 'modal_deploy' && (!slug || receipt.target !== `cognition-${slug}` || receipt.environment !== 'main')) ||
       (operation === 'worker_deploy' && (receipt.target !== 'cognition-demos' || receipt.environment !== 'production'))) return false;
+  const canonical = canonicalDeploymentReceipt(receipt);
+  const lateWorkerReconciliation = operation === 'worker_deploy' && status === 'failed' &&
+    String(row.finalization_failure_code || '') === 'internal_finalizer_failed' &&
+    row.finalization_modal_receipt != null &&
+    (row.finalization_worker_receipt == null || String(row.finalization_worker_receipt) === canonical) &&
+    receipt.reused === true && receipt.previous_version_id === null && receipt.rollback_token === null;
+  if (lateWorkerReconciliation) return true;
+  const expiry = Date.parse(String(row.finalization_lease_expires_at || ''));
+  if (!Number.isFinite(expiry) || expiry <= now || ['completed', 'failed'].includes(status)) return false;
   return operation === 'modal_deploy'
     ? status === 'deploying_modal' && safeRuntime(row.selected_runtime) === 'modal-hosted'
     : status === 'deploying_worker';
@@ -4132,6 +4139,38 @@ async function internalRecordFinalizationEffect(env, finalizationId, operation, 
   const canonical = canonicalDeploymentReceipt(receipt);
   const existing = row[column] == null ? null : String(row[column]);
   if (existing != null) return existing === canonical ? 'replayed' : 'conflict';
+  const lateWorkerReconciliation = operation === 'worker_deploy' &&
+    String(row.finalization_status || '') === 'failed' &&
+    String(row.finalization_failure_code || '') === 'internal_finalizer_failed';
+  if (lateWorkerReconciliation && databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-effect-worker-reconcile-v1',
+      `UPDATE submissions SET finalization_worker_receipt = $1, automation_updated_at = CURRENT_TIMESTAMP
+       WHERE finalization_id = $2 AND finalization_target_sha = $3
+         AND finalization_status = 'failed' AND finalization_failure_code = 'internal_finalizer_failed'
+         AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NULL
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash
+       RETURNING id`,
+      [canonical, finalizationId, targetSha]
+    ));
+    return result.rowCount === 1 ? 'recorded' : 'invalid';
+  }
+  if (lateWorkerReconciliation && databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `UPDATE submissions SET finalization_worker_receipt = ?, automation_updated_at = ?
+       WHERE finalization_id = ? AND finalization_target_sha = ?
+         AND finalization_status = 'failed' AND finalization_failure_code = 'internal_finalizer_failed'
+         AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NULL
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash`
+    ).bind(canonical, new Date().toISOString(), finalizationId, targetSha).run();
+    return result.meta && result.meta.changes ? 'recorded' : 'invalid';
+  }
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       `omo-internal-finalization-effect-${operation}-v1`,
