@@ -319,7 +319,10 @@ def test_public_canary_seed_uses_only_canonical_exact_checkout_source(monkeypatc
 
     def request_json_stage(stage, url, **kwargs):
         calls.append((stage, url, kwargs))
-        return 202, {"id": "sub_" + "1" * 32, "slug": "label-normalizer-canary"}
+        return 202, {
+            "id": "sub_" + "1" * 32, "slug": "label-normalizer-canary", "status": "failed",
+            "duplicate": True, "changed": False,
+        }
 
     monkeypatch.setattr(mod, "_request_json_stage", request_json_stage)
     provisioned = []
@@ -327,7 +330,9 @@ def test_public_canary_seed_uses_only_canonical_exact_checkout_source(monkeypatc
         SimpleNamespace(provision_canary_identity=lambda: provisioned.append(True)),
         "omo_" + "1" * 32,
     )
-    assert adapter.seed_submission(ROOT) == {"status": "queued", "submission_id": "sub_" + "1" * 32}
+    assert adapter.seed_submission(ROOT) == {
+        "status": "queued", "submission_id": "sub_" + "1" * 32, "submission_status": "failed",
+    }
     assert provisioned == [True]
     stage, url, kwargs = calls[0]
     source = (ROOT / "containers/label-normalizer-canary/source/SKILL.md").read_text()
@@ -337,6 +342,40 @@ def test_public_canary_seed_uses_only_canonical_exact_checkout_source(monkeypatc
         "name": "Label normalizer canary", "content": source,
         "visibility": "public", "runtime_preference": "modal-hosted",
     }
+
+
+def test_public_canary_retry_is_exact_owner_submission_only(monkeypatch):
+    mod = load_module()
+    submission_id = "sub_" + "1" * 32
+    calls = []
+
+    def request_json_stage(stage, url, **kwargs):
+        calls.append((stage, url, kwargs))
+        return 200, {"ok": True, "retried": True, "submission": {
+            "id": submission_id, "slug": "label-normalizer-canary", "status": "queued",
+        }}
+
+    monkeypatch.setattr(mod, "_request_json_stage", request_json_stage)
+    adapter = mod.ProductionPublicAdapter(SimpleNamespace(), "omo_" + "1" * 32)
+    assert adapter.retry_submission(submission_id) == {"status": "retried", "submission_id": submission_id}
+    assert calls == [("public_canary_http_failed", mod.PUBLIC_ORIGIN + f"/api/submissions/{submission_id}/retry", {
+        "method": "POST", "payload": {},
+        "headers": {"X-API-Key": "omo_" + "1" * 32, "Content-Type": "application/json"},
+        "timeout": 30,
+    })]
+
+
+def test_public_canary_failed_seed_requires_idempotent_replay_evidence(monkeypatch):
+    mod = load_module()
+    monkeypatch.setattr(mod, "_request_json_stage", lambda *args, **kwargs: (202, {
+        "id": "sub_" + "1" * 32, "slug": "label-normalizer-canary", "status": "failed",
+        "duplicate": False, "changed": True,
+    }))
+    adapter = mod.ProductionPublicAdapter(
+        SimpleNamespace(provision_canary_identity=lambda: None), "omo_" + "1" * 32,
+    )
+    with pytest.raises(mod.ControllerError, match="production_canary_seed_failed"):
+        adapter.seed_submission(ROOT)
 
 
 def test_public_canary_seed_rejects_parent_symlink_tamper_and_oversize(monkeypatch, tmp_path):
