@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import re
+import selectors
+import signal
 import ctypes
 import stat
 import subprocess
@@ -28,6 +30,7 @@ DEFAULT_MODEL = "minimax-m2.7"
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "da685cb243122ced3f7bdd3eac788315b0ca5e5f"
 MAX_SOURCE_BYTES = 200 * 1024
+MAX_HERMES_DIAGNOSTIC_BYTES = 64 * 1024
 MAX_PROFILE_BYTES = 256 * 1024
 HERMES_UID = 10001
 HERMES_GID = 10001
@@ -302,6 +305,112 @@ def _safe_result(status: str, dispatch_id: str, submission_id: str, **extra: Any
     return result
 
 
+def classify_hermes_failure(raw: str) -> str:
+    text = str(raw or "")[:MAX_HERMES_DIAGNOSTIC_BYTES].lower()
+    if "hermes_process_timeout" in text:
+        return "hermes_timeout"
+    if any(value in text for value in ("401", "unauthorized", "invalid api key", "authentication failed")):
+        return "hermes_auth_failed"
+    if "model" in text and any(value in text for value in ("not found", "unknown", "unavailable", "unsupported")):
+        return "hermes_model_failed"
+    if "approval" in text and any(value in text for value in ("required", "denied", "pending")):
+        return "hermes_approval_failed"
+    if any(value in text for value in ("maximum turns", "max turns", "turn limit")):
+        return "hermes_turn_limit"
+    if "permission denied" in text:
+        return "hermes_permission_failed"
+    return "hermes_unclassified"
+
+
+def run_hermes_agent(
+    argv: list[str], cwd: Path, env: Mapping[str, str], *, timeout_seconds: float = 3600,
+) -> tuple[int, str]:
+    if not 0.05 <= timeout_seconds <= 3600:
+        raise ValueError("invalid Hermes timeout")
+    process = subprocess.Popen(
+        argv, cwd=cwd, env=dict(env), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        preexec_fn=drop_hermes_privileges, start_new_session=True,
+    )
+    assert process.stderr is not None
+    descriptor = process.stderr.fileno()
+    os.set_blocking(descriptor, False)
+    selector = selectors.DefaultSelector()
+    selector.register(descriptor, selectors.EVENT_READ)
+    diagnostic = bytearray()
+    deadline = time.monotonic() + timeout_seconds
+    timed_out = False
+    returncode: int | None = None
+
+    def drain_one() -> None:
+        try:
+            chunk = os.read(descriptor, 8192)
+        except BlockingIOError:
+            return
+        if chunk:
+            remaining = MAX_HERMES_DIAGNOSTIC_BYTES - len(diagnostic)
+            if remaining > 0:
+                diagnostic.extend(chunk[:remaining])
+
+    def signal_group(sig: int) -> None:
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            pass
+
+    def group_exists() -> bool:
+        try:
+            os.killpg(process.pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            if selector.select(timeout=min(0.25, remaining)):
+                drain_one()
+            returncode = process.poll()
+            if returncode is not None:
+                for _ in range(8):
+                    drain_one()
+                break
+    finally:
+        signal_group(signal.SIGTERM)
+        grace_deadline = time.monotonic() + 0.5
+        while group_exists() and time.monotonic() < grace_deadline:
+            time.sleep(0.05)
+        if group_exists():
+            signal_group(signal.SIGKILL)
+        if process.poll() is None:
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                signal_group(signal.SIGKILL)
+                process.kill()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired as error:
+                    raise RuntimeError("Hermes process cleanup failed") from error
+        try:
+            selector.unregister(descriptor)
+        except (KeyError, ValueError):
+            pass
+        selector.close()
+        process.stderr.close()
+    if timed_out:
+        returncode = 124
+        diagnostic[:] = b"HERMES_PROCESS_TIMEOUT"
+    elif returncode is None:
+        returncode = int(process.returncode or 1)
+    reason = classify_hermes_failure(diagnostic.decode("utf-8", errors="replace"))
+    return int(returncode), reason
+
+
 @app.function(image=image, cpu=1.0, memory=1024, timeout=180)
 def smoke() -> dict[str, Any]:
     started = time.monotonic()
@@ -399,24 +508,21 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             chown_tree(Path(env["HERMES_HOME"]))
             model = str(env.get("OMO_BUILDER_MODEL", DEFAULT_MODEL))
             prompt = builder_prompt(submission_id, slug, source_sha256, review_path, base_revision)
-            agent = subprocess.run(
+            agent_returncode, hermes_reason = run_hermes_agent(
                 [
                     "hermes", "chat", "-q", prompt, "-Q",
                     "--provider", "opencode-go", "-m", model,
                     "--toolsets", "file,skills",
                 ],
-                cwd=checkout,
-                env=env,
-                text=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=3600,
-                check=False,
-                preexec_fn=drop_hermes_privileges,
+                checkout,
+                env,
             )
-            if agent.returncode != 0:
+            if agent_returncode != 0:
                 repository.set_status(submission_id, "failed", "build_or_deploy_failed")
-                result = _safe_result("failed", dispatch_id, submission_id, returncode=agent.returncode, stage=stage)
+                result = _safe_result(
+                    "failed", dispatch_id, submission_id, returncode=agent_returncode,
+                    reason=hermes_reason, stage=stage,
+                )
             else:
                 stage = "trusted_release"
                 # Hermes has exited. Only the trusted parent now receives
