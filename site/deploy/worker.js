@@ -1990,7 +1990,14 @@ async function handleSubmission(request, env) {
 
   let userId = '';
   if (isRealMode(env)) {
-    const auth = await authenticateAccount(request, env, false);
+    let auth = await authenticateAccount(request, env, false);
+    if (!auth.ok) {
+      const apiKey = String(request.headers.get('x-api-key') || '').trim();
+      const apiKeyOwner = /^omo_[0-9a-f]{32}$/.test(apiKey) ? await userIdForApiKey(env, apiKey) : '';
+      if (apiKeyOwner === 'user_prod_label_normalizer_canary_v1') {
+        auth = { ok: true, userId: apiKeyOwner, method: 'production_canary' };
+      }
+    }
     if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors());
     userId = auth.userId;
   } else {
@@ -2013,6 +2020,9 @@ async function handleSubmission(request, env) {
 
   const parsed = parseSubmissionMarkdown(body.content);
   if (parsed.error) return json({ ok: false, ...parsed }, 400, cors());
+  if (userId === 'user_prod_label_normalizer_canary_v1' && parsed.slug !== 'label-normalizer-canary') {
+    return json({ error: 'production_canary_scope_violation' }, 403, cors());
+  }
   const suppliedName = String(body.name || '').trim();
   if (!suppliedName) {
     return json({ ok: false, error: 'name_required', message: 'Give the workflow a name.' }, 400, cors());

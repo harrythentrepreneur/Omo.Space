@@ -2119,6 +2119,15 @@ const canaryProvisionReplayBody = await canaryProvisionReplay.json();
 const productionCanaryScopedReject = await worker.fetch(mkReq('POST', '/api/run', {
   slug: 'facebook-ads-copywriter', fields: { product_name: 'Nope' },
 }, { 'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-scope-reject' }), productionCanaryEnv);
+const productionCanarySubmissionReject = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Sample workflow', content: submissionContent, visibility: 'public', runtime_preference: 'worker-native',
+}, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv);
+const productionCanaryContent = '---\nname: label-normalizer-canary\ndescription: Deterministic production release canary.\n---\n\n## Workflow\n\n1. Normalize bounded labels.\n';
+const productionCanarySubmissionAccept = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'Label normalizer canary', content: productionCanaryContent,
+  visibility: 'public', runtime_preference: 'modal-hosted',
+}, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv);
+const productionCanarySubmissionAcceptBody = await productionCanarySubmissionAccept.json();
 const productionCanaryOwner = await workerTest.userIdForApiKey(productionCanaryEnv, productionCanaryKey);
 check('production canary identity: finalizer-only one-time finite principal uses normal API-key auth and exact slug scope',
   builderCanaryProvision.status === 401 && wrongEnvironmentCanaryProvision.status === 503 &&
@@ -2126,6 +2135,9 @@ check('production canary identity: finalizer-only one-time finite principal uses
   canaryProvisionBody.user_id === 'user_prod_label_normalizer_canary_v1' &&
   canaryProvisionReplay.status === 200 && canaryProvisionReplayBody.created === false &&
   productionCanaryScopedReject.status === 403 &&
+  productionCanarySubmissionReject.status === 403 &&
+  productionCanarySubmissionAccept.status === 202 &&
+  productionCanarySubmissionAcceptBody.slug === 'label-normalizer-canary' &&
   productionCanaryOwner === 'user_prod_label_normalizer_canary_v1');
 
 const firstFinalizationId = finalizationRecord.finalization_id;
