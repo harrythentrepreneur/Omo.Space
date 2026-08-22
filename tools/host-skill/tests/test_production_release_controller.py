@@ -151,6 +151,20 @@ def test_finalization_store_treats_only_literal_204_as_idle():
     assert caught.value.code == "invalid_finalizer_response"
 
 
+def test_finalization_claim_preserves_only_bounded_http_status():
+    mod = load_module()
+
+    def unauthorized(request, timeout):
+        raise mod.urllib.error.HTTPError(
+            request.full_url, 401, "SENTINEL_MUST_NOT_ESCAPE", {}, io.BytesIO(b"SENTINEL_BODY")
+        )
+
+    with pytest.raises(mod.ControllerError) as caught:
+        mod.HttpFinalizationStore("token", opener=unauthorized).claim(SHA)
+    assert caught.value.code == "finalizer_claim_http_401"
+    assert "SENTINEL" not in str(caught.value)
+
+
 def test_http_failures_are_mapped_to_secret_free_trust_boundary_stages(monkeypatch, tmp_path):
     mod = load_module()
 
