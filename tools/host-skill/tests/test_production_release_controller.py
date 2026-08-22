@@ -389,18 +389,67 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
             order.append(("seed", checkout))
             return {"status": "queued", "submission_id": "sub_" + "2" * 32}
 
+    class Cloudflare:
+        def __init__(self, env):
+            pass
+
+        def ensure_builder_schedule(self, checkout, sha):
+            order.append(("schedule", checkout, sha))
+
     monkeypatch.setattr(mod, "GitHubMainlineAdapter", Mainline)
     monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token: object())
     monkeypatch.setattr(mod, "ProductionModalAdapter", lambda env: object())
-    monkeypatch.setattr(mod, "ProductionCloudflareAdapter", lambda env: object())
+    monkeypatch.setattr(mod, "ProductionCloudflareAdapter", Cloudflare)
     monkeypatch.setattr(mod, "ProductionPublicAdapter", Public)
     monkeypatch.setattr(mod, "run_finalizer", lambda *args, **kwargs: order.append(("finalizer", SHA)) or {"status": "idle", "target_sha": SHA})
     result = mod.run_once(SimpleNamespace(trigger_sha=SHA, run_id="1", run_attempt="1"), {
         "GITHUB_WORKSPACE": str(tmp_path), "GITHUB_TOKEN": "token",
         "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
     })
-    assert order == [("finalizer", SHA), ("checkout", SHA), ("seed", target)]
+    assert order == [("finalizer", SHA), ("checkout", SHA), ("schedule", target, SHA), ("seed", target)]
     assert result == {"status": "seeded", "target_sha": SHA, "submission_id": "sub_" + "2" * 32}
+
+
+def test_cloudflare_builder_schedule_is_applied_and_read_back_exactly(monkeypatch):
+    mod = load_module()
+    responses = [
+        (200, {"success": True, "result": []}),
+        (200, {"success": True, "result": [{"cron": "*/1 * * * *"}]}),
+    ]
+    requests, commands = [], []
+
+    def request_json_stage(stage, url, **kwargs):
+        requests.append((stage, url, kwargs))
+        return responses.pop(0)
+
+    class Transport:
+        def __init__(self, **kwargs):
+            assert kwargs["trusted_sha"] == SHA and kwargs["allow_mutation"] is True
+
+        def run(self, call):
+            commands.append(call.argv)
+
+    monkeypatch.setattr(mod, "_request_json_stage", request_json_stage)
+    monkeypatch.setattr(mod, "ProductionCommandTransport", Transport)
+    adapter = mod.ProductionCloudflareAdapter({
+        "CLOUDFLARE_ACCOUNT_ID": "a" * 32, "CLOUDFLARE_API_TOKEN": "token",
+    })
+    assert adapter.ensure_builder_schedule(ROOT, SHA) == {"status": "passed", "changed": True}
+    assert commands == [mod.cloudflare_triggers_deploy_call(ROOT).argv]
+    assert len(requests) == 2 and all(item[0] == "cloudflare_schedule_http_failed" for item in requests)
+    assert all(item[1].endswith("/workers/scripts/cognition-demos/schedules") for item in requests)
+    responses.append((200, {"success": True, "result": [{"cron": "*/1 * * * *"}]}))
+    assert adapter.ensure_builder_schedule(ROOT, SHA) == {"status": "passed", "changed": False}
+    assert len(commands) == 1
+
+
+def test_cloudflare_schedule_http_stage_is_allowlisted_without_exposing_response():
+    mod = load_module()
+    status, body = mod._request_json_stage(
+        "cloudflare_schedule_http_failed", "https://api.cloudflare.com/client/v4/test",
+        opener=lambda request, timeout: Response({"success": True, "result": []}),
+    )
+    assert status == 200 and body == {"success": True, "result": []}
 
 
 def test_controller_cli_rejects_every_user_selectable_or_malformed_identity(capsys):
