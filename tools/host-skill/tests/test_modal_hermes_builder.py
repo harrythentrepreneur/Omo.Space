@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
+import time
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "modal_hermes_builder.py"
@@ -111,6 +113,92 @@ def test_hermes_environment_is_fresh_locked_down_and_opencode_go(tmp_path: Path)
     assert "WHATSAPP_ALLOWED_USERS" not in env
     assert "STRIPE_SECRET_KEY" not in env
     assert "CLOUDFLARE_API_TOKEN" not in env
+
+
+def test_hermes_failure_classifier_is_closed_and_never_returns_raw_text() -> None:
+    builder = load_builder()
+    sentinel = "SENTINEL_MUST_NOT_ESCAPE"
+    cases = {
+        f"401 unauthorized {sentinel}": "hermes_auth_failed",
+        f"model minimax-m2.7 not found {sentinel}": "hermes_model_failed",
+        f"approval required {sentinel}": "hermes_approval_failed",
+        f"maximum turns reached {sentinel}": "hermes_turn_limit",
+        f"permission denied {sentinel}": "hermes_permission_failed",
+        f"unexpected internal output {sentinel}": "hermes_unclassified",
+    }
+    for raw, expected in cases.items():
+        reason = builder.classify_hermes_failure(raw)
+        assert reason == expected and sentinel not in reason
+
+
+def test_hermes_runner_bounds_large_stderr_and_returns_only_classification(monkeypatch, tmp_path: Path) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "drop_hermes_privileges", lambda: None)
+    marker = "approval required SENTINEL_MUST_NOT_ESCAPE"
+    returncode, reason = builder.run_hermes_agent(
+        [sys.executable, "-c", f"import sys;sys.stderr.write({marker!r}+'x'*1600000);raise SystemExit(1)"],
+        tmp_path,
+        os.environ,
+    )
+    assert returncode == 1 and reason == "hermes_approval_failed"
+    assert "SENTINEL" not in reason
+
+
+def test_hermes_runner_continuous_stderr_cannot_starve_timeout(monkeypatch, tmp_path: Path) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "drop_hermes_privileges", lambda: None)
+    started = time.monotonic()
+    returncode, reason = builder.run_hermes_agent(
+        [sys.executable, "-c", "import os,sys; b=b'x'*8192\nwhile True: os.write(sys.stderr.fileno(),b)"],
+        tmp_path,
+        os.environ,
+        timeout_seconds=0.25,
+    )
+    assert returncode == 124 and reason == "hermes_timeout"
+    assert time.monotonic() - started < 3
+
+
+def test_hermes_runner_kills_descendant_after_leader_exits(monkeypatch, tmp_path: Path) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "drop_hermes_privileges", lambda: None)
+    pid_path = tmp_path / "child.pid"
+    child_code = "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)"
+    parent_code = (
+        "import pathlib,subprocess,sys;"
+        f"p=subprocess.Popen([sys.executable,'-c',{child_code!r}]);"
+        f"pathlib.Path({str(pid_path)!r}).write_text(str(p.pid))"
+    )
+    returncode, _reason = builder.run_hermes_agent(
+        [sys.executable, "-c", parent_code], tmp_path, os.environ,
+    )
+    assert returncode == 0 and pid_path.is_file()
+    child_pid = int(pid_path.read_text())
+    deadline = time.monotonic() + 3
+    while Path(f"/proc/{child_pid}").exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not Path(f"/proc/{child_pid}").exists()
+
+
+def test_hermes_runner_kills_term_ignoring_descendant_when_leader_exits_during_timeout_grace(monkeypatch, tmp_path: Path) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "drop_hermes_privileges", lambda: None)
+    pid_path = tmp_path / "timeout-child.pid"
+    child_code = "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)"
+    parent_code = (
+        "import pathlib,subprocess,sys,time;"
+        f"p=subprocess.Popen([sys.executable,'-c',{child_code!r}]);"
+        f"pathlib.Path({str(pid_path)!r}).write_text(str(p.pid));"
+        "time.sleep(60)"
+    )
+    returncode, reason = builder.run_hermes_agent(
+        [sys.executable, "-c", parent_code], tmp_path, os.environ, timeout_seconds=0.25,
+    )
+    assert returncode == 124 and reason == "hermes_timeout" and pid_path.is_file()
+    child_pid = int(pid_path.read_text())
+    deadline = time.monotonic() + 3
+    while Path(f"/proc/{child_pid}").exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not Path(f"/proc/{child_pid}").exists()
 
 
 def test_prompt_contains_private_path_but_not_source_bytes(tmp_path: Path) -> None:
