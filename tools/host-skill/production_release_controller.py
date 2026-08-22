@@ -132,7 +132,7 @@ def _request_json(
             status = int(getattr(response, "status", 0) or 0)
             return status, None if status == 204 else _safe_json_response(response)
     except urllib.error.HTTPError as error:
-        if error.code in {204, 401, 403, 404, 409, 422, 503}:
+        if isinstance(error.code, int) and 100 <= error.code <= 599:
             return error.code, None
         raise ControllerError("http_request_failed") from None
     except (urllib.error.URLError, OSError, ValueError):
