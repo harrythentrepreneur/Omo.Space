@@ -131,6 +131,8 @@ let neonFinalizationClaimRow = null;
 let neonFinalizationDetailRow = null;
 let neonFinalizationStatusRow = null;
 let neonCompletedFinalizationRow = null;
+let neonFinalizationRegistryRows = [];
+let neonFinalizationEffectRow = null;
 
 class MockPool {
   constructor(options) {
@@ -350,6 +352,12 @@ const sandbox = {
                 ? 'omo-internal-finalization-claim-v1'
               : text.includes("status IN ('ready_for_publish', 'deployed')") && text.includes("finalization_status = 'completed'") && text.includes('SELECT')
                 ? 'omo-internal-finalization-resume-completed-v1'
+              : text.includes('SELECT DISTINCT published_slug')
+                ? 'omo-internal-finalization-registry-slugs-v1'
+              : text.includes('SET finalization_modal_receipt =')
+                ? 'omo-internal-finalization-effect-modal_deploy-v1'
+              : text.includes('SET finalization_worker_receipt =')
+                ? 'omo-internal-finalization-effect-worker_deploy-v1'
               : text.includes('WHERE finalization_id = $1') && text.includes('finalization_status')
                 ? 'omo-internal-finalization-detail-v1'
               : text.includes('SET finalization_status = $1')
@@ -377,6 +385,12 @@ const sandbox = {
       if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
         return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-internal-finalization-registry-slugs-v1') {
+        return { rows: neonFinalizationRegistryRows, rowCount: neonFinalizationRegistryRows.length };
+      }
+      if (entry.name === 'omo-internal-finalization-effect-modal_deploy-v1' || entry.name === 'omo-internal-finalization-effect-worker_deploy-v1') {
+        return neonFinalizationEffectRow ? { rows: [neonFinalizationEffectRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
       if (entry.name === 'omo-internal-finalization-detail-v1') {
         return neonFinalizationDetailRow ? { rows: [neonFinalizationDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
@@ -391,7 +405,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalSetFinalizationStatus, internalPromoteFinalization, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, internalRecordFinalizationEffect, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -1850,6 +1864,40 @@ const skippedFinalizationAdvance = await worker.fetch(mkReq('POST', `/api/intern
   target_sha: '3'.repeat(40),
   status: 'completed',
 }, finalizerHeaders), buildEnv);
+const builderRegistrySlugs = await worker.fetch(mkReq('POST', '/api/internal/finalizations/registry-slugs', {}, internalHeaders), buildEnv);
+const registrySlugs = await worker.fetch(mkReq('POST', '/api/internal/finalizations/registry-slugs', {}, finalizerHeaders), buildEnv);
+const registrySlugsBody = await registrySlugs.json();
+const workerReceiptPayload = {
+  provider: 'cloudflare', target: 'cognition-demos', environment: 'production',
+  target_sha: '3'.repeat(40), artifact_hash: '2'.repeat(64),
+  version_id: 'worker-version-1', previous_version_id: 'worker-version-0',
+  reused: false, rollback_token: 'worker-version-0', status: 'passed',
+};
+const invalidReceiptContracts = [
+  { ...workerReceiptPayload, previous_version_id: null, rollback_token: null, reused: false },
+  { ...workerReceiptPayload, reused: true },
+  { ...workerReceiptPayload, rollback_token: 'unrelated-token' },
+].map((receipt) => workerTest.safeDeploymentReceipt(receipt, 'worker_deploy', '3'.repeat(40)));
+const builderEffect = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/effects`, {
+  operation: 'worker_deploy', target_sha: '3'.repeat(40), receipt: workerReceiptPayload,
+}, internalHeaders), buildEnv);
+const recordedEffect = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/effects`, {
+  operation: 'worker_deploy', target_sha: '3'.repeat(40), receipt: workerReceiptPayload,
+}, finalizerHeaders), buildEnv);
+const recordedEffectBody = await recordedEffect.json();
+const replayedEffect = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/effects`, {
+  operation: 'worker_deploy', target_sha: '3'.repeat(40), receipt: workerReceiptPayload,
+}, finalizerHeaders), buildEnv);
+const replayedEffectBody = await replayedEffect.json();
+const conflictingEffect = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/effects`, {
+  operation: 'worker_deploy', target_sha: '3'.repeat(40), receipt: { ...workerReceiptPayload, version_id: 'worker-version-2' },
+}, finalizerHeaders), buildEnv);
+const unsafeEffect = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/effects`, {
+  operation: 'worker_deploy', target_sha: '3'.repeat(40), receipt: { ...workerReceiptPayload, command: 'must-not-store' },
+}, finalizerHeaders), buildEnv);
+const wrongIdentityEffect = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/effects`, {
+  operation: 'worker_deploy', target_sha: '3'.repeat(40), receipt: { ...workerReceiptPayload, target: 'another-worker' },
+}, finalizerHeaders), buildEnv);
 check('internal finalization claim: separate finalizer authority gets one target-SHA-bound lease',
   builderFinalizationClaim.status === 401 &&
   noConfigFinalizationClaim.status === 503 &&
@@ -1874,19 +1922,62 @@ check('internal finalization status: exact generation advances idempotently and 
   duplicateFinalizationAdvance.status === 200 &&
   skippedFinalizationAdvance.status === 400 &&
   finalizationRecord.finalization_status === 'deploying_worker');
+check('internal finalization effects: finalizer-only closed receipts persist once and conflicting replay fails closed',
+  builderRegistrySlugs.status === 401 && registrySlugs.status === 200 &&
+  registrySlugsBody.slugs.includes('lease-workflow') &&
+  builderEffect.status === 401 && recordedEffect.status === 200 && recordedEffectBody.replayed === false &&
+  replayedEffect.status === 200 && replayedEffectBody.replayed === true &&
+  conflictingEffect.status === 409 && unsafeEffect.status === 400 && wrongIdentityEffect.status === 409 &&
+  invalidReceiptContracts.every((receipt) => receipt === null) &&
+  JSON.parse(finalizationRecord.finalization_worker_receipt).version_id === 'worker-version-1' &&
+  !finalizationRecord.finalization_worker_receipt.includes('must-not-store'));
+
+const modalEffectRecord = {
+  id: 'sub_modaleffect0001', slug: 'label-normalizer-canary', source_sha256: 'a'.repeat(64),
+  selected_runtime: 'modal-hosted', status: 'ready_for_deploy', release_phase: 'merged_verified',
+  release_head_sha: 'b'.repeat(40), release_merge_sha: 'c'.repeat(40), release_artifact_hash: 'd'.repeat(64),
+  finalization_id: 'fin_' + 'e'.repeat(32), finalization_status: 'deploying_modal',
+  finalization_target_sha: 'f'.repeat(40), finalization_source_sha256: 'a'.repeat(64),
+  finalization_head_sha: 'b'.repeat(40), finalization_merge_sha: 'c'.repeat(40),
+  finalization_artifact_hash: 'd'.repeat(64), finalization_lease_expires_at: '2099-08-20T12:00:00Z',
+  finalization_attempts: 1, finalization_modal_receipt: null,
+};
+workerTest.mockSubmissions.set(modalEffectRecord.id, modalEffectRecord);
+const modalReceipt = workerTest.safeDeploymentReceipt({
+  provider: 'modal', target: 'cognition-label-normalizer-canary', environment: 'main',
+  target_sha: 'f'.repeat(40), artifact_hash: 'd'.repeat(64), version_id: 'modal-v2',
+  previous_version_id: 'modal-v1', reused: false, rollback_token: 'modal-v1', status: 'passed',
+}, 'modal_deploy', 'f'.repeat(40));
+const modalEffectRecorded = await workerTest.internalRecordFinalizationEffect(
+  buildEnv, modalEffectRecord.finalization_id, 'modal_deploy', modalEffectRecord.finalization_target_sha, modalReceipt
+);
+modalEffectRecord.finalization_status = 'completed';
+const modalEffectAfterCompletion = await workerTest.internalRecordFinalizationEffect(
+  buildEnv, modalEffectRecord.finalization_id, 'modal_deploy', modalEffectRecord.finalization_target_sha, modalReceipt
+);
+check('internal finalization Modal effect: exact main identity persists and completed generation is immutable',
+  modalEffectRecorded === 'recorded' && modalEffectAfterCompletion === 'invalid' &&
+  JSON.parse(modalEffectRecord.finalization_modal_receipt).target === 'cognition-label-normalizer-canary');
 
 const firstFinalizationId = finalizationRecord.finalization_id;
 const reclaimedGenerationIds = [];
+const reclaimedReceiptsCleared = [];
 let reclaimedFinalization;
 let reclaimedFinalizationBody;
 for (const expiredStatus of ['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public']) {
   finalizationRecord.finalization_status = expiredStatus;
+  finalizationRecord.finalization_modal_receipt = '{"stale":"modal"}';
+  finalizationRecord.finalization_worker_receipt = '{"stale":"worker"}';
   finalizationRecord.finalization_lease_expires_at = '2020-01-01T00:00:00.000Z';
   reclaimedFinalization = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
     target_sha: '5'.repeat(40),
   }, finalizerHeaders), buildEnv);
   reclaimedFinalizationBody = await reclaimedFinalization.json();
   reclaimedGenerationIds.push(reclaimedFinalizationBody.finalization.id);
+  reclaimedReceiptsCleared.push(
+    finalizationRecord.finalization_modal_receipt === null &&
+    finalizationRecord.finalization_worker_receipt === null
+  );
 }
 const finalizationDetail = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${reclaimedFinalizationBody.finalization.id}/detail`, {}, finalizerHeaders), buildEnv);
 const finalizationDetailBody = await finalizationDetail.json();
@@ -1904,6 +1995,7 @@ check('internal finalization claim: every expired active infrastructure phase is
   reclaimedFinalization.status === 200 &&
   reclaimedGenerationIds.length === 4 &&
   new Set([firstFinalizationId, ...reclaimedGenerationIds]).size === 5 &&
+  reclaimedReceiptsCleared.every(Boolean) &&
   reclaimedFinalizationBody.finalization.target_sha === '5'.repeat(40) &&
   reclaimedFinalizationBody.finalization.attempts === 5 &&
   finalizationRecord.finalization_attempts === 5);
@@ -1950,6 +2042,47 @@ check('internal finalization claim Neon: one locked atomic update returns only f
   !neonFinalizationCall.text.split('RETURNING', 2).at(-1).includes('user_id') &&
   !neonFinalizationCall.text.split('RETURNING', 2).at(-1).includes('content'));
 neonFinalizationClaimRow = null;
+
+neonSqlCalls.length = 0;
+neonFinalizationRegistryRows = [
+  { published_slug: 'zeta-workflow' }, { published_slug: 'alpha-workflow' },
+  { published_slug: 'alpha-workflow' }, { published_slug: '../unsafe' },
+];
+const neonRegistrySlugs = await workerTest.internalRequiredRegistrySlugs({ NEON_DATABASE_URL: 'postgres://example' });
+const neonRegistryCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-registry-slugs-v1');
+neonFinalizationDetailRow = {
+  id: 'sub_neonfinalizer01', slug: 'neon-finalizer', source_sha256: '6'.repeat(64),
+  selected_runtime: 'worker-native', status: 'ready_for_deploy', release_phase: 'merged_verified',
+  release_head_sha: '7'.repeat(40), release_merge_sha: '8'.repeat(40), release_artifact_hash: '9'.repeat(64),
+  finalization_id: 'fin_' + 'a'.repeat(32), finalization_status: 'deploying_worker',
+  finalization_target_sha: 'b'.repeat(40), finalization_source_sha256: '6'.repeat(64),
+  finalization_head_sha: '7'.repeat(40), finalization_merge_sha: '8'.repeat(40),
+  finalization_artifact_hash: '9'.repeat(64), finalization_lease_expires_at: '2099-08-20T12:00:00Z',
+  finalization_attempts: 1, finalization_worker_receipt: null,
+};
+neonFinalizationEffectRow = { id: 'sub_neonfinalizer01' };
+const neonWorkerReceipt = workerTest.safeDeploymentReceipt({
+  provider: 'cloudflare', target: 'cognition-demos', environment: 'production',
+  target_sha: 'b'.repeat(40), artifact_hash: '9'.repeat(64), version_id: 'worker-v1',
+  previous_version_id: 'worker-v0', reused: false, rollback_token: 'worker-v0', status: 'passed',
+}, 'worker_deploy', 'b'.repeat(40));
+const neonEffectRecorded = await workerTest.internalRecordFinalizationEffect(
+  { NEON_DATABASE_URL: 'postgres://example' }, 'fin_' + 'a'.repeat(32), 'worker_deploy', 'b'.repeat(40), neonWorkerReceipt
+);
+const neonEffectCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-effect-worker_deploy-v1');
+check('internal finalization registry/effect Neon: queries are parameterized, bounded, and generation-guarded',
+  JSON.stringify(neonRegistrySlugs) === JSON.stringify(['alpha-workflow', 'zeta-workflow']) &&
+  neonRegistryCall.values.length === 1 && neonRegistryCall.text.includes('SELECT DISTINCT published_slug') &&
+  neonEffectRecorded === 'recorded' && neonEffectCall.values.length === 4 &&
+  neonEffectCall.values[3] === 'deploying_worker' &&
+  neonEffectCall.text.includes('finalization_worker_receipt IS NULL') &&
+  neonEffectCall.text.includes('finalization_status = $4') &&
+  neonEffectCall.text.includes('finalization_lease_expires_at::timestamptz > CURRENT_TIMESTAMP') &&
+  neonEffectCall.text.includes('release_artifact_hash = finalization_artifact_hash') &&
+  !neonEffectCall.text.includes('command') && !neonEffectCall.text.includes('url'));
+neonFinalizationRegistryRows = [];
+neonFinalizationEffectRow = null;
+neonFinalizationDetailRow = null;
 
 neonSqlCalls.length = 0;
 neonFinalizationDetailRow = {
@@ -2171,6 +2304,7 @@ function d1DatabaseForSubmissionClaim(records) {
           bind(...values) {
             return {
               first: async () => db.prepare(sql).get(...values) || null,
+              all: async () => ({ results: db.prepare(sql).all(...values) }),
               run: async () => {
                 const result = db.prepare(sql).run(...values);
                 return { meta: { changes: Number(result.changes) } };
@@ -2234,7 +2368,8 @@ function d1DatabaseForFinalization(record) {
     finalization_merge_sha TEXT, finalization_artifact_hash TEXT,
     finalization_claimed_at TEXT, finalization_lease_expires_at TEXT,
     finalization_attempts INTEGER NOT NULL DEFAULT 0,
-    finalization_failure_code TEXT, automation_updated_at TEXT, updated_at TEXT
+    finalization_failure_code TEXT, finalization_modal_receipt TEXT,
+    finalization_worker_receipt TEXT, automation_updated_at TEXT, updated_at TEXT
   )`);
   const keys = Object.keys(record);
   db.prepare(`INSERT INTO submissions (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`)
@@ -2247,6 +2382,7 @@ function d1DatabaseForFinalization(record) {
           bind(...values) {
             return {
               first: async () => db.prepare(sql).get(...values) || null,
+              all: async () => ({ results: db.prepare(sql).all(...values) }),
               run: async () => {
                 const result = db.prepare(sql).run(...values);
                 return { meta: { changes: Number(result.changes) } };
@@ -2282,10 +2418,29 @@ const d1Finalizer = d1DatabaseForFinalization({
 });
 const d1FinalizerEnv = { BALANCE_DB: d1Finalizer.binding };
 const d1FinalizerTarget = 'e'.repeat(40);
+const d1RegistrySlugs = await workerTest.internalRequiredRegistrySlugs(d1FinalizerEnv);
 const d1FinalizerClaim = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget);
 const d1FinalizerDuplicate = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget);
 const d1FinalizerDeploying = await workerTest.internalSetFinalizationStatus(
   d1FinalizerEnv, d1FinalizerClaim.id, d1FinalizerTarget, 'deploying_worker'
+);
+const d1WorkerReceipt = workerTest.safeDeploymentReceipt({
+  provider: 'cloudflare', target: 'cognition-demos', environment: 'production',
+  target_sha: d1FinalizerTarget, artifact_hash: 'd'.repeat(64),
+  version_id: 'worker-version-1', previous_version_id: 'worker-version-0',
+  reused: false, rollback_token: 'worker-version-0', status: 'passed',
+}, 'worker_deploy', d1FinalizerTarget);
+const d1ConcurrentEffectResults = await Promise.all([
+  workerTest.internalRecordFinalizationEffect(
+    d1FinalizerEnv, d1FinalizerClaim.id, 'worker_deploy', d1FinalizerTarget, d1WorkerReceipt
+  ),
+  workerTest.internalRecordFinalizationEffect(
+    d1FinalizerEnv, d1FinalizerClaim.id, 'worker_deploy', d1FinalizerTarget, d1WorkerReceipt
+  ),
+]);
+const d1ConflictingReceipt = { ...d1WorkerReceipt, version_id: 'worker-version-2' };
+const d1EffectConflict = await workerTest.internalRecordFinalizationEffect(
+  d1FinalizerEnv, d1FinalizerClaim.id, 'worker_deploy', d1FinalizerTarget, d1ConflictingReceipt
 );
 const d1FinalizerVerifying = await workerTest.internalSetFinalizationStatus(
   d1FinalizerEnv, d1FinalizerClaim.id, d1FinalizerTarget, 'verifying_public'
@@ -2304,14 +2459,66 @@ const d1FinalizerRow = d1Finalizer.db.prepare('SELECT * FROM submissions WHERE i
 check('internal finalization D1: SQLite claim and immutable phase CAS complete one exact generation',
   d1FinalizerClaim && d1FinalizerClaim.submission_id === d1FinalizerId &&
   d1FinalizerDuplicate === null && d1FinalizerDeploying === true &&
+  d1RegistrySlugs.length === 1 && d1RegistrySlugs[0] === 'd1-finalizer' &&
+  d1ConcurrentEffectResults.slice().sort().join(',') === 'recorded,replayed' && d1EffectConflict === 'conflict' &&
   d1FinalizerVerifying === true && d1FinalizerCompleted === true &&
   d1FinalizerRow.finalization_status === 'completed' &&
   d1FinalizerRow.finalization_source_sha256 === 'a'.repeat(64) &&
   d1FinalizerRow.finalization_head_sha === 'b'.repeat(40) &&
   d1FinalizerRow.finalization_merge_sha === 'c'.repeat(40) &&
   d1FinalizerRow.finalization_artifact_hash === 'd'.repeat(64) &&
-  d1FinalizerRow.finalization_attempts === 1);
+  d1FinalizerRow.finalization_attempts === 1 &&
+  JSON.parse(d1FinalizerRow.finalization_worker_receipt).version_id === 'worker-version-1');
 d1Finalizer.db.close();
+
+const d1EffectRace = d1DatabaseForFinalization({
+  id: 'sub_d1effectrace01', slug: 'd1-effect-race', source_sha256: '1'.repeat(64),
+  selected_runtime: 'worker-native', status: 'ready_for_deploy', release_phase: 'merged_verified',
+  release_head_sha: '2'.repeat(40), release_merge_sha: '3'.repeat(40), release_artifact_hash: '4'.repeat(64),
+  finalization_id: 'fin_' + '5'.repeat(32), finalization_status: 'deploying_worker',
+  finalization_target_sha: '6'.repeat(40), finalization_source_sha256: '1'.repeat(64),
+  finalization_head_sha: '2'.repeat(40), finalization_merge_sha: '3'.repeat(40),
+  finalization_artifact_hash: '4'.repeat(64), finalization_lease_expires_at: '2099-08-20T12:00:00Z',
+  finalization_attempts: 1, finalization_worker_receipt: null, updated_at: '2026-08-20T00:00:00Z',
+});
+let d1CompletionInterleaved = false;
+const d1RaceBinding = {
+  prepare(sql) {
+    const prepared = d1EffectRace.binding.prepare(sql);
+    return {
+      bind(...values) {
+        const bound = prepared.bind(...values);
+        return {
+          first: async () => {
+            const row = await bound.first();
+            if (!d1CompletionInterleaved && sql.includes('FROM submissions WHERE finalization_id')) {
+              d1EffectRace.db.prepare("UPDATE submissions SET finalization_status = 'completed' WHERE finalization_id = ?")
+                .run('fin_' + '5'.repeat(32));
+              d1CompletionInterleaved = true;
+            }
+            return row;
+          },
+          all: bound.all,
+          run: bound.run,
+        };
+      },
+    };
+  },
+};
+const d1RaceReceipt = workerTest.safeDeploymentReceipt({
+  provider: 'cloudflare', target: 'cognition-demos', environment: 'production',
+  target_sha: '6'.repeat(40), artifact_hash: '4'.repeat(64), version_id: 'race-v2',
+  previous_version_id: 'race-v1', reused: false, rollback_token: 'race-v1', status: 'passed',
+}, 'worker_deploy', '6'.repeat(40));
+const d1LateEffect = await workerTest.internalRecordFinalizationEffect(
+  { BALANCE_DB: d1RaceBinding }, 'fin_' + '5'.repeat(32), 'worker_deploy', '6'.repeat(40), d1RaceReceipt
+);
+const d1RaceRow = d1EffectRace.db.prepare('SELECT finalization_status,finalization_worker_receipt FROM submissions WHERE id = ?')
+  .get('sub_d1effectrace01');
+check('internal finalization effect D1 race: completion wins and late receipt write is rejected atomically',
+  d1CompletionInterleaved && d1LateEffect === 'invalid' &&
+  d1RaceRow.finalization_status === 'completed' && d1RaceRow.finalization_worker_receipt === null);
+d1EffectRace.db.close();
 
 const d1Completed = d1DatabaseForFinalization({
   ...completedFinalizationRecord,
@@ -2350,6 +2557,7 @@ function d1DatabaseForMergedRelease(record) {
           bind(...values) {
             return {
               first: async () => db.prepare(sql).get(...values) || null,
+              all: async () => ({ results: db.prepare(sql).all(...values) }),
               run: async () => {
                 const result = db.prepare(sql).run(...values);
                 return { meta: { changes: Number(result.changes) } };

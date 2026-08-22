@@ -74,6 +74,7 @@ class FinalizationStore(Protocol):
     def submission_detail(self, submission_id: str) -> dict[str, str]: ...
     def required_registry_slugs(self) -> set[str]: ...
     def advance(self, claim: FinalizationClaim, status: str, failure_code: str | None = None) -> None: ...
+    def record_effect(self, claim: FinalizationClaim, operation: str, receipt: dict[str, object]) -> None: ...
     def promote(self, claim: FinalizationClaim, release_gates: dict[str, object]) -> None: ...
     def mark_deployed(self, submission_id: str) -> None: ...
 
@@ -202,7 +203,23 @@ def _new_deployment(receipt: object) -> bool:
     return isinstance(receipt, dict) and receipt.get("status") == "passed" and receipt.get("reused") is False
 
 
-def _deployment_receipt(receipt: object, claim, provider: str) -> dict[str, object]:
+@dataclass(frozen=True)
+class DeploymentTargets:
+    modal_target: str
+    modal_environment: str
+    cloudflare_target: str
+    cloudflare_environment: str
+
+
+STAGING_TARGETS = DeploymentTargets(
+    "cognition-staging-label-normalizer-canary", "omo-release-staging",
+    "cognition-demos-staging", "staging",
+)
+
+
+def _deployment_receipt(
+    receipt: object, claim, provider: str, targets: DeploymentTargets = STAGING_TARGETS
+) -> dict[str, object]:
     if is_dataclass(receipt) and not isinstance(receipt, type):
         value = asdict(receipt)
     elif isinstance(receipt, Mapping):
@@ -210,8 +227,8 @@ def _deployment_receipt(receipt: object, claim, provider: str) -> dict[str, obje
     else:
         raise FinalizerError("internal_finalizer_failed")
     expected = {
-        "modal": ("cognition-staging-label-normalizer-canary", "omo-release-staging"),
-        "cloudflare": ("cognition-demos-staging", "staging"),
+        "modal": (targets.modal_target, targets.modal_environment),
+        "cloudflare": (targets.cloudflare_target, targets.cloudflare_environment),
     }
     target, environment = expected[provider]
     required = {
@@ -256,7 +273,9 @@ def _rollback_new_deployments(claim, modal, cloudflare, modal_receipt, worker_re
         raise FinalizerError("internal_finalizer_failed")
 
 
-def run_finalizer(mainline, store, modal, cloudflare, vercel) -> dict[str, str]:
+def run_finalizer(
+    mainline, store, modal, cloudflare, vercel, *, targets: DeploymentTargets = STAGING_TARGETS
+) -> dict[str, str]:
     """Finalize at most one release through injected deterministic adapters."""
     green = mainline.latest_green()
     _validate_green(green)
@@ -296,7 +315,7 @@ def run_finalizer(mainline, store, modal, cloudflare, vercel) -> dict[str, str]:
             store.advance(claim, "deploying_modal")
             modal_receipt = modal.deploy(claim, checkout)
             _require_passed(modal_receipt, "modal_deploy_failed")
-            modal_receipt = _deployment_receipt(modal_receipt, claim, "modal")
+            modal_receipt = _deployment_receipt(modal_receipt, claim, "modal", targets)
             store.record_effect(claim, "modal_deploy", modal_receipt)
             _require_passed(modal.canary(claim, checkout, modal_receipt), "modal_canary_failed")
         store.advance(claim, "deploying_worker")
@@ -304,7 +323,7 @@ def run_finalizer(mainline, store, modal, cloudflare, vercel) -> dict[str, str]:
         _require_passed(r1, "internal_finalizer_failed")
         worker_receipt = cloudflare.deploy_worker(claim, checkout)
         _require_passed(worker_receipt, "worker_deploy_failed")
-        worker_receipt = _deployment_receipt(worker_receipt, claim, "cloudflare")
+        worker_receipt = _deployment_receipt(worker_receipt, claim, "cloudflare", targets)
         store.record_effect(claim, "worker_deploy", worker_receipt)
         r3 = cloudflare.smoke_worker(claim, worker_receipt)
         _require_passed(r3, "worker_smoke_failed")
