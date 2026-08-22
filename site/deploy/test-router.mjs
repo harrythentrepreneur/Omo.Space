@@ -172,6 +172,9 @@ class MockPool {
         if (entry.name === 'omo-internal-resume-merged-release-v1') {
           return neonResumeMergedRow ? { rows: [neonResumeMergedRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
+        if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
+          return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
         return { rows: [], rowCount: 0 };
       },
       release() {
@@ -427,7 +430,7 @@ function check(name, cond) {
 check('Neon: Worker never caches request-bound Pool I/O in module scope',
   !workerSrc.includes('let neonPool') &&
   workerSrc.includes("neon(url, { fullResults: true })") &&
-  (workerSrc.match(/await client\.release\(\)/g) || []).length === 12);
+  (workerSrc.match(/await client\.release\(\)/g) || []).length === 13);
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
@@ -1925,7 +1928,9 @@ check('internal completed finalization resume Neon: exact target and immutable c
   neonCompletedResumeCall.text.includes("release_phase = 'promoted'") &&
   neonCompletedResumeCall.text.includes("finalization_status = 'completed'") &&
   neonCompletedResumeCall.text.includes('source_sha256 = finalization_source_sha256') &&
-  neonCompletedResumeCall.text.includes("CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END"));
+  neonCompletedResumeCall.text.includes("CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END") &&
+  neonSqlCalls.some((call) => call.text === 'RELEASE') &&
+  neonSqlCalls.some((call) => call.text === 'POOL_END'));
 neonCompletedFinalizationRow = null;
 const builderFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
   target_sha: '3'.repeat(40),
