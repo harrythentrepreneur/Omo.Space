@@ -4286,7 +4286,7 @@ function recoveryCandidate(row) {
   if (!row) return null;
   const failed = failedFinalizationRow(row);
   const history = recoveryHistory(row.finalization_recovery_receipt);
-  if (!failed || !['worker_smoke_failed', 'internal_finalizer_failed'].includes(failed.failure_code) ||
+  if (!failed || !['worker_smoke_failed', 'internal_finalizer_failed', 'public_verification_failed'].includes(failed.failure_code) ||
       safeRuntime(row.selected_runtime) !== 'modal-hosted' || history == null) return null;
   const slug = safeSlug(row.slug);
   const modalReceipt = canonicalStoredReceipt(row.finalization_modal_receipt, 'modal_deploy', failed.target_sha);
@@ -4383,7 +4383,7 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
 +         finalization_modal_receipt = NULL, finalization_worker_receipt = NULL,
 +         automation_updated_at = CURRENT_TIMESTAMP
 +       WHERE id = $2 AND finalization_id = $3 AND finalization_target_sha = $4
-+         AND finalization_status = 'failed' AND finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed')
++         AND finalization_status = 'failed' AND finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed', 'public_verification_failed')
 +         AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
 +         AND selected_runtime = 'modal-hosted' AND finalization_recovery_receipt IS NOT DISTINCT FROM $11
 +         AND source_sha256 = $5 AND finalization_source_sha256 = $5
@@ -4407,7 +4407,7 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
 +         finalization_lease_expires_at = NULL, finalization_failure_code = NULL,
 +         finalization_modal_receipt = NULL, finalization_worker_receipt = NULL, automation_updated_at = ?
 +       WHERE id = ? AND finalization_id = ? AND finalization_target_sha = ?
-+         AND finalization_status = 'failed' AND finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed')
++         AND finalization_status = 'failed' AND finalization_failure_code IN ('worker_smoke_failed', 'internal_finalizer_failed', 'public_verification_failed')
 +         AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
 +         AND selected_runtime = 'modal-hosted' AND finalization_recovery_receipt IS ?
 +         AND source_sha256 = ? AND finalization_source_sha256 = ?
