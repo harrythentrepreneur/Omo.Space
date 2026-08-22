@@ -443,7 +443,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -2404,6 +2404,18 @@ const canaryProvisionReplay = await worker.fetch(
   mkReq('POST', '/api/internal/finalizations/canary-identity', {}, finalizerHeaders), productionCanaryEnv
 );
 const canaryProvisionReplayBody = await canaryProvisionReplay.json();
+const savedApiKeys = new Map(workerTest.mockApiKeys);
+workerTest.mockApiKeys.clear();
+const directProductionCanaryAuth = await workerTest.authenticateAccount(
+  mkReq('GET', '/api/run/run_scopecheck', null, { 'X-API-Key': productionCanaryKey }),
+  productionCanaryEnv, true, true,
+);
+const unscopedProductionCanaryAuth = await workerTest.authenticateAccount(
+  mkReq('GET', '/api/me', null, { 'X-API-Key': productionCanaryKey }),
+  productionCanaryEnv, true, false,
+);
+workerTest.mockApiKeys.clear();
+for (const [key, value] of savedApiKeys) workerTest.mockApiKeys.set(key, value);
 const productionCanaryScopedReject = await worker.fetch(mkReq('POST', '/api/run', {
   slug: 'facebook-ads-copywriter', fields: { product_name: 'Nope' },
 }, { 'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-scope-reject' }), productionCanaryEnv);
@@ -2435,10 +2447,14 @@ const productionCanaryForeignRetry = await worker.fetch(mkReq(
 ), productionCanaryEnv);
 const productionCanaryOwner = await workerTest.userIdForApiKey(productionCanaryEnv, productionCanaryKey);
 const hashOnlyCanaryResolver = /async function userIdForHashedApiKey[\s\S]*?(?=async function ensureProductionCanaryIdentity)/.exec(workerSrc)?.[0] || '';
-check('production canary auth: special fallback uses hashed key store only',
+check('production canary auth: hashed submission fallback stays narrow and fixed secret is scope-gated',
   hashOnlyCanaryResolver.includes('omo-api-key-owner-v1') &&
   !hashOnlyCanaryResolver.includes('legacy') && !hashOnlyCanaryResolver.includes('users WHERE api_key') &&
-  (workerSrc.match(/apiKeyOwner = .*userIdForHashedApiKey/g) || []).length === 2);
+  (workerSrc.match(/apiKeyOwner = .*userIdForHashedApiKey/g) || []).length === 2 &&
+  directProductionCanaryAuth.ok === true &&
+  directProductionCanaryAuth.userId === 'user_prod_label_normalizer_canary_v1' &&
+  directProductionCanaryAuth.method === 'production_canary' &&
+  unscopedProductionCanaryAuth.ok === false);
 check('production canary identity: finalizer-only one-time finite principal uses normal API-key auth and exact slug scope',
   builderCanaryProvision.status === 401 && wrongEnvironmentCanaryProvision.status === 503 &&
   canaryProvision.status === 200 && canaryProvisionBody.created === true &&
