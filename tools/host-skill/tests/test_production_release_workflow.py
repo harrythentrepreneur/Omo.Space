@@ -53,6 +53,7 @@ def test_exact_sha_checkout_and_controller_cli_have_no_user_selectable_target():
     checkout = steps[0]
     assert checkout["with"]["ref"] == "${{ needs.evaluate.outputs.target_sha }}"
     assert checkout["with"]["persist-credentials"] is False
+    assert checkout["with"]["fetch-depth"] == 0
     assert checkout["with"]["path"] == "target"
     command = steps[-1]["run"]
     assert "production_release_controller.py" in command
