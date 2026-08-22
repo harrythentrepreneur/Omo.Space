@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 
 from production_release_adapters import AdapterError, CommandCall
 
 MAX_OUTPUT_BYTES = 1024 * 1024
+SAFE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 class TransportError(RuntimeError):
@@ -50,12 +53,47 @@ class ProductionCommandTransport:
         self,
         *,
         executor: Callable[..., Any] = subprocess.run,
+        checkout_verifier: Callable[[str, str], bool] | None = None,
         source_env: Mapping[str, str] | None = None,
+        trusted_checkout: str,
+        trusted_sha: str,
         allow_mutation: bool = False,
     ) -> None:
         self._executor = executor
+        self._checkout_verifier = checkout_verifier or self._verify_git_checkout
         self._source_env = dict(source_env or {})
+        self._trusted_checkout = str(Path(trusted_checkout).resolve())
+        self._trusted_sha = str(trusted_sha or "").strip().lower()
+        if not SAFE_SHA_RE.fullmatch(self._trusted_sha):
+            raise TransportError("invalid_production_checkout")
         self._allow_mutation = allow_mutation
+
+    def _verify_git_checkout(self, checkout: str, target_sha: str) -> bool:
+        env = {"PATH": self._source_env.get("PATH", "/usr/bin:/bin"), "NO_COLOR": "1"}
+        try:
+            head = subprocess.run(
+                ["git", "-C", checkout, "rev-parse", "HEAD"], env=env, shell=False,
+                timeout=30, capture_output=True, check=False,
+            )
+            clean = subprocess.run(
+                ["git", "-C", checkout, "status", "--porcelain", "--untracked-files=all"],
+                env=env, shell=False, timeout=30, capture_output=True, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return False
+        return (
+            head.returncode == 0 and clean.returncode == 0
+            and head.stdout.decode("ascii", "ignore").strip().lower() == target_sha
+            and clean.stdout == b""
+        )
+
+    def _verify_call_checkout(self, call: CommandCall) -> None:
+        trusted = Path(self._trusted_checkout)
+        cwd = call.cwd.resolve()
+        if cwd not in {trusted, trusted / "site" / "deploy"}:
+            raise TransportError("invalid_production_checkout")
+        if not self._checkout_verifier(self._trusted_checkout, self._trusted_sha):
+            raise TransportError("invalid_production_checkout")
 
     def _environment(self, call: CommandCall, private_home: str) -> dict[str, str]:
         env = {
@@ -75,6 +113,7 @@ class ProductionCommandTransport:
     def _execute(self, call: CommandCall) -> str:
         if not isinstance(call, CommandCall):
             raise TransportError("invalid_production_command")
+        self._verify_call_checkout(call)
         mode = _command_mode(call)
         if mode == "write" and not self._allow_mutation:
             raise TransportError("production_mutation_not_enabled")

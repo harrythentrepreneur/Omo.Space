@@ -4,6 +4,7 @@
 /.github/CODEOWNERS @harrythentrepreneur @kaviru2
 /.github/workflows/ @harrythentrepreneur @kaviru2
 /tools/host-skill/release_*.py @harrythentrepreneur @kaviru2
+/tools/host-skill/production_release_controller.py @harrythentrepreneur @kaviru2
 /tools/host-skill/process-submissions.py @harrythentrepreneur @kaviru2
 /tools/host-skill/*release*_adapters.py @harrythentrepreneur @kaviru2
 /tools/host-skill/*release*_transport.py @harrythentrepreneur @kaviru2

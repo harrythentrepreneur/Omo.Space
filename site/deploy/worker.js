@@ -421,6 +421,8 @@ function dynamicRoute(pathname) {
   if (internalFinalizationResumeCompleted) return { handler: handleInternalFinalizationResumeCompleted, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationRegistrySlugs = /^\/api\/internal\/finalizations\/registry-slugs$/.exec(pathname);
   if (internalFinalizationRegistrySlugs) return { handler: handleInternalFinalizationRegistrySlugs, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationCanaryIdentity = /^\/api\/internal\/finalizations\/canary-identity$/.exec(pathname);
+  if (internalFinalizationCanaryIdentity) return { handler: handleInternalFinalizationCanaryIdentity, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationEffect = /^\/api\/internal\/finalizations\/(fin_[a-f0-9]{32})\/effects$/.exec(pathname);
   if (internalFinalizationEffect) return { handler: handleInternalFinalizationEffect, methods: ['POST'], params: { finalizationId: internalFinalizationEffect[1] }, internal: true, finalizer: true };
   const internalFinalizationStatus = /^\/api\/internal\/finalizations\/(fin_[a-f0-9]{32})\/status$/.exec(pathname);
@@ -704,6 +706,9 @@ async function handleGenericRun(request, env) {
     if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
     userId = auth.userId;
     authMethod = auth.method;
+    if (userId === 'user_prod_label_normalizer_canary_v1' && slug !== 'label-normalizer-canary') {
+      return json({ error: 'production_canary_scope_violation' }, 403, cors());
+    }
   } else {
     userId = validUserId(body.user_id) ? String(body.user_id).trim() : '';
   }
@@ -2773,6 +2778,19 @@ async function handleInternalFinalizationRegistrySlugs(request, env) {
   return internalJson({ ok: true, slugs }, 200);
 }
 
+async function handleInternalFinalizationCanaryIdentity(request, env) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const apiKey = String(env.PRODUCTION_CANARY_API_KEY || '').trim();
+  if (String(env.ENVIRONMENT || '') !== 'production' || !/^omo_[0-9a-f]{32}$/.test(apiKey)) {
+    return internalJson({ error: 'production_canary_not_configured' }, 503);
+  }
+  const provisioned = await ensureProductionCanaryIdentity(env, apiKey);
+  return internalJson({
+    ok: true, user_id: 'user_prod_label_normalizer_canary_v1', created: provisioned.created,
+  }, 200);
+}
+
 async function handleInternalFinalizationEffect(request, env, _url, params) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
@@ -4265,16 +4283,21 @@ function finalizationDetailRow(row) {
   const artifactHash = safeSha256(row.finalization_artifact_hash);
   const leaseExpiresAt = safeTimestamp(row.finalization_lease_expires_at);
   const status = String(row.finalization_status || '');
+  const submissionStatus = String(row.status || '');
+  const releasePhase = String(row.release_phase || '');
   const attempts = Number(row.finalization_attempts);
   if (!submissionId || !slug || !runtime || !targetSha || !headSha || !mergeSha || !sourceSha256 ||
       !artifactHash || !leaseExpiresAt ||
       !['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public', 'completed', 'failed'].includes(status) ||
+      !['ready_for_deploy', 'ready_for_publish', 'deployed', 'failed'].includes(submissionStatus) ||
+      !['merged_verified', 'promoted'].includes(releasePhase) ||
       !Number.isSafeInteger(attempts) || attempts < 1) return null;
   const detail = {
     id: String(row.finalization_id), submission_id: submissionId, slug, runtime, status,
     target_sha: targetSha, head_sha: headSha, merge_sha: mergeSha,
     source_sha256: sourceSha256, artifact_hash: artifactHash,
     lease_expires_at: leaseExpiresAt, attempts,
+    submission_status: submissionStatus, release_phase: releasePhase,
   };
   const failureCode = String(row.finalization_failure_code || '').trim();
   if (status === 'failed' && FINALIZATION_FAILURE_CODES.has(failureCode)) detail.failure_code = failureCode;
@@ -5205,6 +5228,13 @@ async function userIdForApiKey(env, apiKey) {
     return '';
   }
   return mockApiKeys.get(keyHash) || '';
+}
+
+async function ensureProductionCanaryIdentity(env, apiKey) {
+  const userId = 'user_prod_label_normalizer_canary_v1';
+  const account = await getUserRecord(env, userId);
+  await ensureApiKeyRecord(env, userId, apiKey);
+  return { created: account.created };
 }
 
 async function ensureApiKeyRecord(env, userId, apiKey) {

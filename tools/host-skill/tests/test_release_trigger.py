@@ -138,7 +138,7 @@ def test_cli_malformed_payload_fails_closed_without_echo(tmp_path, capsys):
     assert "SENTINEL" not in output
 
 
-def test_workflow_is_read_only_exact_sha_and_credential_free():
+def test_workflow_separates_credential_free_trigger_from_protected_finalizer():
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
     workflow = yaml.load(text, Loader=yaml.BaseLoader)
     assert workflow["name"] == "trusted-release-trigger"
@@ -148,16 +148,20 @@ def test_workflow_is_read_only_exact_sha_and_credential_free():
             "types": ["completed"],
         }
     }
-    assert workflow["permissions"] == {"contents": "read"}
-    assert "secrets." not in text
+    assert workflow["permissions"] == {"actions": "read", "contents": "read"}
     assert "workflow_dispatch" not in text
     assert "pull_request_target" not in text
-    assert "wrangler" not in text.lower()
-    assert "modal deploy" not in text.lower()
-    assert "vercel" not in text.lower()
-    assert "curl " not in text.lower()
     assert "persist-credentials: false" in text
     assert "11d5960a326750d5838078e36cf38b85af677262" in text
     assert "github.event.workflow_run.head_sha" not in text
     assert "steps.trigger.outputs.target_sha" in text
     assert "git -C target rev-parse HEAD" in text
+
+    evaluate = yaml.dump(workflow["jobs"]["evaluate"])
+    assert "secrets." not in evaluate
+    assert "wrangler" not in evaluate.lower()
+    assert "modal" not in evaluate.lower()
+    finalize = workflow["jobs"]["finalize"]
+    assert finalize["environment"] == "Production"
+    assert "ISSUE141_PRODUCTION_FINALIZER_ENABLED" in finalize["if"]
+    assert "secrets.RELEASE_FINALIZER_TOKEN" in yaml.dump(finalize)

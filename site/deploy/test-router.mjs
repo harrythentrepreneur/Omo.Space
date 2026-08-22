@@ -405,7 +405,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, internalRecordFinalizationEffect, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, internalRecordFinalizationEffect, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -1958,6 +1958,42 @@ const modalEffectAfterCompletion = await workerTest.internalRecordFinalizationEf
 check('internal finalization Modal effect: exact main identity persists and completed generation is immutable',
   modalEffectRecorded === 'recorded' && modalEffectAfterCompletion === 'invalid' &&
   JSON.parse(modalEffectRecord.finalization_modal_receipt).target === 'cognition-label-normalizer-canary');
+
+const productionCanaryKey = 'omo_' + '1'.repeat(32);
+const productionCanaryEnv = {
+  ...buildEnv,
+  ENVIRONMENT: 'production',
+  PRODUCTION_CANARY_API_KEY: productionCanaryKey,
+  LABEL_NORMALIZER_CANARY_MODAL_URL: 'https://issue141-canary.modal.invalid',
+  HOSTED_MODAL_PROXY_TOKEN_ID: 'production-modal-id',
+  HOSTED_MODAL_PROXY_TOKEN_SECRET: 'production-modal-secret',
+};
+const builderCanaryProvision = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/canary-identity', {}, internalHeaders), productionCanaryEnv
+);
+const wrongEnvironmentCanaryProvision = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/canary-identity', {}, finalizerHeaders),
+  { ...productionCanaryEnv, ENVIRONMENT: 'staging' }
+);
+const canaryProvision = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/canary-identity', {}, finalizerHeaders), productionCanaryEnv
+);
+const canaryProvisionBody = await canaryProvision.json();
+const canaryProvisionReplay = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/canary-identity', {}, finalizerHeaders), productionCanaryEnv
+);
+const canaryProvisionReplayBody = await canaryProvisionReplay.json();
+const productionCanaryScopedReject = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'facebook-ads-copywriter', fields: { product_name: 'Nope' },
+}, { 'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-scope-reject' }), productionCanaryEnv);
+const productionCanaryOwner = await workerTest.userIdForApiKey(productionCanaryEnv, productionCanaryKey);
+check('production canary identity: finalizer-only one-time finite principal uses normal API-key auth and exact slug scope',
+  builderCanaryProvision.status === 401 && wrongEnvironmentCanaryProvision.status === 503 &&
+  canaryProvision.status === 200 && canaryProvisionBody.created === true &&
+  canaryProvisionBody.user_id === 'user_prod_label_normalizer_canary_v1' &&
+  canaryProvisionReplay.status === 200 && canaryProvisionReplayBody.created === false &&
+  productionCanaryScopedReject.status === 403 &&
+  productionCanaryOwner === 'user_prod_label_normalizer_canary_v1');
 
 const firstFinalizationId = finalizationRecord.finalization_id;
 const reclaimedGenerationIds = [];
