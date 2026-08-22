@@ -419,6 +419,8 @@ function dynamicRoute(pathname) {
   if (internalFinalizationClaim) return { handler: handleInternalFinalizationClaim, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationResumeCompleted = /^\/api\/internal\/finalizations\/resume-completed$/.exec(pathname);
   if (internalFinalizationResumeCompleted) return { handler: handleInternalFinalizationResumeCompleted, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationResumeProbe = /^\/api\/internal\/finalizations\/resume-probe$/.exec(pathname);
+  if (internalFinalizationResumeProbe) return { handler: handleInternalFinalizationResumeProbe, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationRegistrySlugs = /^\/api\/internal\/finalizations\/registry-slugs$/.exec(pathname);
   if (internalFinalizationRegistrySlugs) return { handler: handleInternalFinalizationRegistrySlugs, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationSchema = /^\/api\/internal\/finalizations\/schema$/.exec(pathname);
@@ -2797,6 +2799,13 @@ async function handleInternalFinalizationResumeCompleted(request, env) {
   return internalJson({ ok: true, finalization }, 200);
 }
 
+async function handleInternalFinalizationResumeProbe(request, env) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const stage = await inspectFinalizationResumeQuery(env);
+  return internalJson({ ok: true, stage }, 200);
+}
+
 async function handleInternalFinalizationRegistrySlugs(request, env) {
   const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
@@ -4086,6 +4095,45 @@ function completedFinalizationRow(row) {
       safeSha256(row.release_artifact_hash) !== safeSha256(row.finalization_artifact_hash) ||
       !safePromotionEvidence(row.promotion_evidence)) return null;
   return { ...finalization, status: 'completed', submission_status: submissionStatus };
+}
+
+async function inspectFinalizationResumeQuery(env) {
+  if (databaseKind(env) !== 'neon') return 'unsupported';
+  let client;
+  try {
+    client = await getNeonPool(env).connect();
+  } catch {
+    return 'connection';
+  }
+  const columns = `id,slug,selected_runtime,status,release_phase,source_sha256,
+    release_head_sha,release_merge_sha,release_artifact_hash,promotion_evidence,
+    finalization_id,finalization_status,finalization_target_sha,
+    finalization_source_sha256,finalization_head_sha,finalization_merge_sha,
+    finalization_artifact_hash,finalization_lease_expires_at,finalization_attempts`;
+  const targetSha = '0000000000000000000000000000000000000000';
+  const filters = `status IN ('ready_for_publish', 'deployed') AND release_phase = 'promoted'
+    AND finalization_status = 'completed' AND finalization_target_sha = $1
+    AND source_sha256 = finalization_source_sha256
+    AND release_head_sha = finalization_head_sha
+    AND release_merge_sha = finalization_merge_sha
+    AND release_artifact_hash = finalization_artifact_hash`;
+  const probes = [
+    ['table', prepared('omo-finalization-resume-probe-table-v1', 'SELECT id FROM submissions LIMIT 1', [])],
+    ['columns', prepared('omo-finalization-resume-probe-columns-v1', `SELECT ${columns} FROM submissions LIMIT 1`, [])],
+    ['filters', prepared('omo-finalization-resume-probe-filters-v1', `SELECT id FROM submissions WHERE ${filters} LIMIT 1`, [targetSha])],
+    ['ordering', prepared('omo-finalization-resume-probe-ordering-v1',
+      `SELECT ${columns} FROM submissions WHERE ${filters}
+       ORDER BY CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END,
+                automation_updated_at ASC, id ASC LIMIT 1`, [targetSha])],
+  ];
+  try {
+    for (const [stage, query] of probes) {
+      try { await client.query(query); } catch { return stage; }
+    }
+    return 'passed';
+  } finally {
+    await client.release();
+  }
 }
 
 async function internalResumeCompletedFinalization(env, targetSha) {

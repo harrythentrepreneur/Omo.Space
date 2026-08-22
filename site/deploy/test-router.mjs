@@ -121,6 +121,7 @@ let workerNativeProviderGate = null;
 let releaseWorkerNativeProvider = null;
 const neonSqlCalls = [];
 let neonPoolShouldThrow = false;
+let neonQueryFailureFragment = '';
 let neonInfoSchemaTableExists = false;
 let neonInfoSchemaColumns = [];
 let neonApprovalRow = null;
@@ -147,6 +148,9 @@ class MockPool {
           ? { text: query, values: null, name: null, connectionString: poolOptions.connectionString }
           : { text: query.text, values: query.values || [], name: query.name, connectionString: poolOptions.connectionString };
         neonSqlCalls.push(entry);
+        if (neonQueryFailureFragment && entry.text.includes(neonQueryFailureFragment)) {
+          throw new Error('SENTINEL_DATABASE_DETAIL');
+        }
         if (neonPoolShouldThrow && (entry.text.startsWith('ALTER TABLE') || entry.text.includes('information_schema'))) {
           throw new Error(`leaked dsn ${poolOptions.connectionString}`);
         }
@@ -423,7 +427,7 @@ function check(name, cond) {
 check('Neon: Worker never caches request-bound Pool I/O in module scope',
   !workerSrc.includes('let neonPool') &&
   workerSrc.includes("neon(url, { fullResults: true })") &&
-  (workerSrc.match(/await client\.release\(\)/g) || []).length === 11);
+  (workerSrc.match(/await client\.release\(\)/g) || []).length === 12);
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
@@ -1561,6 +1565,28 @@ check('internal finalization schema migration: finalizer-only complete fixed add
     /^omo-finalization-schema-migrate-[a-z0-9_]+-v1$/.test(call.name || '') &&
     call.text.includes('ADD COLUMN IF NOT EXISTS')
   ));
+
+neonQueryFailureFragment = '';
+const resumeProbeBuilder = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/resume-probe', {}, internalHeaders), migrationEnv,
+);
+const resumeProbePassed = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/resume-probe', {}, finalizerHeaders), migrationEnv,
+);
+const resumeProbePassedBody = await resumeProbePassed.json();
+neonQueryFailureFragment = 'ORDER BY CASE';
+const resumeProbeOrdering = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/resume-probe', {}, finalizerHeaders), migrationEnv,
+);
+const resumeProbeOrderingBody = await resumeProbeOrdering.json();
+neonQueryFailureFragment = '';
+check('internal finalization resume probe: finalizer-only safe staged readback exposes no DB detail',
+  resumeProbeBuilder.status === 401 &&
+  resumeProbePassed.status === 200 &&
+  JSON.stringify(resumeProbePassedBody) === JSON.stringify({ ok: true, stage: 'passed' }) &&
+  resumeProbeOrdering.status === 200 &&
+  JSON.stringify(resumeProbeOrderingBody) === JSON.stringify({ ok: true, stage: 'ordering' }) &&
+  !JSON.stringify(resumeProbeOrderingBody).includes('SENTINEL'));
 
 for (const record of workerTest.mockSubmissions.values()) {
   if (record.id === submitAuto.id) {
