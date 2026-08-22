@@ -1,6 +1,8 @@
 """Ephemeral, isolated Hermes build worker for Omo marketplace submissions."""
 from __future__ import annotations
 
+import base64
+import datetime
 import hashlib
 import json
 import os
@@ -20,13 +22,14 @@ import modal
 
 APP_NAME = "omo-hermes-builder"
 SECRET_NAME = "omo-hermes-builder"
+NOUS_SECRET_NAME = "omo-hermes-builder-nous"
 DISPATCH_STORE = "omo-hermes-builder-dispatches"
 HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
 PYTEST_VERSION = "8.4.0"
 JSONSCHEMA_VERSION = "4.26.0"
 FASTAPI_VERSION = "0.109.0"
-DEFAULT_MODEL = "minimax-m2.7"
+DEFAULT_MODEL = "Hermes-4-70B"
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "da685cb243122ced3f7bdd3eac788315b0ca5e5f"
 MAX_SOURCE_BYTES = 200 * 1024
@@ -234,10 +237,25 @@ def prepare_trusted_checkout(root: Path, source_checkout: Path, base_revision: s
 def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]:
     home = root / "hermes"
     home.mkdir(mode=0o700, parents=True)
+    token = str(environ.get("NOUS_AGENT_KEY") or "").strip()
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise ValueError("invalid JWT segment count")
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+        expires_at = int(payload["exp"])
+        scope = str(payload.get("scope") or "")
+    except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise RuntimeError("Nous agent key is invalid") from error
+    if scope != "inference:invoke" or expires_at <= int(time.time()) + 900:
+        raise RuntimeError("Nous agent key is expired or incorrectly scoped")
+    expires_iso = datetime.datetime.fromtimestamp(
+        expires_at, datetime.timezone.utc
+    ).isoformat().replace("+00:00", "Z")
     config = {
         "model": {
-            "provider": "opencode-go",
-            "default": str(environ.get("OMO_BUILDER_MODEL", DEFAULT_MODEL)),
+            "provider": "nous",
+            "default": DEFAULT_MODEL,
         },
         "agent": {"max_turns": 60},
         "memory": {"memory_enabled": False, "user_profile_enabled": False},
@@ -246,15 +264,33 @@ def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]
         "security": {"redact_secrets": True},
         "approvals": {"mode": "manual"},
     }
+    auth = {
+        "version": 1,
+        "active_provider": "nous",
+        "providers": {
+            "nous": {
+                "agent_key": token,
+                "agent_key_expires_at": expires_iso,
+                "scope": "inference:invoke",
+                "inference_base_url": "https://inference-api.nousresearch.com/v1",
+            }
+        },
+    }
     (home / "config.yaml").write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
+    auth_path = home / "auth.json"
+    descriptor = os.open(auth_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        json.dump(auth, handle, sort_keys=True)
     result = dict(environ)
     result.update({
         "HERMES_HOME": str(home),
         "HOME": str(home),
+        "HERMES_NOUS_MIN_KEY_TTL_SECONDS": "900",
         "HERMES_YOLO_MODE": "0",
         "HERMES_REDACT_SECRETS": "true",
         "NO_COLOR": "1",
     })
+    result.pop("NOUS_AGENT_KEY", None)
     for key in tuple(result):
         if key.startswith(("TELEGRAM_", "DISCORD_", "WHATSAPP_", "SLACK_", "STRIPE_", "CLOUDFLARE_")):
             result.pop(key, None)
@@ -420,14 +456,14 @@ def smoke() -> dict[str, Any]:
         "returncode": check.returncode,
         "hermes_version": HERMES_VERSION,
         "model": DEFAULT_MODEL,
-        "provider": "opencode-go",
+        "provider": "nous",
         "duration_ms": round((time.monotonic() - started) * 1000),
     }
 
 
 @app.function(
     image=image,
-    secrets=[modal.Secret.from_name(SECRET_NAME)],
+    secrets=[modal.Secret.from_name(SECRET_NAME), modal.Secret.from_name(NOUS_SECRET_NAME)],
     cpu=2.0,
     memory=4096,
     # Modal 1.3.4 serializes this field in KiB despite documenting MiB; the
@@ -440,7 +476,7 @@ def smoke() -> dict[str, Any]:
 @modal.concurrent(max_inputs=1)
 def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str) -> dict[str, Any]:
     validate_job_identity(submission_id, slug, source_sha256, dispatch_id, base_revision)
-    required = ("OPENCODE_GO_API_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
+    required = ("NOUS_AGENT_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
     if any(not os.environ.get(name) for name in required):
         raise RuntimeError("builder secret is incomplete")
 
@@ -506,12 +542,12 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             chown_tree(checkout)
             chown_tree(review_dir)
             chown_tree(Path(env["HERMES_HOME"]))
-            model = str(env.get("OMO_BUILDER_MODEL", DEFAULT_MODEL))
+            model = DEFAULT_MODEL
             prompt = builder_prompt(submission_id, slug, source_sha256, review_path, base_revision)
             agent_returncode, hermes_reason = run_hermes_agent(
                 [
                     "hermes", "chat", "-q", prompt, "-Q",
-                    "--provider", "opencode-go", "-m", model,
+                    "--provider", "nous", "-m", model,
                     "--toolsets", "file,skills",
                 ],
                 checkout,
