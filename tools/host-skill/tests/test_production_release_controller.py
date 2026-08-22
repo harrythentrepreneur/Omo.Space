@@ -341,6 +341,22 @@ def test_modal_canary_rejects_cross_origin_result_url_before_credentialed_poll(m
     assert calls[0][1]["opener"] == mod.MODAL_OPENER
 
 
+def test_worker_smoke_reaches_worker_with_trusted_user_agent(monkeypatch):
+    mod = load_module()
+    requests = []
+
+    def urlopen(request, timeout):
+        requests.append(request)
+        raise mod.urllib.error.HTTPError(request.full_url, 401, "unauthorized", {}, None)
+
+    monkeypatch.setattr(mod.urllib.request, "urlopen", urlopen)
+    adapter = mod.ProductionCloudflareAdapter({})
+    assert adapter.smoke_worker(SimpleNamespace(), {}) == {"status": "passed"}
+    assert len(requests) == 1
+    assert requests[0].get_header("User-agent") == "OmoProductionFinalizer/1.0"
+    assert requests[0].get_header("Accept") == "application/json"
+
+
 def test_modal_deploy_reuses_existing_exact_tag_without_mutation(monkeypatch):
     mod = load_module()
     rows = [
