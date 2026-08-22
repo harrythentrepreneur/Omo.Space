@@ -1742,6 +1742,149 @@ def _reviewed_semantic_promises(profile: dict[str, Any]) -> str:
     return json.dumps(selected, ensure_ascii=False, sort_keys=True).lower()
 
 
+def _scalar_schema(schema: Any) -> bool:
+    if not isinstance(schema, dict):
+        return False
+    declared = schema.get("type")
+    types = declared if isinstance(declared, list) else [declared]
+    return any(candidate in ("string", "number", "integer", "boolean") for candidate in types)
+
+
+def _canonical_projection_schema(value: Any, parent_key: str | None = None) -> Any:
+    """Canonicalize only JSON Schema arrays whose ordering has no semantics."""
+    if isinstance(value, dict):
+        return {
+            key: _canonical_projection_schema(item, key)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        normalized = [_canonical_projection_schema(item) for item in value]
+        if parent_key == "required" and all(isinstance(item, str) for item in normalized):
+            return sorted(normalized)
+        return normalized
+    return value
+
+
+def _projection_source_always_present(input_schema: Any, field: str) -> bool:
+    """Accept projection only when the input contract requires a non-null source."""
+    if not isinstance(input_schema, dict):
+        return False
+    required = input_schema.get("required")
+    properties = input_schema.get("properties")
+    if not isinstance(required, list) or field not in required or not isinstance(properties, dict):
+        return False
+    property_schema = properties.get(field)
+    if not isinstance(property_schema, dict):
+        return False
+    declared = property_schema.get("type")
+    declared_types = declared if isinstance(declared, list) else [declared]
+    return bool(declared_types) and None not in declared_types and "null" not in declared_types
+
+
+def _projection_schema_compatible(source_schema: Any, target_schema: Any) -> bool:
+    """Return whether every declared projection type has exact comparison semantics."""
+    if not isinstance(source_schema, dict) or not isinstance(target_schema, dict):
+        return False
+
+    def declared_types(schema: dict[str, Any]) -> set[str]:
+        declared = schema.get("type")
+        values = declared if isinstance(declared, list) else [declared]
+        return {str(value) for value in values if value is not None and value != "null"}
+
+    source_types = declared_types(source_schema)
+    target_types = declared_types(target_schema)
+    supported = {"string", "number", "integer", "boolean", "array", "object"}
+    if not source_types or not target_types or not source_types <= supported or not target_types <= supported:
+        return False
+    structured = {"array", "object"}
+    if source_types & structured or target_types & structured:
+        # Structural projection is supported only for the same reviewed schema.
+        # JSON Schema's `required` arrays are sets at every nesting level; all
+        # other arrays retain order so real item/property/constraint differences
+        # continue to fail closed.
+        return _canonical_projection_schema(source_schema) == _canonical_projection_schema(
+            target_schema
+        )
+
+    def compatible(source_type: str, target_type: str) -> bool:
+        return source_type == target_type or (
+            source_type == "integer" and target_type == "number"
+        )
+
+    return all(
+        any(compatible(source_type, target_type) for target_type in target_types)
+        for source_type in source_types
+    ) and all(
+        any(compatible(source_type, target_type) for source_type in source_types)
+        for target_type in target_types
+    )
+
+
+def _object_array_title_field(schema: Any) -> str | None:
+    if not isinstance(schema, dict) or not _schema_type_is(schema, "array"):
+        return None
+    items = schema.get("items", {})
+    if not isinstance(items, dict) or not _schema_type_is(items, "object"):
+        return None
+    properties = items.get("properties", {})
+    if not isinstance(properties, dict):
+        return None
+    for candidate in ("title", "heading", "section", "name", "header"):
+        if candidate in properties and _schema_type_is(properties.get(candidate), "string"):
+            return candidate
+    return None
+
+
+def _reviewed_pair_mapping(
+    reviewed: dict[str, Any], key: str
+) -> list[tuple[str, str]] | None:
+    """Normalize a reviewed pair mapping; reject duplicate sources or targets.
+
+    Reviewed mappings are one-to-one evidence contracts. Repeated, duplicate,
+    or conflicting endpoints invalidate the whole mapping rather than allowing
+    list order or dictionary insertion order to choose a winner.
+    """
+    if key not in reviewed:
+        return []
+    raw = reviewed[key]
+    if isinstance(raw, dict):
+        if not raw or not all(
+            isinstance(source, str)
+            and bool(source)
+            and isinstance(target, str)
+            and bool(target)
+            for source, target in raw.items()
+        ):
+            return None
+        pairs = list(raw.items())
+    elif isinstance(raw, list):
+        if not raw:
+            return None
+        pairs = []
+        for item in raw:
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                source, target = item
+            elif isinstance(item, dict) and set(item) == {"input", "output"}:
+                source, target = item["input"], item["output"]
+            else:
+                return None
+            if not (
+                isinstance(source, str)
+                and bool(source)
+                and isinstance(target, str)
+                and bool(target)
+            ):
+                return None
+            pairs.append((source, target))
+    else:
+        return None
+    sources = [source for source, _ in pairs]
+    targets = [target for _, target in pairs]
+    if len(set(sources)) != len(sources) or len(set(targets)) != len(targets):
+        return None
+    return pairs
+
+
 def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
     """Derive deterministic evidence from the reviewed contract, never its slug.
 
@@ -1752,8 +1895,10 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
     live = profile.get("live")
     if not isinstance(live, dict):
         return {"kind": "schema_only", "version": 1}
-    input_properties = profile.get("input_schema", {}).get("properties", {})
-    output_properties = live.get("model_output_schema", {}).get("properties", {})
+    input_schema = profile.get("input_schema", {})
+    output_schema = live.get("model_output_schema", {})
+    input_properties = input_schema.get("properties", {})
+    output_properties = output_schema.get("properties", {})
     if not isinstance(input_properties, dict) or not isinstance(output_properties, dict):
         return {"kind": "schema_only", "version": 1}
     promises = _reviewed_semantic_promises(profile)
@@ -1895,6 +2040,281 @@ def semantic_evidence_spec(profile: dict[str, Any]) -> dict[str, Any]:
         return {
             "kind": "grounded_copy",
             "required_input_fields": ["product_name"],
+            "version": 1,
+        }
+
+    reviewed = profile.get("reviewed_spec", {})
+    if not isinstance(reviewed, dict):
+        reviewed = {}
+
+    # Generic contract-evidence adapters (semantic.contract_evidence_adapters/v1).
+    # Each class is selected only when the schema exposes its complete evidence
+    # shape AND the reviewed contract confirms the intended grounding rule, so
+    # profiles with empty reviewed_spec always stay schema_only.
+
+    # grounded_numeric_copy: delivered narrative must never introduce a number
+    # that is not present verbatim in the supplied payload.
+    if (
+        input_properties
+        and any(_schema_type_is(schema, "string") for schema in output_properties.values())
+        and (
+            "do not invent numbers" in promises
+            or "no new numbers" in promises
+            or "only supplied figures" in promises
+            or "only supplied numbers" in promises
+            or "use only supplied figures" in promises
+            or "use only supplied numbers" in promises
+        )
+    ):
+        return {"kind": "grounded_numeric_copy", "version": 1}
+
+    # exact_field_projection: reviewed projection pairs (or shared scalar
+    # fields under an explicit preservation promise) must be carried verbatim.
+    reviewed_projection_pairs = _reviewed_pair_mapping(reviewed, "projection")
+    projection_mapping_valid = reviewed_projection_pairs is not None
+    projection_pairs = reviewed_projection_pairs or []
+    if projection_mapping_valid and not projection_pairs:
+        shared_scalar = [
+            (name, name)
+            for name in input_properties
+            if name in output_properties
+            and _scalar_schema(input_properties[name])
+            and _scalar_schema(output_properties[name])
+        ]
+        if (
+            shared_scalar
+            and (
+                "exactly the supplied" in promises
+                or "use exactly" in promises
+                or "verbatim" in promises
+                or "preserve the supplied" in promises
+            )
+        ):
+            projection_pairs = shared_scalar
+    candidate_projection_pairs = projection_pairs
+    projection_pairs = [
+        (source, target)
+        for source, target in candidate_projection_pairs
+        if source in input_properties and target in output_properties
+        and _projection_source_always_present(input_schema, source)
+        and _projection_schema_compatible(
+            input_properties[source], output_properties[target]
+        )
+    ]
+    if len(projection_pairs) != len(candidate_projection_pairs):
+        projection_pairs = []
+    if projection_pairs:
+        return {
+            "kind": "exact_field_projection",
+            "pairs": [list(pair) for pair in projection_pairs],
+            "version": 1,
+        }
+
+    # constraint_coverage: every supplied item in an input array must have a
+    # paired, source-grounded output item (segments -> translations, functions
+    # -> documentation, and the like).
+    reviewed_coverage_pairs = _reviewed_pair_mapping(reviewed, "coverage")
+    coverage_mapping_valid = reviewed_coverage_pairs is not None
+    coverage_pairs = reviewed_coverage_pairs or []
+    if coverage_mapping_valid and not coverage_pairs:
+        input_arrays = [
+            name for name, schema in input_properties.items() if _schema_type_is(schema, "array")
+        ]
+        output_arrays = [
+            name for name, schema in output_properties.items() if _schema_type_is(schema, "array")
+        ]
+        if (
+            len(input_arrays) == 1
+            and len(output_arrays) == 1
+            and (
+                "translate every" in promises
+                or "one output per" in promises
+                or "each input item" in promises
+                or "every segment" in promises
+            )
+        ):
+            coverage_pairs = [(input_arrays[0], output_arrays[0])]
+    candidate_coverage_pairs = coverage_pairs
+    coverage_pairs = [
+        (source, target)
+        for source, target in candidate_coverage_pairs
+        if source in input_properties and target in output_properties
+    ]
+    if len(coverage_pairs) != len(candidate_coverage_pairs):
+        coverage_pairs = []
+    if coverage_pairs:
+        return {
+            "kind": "constraint_coverage",
+            "pairs": [list(pair) for pair in coverage_pairs],
+            "version": 1,
+        }
+
+    # policy_requirement_coverage: every required topic must be covered by at
+    # least one delivered section, and no section may invent an unreferenced
+    # topic.
+    requirement_entries: list[dict[str, Any]] = []
+    reviewed_requirements_pairs = _reviewed_pair_mapping(reviewed, "requirements")
+    requirements_mapping_valid = reviewed_requirements_pairs is not None
+    requirements_pairs = reviewed_requirements_pairs or []
+    if all(
+        source in input_properties and target in output_properties
+        for source, target in requirements_pairs
+    ):
+        for source, target in requirements_pairs:
+            requirement_entries.append(
+                {
+                    "requirements_field": source,
+                    "sections_field": target,
+                    "title_field": _object_array_title_field(output_properties.get(target)),
+                }
+            )
+    if requirements_mapping_valid and not requirements_pairs:
+        input_string_arrays = [
+            name
+            for name, schema in input_properties.items()
+            if _schema_type_is(schema, "array")
+            and _schema_type_is(schema.get("items"), "string")
+        ]
+        output_arrays = [
+            name for name, schema in output_properties.items() if _schema_type_is(schema, "array")
+        ]
+        if (
+            len(input_string_arrays) == 1
+            and output_arrays
+            and (
+                "cover every required" in promises
+                or "address all" in promises
+                or "every requirement" in promises
+                or "each required topic" in promises
+            )
+        ):
+            target = output_arrays[0]
+            requirement_entries.append(
+                {
+                    "requirements_field": input_string_arrays[0],
+                    "sections_field": target,
+                    "title_field": _object_array_title_field(output_properties.get(target)),
+                }
+            )
+    if requirement_entries:
+        return {
+            "kind": "policy_requirement_coverage",
+            "coverage": requirement_entries,
+            "version": 1,
+        }
+
+    # rule_based_classification: the output label must belong to the reviewed
+    # label set and follow the reviewed keyword rules when the payload triggers
+    # a rule.
+    classification = reviewed.get("classification")
+    label_field = ""
+    source_fields: list[str] = []
+    allowed_labels: list[str] = []
+    labels_field: str | None = None
+    classification_rules: Any = None
+    if isinstance(classification, dict):
+        raw_label_field = classification.get("field")
+        label_field = raw_label_field if isinstance(raw_label_field, str) else ""
+        raw_source_fields = classification.get("source_fields")
+        source_fields = (
+            list(raw_source_fields)
+            if isinstance(raw_source_fields, list)
+            and bool(raw_source_fields)
+            and all(isinstance(item, str) and bool(item) for item in raw_source_fields)
+            else []
+        )
+        raw_allowed_labels = classification.get("labels")
+        allowed_labels = (
+            list(raw_allowed_labels)
+            if isinstance(raw_allowed_labels, list)
+            and bool(raw_allowed_labels)
+            and all(isinstance(item, str) and bool(item) for item in raw_allowed_labels)
+            else []
+        )
+        raw_labels_field = classification.get("labels_field")
+        labels_field = (
+            raw_labels_field
+            if isinstance(raw_labels_field, str) and bool(raw_labels_field)
+            else None
+        )
+        classification_rules = classification.get("rules")
+        rules_valid = (
+            isinstance(classification_rules, dict)
+            and bool(classification_rules)
+            and all(
+                isinstance(rule_label, str)
+                and bool(rule_label)
+                and isinstance(keywords, list)
+                and bool(keywords)
+                and all(
+                    isinstance(keyword, str) and bool(keyword)
+                    for keyword in keywords
+                )
+                for rule_label, keywords in classification_rules.items()
+            )
+        )
+        labels_shape_valid = (
+            (raw_allowed_labels is None) != (raw_labels_field is None)
+            and (raw_allowed_labels is None or bool(allowed_labels))
+            and (
+                raw_labels_field is None
+                or (
+                    labels_field in input_properties
+                    and _schema_type_is(input_properties.get(labels_field), "array")
+                    and _schema_type_is(
+                        input_properties.get(labels_field, {}).get("items"), "string"
+                    )
+                )
+            )
+        )
+        rule_labels_valid = (
+            not allowed_labels
+            or (
+                isinstance(classification_rules, dict)
+                and set(classification_rules) <= set(allowed_labels)
+            )
+        )
+        contract_complete = (
+            bool(label_field)
+            and label_field in output_properties
+            and _schema_type_is(output_properties.get(label_field), "string")
+            and bool(source_fields)
+            and all(field in input_properties for field in source_fields)
+            and labels_shape_valid
+            and rules_valid
+            and rule_labels_valid
+        )
+    else:
+        contract_complete = False
+    if contract_complete:
+        return {
+            "kind": "rule_based_classification",
+            "label_field": label_field,
+            "allowed": allowed_labels,
+            "labels_field": labels_field,
+            "source_fields": source_fields,
+            "rules": classification_rules,
+            "version": 1,
+        }
+
+    # placeholder_glossary_enforcement: no placeholder tokens may survive in
+    # delivered prose, and glossary terms used must be expanded from the
+    # supplied map.
+    glossary_field: str | None = None
+    if isinstance(reviewed.get("glossary"), str) and reviewed["glossary"] in input_properties:
+        glossary_field = str(reviewed["glossary"])
+    if (
+        any(_schema_type_is(schema, "string") for schema in output_properties.values())
+        and (
+            glossary_field is not None
+            or "placeholder" in promises
+            or "glossary" in promises
+            or "no placeholders" in promises
+        )
+    ):
+        return {
+            "kind": "placeholder_glossary_enforcement",
+            "glossary_field": glossary_field,
             "version": 1,
         }
 
@@ -4956,6 +5376,250 @@ def _budget_semantic_diff(
     return details
 
 
+def _grounded_numeric_copy_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    unexpected = _evidence_number_tokens(generated) - _evidence_number_tokens(payload)
+    if unexpected:
+        return ["$:semantic_invented_number"]
+    return []
+
+
+def _exact_json_number_equal(left: Any, right: Any) -> bool:
+    """Compare JSON numbers exactly, excluding Python's bool/int equivalence."""
+    return (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+        and left == right
+    )
+
+
+def _json_like_equal(left: Any, right: Any) -> bool:
+    """Compare JSON-like values without Python's bool/number equivalence."""
+    if left is None or right is None:
+        return left is None and right is None
+    if isinstance(left, bool) or isinstance(right, bool):
+        return isinstance(left, bool) and isinstance(right, bool) and left is right
+    if isinstance(left, (int, float)) or isinstance(right, (int, float)):
+        return _exact_json_number_equal(left, right)
+    if isinstance(left, str) or isinstance(right, str):
+        return isinstance(left, str) and isinstance(right, str) and left == right
+    if isinstance(left, list) or isinstance(right, list):
+        return (
+            isinstance(left, list)
+            and isinstance(right, list)
+            and len(left) == len(right)
+            and all(_json_like_equal(a, b) for a, b in zip(left, right))
+        )
+    if isinstance(left, dict) or isinstance(right, dict):
+        return (
+            isinstance(left, dict)
+            and isinstance(right, dict)
+            and set(left) == set(right)
+            and all(_json_like_equal(left[key], right[key]) for key in left)
+        )
+    return False
+
+
+def _exact_field_projection_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    details: list[str] = []
+    for source_field, target_field in SEMANTIC_EVIDENCE_SPEC["pairs"]:
+        source_present = source_field in payload
+        source_value = payload.get(source_field)
+        if not source_present or source_value is None:
+            if target_field in generated and generated.get(target_field) is not None:
+                details.append(f"$.{target_field}:semantic_projection")
+            continue
+        target_value = generated.get(target_field)
+        if isinstance(source_value, str):
+            expected = re.sub(r"\\s+", " ", source_value.strip().casefold())
+            actual = re.sub(r"\\s+", " ", str(target_value or "").strip().casefold())
+            if not expected:
+                if actual:
+                    details.append(f"$.{target_field}:semantic_projection")
+                continue
+            prefix = r"(?<!\\w)" if re.match(r"\\w", expected) else ""
+            suffix = r"(?!\\w)" if re.search(r"\\w$", expected) else ""
+            if re.search(prefix + re.escape(expected) + suffix, actual) is None:
+                details.append(f"$.{target_field}:semantic_projection")
+        elif isinstance(source_value, bool):
+            if target_value is not source_value:
+                details.append(f"$.{target_field}:semantic_projection")
+        elif isinstance(source_value, (int, float)):
+            if not _exact_json_number_equal(target_value, source_value):
+                details.append(f"$.{target_field}:semantic_projection")
+        elif isinstance(source_value, (list, dict)):
+            if not _json_like_equal(target_value, source_value):
+                details.append(f"$.{target_field}:semantic_projection")
+        else:
+            details.append(f"$.{target_field}:semantic_projection")
+    return details
+
+
+def _constraint_coverage_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    details: list[str] = []
+    for source_field, target_field in SEMANTIC_EVIDENCE_SPEC["pairs"]:
+        expected = payload.get(source_field)
+        actual = generated.get(target_field)
+        if not isinstance(expected, list) or not isinstance(actual, list):
+            details.append(
+                f"$.{target_field}:semantic_coverage(expected={len(expected) if isinstance(expected, list) else '?'},actual={len(actual) if isinstance(actual, list) else '?'})"
+            )
+            continue
+        if len(actual) != len(expected):
+            details.append(
+                f"$.{target_field}:semantic_coverage(expected={len(expected)},actual={len(actual)})"
+            )
+            continue
+        for index, (expected_item, actual_item) in enumerate(zip(expected, actual)):
+            expected_text = _evidence_text(expected_item).strip().casefold()
+            actual_text = _evidence_text(actual_item).strip().casefold()
+            if _evidence_content_tokens(actual_item) <= _evidence_content_tokens(expected_item):
+                details.append(f"$.{target_field}[{index}]:semantic_noop")
+                continue
+            if not expected_text or expected_text not in actual_text:
+                details.append(f"$.{target_field}[{index}]:semantic_item_ungrounded")
+    return details
+
+
+def _policy_requirement_coverage_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    details: list[str] = []
+    for entry in SEMANTIC_EVIDENCE_SPEC["coverage"]:
+        requirements = payload.get(entry["requirements_field"])
+        if not isinstance(requirements, list) or not requirements:
+            continue
+        sections = generated.get(entry["sections_field"])
+        if not isinstance(sections, list):
+            details.append(
+                f"$.{entry['sections_field']}:semantic_requirement_uncovered(expected={len(requirements)})"
+            )
+            continue
+        title_field = entry.get("title_field")
+        section_texts: list[str] = []
+        for section in sections:
+            if isinstance(section, dict) and title_field:
+                section_texts.append(
+                    _evidence_text({title_field: section.get(title_field), "content": section})
+                )
+            else:
+                section_texts.append(_evidence_text(section))
+        requirement_texts = [str(item) for item in requirements]
+        uncovered = [
+            requirement
+            for requirement in requirement_texts
+            if not any(
+                _references_any_source(text, [requirement]) or requirement.casefold() in text.casefold()
+                for text in section_texts
+            )
+        ]
+        if uncovered:
+            details.append(
+                f"$.{entry['sections_field']}:semantic_requirement_uncovered(expected={len(uncovered)})"
+            )
+        invented = [
+            text
+            for text in section_texts
+            if not any(
+                _references_any_source(text, [requirement])
+                or requirement.casefold() in text.casefold()
+                for requirement in requirement_texts
+            )
+        ]
+        if invented:
+            details.append(f"$.{entry['sections_field']}:semantic_requirement_invented")
+    return details
+
+
+def _classification_keyword_matches(payload_text: str, keyword: str) -> bool:
+    normalized = keyword.casefold()
+    prefix = r"(?<!\\w)" if re.match(r"\\w", normalized) else ""
+    suffix = r"(?!\\w)" if re.search(r"\\w$", normalized) else ""
+    return re.search(prefix + re.escape(normalized) + suffix, payload_text) is not None
+
+
+def _rule_based_classification_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    details: list[str] = []
+    spec = SEMANTIC_EVIDENCE_SPEC
+    label_field = spec["label_field"]
+    label = str(generated.get(label_field) or "").strip()
+    allowed = list(spec.get("allowed", []))
+    if not allowed:
+        labels_field = spec.get("labels_field")
+        if labels_field:
+            raw_allowed = payload.get(labels_field)
+            if not (
+                isinstance(raw_allowed, list)
+                and bool(raw_allowed)
+                and all(
+                    isinstance(item, str) and bool(item.strip())
+                    for item in raw_allowed
+                )
+            ):
+                details.append(f"$.{label_field}:semantic_invalid_label")
+                return details
+            allowed = [item.strip() for item in raw_allowed]
+    if not allowed or label not in allowed:
+        details.append(f"$.{label_field}:semantic_invalid_label")
+        return details
+    rules = spec.get("rules", {})
+    if isinstance(rules, dict) and rules and label:
+        source_values = [payload.get(field) for field in spec.get("source_fields", [])]
+        payload_text = _evidence_text(source_values).casefold()
+        matched_labels: list[str] = []
+        for rule_label, keywords in rules.items():
+            if any(
+                _classification_keyword_matches(payload_text, keyword)
+                for keyword in keywords
+            ):
+                matched_labels.append(rule_label)
+        if matched_labels and label not in matched_labels:
+            details.append(f"$.{label_field}:semantic_rule_match")
+    return details
+
+
+def _placeholder_glossary_enforcement_semantic_diff(
+    generated: dict[str, Any], payload: dict[str, Any]
+) -> list[str]:
+    details: list[str] = []
+    spec = SEMANTIC_EVIDENCE_SPEC
+    text = _evidence_text(generated)
+    placeholder_patterns = [
+        re.compile(r"\[[^\[\]]{1,60}\]"),
+        re.compile(r"\{[^{}]{1,60}\}"),
+        re.compile(r"<[^<>]{1,60}>"),
+        re.compile(r"\\b(?:lorem ipsum|todo|tbd|placeholder)\\b", re.I),
+        re.compile(r"your [a-z][a-z ]{0,30} here", re.I),
+    ]
+    if any(pattern.search(text) for pattern in placeholder_patterns):
+        details.append("$:semantic_placeholder")
+        return details
+    glossary_field = spec.get("glossary_field")
+    if glossary_field:
+        entries = payload.get(glossary_field, [])
+        if isinstance(entries, list):
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                term = str(entry.get("term") or "").strip()
+                definition = str(entry.get("definition") or "").strip()
+                if not term or not definition:
+                    continue
+                if re.search(r"\\b" + re.escape(term) + r"\\b", text, flags=re.I) and definition.casefold() not in text.casefold():
+                    details.append("$:semantic_glossary_expansion")
+                    break
+    return details
+
+
 def _contract_evidence_validation_diff(
     generated: dict[str, Any], payload: dict[str, Any]
 ) -> list[str]:
@@ -4981,6 +5645,18 @@ def _contract_evidence_validation_diff(
         if _evidence_number_tokens(generated) - _evidence_number_tokens(payload):
             details.append("$:semantic_invented_number")
         return details
+    if kind == "grounded_numeric_copy":
+        return _grounded_numeric_copy_semantic_diff(generated, payload)
+    if kind == "exact_field_projection":
+        return _exact_field_projection_semantic_diff(generated, payload)
+    if kind == "constraint_coverage":
+        return _constraint_coverage_semantic_diff(generated, payload)
+    if kind == "policy_requirement_coverage":
+        return _policy_requirement_coverage_semantic_diff(generated, payload)
+    if kind == "rule_based_classification":
+        return _rule_based_classification_semantic_diff(generated, payload)
+    if kind == "placeholder_glossary_enforcement":
+        return _placeholder_glossary_enforcement_semantic_diff(generated, payload)
     return []
 
 

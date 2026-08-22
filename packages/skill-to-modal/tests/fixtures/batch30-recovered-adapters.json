@@ -1,0 +1,154 @@
+{
+  "provenance": "deterministic synthetic reconstruction 2026-08-16 of the seven BATCH30 REAL_RUN_SEMANTIC_FAILED reviewed contracts (code-documentation, email-drafting, logo-design, privacy-policy-drafting, proposal-generation, ticket-triage, translation) whose staged sources were lost with /tmp; reconstructed as reviewed local contracts and replayed through semantic.contract_evidence_adapters/v1; explicitly NOT recorded provider outputs",
+  "skills": [
+    {
+      "slug": "code-documentation",
+      "expected_kind": "constraint_coverage",
+      "reviewed_spec": {
+        "constraints": ["Document every function with one entry"],
+        "coverage": {"functions": "docs"},
+        "source_expected_contract": {"outputs": "Function documentation entries."}
+      },
+      "input": {
+        "functions": ["validate_email", "format_currency"]
+      },
+      "semantic_projection": {
+        "docs": [
+          {"name": "validate_email", "doc": "validate_email checks that the address is well formed."},
+          {"name": "format_currency", "doc": "format_currency renders a number with two decimals."}
+        ]
+      }
+    },
+    {
+      "slug": "email-drafting",
+      "expected_kind": "exact_field_projection",
+      "reviewed_spec": {
+        "constraints": ["Use the supplied names exactly"],
+        "projection": {"recipient_name": "greeting", "company_name": "signature"},
+        "source_expected_contract": {"outputs": "A personalized email."}
+      },
+      "input": {
+        "recipient_name": "Sarah Chen",
+        "company_name": "Brightpath Schools",
+        "offer": "20% off the annual plan"
+      },
+      "semantic_projection": {
+        "subject": "A note for Sarah Chen",
+        "greeting": "Hi Sarah Chen,",
+        "body": "We would like to offer Brightpath Schools 20% off the annual plan.",
+        "signature": "The Brightpath Schools team"
+      }
+    },
+    {
+      "slug": "logo-design",
+      "expected_kind": "placeholder_glossary_enforcement",
+      "reviewed_spec": {
+        "constraints": ["Never output placeholder text", "Use only the reviewed palette"],
+        "glossary": "palette",
+        "source_expected_contract": {"outputs": "A design brief with the reviewed palette."}
+      },
+      "input": {
+        "brand_name": "Lumen",
+        "palette": [
+          {"term": "navy", "definition": "#1B2A4A"},
+          {"term": "gold", "definition": "#E8B84B"}
+        ],
+        "style": "minimal"
+      },
+      "semantic_projection": {
+        "brief": "Lumen gets a minimal navy #1B2A4A and gold #E8B84B mark."
+      }
+    },
+    {
+      "slug": "privacy-policy-drafting",
+      "expected_kind": "policy_requirement_coverage",
+      "reviewed_spec": {
+        "constraints": [
+          "Cover every required topic in a dedicated section",
+          "Never add unrelated sections"
+        ],
+        "requirements": {"required_topics": "sections"},
+        "source_expected_contract": {"outputs": "A policy with one section per required topic."}
+      },
+      "input": {
+        "required_topics": [
+          "data collection",
+          "third-party sharing",
+          "data retention",
+          "user rights"
+        ]
+      },
+      "semantic_projection": {
+        "sections": [
+          {"title": "Data Collection", "body": "We collect names and email addresses."},
+          {"title": "Third-Party Sharing", "body": "We share records only with approved processors."},
+          {"title": "Data Retention", "body": "We keep records for seven years."},
+          {"title": "User Rights", "body": "You may request access or deletion."}
+        ]
+      }
+    },
+    {
+      "slug": "proposal-generation",
+      "expected_kind": "grounded_numeric_copy",
+      "reviewed_spec": {
+        "constraints": ["Use only supplied figures", "Do not invent numbers"],
+        "source_expected_contract": {"outputs": "A proposal drafted from supplied figures."}
+      },
+      "input": {
+        "company": "Acme Systems",
+        "budget": "Total spend is 4500 USD",
+        "dates": "March 2026"
+      },
+      "semantic_projection": {
+        "proposal": "Acme Systems will deliver the rollout for 4500 USD by March 2026."
+      }
+    },
+    {
+      "slug": "ticket-triage",
+      "expected_kind": "rule_based_classification",
+      "reviewed_spec": {
+        "constraints": ["Classify each ticket into exactly one reviewed category"],
+        "classification": {
+          "field": "category",
+          "source_fields": ["ticket"],
+          "labels": ["billing", "access", "feature-request"],
+          "rules": {
+            "billing": ["payment", "card", "invoice", "charge"],
+            "access": ["password", "sign in", "login", "account locked"]
+          }
+        },
+        "source_expected_contract": {"outputs": "A triage category and priority."}
+      },
+      "input": {
+        "ticket": "Payment failed twice with card ending 4242.",
+        "categories": ["billing", "access", "feature-request"]
+      },
+      "semantic_projection": {
+        "category": "billing",
+        "priority": "high",
+        "summary": "Payment retry needed"
+      }
+    },
+    {
+      "slug": "translation",
+      "expected_kind": "constraint_coverage",
+      "reviewed_spec": {
+        "constraints": ["Translate every supplied segment"],
+        "coverage": {"segments": "translations"},
+        "source_expected_contract": {"outputs": "One translation per supplied segment."}
+      },
+      "input": {
+        "segments": [
+          {"id": 1, "source": "Good morning"},
+          {"id": 2, "source": "Thank you for your order"}
+        ]
+      },
+      "semantic_projection": {
+        "translations": [
+          {"id": 1, "source": "Good morning", "translation": "Buenos días."},
+          {"id": 2, "source": "Thank you for your order", "translation": "Gracias por su pedido."}
+        ]
+      }
+    }
+  ]
+}

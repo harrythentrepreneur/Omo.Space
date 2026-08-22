@@ -40,6 +40,9 @@ SEMANTIC_INPUTS_PATH = SEMANTIC_REPLAY_PATH.with_name("semantic-adapter-inputs.j
 HARDENING_FIXTURE_PATH = SEMANTIC_REPLAY_PATH.with_name(
     "hardening-final-rerun.json"
 )
+BATCH30_RECOVERED_PATH = SEMANTIC_REPLAY_PATH.with_name(
+    "batch30-recovered-adapters.json"
+)
 
 
 def test_parse_skill_requires_and_returns_frontmatter() -> None:
@@ -1435,6 +1438,654 @@ def test_invoice_arithmetic_replays_correct_values_despite_nullable_header_shape
     assert "semantic_invoice_total" in runtime._semantic_validation_diff(output, payload)
 
 
+GENERIC_ADAPTERS_PATH = SEMANTIC_REPLAY_PATH.with_name("generic-adapters.json")
+
+_GENERIC_ADAPTER_REVIEWED = {
+    "grounded_numeric_copy": {
+        "constraints": ["Use only supplied figures", "Do not invent numbers"],
+        "source_expected_contract": {"outputs": "A proposal drafted from supplied figures."},
+    },
+    "exact_field_projection": {
+        "constraints": ["Use the supplied names exactly"],
+        "projection": {"recipient_name": "greeting", "company_name": "signature"},
+        "source_expected_contract": {"outputs": "A personalized email."},
+    },
+    "constraint_coverage": {
+        "constraints": ["Document every function with one entry"],
+        "coverage": {"functions": "docs"},
+        "source_expected_contract": {"outputs": "Function documentation entries."},
+    },
+    "policy_requirement_coverage": {
+        "constraints": [
+            "Cover every required topic in a dedicated section",
+            "Never add unrelated sections",
+        ],
+        "requirements": {"required_topics": "sections"},
+        "source_expected_contract": {"outputs": "A policy with one section per required topic."},
+    },
+    "rule_based_classification": {
+        "constraints": ["Classify each ticket into exactly one reviewed category"],
+        "classification": {
+            "field": "category",
+            "source_fields": ["ticket"],
+            "labels": ["billing", "login", "feature"],
+            "rules": {
+                "billing": ["payment", "card", "invoice"],
+                "login": ["password", "sign in", "login"],
+            },
+        },
+        "source_expected_contract": {"outputs": "A triage category and priority."},
+    },
+    "placeholder_glossary_enforcement": {
+        "constraints": ["Never output placeholder text"],
+        "glossary": "palette",
+        "source_expected_contract": {"outputs": "A design brief with the reviewed palette."},
+    },
+}
+
+_EXISTING_PROFILE_KINDS = {
+    "audio-symbolic-animation": "schema_only",
+    "customer-feedback-theme-finder": "schema_only",
+    "decodable-sentence-creator": "profile_semantic_normalizers",
+    "digraph-spotter": "profile_semantic_normalizers",
+    "facebook-ads-copywriter": "schema_only",
+    "grapheme-to-phoneme-converter": "profile_semantic_normalizers",
+    "illustrated-decodable-story-maker": "schema_only",
+    "japanese-style-story-video": "schema_only",
+    "label-normalizer-canary": "schema_only",
+    "meta-ads-audit": "schema_only",
+    "meta-creative-audit": "schema_only",
+    "phoneme-counter": "profile_semantic_normalizers",
+    "phonics-list-generator": "profile_semantic_normalizers",
+    "phonics-reading-error-coach": "schema_only",
+    "phonics-rule-explainer": "schema_only",
+    "phonics-story-edit-studio": "schema_only",
+    "phonics-worksheet-generator": "schema_only",
+    "skill-md-to-hosted-workflow": "schema_only",
+    "story-idea-generator": "schema_only",
+    "syllable-splitter-and-counter": "profile_semantic_normalizers",
+    "ugc-scriptwriter": "schema_only",
+    "ugc-strategy": "schema_only",
+    "woven-storybook-pipeline": "schema_only",
+}
+
+
+def _generic_adapter_runtime(tmp_path: Path, section: str):
+    fixture = json.loads(GENERIC_ADAPTERS_PATH.read_text(encoding="utf-8"))
+    cases = fixture[section]
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "generic-" + section
+    profile["name"] = profile["slug"]
+    profile["input_schema"] = _fixture_schema(cases[0]["input"])
+    profile["live"]["model_output_schema"] = _fixture_schema(cases[0]["semantic_projection"])
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = _GENERIC_ADAPTER_REVIEWED[section]
+    runtime_path = tmp_path / (profile["slug"] + ".py")
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + profile["slug"].replace("-", "_"), runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == section
+    return runtime, cases
+
+
+def test_generic_semantic_adapters_replay_right_needle_fixtures(tmp_path: Path) -> None:
+    for section in _GENERIC_ADAPTER_REVIEWED:
+        runtime, cases = _generic_adapter_runtime(tmp_path, section)
+        for case in cases:
+            payload = case["input"]
+            assert compiler.sha256_text(
+                json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            ) == case["input_sha256"]
+            output = json.loads(json.dumps(case["semantic_projection"]))
+            diff = runtime._semantic_validation_diff(output, payload)
+            assert diff == "", f"{section}: {diff}"
+
+
+def test_generic_semantic_adapters_flag_wrong_needles(tmp_path: Path) -> None:
+    wrong_needles = {
+        "grounded_numeric_copy": (
+            lambda output: output.update(
+                {"proposal": output["proposal"] + " for 5200 USD"}
+            ),
+            "$:semantic_invented_number",
+        ),
+        "exact_field_projection": (
+            lambda output: output.update({"greeting": "Hi there,"}),
+            "$.greeting:semantic_projection",
+        ),
+        "constraint_coverage": (
+            lambda output: output["docs"].pop(0),
+            "$.docs:semantic_coverage(expected=2,actual=1)",
+        ),
+        "policy_requirement_coverage": (
+            lambda output: output["sections"].pop(3),
+            "$.sections:semantic_requirement_uncovered(expected=1)",
+        ),
+        "rule_based_classification": (
+            lambda output: output.update({"category": "login"}),
+            "$.category:semantic_rule_match",
+        ),
+        "placeholder_glossary_enforcement": (
+            lambda output: output.update(
+                {"brief": "Lumen gets a [brand] mark with your logo here."}
+            ),
+            "$:semantic_placeholder",
+        ),
+    }
+    for section, (mutate, needle) in wrong_needles.items():
+        runtime, cases = _generic_adapter_runtime(tmp_path, section)
+        payload = cases[0]["input"]
+        output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+        mutate(output)
+        diff = runtime._semantic_validation_diff(output, payload)
+        assert needle in diff, f"{section}: expected {needle} in {diff}"
+
+
+def test_generic_semantic_adapters_flag_secondary_wrong_needles(tmp_path: Path) -> None:
+    runtime, cases = _generic_adapter_runtime(tmp_path, "constraint_coverage")
+    payload = cases[0]["input"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["docs"][0]["doc"] = "validate_email"
+    assert "$.docs[0]:semantic_noop" in runtime._semantic_validation_diff(output, payload)
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["docs"][0] = {
+        "name": "unrelated_function",
+        "doc": "unrelated_function inspects the mailbox quickly.",
+    }
+    assert "$.docs[0]:semantic_item_ungrounded" in runtime._semantic_validation_diff(
+        output, payload
+    )
+
+    runtime, cases = _generic_adapter_runtime(tmp_path, "policy_requirement_coverage")
+    payload = cases[0]["input"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["sections"].append(
+        {"title": "Monetization", "body": "We sell user data to advertisers."}
+    )
+    assert "$.sections:semantic_requirement_invented" in runtime._semantic_validation_diff(
+        output, payload
+    )
+
+    runtime, cases = _generic_adapter_runtime(tmp_path, "rule_based_classification")
+    payload = cases[0]["input"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["category"] = "refund"
+    assert "$.category:semantic_invalid_label" in runtime._semantic_validation_diff(
+        output, payload
+    )
+
+    runtime, cases = _generic_adapter_runtime(tmp_path, "placeholder_glossary_enforcement")
+    payload = cases[0]["input"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["brief"] = "Lumen gets a navy mark."
+    assert "$:semantic_glossary_expansion" in runtime._semantic_validation_diff(
+        output, payload
+    )
+
+
+def test_generic_semantic_adapter_selectors_fail_closed_without_contract() -> None:
+    projection_shape = {
+        "input_schema": {
+            "properties": {"recipient_name": {"type": "string"}},
+            "required": ["recipient_name"],
+        },
+        "live": {"model_output_schema": {"properties": {"greeting": {"type": "string"}}}},
+        "reviewed_spec": {"projection": {"recipient_name": "greeting"}},
+    }
+    assert compiler.semantic_evidence_spec(projection_shape)["kind"] == "exact_field_projection"
+    empty_reviewed = json.loads(json.dumps(projection_shape))
+    empty_reviewed["reviewed_spec"] = {}
+    assert compiler.semantic_evidence_spec(empty_reviewed)["kind"] == "schema_only"
+    dangling_marker = json.loads(json.dumps(projection_shape))
+    dangling_marker["reviewed_spec"] = {"projection": {"recipient_name": "missing_field"}}
+    assert compiler.semantic_evidence_spec(dangling_marker)["kind"] == "schema_only"
+
+    numeric_shape = {
+        "input_schema": {"properties": {"budget": {"type": "string"}}},
+        "live": {"model_output_schema": {"properties": {"proposal": {"type": "string"}}}},
+        "reviewed_spec": {"constraints": ["Do not invent numbers"]},
+    }
+    assert compiler.semantic_evidence_spec(numeric_shape)["kind"] == "grounded_numeric_copy"
+    numeric_shape["reviewed_spec"] = {"constraints": ["Write a persuasive proposal"]}
+    assert compiler.semantic_evidence_spec(numeric_shape)["kind"] == "schema_only"
+
+    enum_only_classification = {
+        "input_schema": {"properties": {"ticket": {"type": "string"}}},
+        "live": {"model_output_schema": {"properties": {
+            "category": {"type": "string", "enum": ["billing", "login"]},
+        }}},
+        "reviewed_spec": {},
+    }
+    assert compiler.semantic_evidence_spec(enum_only_classification)["kind"] == "schema_only"
+
+
+def test_exact_field_projection_is_boundary_aware_and_compares_structured_values(
+    tmp_path: Path,
+) -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "projection-regressions"
+    profile["name"] = profile["slug"]
+    payload = {
+        "recipient_name": "Ann",
+        "metadata": {"region": "EU", "active": True},
+        "tags": ["priority", "renewal"],
+    }
+    output = {
+        "greeting": "Hello, ANN!",
+        "metadata_copy": {"region": "EU", "active": True},
+        "tags_copy": ["priority", "renewal"],
+    }
+    profile["input_schema"] = _fixture_schema(payload)
+    profile["live"]["model_output_schema"] = _fixture_schema(output)
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = {
+        "constraints": ["Use the supplied values exactly"],
+        "projection": {
+            "recipient_name": "greeting",
+            "metadata": "metadata_copy",
+            "tags": "tags_copy",
+        },
+    }
+    runtime_path = tmp_path / "projection-regressions.py"
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("generated_projection_regressions", runtime_path)
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    assert runtime._semantic_validation_diff(output, payload) == ""
+
+    substring_collision = json.loads(json.dumps(output))
+    substring_collision["greeting"] = "Hello, Joanne!"
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(
+        substring_collision, payload
+    )
+
+    object_mismatch = json.loads(json.dumps(output))
+    object_mismatch["metadata_copy"]["region"] = "US"
+    assert "$.metadata_copy:semantic_projection" in runtime._semantic_validation_diff(
+        object_mismatch, payload
+    )
+
+    array_mismatch = json.loads(json.dumps(output))
+    array_mismatch["tags_copy"][1] = "expansion"
+    assert "$.tags_copy:semantic_projection" in runtime._semantic_validation_diff(
+        array_mismatch, payload
+    )
+
+    nested_object_bool_number_collision = json.loads(json.dumps(output))
+    nested_object_bool_number_collision["metadata_copy"]["active"] = 1
+    assert "$.metadata_copy:semantic_projection" in runtime._semantic_validation_diff(
+        nested_object_bool_number_collision, payload
+    )
+
+    nested_array_payload = json.loads(json.dumps(payload))
+    nested_array_payload["tags"] = ["priority", {"active": False}]
+    nested_array_output = json.loads(json.dumps(output))
+    nested_array_output["tags_copy"] = ["priority", {"active": 0.0}]
+    assert "$.tags_copy:semantic_projection" in runtime._semantic_validation_diff(
+        nested_array_output, nested_array_payload
+    )
+
+
+def test_exact_field_projection_empty_and_whitespace_sources_fail_closed(
+    tmp_path: Path,
+) -> None:
+    runtime, cases = _generic_adapter_runtime(tmp_path, "exact_field_projection")
+    payload = json.loads(json.dumps(cases[0]["input"]))
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+
+    payload["recipient_name"] = ""
+    output["greeting"] = "Invented recipient"
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(output, payload)
+    output["greeting"] = ""
+    assert runtime._semantic_validation_diff(output, payload) == ""
+
+    payload["recipient_name"] = " \t "
+    output["greeting"] = "Invented recipient"
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(output, payload)
+    output["greeting"] = "\n"
+    assert runtime._semantic_validation_diff(output, payload) == ""
+
+
+def test_exact_field_projection_numeric_values_use_exact_json_equality(tmp_path: Path) -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "projection-numeric-regressions"
+    profile["name"] = profile["slug"]
+    profile["input_schema"] = {
+        "type": "object",
+        "properties": {"amount": {"type": "number"}},
+        "required": ["amount"],
+    }
+    profile["live"]["model_output_schema"] = {
+        "type": "object",
+        "properties": {"amount_copy": {"type": "number"}},
+        "required": ["amount_copy"],
+    }
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = {"projection": {"amount": "amount_copy"}}
+    runtime_path = tmp_path / "projection-numeric-regressions.py"
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("projection_numeric_regressions", runtime_path)
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    accepted = [
+        (1, 1.0),
+        (-17, -17.0),
+        (9_007_199_254_740_993, 9_007_199_254_740_993),
+        (1.0000000000000002, 1.0000000000000002),
+    ]
+    rejected = [
+        (1.00, 1.01),
+        (-17.0, -17.0001),
+        (9_007_199_254_740_993, 9_007_199_254_740_992.0),
+        (0.1 + 0.2, 0.3),
+        (1, True),
+    ]
+    for source, target in accepted:
+        assert runtime._semantic_validation_diff(
+            {"amount_copy": target}, {"amount": source}
+        ) == ""
+    for source, target in rejected:
+        assert "$.amount_copy:semantic_projection" in runtime._semantic_validation_diff(
+            {"amount_copy": target}, {"amount": source}
+        )
+
+
+def test_exact_field_projection_missing_and_null_sources_fail_closed(tmp_path: Path) -> None:
+    runtime, cases = _generic_adapter_runtime(tmp_path, "exact_field_projection")
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+
+    missing_payload = json.loads(json.dumps(cases[0]["input"]))
+    missing_payload.pop("recipient_name")
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(
+        output, missing_payload
+    )
+    output.pop("greeting")
+    assert runtime._semantic_validation_diff(output, missing_payload) == ""
+
+    null_payload = json.loads(json.dumps(cases[0]["input"]))
+    null_payload["recipient_name"] = None
+    null_output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    assert "$.greeting:semantic_projection" in runtime._semantic_validation_diff(
+        null_output, null_payload
+    )
+    null_output["greeting"] = None
+    assert runtime._semantic_validation_diff(null_output, null_payload) == ""
+
+
+def test_exact_field_projection_selector_rejects_optional_or_nullable_sources() -> None:
+    base = {
+        "input_schema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+        "live": {"model_output_schema": {
+            "type": "object",
+            "properties": {"greeting": {"type": "string"}},
+            "required": ["greeting"],
+        }},
+        "reviewed_spec": {"projection": {"name": "greeting"}},
+    }
+    assert compiler.semantic_evidence_spec(base)["kind"] == "exact_field_projection"
+
+    optional_source = json.loads(json.dumps(base))
+    optional_source["input_schema"]["required"] = []
+    assert compiler.semantic_evidence_spec(optional_source)["kind"] == "schema_only"
+
+    nullable_source = json.loads(json.dumps(base))
+    nullable_source["input_schema"]["properties"]["name"]["type"] = ["string", "null"]
+    assert compiler.semantic_evidence_spec(nullable_source)["kind"] == "schema_only"
+
+    optional_source_optional_target = json.loads(json.dumps(optional_source))
+    optional_source_optional_target["live"]["model_output_schema"]["required"] = []
+    assert compiler.semantic_evidence_spec(optional_source_optional_target)["kind"] == "schema_only"
+
+
+def test_exact_field_projection_selector_canonicalizes_required_arrays_recursively() -> None:
+    source = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "address": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string"},
+                    "postal": {"type": "string", "minLength": 3},
+                },
+                "required": ["city", "postal"],
+            },
+            "contacts": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {"kind": {"type": "string"}, "value": {"type": "string"}},
+                    "required": ["kind", "value"],
+                },
+            },
+        },
+        "required": ["name", "address", "contacts"],
+    }
+    target = json.loads(json.dumps(source))
+    target["required"].reverse()
+    target["properties"]["address"]["required"].reverse()
+    target["properties"]["contacts"]["items"]["required"].reverse()
+    profile = {
+        "input_schema": {
+            "type": "object", "properties": {"metadata": source}, "required": ["metadata"]
+        },
+        "live": {"model_output_schema": {
+            "type": "object",
+            "properties": {"metadata_copy": target},
+            "required": ["metadata_copy"],
+        }},
+        "reviewed_spec": {"projection": {"metadata": "metadata_copy"}},
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "exact_field_projection"
+
+    different_constraint = json.loads(json.dumps(profile))
+    different_constraint["live"]["model_output_schema"]["properties"]["metadata_copy"][
+        "properties"
+    ]["address"]["properties"]["postal"]["minLength"] = 4
+    assert compiler.semantic_evidence_spec(different_constraint)["kind"] == "schema_only"
+
+
+def test_exact_field_projection_selector_rejects_schema_incompatible_mapping() -> None:
+    profile = {
+        "input_schema": {"properties": {
+            "name": {"type": "string"},
+            "metadata": {"type": "object"},
+        }},
+        "live": {"model_output_schema": {"properties": {
+            "greeting": {"type": "string"},
+            "summary": {"type": "string"},
+        }}},
+        "reviewed_spec": {"projection": {
+            "name": "greeting",
+            "metadata": "summary",
+        }},
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "schema_only"
+
+    incompatible_object_shapes = {
+        "input_schema": {"properties": {"metadata": {
+            "type": "object",
+            "properties": {"region": {"type": "string"}},
+            "required": ["region"],
+        }}},
+        "live": {"model_output_schema": {"properties": {"metadata_copy": {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+        }}}},
+        "reviewed_spec": {"projection": {"metadata": "metadata_copy"}},
+    }
+    assert compiler.semantic_evidence_spec(incompatible_object_shapes)["kind"] == "schema_only"
+
+    incompatible_array_items = {
+        "input_schema": {"properties": {"tags": {
+            "type": "array", "items": {"type": "string"},
+        }}},
+        "live": {"model_output_schema": {"properties": {"tags_copy": {
+            "type": "array", "items": {"type": "object"},
+        }}}},
+        "reviewed_spec": {"projection": {"tags": "tags_copy"}},
+    }
+    assert compiler.semantic_evidence_spec(incompatible_array_items)["kind"] == "schema_only"
+
+
+def test_malformed_reviewed_mapping_list_invalidates_the_entire_adapter() -> None:
+    profile = {
+        "input_schema": {"properties": {
+            "name": {"type": "string"},
+            "company": {"type": "string"},
+        }, "required": ["name", "company"]},
+        "live": {"model_output_schema": {"properties": {
+            "greeting": {"type": "string"},
+            "signature": {"type": "string"},
+        }}},
+        "reviewed_spec": {"projection": [
+            ["name", "greeting"],
+            {"input": "company"},
+        ]},
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "schema_only"
+
+
+@pytest.mark.parametrize("mapping_key", ["projection", "coverage", "requirements"])
+@pytest.mark.parametrize(
+    "mapping",
+    [
+        [["source_a", "target_a"], ["source_a", "target_b"]],
+        [["source_a", "target_a"], ["source_b", "target_a"]],
+        [["source_a", "target_a"], ["source_a", "target_a"]],
+        {"source_a": "target_a", "source_b": "target_a"},
+    ],
+)
+def test_reviewed_pair_mapping_rejects_duplicate_or_conflicting_pairs(
+    mapping_key: str, mapping: object
+) -> None:
+    assert compiler._reviewed_pair_mapping({mapping_key: mapping}, mapping_key) is None
+
+
+def test_rule_based_classification_selector_rejects_malformed_reviewed_values() -> None:
+    profile = {
+        "input_schema": {"properties": {"ticket": {"type": "string"}}},
+        "live": {"model_output_schema": {"properties": {
+            "category": {"type": "string"},
+        }}},
+        "reviewed_spec": {"classification": {
+            "field": "category",
+            "source_fields": ["ticket"],
+            "labels": ["billing", "feature"],
+            "rules": {"billing": ["card"]},
+        }},
+    }
+    assert compiler.semantic_evidence_spec(profile)["kind"] == "rule_based_classification"
+
+    malformed_rule_values = ["card", 7, {"keyword": "card"}, ["card", 7], []]
+    for malformed in malformed_rule_values:
+        candidate = json.loads(json.dumps(profile))
+        candidate["reviewed_spec"]["classification"]["rules"]["billing"] = malformed
+        assert compiler.semantic_evidence_spec(candidate)["kind"] == "schema_only"
+
+    for key, malformed in (
+        ("source_fields", ["ticket", 7]),
+        ("labels", ["billing", {"name": "feature"}]),
+    ):
+        candidate = json.loads(json.dumps(profile))
+        candidate["reviewed_spec"]["classification"][key] = malformed
+        assert compiler.semantic_evidence_spec(candidate)["kind"] == "schema_only"
+
+
+def test_dynamic_classification_labels_fail_closed_and_keywords_are_boundary_aware(
+    tmp_path: Path,
+) -> None:
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = "dynamic-classification-regressions"
+    profile["name"] = profile["slug"]
+    profile["input_schema"] = {
+        "type": "object",
+        "properties": {
+            "ticket": {"type": "string"},
+            "categories": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["ticket", "categories"],
+    }
+    profile["live"]["model_output_schema"] = {
+        "type": "object",
+        "properties": {"category": {"type": "string"}},
+        "required": ["category"],
+    }
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = {
+        "classification": {
+            "field": "category",
+            "source_fields": ["ticket"],
+            "labels_field": "categories",
+            "rules": {
+                "billing": ["card"],
+                "feature": ["café"],
+            },
+        },
+    }
+    runtime_path = tmp_path / "dynamic-classification-regressions.py"
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_dynamic_classification_regressions", runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == "rule_based_classification"
+
+    for malformed_labels in ([], "billing", ["billing", 7]):
+        payload = {"ticket": "discarded request", "categories": malformed_labels}
+        assert "$.category:semantic_invalid_label" in runtime._semantic_validation_diff(
+            {"category": "arbitrary"}, payload
+        )
+
+    no_collision = {"ticket": "The request was discarded.", "categories": ["billing", "feature"]}
+    assert runtime._semantic_validation_diff({"category": "feature"}, no_collision) == ""
+
+    punctuation_case = {"ticket": "The CARD—was declined.", "categories": ["billing", "feature"]}
+    assert "$.category:semantic_rule_match" in runtime._semantic_validation_diff(
+        {"category": "feature"}, punctuation_case
+    )
+
+    unicode_boundary = {"ticket": "A CAFÉ! request.", "categories": ["billing", "feature"]}
+    assert "$.category:semantic_rule_match" in runtime._semantic_validation_diff(
+        {"category": "billing"}, unicode_boundary
+    )
+
+
+def test_rule_based_classification_uses_only_reviewed_source_fields(tmp_path: Path) -> None:
+    runtime, cases = _generic_adapter_runtime(tmp_path, "rule_based_classification")
+    payload = json.loads(json.dumps(cases[0]["input"]))
+    payload["ticket"] = "I forgot my password and cannot sign in."
+    payload["categories"] = ["payment", "login"]
+    output = json.loads(json.dumps(cases[0]["semantic_projection"]))
+    output["category"] = "billing"
+    assert "$.category:semantic_rule_match" in runtime._semantic_validation_diff(output, payload)
+
+
+def test_generic_semantic_adapter_selectors_do_not_reclassify_existing_profiles() -> None:
+    profiles_dir = ROOT / "packages" / "skill-to-modal" / "profiles"
+    for path in sorted(profiles_dir.glob("*.json")):
+        profile = json.loads(path.read_text(encoding="utf-8"))
+        assert (
+            compiler.semantic_evidence_spec(profile)["kind"]
+            == _EXISTING_PROFILE_KINDS[path.stem]
+        ), path.stem
+
+
 def test_structural_selector_preserves_grounded_copy_budget_and_education_classes() -> None:
     grounded_copy = {
         "input_schema": {"properties": {"product_name": {"type": "string"}}},
@@ -1485,6 +2136,102 @@ def test_structural_selector_preserves_grounded_copy_budget_and_education_classe
         "normalizers": ["phoneme_containment"],
         "version": 1,
     }
+
+
+def _batch30_recovered_runtime(tmp_path: Path, slug: str):
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    entry = next(item for item in fixture["skills"] if item["slug"] == slug)
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile["slug"] = entry["slug"]
+    profile["name"] = entry["slug"]
+    profile["input_schema"] = _fixture_schema(entry["input"])
+    profile["live"]["model_output_schema"] = _fixture_schema(entry["semantic_projection"])
+    profile["semantic_normalizers"] = {}
+    profile["reviewed_spec"] = entry["reviewed_spec"]
+    runtime_path = tmp_path / (profile["slug"] + ".py")
+    runtime_path.write_text(compiler.modal_app_template(profile), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "generated_" + profile["slug"].replace("-", "_"), runtime_path
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    return runtime, entry
+
+
+def test_batch30_recovered_semantic_blockers_select_matching_adapter_kind(
+    tmp_path: Path,
+) -> None:
+    """Each of the seven BATCH30 REAL_RUN_SEMANTIC_FAILED contracts must
+    select its matching generic contract-evidence adapter (BUILDABLE #1)."""
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    assert fixture["provenance"]  # synthetic reconstruction, not provider output
+    expected_kinds = {
+        "code-documentation": "constraint_coverage",
+        "email-drafting": "exact_field_projection",
+        "logo-design": "placeholder_glossary_enforcement",
+        "privacy-policy-drafting": "policy_requirement_coverage",
+        "proposal-generation": "grounded_numeric_copy",
+        "ticket-triage": "rule_based_classification",
+        "translation": "constraint_coverage",
+    }
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        assert runtime.SEMANTIC_EVIDENCE_SPEC["kind"] == expected_kinds[entry["slug"]]
+
+
+def test_batch30_recovered_semantic_blockers_replay_right_needles(tmp_path: Path) -> None:
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        output = json.loads(json.dumps(entry["semantic_projection"]))
+        diff = runtime._semantic_validation_diff(output, entry["input"])
+        assert diff == "", f"{entry['slug']}: {diff}"
+
+
+def test_batch30_recovered_semantic_blockers_flag_wrong_needles(tmp_path: Path) -> None:
+    wrong_needles = {
+        "code-documentation": (
+            lambda output: output["docs"].pop(0),
+            "$.docs:semantic_coverage(expected=2,actual=1)",
+        ),
+        "email-drafting": (
+            lambda output: output.update({"greeting": "Hi there,"}),
+            "$.greeting:semantic_projection",
+        ),
+        "logo-design": (
+            lambda output: output.update(
+                {"brief": "Lumen gets a [brand] mark with your logo here."}
+            ),
+            "$:semantic_placeholder",
+        ),
+        "privacy-policy-drafting": (
+            lambda output: output["sections"].pop(3),
+            "$.sections:semantic_requirement_uncovered(expected=1)",
+        ),
+        "proposal-generation": (
+            lambda output: output.update(
+                {"proposal": output["proposal"] + " for 5200 USD"}
+            ),
+            "$:semantic_invented_number",
+        ),
+        "ticket-triage": (
+            lambda output: output.update({"category": "access"}),
+            "$.category:semantic_rule_match",
+        ),
+        "translation": (
+            lambda output: output["translations"].pop(0),
+            "$.translations:semantic_coverage(expected=2,actual=1)",
+        ),
+    }
+    fixture = json.loads(BATCH30_RECOVERED_PATH.read_text(encoding="utf-8"))
+    for entry in fixture["skills"]:
+        runtime, _ = _batch30_recovered_runtime(tmp_path, entry["slug"])
+        output = json.loads(json.dumps(entry["semantic_projection"]))
+        mutate, needle = wrong_needles[entry["slug"]]
+        mutate(output)
+        diff = runtime._semantic_validation_diff(output, entry["input"])
+        assert needle in diff, f"{entry['slug']}: expected {needle} in {diff}"
 
 
 def test_generated_repair_is_schema_driven_and_wrapper_allows_one_retry(tmp_path: Path) -> None:
