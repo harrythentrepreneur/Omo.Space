@@ -421,6 +421,10 @@ function dynamicRoute(pathname) {
   if (internalFinalizationResumeCompleted) return { handler: handleInternalFinalizationResumeCompleted, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationRegistrySlugs = /^\/api\/internal\/finalizations\/registry-slugs$/.exec(pathname);
   if (internalFinalizationRegistrySlugs) return { handler: handleInternalFinalizationRegistrySlugs, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationReceiptSchema = /^\/api\/internal\/finalizations\/receipt-schema$/.exec(pathname);
+  if (internalFinalizationReceiptSchema) return { handler: handleInternalFinalizationReceiptSchema, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationReceiptMigration = /^\/api\/internal\/finalizations\/receipt-schema\/migrate$/.exec(pathname);
+  if (internalFinalizationReceiptMigration) return { handler: handleInternalFinalizationReceiptMigration, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationCanaryIdentity = /^\/api\/internal\/finalizations\/canary-identity$/.exec(pathname);
   if (internalFinalizationCanaryIdentity) return { handler: handleInternalFinalizationCanaryIdentity, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationEffect = /^\/api\/internal\/finalizations\/(fin_[a-f0-9]{32})\/effects$/.exec(pathname);
@@ -2488,6 +2492,14 @@ const SUBMISSIONS_SCHEMA_MIGRATIONS = [
   ['idx_submissions_user_created', 'CREATE INDEX IF NOT EXISTS idx_submissions_user_created\n  ON submissions (user_id, created_at DESC)'],
 ];
 
+const FINALIZATION_RECEIPT_COLUMNS = [
+  'finalization_modal_receipt',
+  'finalization_worker_receipt',
+];
+const FINALIZATION_RECEIPT_MIGRATIONS = SUBMISSIONS_SCHEMA_MIGRATIONS.filter(([name]) =>
+  FINALIZATION_RECEIPT_COLUMNS.includes(name)
+);
+
 const SUBMISSIONS_TABLE_EXISTS_SQL = `
 SELECT EXISTS (
   SELECT 1
@@ -2776,6 +2788,20 @@ async function handleInternalFinalizationRegistrySlugs(request, env) {
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
   const slugs = await internalRequiredRegistrySlugs(env);
   return internalJson({ ok: true, slugs }, 200);
+}
+
+async function handleInternalFinalizationReceiptMigration(request, env) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const applied = await applyFinalizationReceiptMigration(env);
+  return internalJson({ ok: true, applied }, 200);
+}
+
+async function handleInternalFinalizationReceiptSchema(request, env) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const schema = await inspectFinalizationReceiptSchema(env);
+  return internalJson({ ok: true, ...schema }, 200);
 }
 
 async function handleInternalFinalizationCanaryIdentity(request, env) {
@@ -4798,6 +4824,52 @@ async function applySubmissionsSchemaMigration(env) {
     return applied;
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch { /* no-op */ }
+    throw new Error('internal_error');
+  } finally {
+    await client.release();
+  }
+}
+
+async function applyFinalizationReceiptMigration(env) {
+  if (databaseKind(env) !== 'neon') throw new Error('internal_error');
+  const client = await getNeonPool(env).connect();
+  try {
+    await client.query('BEGIN');
+    const applied = [];
+    for (const [name, statement] of FINALIZATION_RECEIPT_MIGRATIONS) {
+      await client.query(prepared(`omo-finalization-receipt-migrate-${name}-v1`, statement, []));
+      applied.push(name);
+    }
+    await client.query('COMMIT');
+    return applied;
+  } catch {
+    try { await client.query('ROLLBACK'); } catch { /* no-op */ }
+    throw new Error('internal_error');
+  } finally {
+    await client.release();
+  }
+}
+
+async function inspectFinalizationReceiptSchema(env) {
+  if (databaseKind(env) !== 'neon') throw new Error('internal_error');
+  const client = await getNeonPool(env).connect();
+  try {
+    const table = await client.query(prepared(
+      'omo-finalization-receipt-schema-table-v1', SUBMISSIONS_TABLE_EXISTS_SQL, []
+    ));
+    const columns = await client.query(prepared(
+      'omo-finalization-receipt-schema-columns-v1', SUBMISSIONS_COLUMNS_SQL,
+      [FINALIZATION_RECEIPT_COLUMNS]
+    ));
+    const presentSet = new Set((columns.rows || [])
+      .map((row) => String(row.column_name || ''))
+      .filter((name) => FINALIZATION_RECEIPT_COLUMNS.includes(name)));
+    return {
+      table_exists: Boolean(table.rows && table.rows[0] && table.rows[0].table_exists),
+      present: FINALIZATION_RECEIPT_COLUMNS.filter((name) => presentSet.has(name)),
+      missing: FINALIZATION_RECEIPT_COLUMNS.filter((name) => !presentSet.has(name)),
+    };
+  } catch {
     throw new Error('internal_error');
   } finally {
     await client.release();

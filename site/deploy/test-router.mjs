@@ -423,7 +423,7 @@ function check(name, cond) {
 check('Neon: Worker never caches request-bound Pool I/O in module scope',
   !workerSrc.includes('let neonPool') &&
   workerSrc.includes("neon(url, { fullResults: true })") &&
-  (workerSrc.match(/await client\.release\(\)/g) || []).length === 8);
+  (workerSrc.match(/await client\.release\(\)/g) || []).length === 10);
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
@@ -1461,6 +1461,59 @@ check('internal migration: database errors are generic and never include DSN or 
   !migrationFailureText.includes('postgres://') &&
   !migrationFailureText.includes('secret') &&
   neonSqlCalls.some((call) => call.text === 'ROLLBACK'));
+
+neonSqlCalls.length = 0;
+neonPoolShouldThrow = false;
+const receiptMigrationBuilder = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/receipt-schema/migrate', {}, internalHeaders), migrationEnv,
+);
+const receiptMigrationNonempty = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/receipt-schema/migrate', { sql: 'ALTER TABLE attacker' }, finalizerHeaders), migrationEnv,
+);
+const receiptMigrationFinalizer = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/receipt-schema/migrate', {}, finalizerHeaders), migrationEnv,
+);
+const receiptMigrationBody = await receiptMigrationFinalizer.json();
+const receiptMigrationCalls = neonSqlCalls.map(({ text, values, name }) => ({ text, values, name }));
+neonSqlCalls.length = 0;
+const receiptMigrationReplay = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/receipt-schema/migrate', {}, finalizerHeaders), migrationEnv,
+);
+const receiptMigrationReplayBody = await receiptMigrationReplay.json();
+const receiptMigrationReplayCalls = neonSqlCalls.map(({ text }) => text);
+neonSqlCalls.length = 0;
+neonInfoSchemaTableExists = true;
+neonInfoSchemaColumns = ['finalization_modal_receipt', 'finalization_worker_receipt', 'attacker_column'];
+const receiptSchema = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/receipt-schema', {}, finalizerHeaders), migrationEnv,
+);
+const receiptSchemaBody = await receiptSchema.json();
+check('internal finalization receipt migration: finalizer-only exact additive SQL and closed readback',
+  receiptMigrationBuilder.status === 401 &&
+  receiptMigrationNonempty.status === 400 &&
+  receiptMigrationFinalizer.status === 200 &&
+  JSON.stringify(receiptMigrationBody.applied) === JSON.stringify([
+    'finalization_modal_receipt', 'finalization_worker_receipt',
+  ]) &&
+  JSON.stringify(receiptMigrationCalls.map((call) => call.text)) === JSON.stringify([
+    'BEGIN',
+    'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_modal_receipt TEXT',
+    'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_worker_receipt TEXT',
+    'COMMIT', 'RELEASE', 'POOL_END',
+  ]) &&
+  receiptMigrationCalls.slice(1, 3).every((call) =>
+    Array.isArray(call.values) && call.values.length === 0 &&
+    /^omo-finalization-receipt-migrate-[a-z_]+-v1$/.test(call.name || '')
+  ) &&
+  receiptMigrationReplay.status === 200 &&
+  JSON.stringify(receiptMigrationReplayBody.applied) === JSON.stringify(receiptMigrationBody.applied) &&
+  JSON.stringify(receiptMigrationReplayCalls) === JSON.stringify(receiptMigrationCalls.map((call) => call.text)) &&
+  receiptSchema.status === 200 &&
+  JSON.stringify(receiptSchemaBody) === JSON.stringify({
+    ok: true, table_exists: true,
+    present: ['finalization_modal_receipt', 'finalization_worker_receipt'], missing: [],
+  }) &&
+  !JSON.stringify(receiptSchemaBody).includes('attacker_column'));
 
 for (const record of workerTest.mockSubmissions.values()) {
   if (record.id === submitAuto.id) {
