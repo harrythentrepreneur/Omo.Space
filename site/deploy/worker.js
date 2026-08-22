@@ -423,6 +423,8 @@ function dynamicRoute(pathname) {
   if (internalFinalizationRegistrySlugs) return { handler: handleInternalFinalizationRegistrySlugs, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationSchema = /^\/api\/internal\/finalizations\/schema$/.exec(pathname);
   if (internalFinalizationSchema) return { handler: handleInternalSubmissionSchema, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationSchemaMigration = /^\/api\/internal\/finalizations\/schema\/migrate$/.exec(pathname);
+  if (internalFinalizationSchemaMigration) return { handler: handleInternalFinalizationSchemaMigration, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationReceiptSchema = /^\/api\/internal\/finalizations\/receipt-schema$/.exec(pathname);
   if (internalFinalizationReceiptSchema) return { handler: handleInternalFinalizationReceiptSchema, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationReceiptMigration = /^\/api\/internal\/finalizations\/receipt-schema\/migrate$/.exec(pathname);
@@ -2501,6 +2503,16 @@ const FINALIZATION_RECEIPT_COLUMNS = [
 const FINALIZATION_RECEIPT_MIGRATIONS = SUBMISSIONS_SCHEMA_MIGRATIONS.filter(([name]) =>
   FINALIZATION_RECEIPT_COLUMNS.includes(name)
 );
+const FINALIZATION_SCHEMA_COLUMNS = [
+  'promotion_evidence', 'finalization_id', 'finalization_status', 'finalization_target_sha',
+  'finalization_source_sha256', 'finalization_head_sha', 'finalization_merge_sha',
+  'finalization_artifact_hash', 'finalization_claimed_at', 'finalization_lease_expires_at',
+  'finalization_attempts', 'finalization_failure_code', 'finalization_modal_receipt',
+  'finalization_worker_receipt', 'automation_updated_at',
+];
+const FINALIZATION_SCHEMA_MIGRATIONS = SUBMISSIONS_SCHEMA_MIGRATIONS.filter(([name]) =>
+  FINALIZATION_SCHEMA_COLUMNS.includes(name)
+);
 
 const SUBMISSIONS_TABLE_EXISTS_SQL = `
 SELECT EXISTS (
@@ -2796,6 +2808,13 @@ async function handleInternalFinalizationReceiptMigration(request, env) {
   const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
   const applied = await applyFinalizationReceiptMigration(env);
+  return internalJson({ ok: true, applied }, 200);
+}
+
+async function handleInternalFinalizationSchemaMigration(request, env) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const applied = await applyFinalizationSchemaMigration(env);
   return internalJson({ ok: true, applied }, 200);
 }
 
@@ -4840,6 +4859,26 @@ async function applyFinalizationReceiptMigration(env) {
     const applied = [];
     for (const [name, statement] of FINALIZATION_RECEIPT_MIGRATIONS) {
       await client.query(prepared(`omo-finalization-receipt-migrate-${name}-v1`, statement, []));
+      applied.push(name);
+    }
+    await client.query('COMMIT');
+    return applied;
+  } catch {
+    try { await client.query('ROLLBACK'); } catch { /* no-op */ }
+    throw new Error('internal_error');
+  } finally {
+    await client.release();
+  }
+}
+
+async function applyFinalizationSchemaMigration(env) {
+  if (databaseKind(env) !== 'neon') throw new Error('internal_error');
+  const client = await getNeonPool(env).connect();
+  try {
+    await client.query('BEGIN');
+    const applied = [];
+    for (const [name, statement] of FINALIZATION_SCHEMA_MIGRATIONS) {
+      await client.query(prepared(`omo-finalization-schema-migrate-${name}-v1`, statement, []));
       applied.push(name);
     }
     await client.query('COMMIT');
