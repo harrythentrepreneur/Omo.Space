@@ -173,8 +173,34 @@ def test_modal_readback_binds_sha_and_rollback_predecessor():
     assert receipt.rollback_token == "v2" and receipt.status == "passed"
     reused = mod.modal_receipt(after, after, SLUG, SHA, ARTIFACT)
     assert reused.reused is True and reused.previous_version_id is None
+    duplicated = [{"Version": "v5", "Tag": SHA}, {"Version": "v4", "Tag": SHA}, *before]
+    recovered = mod.modal_receipt(duplicated, duplicated, SLUG, SHA, ARTIFACT)
+    assert recovered.reused is True and recovered.version_id == "v5"
     with pytest.raises(mod.AdapterError):
         mod.modal_receipt([], [{"Version": "v1", "Tag": SHA}], SLUG, SHA, ARTIFACT)
+
+
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [
+        ([{"Version": "v5", "Tag": SHA}, {"Version": "bad version", "Tag": SHA}],
+         [{"Version": "v5", "Tag": SHA}, {"Version": "bad version", "Tag": SHA}]),
+        ([{"Version": 5, "Tag": SHA}], [{"Version": 5, "Tag": SHA}]),
+        ([{"Version": "v2", "Tag": None}, {"Version": "v2", "Tag": None}],
+         [{"Version": "v3", "Tag": SHA}, {"Version": "v2", "Tag": None}, {"Version": "v2", "Tag": None}]),
+        ([{"Version": "v2", "Tag": "not-a-sha"}],
+         [{"Version": "v3", "Tag": SHA}, {"Version": "v2", "Tag": "not-a-sha"}]),
+        ([{"Version": "v2"}], [{"Version": "v3", "Tag": SHA}, {"Version": "v2"}]),
+        ([{"Version": "v2", "Tag": None}, {"Version": "v1", "Tag": None}],
+         [{"Version": "v3", "Tag": SHA}]),
+        ([{"Version": "v2", "Tag": None}, {"Version": "v1", "Tag": None}],
+         [{"Version": "v3", "Tag": SHA}, {"Version": "v1", "Tag": None}, {"Version": "v2", "Tag": None}]),
+    ],
+)
+def test_modal_readback_rejects_malformed_or_changed_ordered_history(before, after):
+    mod = load_module()
+    with pytest.raises(mod.AdapterError, match="production_readback_failed"):
+        mod.modal_receipt(before, after, SLUG, SHA, ARTIFACT)
 
 
 def test_cloudflare_readback_binds_message_active_version_and_rollback():
