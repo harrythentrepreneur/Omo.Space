@@ -818,11 +818,11 @@ class ProductionPublicAdapter:
                     "User-Agent": "OmoProductionFinalizer/1.0",
                 }, timeout=30
             )
-            if poll_status == 200 and poll and poll.get("status") in {"succeeded", "failed", "refunded"}:
+            if poll_status == 200 and poll and poll.get("status") in {"succeeded", "completed", "failed", "refunded"}:
                 terminal = poll
                 break
             time.sleep(2)
-        if not terminal or terminal.get("status") != "succeeded":
+        if not terminal or terminal.get("status") not in {"succeeded", "completed"}:
             return {"status": "failed"}
         result = terminal.get("result") or terminal.get("output") or {}
         identifiers = [item.get("identifier") for item in result.get("items", [])] if isinstance(result, dict) else []
