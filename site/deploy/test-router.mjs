@@ -134,6 +134,7 @@ let neonFinalizationStatusRow = null;
 let neonCompletedFinalizationRow = null;
 let neonFailedFinalizationRow = null;
 let neonFailedResumeRow = null;
+let neonRecoveryRow = null;
 let neonFinalizationRegistryRows = [];
 let neonFinalizationEffectRow = null;
 
@@ -184,6 +185,9 @@ class MockPool {
           const allowed = Array.isArray(entry.values[1]) &&
             entry.values[1].includes(neonFailedResumeRow && neonFailedResumeRow.finalization_failure_code);
           return neonFailedResumeRow && allowed ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        if (entry.name === 'omo-internal-finalization-recover-rolled-back-v1') {
+          return neonRecoveryRow ? { rows: [neonRecoveryRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -371,6 +375,8 @@ const sandbox = {
                 ? 'omo-internal-finalization-resume-completed-v1'
               : text.includes("finalization_status = 'failed'") && text.includes('finalization_modal_receipt IS NOT NULL') && text.includes('SELECT')
                 ? 'omo-internal-finalization-failed-v1'
+              : text.includes('finalization_recovery_receipt = $1')
+                ? 'omo-internal-finalization-recover-rolled-back-v1'
               : text.includes("SET status = 'ready_for_deploy'") && text.includes('finalization_id = NULL') && text.includes("finalization_status = 'failed'")
                 ? 'omo-internal-finalization-resume-failed-v1'
               : text.includes('SELECT DISTINCT published_slug')
@@ -414,6 +420,9 @@ const sandbox = {
           entry.values[1].includes(neonFailedResumeRow && neonFailedResumeRow.finalization_failure_code);
         return neonFailedResumeRow && allowed ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-internal-finalization-recover-rolled-back-v1') {
+        return neonRecoveryRow ? { rows: [neonRecoveryRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
       if (entry.name === 'omo-internal-finalization-registry-slugs-v1') {
         return { rows: neonFinalizationRegistryRows, rowCount: neonFinalizationRegistryRows.length };
       }
@@ -434,7 +443,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, internalRecordFinalizationEffect, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, internalRecordFinalizationEffect, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -1526,7 +1535,7 @@ const receiptMigrationReplayBody = await receiptMigrationReplay.json();
 const receiptMigrationReplayCalls = neonSqlCalls.map(({ text }) => text);
 neonSqlCalls.length = 0;
 neonInfoSchemaTableExists = true;
-neonInfoSchemaColumns = ['finalization_modal_receipt', 'finalization_worker_receipt', 'attacker_column'];
+neonInfoSchemaColumns = ['finalization_modal_receipt', 'finalization_worker_receipt', 'finalization_recovery_receipt', 'attacker_column'];
 const receiptSchema = await worker.fetch(
   mkReq('POST', '/api/internal/finalizations/receipt-schema', {}, finalizerHeaders), migrationEnv,
 );
@@ -1536,15 +1545,16 @@ check('internal finalization receipt migration: finalizer-only exact additive SQ
   receiptMigrationNonempty.status === 400 &&
   receiptMigrationFinalizer.status === 200 &&
   JSON.stringify(receiptMigrationBody.applied) === JSON.stringify([
-    'finalization_modal_receipt', 'finalization_worker_receipt',
+    'finalization_modal_receipt', 'finalization_worker_receipt', 'finalization_recovery_receipt',
   ]) &&
   JSON.stringify(receiptMigrationCalls.map((call) => call.text)) === JSON.stringify([
     'BEGIN',
     'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_modal_receipt TEXT',
     'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_worker_receipt TEXT',
+    'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_recovery_receipt TEXT',
     'COMMIT', 'RELEASE', 'POOL_END',
   ]) &&
-  receiptMigrationCalls.slice(1, 3).every((call) =>
+  receiptMigrationCalls.slice(1, 4).every((call) =>
     Array.isArray(call.values) && call.values.length === 0 &&
     /^omo-finalization-receipt-migrate-[a-z_]+-v1$/.test(call.name || '')
   ) &&
@@ -1554,7 +1564,7 @@ check('internal finalization receipt migration: finalizer-only exact additive SQ
   receiptSchema.status === 200 &&
   JSON.stringify(receiptSchemaBody) === JSON.stringify({
     ok: true, table_exists: true,
-    present: ['finalization_modal_receipt', 'finalization_worker_receipt'], missing: [],
+    present: ['finalization_modal_receipt', 'finalization_worker_receipt', 'finalization_recovery_receipt'], missing: [],
   }) &&
   !JSON.stringify(receiptSchemaBody).includes('attacker_column'));
 
@@ -1571,7 +1581,7 @@ const expectedFinalizationColumns = [
   'finalization_source_sha256', 'finalization_head_sha', 'finalization_merge_sha',
   'finalization_artifact_hash', 'finalization_claimed_at', 'finalization_lease_expires_at',
   'finalization_attempts', 'finalization_failure_code', 'finalization_modal_receipt',
-  'finalization_worker_receipt', 'automation_updated_at',
+  'finalization_worker_receipt', 'finalization_recovery_receipt', 'automation_updated_at',
 ];
 const expectedFinalizationSql = [
   'BEGIN',
@@ -2043,6 +2053,64 @@ check('failed finalization resume mock: receipt-bearing, malformed identity, wro
   !JSON.stringify(receiptFailedInspectBody).includes('recorded') && receiptFailedResume.status === 409 &&
   malformedFailedResume.status === 409);
 
+const rollbackTarget = '8'.repeat(40);
+const rollbackArtifact = 'd'.repeat(64);
+const rollbackModalReceipt = workerTest.safeDeploymentReceipt({
+  provider: 'modal', target: 'cognition-recovery-workflow', environment: 'main',
+  target_sha: rollbackTarget, artifact_hash: rollbackArtifact, version_id: 'modal-v6',
+  previous_version_id: null, reused: true, rollback_token: null, status: 'passed',
+}, 'modal_deploy', rollbackTarget);
+const rollbackWorkerReceipt = workerTest.safeDeploymentReceipt({
+  provider: 'cloudflare', target: 'cognition-demos', environment: 'production',
+  target_sha: rollbackTarget, artifact_hash: rollbackArtifact, version_id: 'cf-v9',
+  previous_version_id: 'cf-v8', reused: false, rollback_token: 'cf-v8', status: 'passed',
+}, 'worker_deploy', rollbackTarget);
+const rollbackRecord = {
+  ...receiptBearingFailed,
+  id: 'sub_rollbackrecover01', slug: 'recovery-workflow', selected_runtime: 'modal-hosted',
+  status: 'failed', release_phase: 'merged_verified', finalization_id: 'fin_' + '8'.repeat(32),
+  finalization_status: 'failed', finalization_failure_code: 'worker_smoke_failed',
+  finalization_target_sha: rollbackTarget, finalization_attempts: 5,
+  release_merge_sha: 'c'.repeat(40),
+  release_artifact_hash: rollbackArtifact, finalization_artifact_hash: rollbackArtifact,
+  finalization_modal_receipt: JSON.stringify(rollbackModalReceipt),
+  finalization_worker_receipt: JSON.stringify(rollbackWorkerReceipt),
+  finalization_recovery_receipt: null,
+};
+workerTest.mockSubmissions.set(rollbackRecord.id, rollbackRecord);
+const recoveryPlanResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recovery-plan', {
+  target_sha: rollbackTarget,
+}, finalizerHeaders), buildEnv);
+const recoveryPlanBody = await recoveryPlanResponse.json();
+const recoveryExtra = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recover-rolled-back', {
+  target_sha: rollbackTarget, modal_version: 'attacker-controlled',
+}, finalizerHeaders), buildEnv);
+const recoveryResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recover-rolled-back', {
+  target_sha: rollbackTarget,
+}, finalizerHeaders), buildEnv);
+const recoveryBody = await recoveryResponse.json();
+const recoverySnapshot = JSON.parse(rollbackRecord.finalization_recovery_receipt || 'null');
+const recoveryReplay = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recover-rolled-back', {
+  target_sha: rollbackTarget,
+}, finalizerHeaders), buildEnv);
+check('receipt-aware rollback recovery mock: exact target-only boundary preserves immutable evidence and rearms once',
+  recoveryPlanResponse.status === 200 && recoveryPlanBody.recovery.target_sha === rollbackTarget &&
+  recoveryPlanBody.recovery.modal.expected_active_version_id === 'modal-v6' &&
+  recoveryPlanBody.recovery.cloudflare.expected_active_version_id === 'cf-v8' &&
+  recoveryExtra.status === 400 && recoveryResponse.status === 200 &&
+  recoveryBody.status === 'ready_for_deploy' && recoveryReplay.status === 409 &&
+  rollbackRecord.status === 'ready_for_deploy' && rollbackRecord.finalization_id === null &&
+  rollbackRecord.finalization_attempts === 5 && rollbackRecord.finalization_modal_receipt === null &&
+  rollbackRecord.finalization_worker_receipt === null && recoverySnapshot.finalization_id === 'fin_' + '8'.repeat(32) &&
+  recoverySnapshot.attempt === 5 && recoverySnapshot.target_sha === rollbackTarget &&
+  recoverySnapshot.failure_code === 'worker_smoke_failed' &&
+  recoverySnapshot.modal_receipt.version_id === 'modal-v6' &&
+  recoverySnapshot.worker_receipt.previous_version_id === 'cf-v8' &&
+  recoverySnapshot.expected_provider_state.modal.version_id === 'modal-v6' &&
+  recoverySnapshot.expected_provider_state.cloudflare.version_id === 'cf-v8' &&
+  recoverySnapshot.verified_by === 'trusted_production_finalizer');
+workerTest.mockSubmissions.delete(rollbackRecord.id);
+
 neonSqlCalls.length = 0;
 neonFailedFinalizationRow = { ...receiptBearingFailed, release_merge_sha: 'c'.repeat(40),
   modal_receipt_present: false, worker_receipt_present: true };
@@ -2086,8 +2154,36 @@ check('failed finalization Neon SQL: exact target, allowlisted failure, complete
   neonFailedResumeCall.text.includes('finalization_modal_receipt IS NULL') &&
   neonFailedResumeCall.text.includes('release_merge_sha = finalization_merge_sha') &&
   neonFailedResumed === true);
+neonSqlCalls.length = 0;
+neonFailedFinalizationRow = {
+  ...rollbackRecord, status: 'failed', finalization_id: 'fin_' + '8'.repeat(32),
+  finalization_status: 'failed', finalization_failure_code: 'worker_smoke_failed',
+  finalization_target_sha: rollbackTarget, finalization_source_sha256: 'a'.repeat(64),
+  finalization_head_sha: 'b'.repeat(40), finalization_merge_sha: 'c'.repeat(40),
+  finalization_artifact_hash: rollbackArtifact, finalization_attempts: 5,
+  finalization_modal_receipt: JSON.stringify(rollbackModalReceipt),
+  finalization_worker_receipt: JSON.stringify(rollbackWorkerReceipt),
+  finalization_recovery_receipt: null,
+};
+neonRecoveryRow = { id: rollbackRecord.id };
+const neonRecovered = await workerTest.internalRecoverRolledBackFinalization(
+  { NEON_DATABASE_URL: 'postgres://example' }, rollbackTarget
+);
+const neonRecoveryCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-recover-rolled-back-v1');
+check('receipt-aware rollback recovery Neon: exact immutable CAS stores evidence once and clears active generation',
+  neonRecovered === true && neonRecoveryCall.values.length === 10 &&
+  neonRecoveryCall.values[3] === rollbackTarget &&
+  JSON.parse(neonRecoveryCall.values[0]).verified_by === 'trusted_production_finalizer' &&
+  neonRecoveryCall.values[8] === JSON.stringify(rollbackModalReceipt) &&
+  neonRecoveryCall.values[9] === JSON.stringify(rollbackWorkerReceipt) &&
+  neonRecoveryCall.text.includes("finalization_failure_code = 'worker_smoke_failed'") &&
+  neonRecoveryCall.text.includes("selected_runtime = 'modal-hosted'") &&
+  neonRecoveryCall.text.includes('finalization_recovery_receipt IS NULL') &&
+  neonRecoveryCall.text.includes('finalization_modal_receipt = $9') &&
+  neonRecoveryCall.text.includes('finalization_worker_receipt = $10'));
 neonFailedFinalizationRow = null;
 neonFailedResumeRow = null;
+neonRecoveryRow = null;
 workerTest.mockSubmissions.delete(failedRecoveryRecord.id);
 const builderFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
   target_sha: '3'.repeat(40),
@@ -2730,7 +2826,8 @@ function d1DatabaseForFinalization(record) {
     finalization_claimed_at TEXT, finalization_lease_expires_at TEXT,
     finalization_attempts INTEGER NOT NULL DEFAULT 0,
     finalization_failure_code TEXT, finalization_modal_receipt TEXT,
-    finalization_worker_receipt TEXT, automation_updated_at TEXT, updated_at TEXT
+    finalization_worker_receipt TEXT, finalization_recovery_receipt TEXT,
+    automation_updated_at TEXT, updated_at TEXT
   )`);
   const keys = Object.keys(record);
   db.prepare(`INSERT INTO submissions (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`)
@@ -2939,6 +3036,38 @@ check('internal failed finalization resume D1: real SQLite requeues once, then s
   d1FailedAfter.finalization_status === 'claimed' && d1FailedAfter.finalization_attempts === 2 &&
   d1FailedAfter.finalization_failure_code === null);
 d1Failed.db.close();
+
+const d1RecoveryRecord = {
+  ...rollbackRecord, status: 'failed', finalization_id: 'fin_' + '8'.repeat(32),
+  finalization_status: 'failed', finalization_failure_code: 'worker_smoke_failed',
+  finalization_target_sha: rollbackTarget, finalization_source_sha256: 'a'.repeat(64),
+  finalization_head_sha: 'b'.repeat(40), finalization_merge_sha: 'c'.repeat(40),
+  finalization_artifact_hash: rollbackArtifact, finalization_attempts: 5,
+  finalization_modal_receipt: JSON.stringify(rollbackModalReceipt),
+  finalization_worker_receipt: JSON.stringify(rollbackWorkerReceipt),
+  finalization_recovery_receipt: null,
+};
+delete d1RecoveryRecord.failure_code;
+const d1Recovery = d1DatabaseForFinalization(d1RecoveryRecord);
+const d1RecoveryEnv = { BALANCE_DB: d1Recovery.binding };
+const d1Recovered = await workerTest.internalRecoverRolledBackFinalization(d1RecoveryEnv, rollbackTarget);
+const d1RecoveryReplay = await workerTest.internalRecoverRolledBackFinalization(d1RecoveryEnv, rollbackTarget);
+const d1RecoveryFreshTarget = 'e'.repeat(40);
+const d1RecoveryClaim = await workerTest.internalClaimFinalization(d1RecoveryEnv, d1RecoveryFreshTarget);
+const d1RecoveryAfter = d1Recovery.db.prepare(
+  'SELECT status,finalization_id,finalization_target_sha,finalization_attempts,finalization_recovery_receipt FROM submissions WHERE id = ?'
+).get(rollbackRecord.id);
+const d1RecoveryEvidence = JSON.parse(d1RecoveryAfter.finalization_recovery_receipt);
+check('receipt-aware rollback recovery D1: real SQLite CAS has one winner and ordinary next claim preserves evidence',
+  d1Recovered === true && d1RecoveryReplay === false && d1RecoveryClaim &&
+  d1RecoveryClaim.target_sha === d1RecoveryFreshTarget && d1RecoveryClaim.attempts === 6 &&
+  d1RecoveryAfter.finalization_id !== 'fin_' + '8'.repeat(32) &&
+  d1RecoveryAfter.finalization_target_sha === d1RecoveryFreshTarget &&
+  d1RecoveryAfter.finalization_attempts === 6 &&
+  d1RecoveryEvidence.target_sha === rollbackTarget &&
+  d1RecoveryEvidence.modal_receipt.version_id === 'modal-v6' &&
+  d1RecoveryEvidence.worker_receipt.previous_version_id === 'cf-v8');
+d1Recovery.db.close();
 
 function d1DatabaseForMergedRelease(record) {
   const db = new DatabaseSync(':memory:');

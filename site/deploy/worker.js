@@ -427,6 +427,10 @@ function dynamicRoute(pathname) {
   if (internalFinalizationFailed) return { handler: handleInternalFinalizationFailed, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationResumeFailed = /^\/api\/internal\/finalizations\/resume-failed$/.exec(pathname);
   if (internalFinalizationResumeFailed) return { handler: handleInternalFinalizationResumeFailed, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationRecoveryPlan = /^\/api\/internal\/finalizations\/recovery-plan$/.exec(pathname);
+  if (internalFinalizationRecoveryPlan) return { handler: handleInternalFinalizationRecoveryPlan, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationRecoverRolledBack = /^\/api\/internal\/finalizations\/recover-rolled-back$/.exec(pathname);
+  if (internalFinalizationRecoverRolledBack) return { handler: handleInternalFinalizationRecoverRolledBack, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationResumeProbe = /^\/api\/internal\/finalizations\/resume-probe$/.exec(pathname);
   if (internalFinalizationResumeProbe) return { handler: handleInternalFinalizationResumeProbe, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationRegistrySlugs = /^\/api\/internal\/finalizations\/registry-slugs$/.exec(pathname);
@@ -2402,6 +2406,7 @@ const REQUIRED_SUBMISSIONS_COLUMNS = [
   'finalization_failure_code',
   'finalization_modal_receipt',
   'finalization_worker_receipt',
+  'finalization_recovery_receipt',
   'automation_updated_at',
   'status',
   'failure_code',
@@ -2455,6 +2460,7 @@ const CREATE_SUBMISSIONS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS submissions (
   finalization_failure_code TEXT,
   finalization_modal_receipt TEXT,
   finalization_worker_receipt TEXT,
+  finalization_recovery_receipt TEXT,
   automation_updated_at TEXT,
   status        TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'needs_review', 'ready_for_deploy', 'ready_for_publish', 'deployed', 'failed')),
   failure_code  TEXT,
@@ -2510,6 +2516,7 @@ const SUBMISSIONS_SCHEMA_MIGRATIONS = [
   ['finalization_failure_code', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_failure_code TEXT'],
   ['finalization_modal_receipt', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_modal_receipt TEXT'],
   ['finalization_worker_receipt', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_worker_receipt TEXT'],
+  ['finalization_recovery_receipt', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS finalization_recovery_receipt TEXT'],
   ['automation_updated_at', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS automation_updated_at TEXT'],
   ['status', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS status TEXT'],
   ['failure_code', 'ALTER TABLE submissions ADD COLUMN IF NOT EXISTS failure_code TEXT'],
@@ -2526,6 +2533,7 @@ const SUBMISSIONS_SCHEMA_MIGRATIONS = [
 const FINALIZATION_RECEIPT_COLUMNS = [
   'finalization_modal_receipt',
   'finalization_worker_receipt',
+  'finalization_recovery_receipt',
 ];
 const FINALIZATION_RECEIPT_MIGRATIONS = SUBMISSIONS_SCHEMA_MIGRATIONS.filter(([name]) =>
   FINALIZATION_RECEIPT_COLUMNS.includes(name)
@@ -2535,7 +2543,7 @@ const FINALIZATION_SCHEMA_COLUMNS = [
   'finalization_source_sha256', 'finalization_head_sha', 'finalization_merge_sha',
   'finalization_artifact_hash', 'finalization_claimed_at', 'finalization_lease_expires_at',
   'finalization_attempts', 'finalization_failure_code', 'finalization_modal_receipt',
-  'finalization_worker_receipt', 'automation_updated_at',
+  'finalization_worker_receipt', 'finalization_recovery_receipt', 'automation_updated_at',
 ];
 const FINALIZATION_SCHEMA_MIGRATIONS = SUBMISSIONS_SCHEMA_MIGRATIONS.filter(([name]) =>
   FINALIZATION_SCHEMA_COLUMNS.includes(name)
@@ -2847,6 +2855,36 @@ async function handleInternalFinalizationResumeFailed(request, env) {
   if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
   const requeued = await internalResumeFailedFinalization(env, targetSha);
   return requeued
+    ? internalJson({ ok: true, status: 'ready_for_deploy' }, 200)
+    : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function readRecoveryTarget(request, error) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return { response: internalJson({ error: parsed.error }, parsed.status) };
+  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+    return { response: internalJson({ error }, 400) };
+  }
+  const targetSha = safeGitSha(parsed.body.target_sha);
+  return targetSha
+    ? { targetSha }
+    : { response: internalJson({ error: 'invalid_target_sha' }, 400) };
+}
+
+async function handleInternalFinalizationRecoveryPlan(request, env) {
+  const parsed = await readRecoveryTarget(request, 'invalid_recovery_plan');
+  if (parsed.response) return parsed.response;
+  const candidate = recoveryCandidate(await internalInspectFailedFinalization(env, parsed.targetSha));
+  return candidate
+    ? internalJson({ ok: true, recovery: recoveryPlan(candidate) }, 200)
+    : new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
+}
+
+async function handleInternalFinalizationRecoverRolledBack(request, env) {
+  const parsed = await readRecoveryTarget(request, 'invalid_rollback_recovery');
+  if (parsed.response) return parsed.response;
+  const recovered = await internalRecoverRolledBackFinalization(env, parsed.targetSha);
+  return recovered
     ? internalJson({ ok: true, status: 'ready_for_deploy' }, 200)
     : internalJson({ error: 'invalid_transition' }, 409);
 }
@@ -4181,12 +4219,61 @@ function failedFinalizationRow(row) {
   };
 }
 
+function canonicalStoredReceipt(raw, operation, targetSha) {
+  if (typeof raw !== 'string' || !raw) return null;
+  let value;
+  try { value = JSON.parse(raw); } catch { return null; }
+  const receipt = safeDeploymentReceipt(value, operation, targetSha);
+  return receipt && canonicalDeploymentReceipt(receipt) === raw ? receipt : null;
+}
+
+function recoveryCandidate(row) {
+  const failed = failedFinalizationRow(row);
+  if (!failed || failed.failure_code !== 'worker_smoke_failed' ||
+      safeRuntime(row.selected_runtime) !== 'modal-hosted' || row.finalization_recovery_receipt != null) return null;
+  const slug = safeSlug(row.slug);
+  const modalReceipt = canonicalStoredReceipt(row.finalization_modal_receipt, 'modal_deploy', failed.target_sha);
+  const workerReceipt = canonicalStoredReceipt(row.finalization_worker_receipt, 'worker_deploy', failed.target_sha);
+  if (!slug || !modalReceipt || !workerReceipt ||
+      modalReceipt.target !== `cognition-${slug}` || modalReceipt.environment !== 'main' ||
+      workerReceipt.target !== 'cognition-demos' || workerReceipt.environment !== 'production' ||
+      modalReceipt.artifact_hash !== failed.artifact_hash || workerReceipt.artifact_hash !== failed.artifact_hash) return null;
+  return { row, failed, modalReceipt, workerReceipt };
+}
+
+function expectedRecoveryVersion(receipt) {
+  return receipt.reused ? receipt.version_id : receipt.previous_version_id;
+}
+
+function recoveryPlan(candidate) {
+  return {
+    target_sha: candidate.failed.target_sha,
+    modal: { receipt: candidate.modalReceipt, expected_active_version_id: expectedRecoveryVersion(candidate.modalReceipt) },
+    cloudflare: { receipt: candidate.workerReceipt, expected_active_version_id: expectedRecoveryVersion(candidate.workerReceipt) },
+  };
+}
+
+function recoverySnapshot(candidate, recoveredAt) {
+  const failed = candidate.failed;
+  return JSON.stringify({
+    finalization_id: failed.id, attempt: failed.attempts, target_sha: failed.target_sha,
+    source_sha256: failed.source_sha256, head_sha: failed.head_sha, merge_sha: failed.merge_sha,
+    artifact_hash: failed.artifact_hash, failure_code: failed.failure_code,
+    modal_receipt: candidate.modalReceipt, worker_receipt: candidate.workerReceipt,
+    expected_provider_state: {
+      modal: { version_id: expectedRecoveryVersion(candidate.modalReceipt) },
+      cloudflare: { version_id: expectedRecoveryVersion(candidate.workerReceipt) },
+    },
+    verified_by: 'trusted_production_finalizer', recovered_at: recoveredAt,
+  });
+}
+
 async function internalInspectFailedFinalization(env, targetSha) {
   const columns = `id,slug,selected_runtime,status,release_phase,source_sha256,release_head_sha,release_merge_sha,
     release_artifact_hash,finalization_id,finalization_status,finalization_target_sha,
     finalization_source_sha256,finalization_head_sha,finalization_merge_sha,
     finalization_artifact_hash,finalization_attempts,finalization_failure_code,
-    finalization_modal_receipt,finalization_worker_receipt,
+    finalization_modal_receipt,finalization_worker_receipt,finalization_recovery_receipt,
     (finalization_modal_receipt IS NOT NULL) AS modal_receipt_present,
     (finalization_worker_receipt IS NOT NULL) AS worker_receipt_present`;
   const filters = `finalization_status = 'failed' AND finalization_target_sha = $1
@@ -4217,6 +4304,71 @@ async function internalInspectFailedFinalization(env, targetSha) {
       record.release_phase === 'merged_verified')
     .sort((a, b) => String(b.automation_updated_at || '').localeCompare(String(a.automation_updated_at || '')) ||
       String(a.id || '').localeCompare(String(b.id || '')))[0] || null;
+}
+
+async function internalRecoverRolledBackFinalization(env, targetSha) {
+  const candidate = recoveryCandidate(await internalInspectFailedFinalization(env, targetSha));
+  if (!candidate) return false;
+  const { failed, row } = candidate;
+  const recoveredAt = new Date().toISOString();
+  const snapshot = recoverySnapshot(candidate, recoveredAt);
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-recover-rolled-back-v1',
+      `UPDATE submissions SET status = 'ready_for_deploy', finalization_recovery_receipt = $1,
++         finalization_id = NULL, finalization_status = NULL, finalization_target_sha = NULL,
++         finalization_source_sha256 = NULL, finalization_head_sha = NULL, finalization_merge_sha = NULL,
++         finalization_artifact_hash = NULL, finalization_claimed_at = NULL,
++         finalization_lease_expires_at = NULL, finalization_failure_code = NULL,
++         finalization_modal_receipt = NULL, finalization_worker_receipt = NULL,
++         automation_updated_at = CURRENT_TIMESTAMP
++       WHERE id = $2 AND finalization_id = $3 AND finalization_target_sha = $4
++         AND finalization_status = 'failed' AND finalization_failure_code = 'worker_smoke_failed'
++         AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
++         AND selected_runtime = 'modal-hosted' AND finalization_recovery_receipt IS NULL
++         AND source_sha256 = $5 AND finalization_source_sha256 = $5
++         AND release_head_sha = $6 AND finalization_head_sha = $6
++         AND release_merge_sha = $7 AND finalization_merge_sha = $7
++         AND release_artifact_hash = $8 AND finalization_artifact_hash = $8
++         AND finalization_modal_receipt = $9 AND finalization_worker_receipt = $10
++       RETURNING id`.replace(/^\+/gm, ''),
+      [snapshot, failed.submission_id, failed.id, targetSha, failed.source_sha256, failed.head_sha,
+        failed.merge_sha, failed.artifact_hash, row.finalization_modal_receipt, row.finalization_worker_receipt]
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `UPDATE submissions SET status = 'ready_for_deploy', finalization_recovery_receipt = ?,
++         finalization_id = NULL, finalization_status = NULL, finalization_target_sha = NULL,
++         finalization_source_sha256 = NULL, finalization_head_sha = NULL, finalization_merge_sha = NULL,
++         finalization_artifact_hash = NULL, finalization_claimed_at = NULL,
++         finalization_lease_expires_at = NULL, finalization_failure_code = NULL,
++         finalization_modal_receipt = NULL, finalization_worker_receipt = NULL, automation_updated_at = ?
++       WHERE id = ? AND finalization_id = ? AND finalization_target_sha = ?
++         AND finalization_status = 'failed' AND finalization_failure_code = 'worker_smoke_failed'
++         AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
++         AND selected_runtime = 'modal-hosted' AND finalization_recovery_receipt IS NULL
++         AND source_sha256 = ? AND finalization_source_sha256 = ?
++         AND release_head_sha = ? AND finalization_head_sha = ?
++         AND release_merge_sha = ? AND finalization_merge_sha = ?
++         AND release_artifact_hash = ? AND finalization_artifact_hash = ?
++         AND finalization_modal_receipt = ? AND finalization_worker_receipt = ?`.replace(/^\+/gm, '')
+    ).bind(snapshot, recoveredAt, failed.submission_id, failed.id, targetSha,
+      failed.source_sha256, failed.source_sha256, failed.head_sha, failed.head_sha,
+      failed.merge_sha, failed.merge_sha, failed.artifact_hash, failed.artifact_hash,
+      row.finalization_modal_receipt, row.finalization_worker_receipt).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  if (row.finalization_recovery_receipt != null || recoveryCandidate(row) == null) return false;
+  row.status = 'ready_for_deploy';
+  row.finalization_recovery_receipt = snapshot;
+  for (const field of ['id', 'status', 'target_sha', 'source_sha256', 'head_sha', 'merge_sha',
+    'artifact_hash', 'claimed_at', 'lease_expires_at', 'failure_code', 'modal_receipt', 'worker_receipt']) {
+    row[`finalization_${field}`] = null;
+  }
+  row.automation_updated_at = recoveredAt;
+  return true;
 }
 
 async function internalResumeFailedFinalization(env, targetSha) {

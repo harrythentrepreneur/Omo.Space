@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tools" / "host-skill" / "production_release_controller.py"
 SHA = "a" * 40
 ARTIFACT = "b" * 64
+OLD_TARGET = "9" * 40
+LATEST_GREEN = "8" * 40
 
 
 def load_module():
@@ -236,6 +238,95 @@ def test_failed_finalization_client_rejects_extra_or_malformed_safe_fields():
         )
         with pytest.raises(mod.ControllerError, match="invalid_finalizer_response"):
             store.inspect_failed(SHA)
+
+
+def recovery_plan(mod):
+    def receipt(provider, target, environment, reused, version, previous):
+        return {
+            "artifact_hash": ARTIFACT, "environment": environment,
+            "previous_version_id": previous, "provider": provider, "reused": reused,
+            "rollback_token": previous, "status": "passed", "target": target,
+            "target_sha": OLD_TARGET, "version_id": version,
+        }
+    return {
+        "target_sha": OLD_TARGET,
+        "modal": {"receipt": receipt("modal", mod.MODAL_TARGET, mod.MODAL_ENVIRONMENT, True, "modal-v6", None),
+                  "expected_active_version_id": "modal-v6"},
+        "cloudflare": {"receipt": receipt("cloudflare", mod.CLOUDFLARE_TARGET, "production", False, "cf-v9", "cf-v8"),
+                       "expected_active_version_id": "cf-v8"},
+    }
+
+
+def test_recovery_store_boundary_sends_only_target_sha_and_validates_plan():
+    mod = load_module()
+    requests = []
+    plan = recovery_plan(mod)
+
+    def opener(request, timeout):
+        requests.append(request)
+        assert json.loads(request.data) == {"target_sha": OLD_TARGET}
+        if request.full_url.endswith("/recovery-plan"):
+            return Response({"ok": True, "recovery": plan})
+        if request.full_url.endswith("/recover-rolled-back"):
+            return Response({"ok": True, "status": "ready_for_deploy"})
+        raise AssertionError(request.full_url)
+
+    store = mod.HttpFinalizationStore("finalizer-secret", opener=opener)
+    assert store.recovery_plan(OLD_TARGET) == plan
+    assert store.recover_rolled_back(OLD_TARGET) is True
+    assert [request.full_url.rsplit('/', 1)[-1] for request in requests] == [
+        "recovery-plan", "recover-rolled-back",
+    ]
+    assert all(set(json.loads(request.data)) == {"target_sha"} for request in requests)
+
+
+def test_receipt_aware_recovery_verifies_ancestry_and_exact_provider_state_without_effects():
+    mod = load_module()
+    plan = recovery_plan(mod)
+    events = []
+    mainline = SimpleNamespace(
+        latest_green=lambda: mod.GreenMain(LATEST_GREEN, LATEST_GREEN, mod.WORKFLOW_NAME, "push", "main", "success"),
+        is_ancestor=lambda old, new: events.append(("ancestor", old, new)) or (old, new) == (OLD_TARGET, LATEST_GREEN),
+    )
+    store = SimpleNamespace(
+        recovery_plan=lambda target: events.append(("plan", target)) or plan,
+        recover_rolled_back=lambda target: events.append(("recover", target)) or True,
+    )
+    modal = SimpleNamespace(active_version=lambda: events.append("modal_read") or "modal-v6")
+    cloudflare = SimpleNamespace(active_version=lambda: events.append("cloudflare_read") or "cf-v8")
+
+    assert mod.recover_rolled_back_finalization(mainline, store, modal, cloudflare, OLD_TARGET) == {
+        "status": "ready_for_deploy", "target_sha": LATEST_GREEN,
+    }
+    assert events == [
+        ("ancestor", OLD_TARGET, LATEST_GREEN), ("plan", OLD_TARGET),
+        "modal_read", "cloudflare_read", ("recover", OLD_TARGET),
+    ]
+
+
+@pytest.mark.parametrize(("failure", "code"), [
+    ("ancestor", "recovery_target_not_ancestor"),
+    ("modal", "modal_recovery_readback_mismatch"),
+    ("cloudflare", "cloudflare_recovery_readback_mismatch"),
+])
+def test_receipt_aware_recovery_mismatch_never_posts(failure, code):
+    mod = load_module()
+    plan = recovery_plan(mod)
+    posts = []
+    mainline = SimpleNamespace(
+        latest_green=lambda: mod.GreenMain(LATEST_GREEN, LATEST_GREEN, mod.WORKFLOW_NAME, "push", "main", "success"),
+        is_ancestor=lambda old, new: failure != "ancestor",
+    )
+    store = SimpleNamespace(
+        recovery_plan=lambda target: plan,
+        recover_rolled_back=lambda target: posts.append(target) or True,
+    )
+    modal = SimpleNamespace(active_version=lambda: "wrong" if failure == "modal" else "modal-v6")
+    cloudflare = SimpleNamespace(active_version=lambda: "wrong" if failure == "cloudflare" else "cf-v8")
+    with pytest.raises(mod.ControllerError) as caught:
+        mod.recover_rolled_back_finalization(mainline, store, modal, cloudflare, OLD_TARGET)
+    assert caught.value.code == code
+    assert posts == []
 
 
 def test_http_failures_are_mapped_to_secret_free_trust_boundary_stages(monkeypatch, tmp_path):
