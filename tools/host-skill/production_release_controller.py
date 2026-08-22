@@ -29,6 +29,7 @@ from production_release_adapters import (
     MODAL_ENVIRONMENT,
     MODAL_TARGET,
     PUBLIC_ORIGIN,
+    cloudflare_active_version,
     cloudflare_bundle_sha256,
     cloudflare_deploy_call,
     cloudflare_deployments_call,
@@ -124,9 +125,10 @@ def recover_rolled_back_finalization(mainline, store, modal, cloudflare, target_
         raise ControllerError("recovery_target_not_ancestor")
     plan = store.recovery_plan(target_sha)
     _validate_recovery_plan(plan, target_sha)
-    if modal.active_version() != plan["modal"]["expected_active_version_id"]:
+    checkout = mainline.checkout_detached(latest.target_sha)
+    if modal.active_version(checkout, latest.target_sha) != plan["modal"]["expected_active_version_id"]:
         raise ControllerError("modal_recovery_readback_mismatch")
-    if cloudflare.active_version() != plan["cloudflare"]["expected_active_version_id"]:
+    if cloudflare.active_version(checkout, latest.target_sha) != plan["cloudflare"]["expected_active_version_id"]:
         raise ControllerError("cloudflare_recovery_readback_mismatch")
     if not store.recover_rolled_back(target_sha):
         raise ControllerError("recovery_conflict")
@@ -530,6 +532,17 @@ class ProductionModalAdapter:
         if MODAL_ENVIRONMENT not in names:
             raise ControllerError("modal_preflight_failed")
 
+    def active_version(self, checkout: Path, target_sha: str) -> str:
+        transport = ProductionCommandTransport(
+            source_env=self.source_env, trusted_checkout=str(checkout), trusted_sha=target_sha,
+        )
+        history = modal_history_snapshot(
+            transport.run_json(modal_history_call(checkout, MODAL_ALLOWED_SLUG))
+        )
+        if not history:
+            raise ControllerError("modal_recovery_readback_mismatch")
+        return history[0][0]
+
     def deploy(self, claim, checkout):
         transport = self._transport(claim, checkout, True)
         before = transport.run_json(modal_history_call(checkout, claim.slug))
@@ -611,6 +624,14 @@ class ProductionCloudflareAdapter:
             os.chmod(outdir, 0o700)
             self._transport(claim, checkout).run(cloudflare_preflight_call(checkout, outdir))
             cloudflare_bundle_sha256(outdir)
+
+    def active_version(self, checkout: Path, target_sha: str) -> str:
+        transport = ProductionCommandTransport(
+            source_env=self.source_env, trusted_checkout=str(checkout), trusted_sha=target_sha,
+        )
+        return cloudflare_active_version(
+            transport.run_json(cloudflare_deployments_call(checkout))
+        )
 
     def verify_registry(self, claim, checkout):
         return {"status": "passed"}
