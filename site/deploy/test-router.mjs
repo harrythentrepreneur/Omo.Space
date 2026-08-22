@@ -1392,6 +1392,20 @@ check('internal schema: complete table returns all required names as present and
   JSON.stringify(schemaCompleteBody.present) === JSON.stringify(requiredSubmissionColumns) &&
   schemaCompleteBody.missing.length === 0);
 
+const finalizerSchemaBuilder = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/schema', {}, internalHeaders), migrationEnv,
+);
+const finalizerSchemaReadback = await worker.fetch(
+  mkReq('POST', '/api/internal/finalizations/schema', {}, finalizerHeaders), migrationEnv,
+);
+const finalizerSchemaBody = await finalizerSchemaReadback.json();
+check('internal finalization schema: finalizer-only readback is closed to required columns',
+  finalizerSchemaBuilder.status === 401 &&
+  finalizerSchemaReadback.status === 200 &&
+  JSON.stringify(finalizerSchemaBody) === JSON.stringify({
+    ok: true, table_exists: true, present: requiredSubmissionColumns, missing: [],
+  }));
+
 neonSqlCalls.length = 0;
 neonInfoSchemaTableExists = true;
 neonInfoSchemaColumns = [];

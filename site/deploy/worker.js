@@ -421,6 +421,8 @@ function dynamicRoute(pathname) {
   if (internalFinalizationResumeCompleted) return { handler: handleInternalFinalizationResumeCompleted, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationRegistrySlugs = /^\/api\/internal\/finalizations\/registry-slugs$/.exec(pathname);
   if (internalFinalizationRegistrySlugs) return { handler: handleInternalFinalizationRegistrySlugs, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationSchema = /^\/api\/internal\/finalizations\/schema$/.exec(pathname);
+  if (internalFinalizationSchema) return { handler: handleInternalSubmissionSchema, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationReceiptSchema = /^\/api\/internal\/finalizations\/receipt-schema$/.exec(pathname);
   if (internalFinalizationReceiptSchema) return { handler: handleInternalFinalizationReceiptSchema, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationReceiptMigration = /^\/api\/internal\/finalizations\/receipt-schema\/migrate$/.exec(pathname);
