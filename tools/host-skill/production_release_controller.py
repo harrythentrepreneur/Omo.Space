@@ -58,6 +58,8 @@ SAFE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_ID_RE = re.compile(r"^[1-9][0-9]{0,19}$")
 REGISTRY_ROW_RE = re.compile(r'^  \[\n    "([a-z0-9]+(?:-[a-z0-9]+)*)",\n    \{$', re.MULTILINE)
 MAX_HTTP_BYTES = 1024 * 1024
+CANARY_SOURCE_MAX_BYTES = 200 * 1024
+CANARY_SOURCE_SHA256 = "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a"
 TARGETS = DeploymentTargets(MODAL_TARGET, MODAL_ENVIRONMENT, CLOUDFLARE_TARGET, "production")
 MODAL_CANARY_ORIGIN = "https://omo-space--cognition-label-normalizer-canary-api.modal.run"
 
@@ -511,6 +513,41 @@ class ProductionPublicAdapter:
     def preflight(self, claim):
         self.store.provision_canary_identity()
 
+    def seed_submission(self, checkout: Path) -> dict[str, str]:
+        self.store.provision_canary_identity()
+        source_path = checkout / "containers" / "label-normalizer-canary" / "source" / "SKILL.md"
+        try:
+            resolved = source_path.resolve(strict=True)
+        except OSError:
+            raise ControllerError("production_canary_source_invalid")
+        if resolved != source_path or not resolved.is_file():
+            raise ControllerError("production_canary_source_invalid")
+        try:
+            size = resolved.stat().st_size
+            if not 1 <= size <= CANARY_SOURCE_MAX_BYTES:
+                raise ControllerError("production_canary_source_invalid")
+            with resolved.open("rb") as handle:
+                raw = handle.read(CANARY_SOURCE_MAX_BYTES + 1)
+            if len(raw) != size or hashlib.sha256(raw).hexdigest() != CANARY_SOURCE_SHA256:
+                raise ControllerError("production_canary_source_invalid")
+            source = raw.decode("utf-8")
+        except (OSError, UnicodeDecodeError):
+            raise ControllerError("production_canary_source_invalid") from None
+        status, body = _request_json_stage(
+            "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/submit", method="POST",
+            payload={
+                "name": "Label normalizer canary", "content": source,
+                "visibility": "public", "runtime_preference": "modal-hosted",
+            },
+            headers={"X-API-Key": self.api_key, "Content-Type": "application/json"}, timeout=30,
+        )
+        submission_id = str((body or {}).get("id") or "")
+        if status != 202 or (body or {}).get("slug") != MODAL_ALLOWED_SLUG or not re.fullmatch(
+            r"sub_[0-9a-f]{32}", submission_id
+        ):
+            raise ControllerError("production_canary_seed_failed")
+        return {"status": "queued", "submission_id": submission_id}
+
     def _dispatch(self, claim):
         key = hashlib.sha256(f"v0.1:{claim.target_sha}:{claim.artifact_hash}".encode()).hexdigest()[:40]
         payload = {"slug": MODAL_ALLOWED_SLUG, "input": {
@@ -577,7 +614,12 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, str]:
     modal = ProductionModalAdapter(env)
     cloudflare = ProductionCloudflareAdapter(env)
     public = ProductionPublicAdapter(store, env.get("PRODUCTION_CANARY_API_KEY", ""))
-    return run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
+    result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
+    if result.get("status") == "idle":
+        trusted_checkout = mainline.checkout_detached(result["target_sha"])
+        seeded = public.seed_submission(trusted_checkout)
+        return {**seeded, "status": "seeded", "target_sha": result["target_sha"]}
+    return result
 
 
 def main(argv: Sequence[str] | None = None) -> int:
