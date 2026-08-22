@@ -394,10 +394,16 @@ def test_staging_d1_apply_and_readback_are_exact_and_fail_closed():
         "--env", "staging", "--remote", "--command",
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;", "--json",
     )
-    rows = [{"name": name} for name in mod.CLOUDFLARE_STAGING_D1_TABLES]
+    rows = [{"name": "_cf_KV"}] + [
+        {"name": name} for name in mod.CLOUDFLARE_STAGING_D1_TABLES
+    ]
     assert mod.cloudflare_staging_d1_schema_ready([{"results": rows}]) is True
     with pytest.raises(mod.AdapterError, match="staging_d1_readback_failed"):
         mod.cloudflare_staging_d1_schema_ready([{"results": rows[:-1]}])
+    with pytest.raises(mod.AdapterError, match="staging_d1_readback_failed"):
+        mod.cloudflare_staging_d1_schema_ready([{"results": [*rows, {"name": "unexpected_app"}]}])
+    with pytest.raises(mod.AdapterError, match="staging_d1_readback_failed"):
+        mod.cloudflare_staging_d1_schema_ready([{"results": [{"name": "_cf_future"}, *rows[1:]]}])
     with pytest.raises(mod.AdapterError, match="invalid_staging_command"):
         mod.CommandCall(
             (

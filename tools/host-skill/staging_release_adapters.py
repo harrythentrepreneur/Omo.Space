@@ -375,7 +375,9 @@ def cloudflare_staging_d1_schema_ready(value: Any) -> bool:
     if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
         raise AdapterError("staging_d1_readback_failed")
     names = tuple(str(row.get("name") or "") for row in rows)
-    if names != CLOUDFLARE_STAGING_D1_TABLES:
+    application_names = tuple(name for name in names if name != "_cf_KV")
+    unexpected_internal = tuple(name for name in names if name.startswith("_") and name != "_cf_KV")
+    if application_names != CLOUDFLARE_STAGING_D1_TABLES or unexpected_internal:
         raise AdapterError("staging_d1_readback_failed")
     return True
 
