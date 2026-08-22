@@ -4143,22 +4143,27 @@ async function internalResumeCompletedFinalization(env, targetSha) {
     finalization_source_sha256,finalization_head_sha,finalization_merge_sha,
     finalization_artifact_hash,finalization_lease_expires_at,finalization_attempts`;
   if (databaseKind(env) === 'neon') {
-    const result = await getNeonPool(env).query(prepared(
-      'omo-internal-finalization-resume-completed-v1',
-      `SELECT ${columns}
-       FROM submissions
-       WHERE status IN ('ready_for_publish', 'deployed') AND release_phase = 'promoted'
-         AND finalization_status = 'completed' AND finalization_target_sha = $1
-         AND source_sha256 = finalization_source_sha256
-         AND release_head_sha = finalization_head_sha
-         AND release_merge_sha = finalization_merge_sha
-         AND release_artifact_hash = finalization_artifact_hash
-       ORDER BY CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END,
-                automation_updated_at ASC, id ASC
-       LIMIT 1`,
-      [targetSha]
-    ));
-    return result.rows[0] || null;
+    const client = await getNeonPool(env).connect();
+    try {
+      const result = await client.query(prepared(
+        'omo-internal-finalization-resume-completed-v1',
+        `SELECT ${columns}
+         FROM submissions
+         WHERE status IN ('ready_for_publish', 'deployed') AND release_phase = 'promoted'
+           AND finalization_status = 'completed' AND finalization_target_sha = $1
+           AND source_sha256 = finalization_source_sha256
+           AND release_head_sha = finalization_head_sha
+           AND release_merge_sha = finalization_merge_sha
+           AND release_artifact_hash = finalization_artifact_hash
+         ORDER BY CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END,
+                  automation_updated_at ASC, id ASC
+         LIMIT 1`,
+        [targetSha]
+      ));
+      return result.rows[0] || null;
+    } finally {
+      await client.release();
+    }
   }
   if (databaseKind(env) === 'd1') {
     return await env.BALANCE_DB.prepare(
