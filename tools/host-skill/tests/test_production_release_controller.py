@@ -165,6 +165,20 @@ def test_finalization_claim_preserves_only_bounded_http_status():
     assert "SENTINEL" not in str(caught.value)
 
 
+def test_finalization_resume_preserves_only_bounded_http_status():
+    mod = load_module()
+
+    def server_failure(request, timeout):
+        raise mod.urllib.error.HTTPError(
+            request.full_url, 500, "SENTINEL_MUST_NOT_ESCAPE", {}, io.BytesIO(b"SENTINEL_BODY")
+        )
+
+    with pytest.raises(mod.ControllerError) as caught:
+        mod.HttpFinalizationStore("token", opener=server_failure).resume_completed(SHA)
+    assert caught.value.code == "finalizer_resume_http_500"
+    assert "SENTINEL" not in str(caught.value)
+
+
 def test_http_failures_are_mapped_to_secret_free_trust_boundary_stages(monkeypatch, tmp_path):
     mod = load_module()
 
