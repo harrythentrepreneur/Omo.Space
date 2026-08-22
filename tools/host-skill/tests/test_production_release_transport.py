@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -56,6 +57,16 @@ def checkout(tmp_path: Path) -> Path:
     return tmp_path.resolve()
 
 
+def make_transport(transport, root: Path, **kwargs):
+    return transport.ProductionCommandTransport(
+        trusted_checkout=str(root), trusted_sha="a" * 40,
+        checkout_verifier=lambda checkout_path, target_sha: (
+            checkout_path == str(root) and target_sha == "a" * 40
+        ),
+        **kwargs,
+    )
+
+
 def test_modal_environment_is_fresh_allowlisted_and_never_receives_cloudflare(tmp_path):
     adapters, transport = load_modules()
     executor = Executor([Result(stdout="[]")])
@@ -64,8 +75,9 @@ def test_modal_environment_is_fresh_allowlisted_and_never_receives_cloudflare(tm
         "MODAL_TOKEN_SECRET": "secret", "CLOUDFLARE_API_TOKEN": "must-not-cross",
         "GITHUB_TOKEN": "must-not-cross", "HTTP_PROXY": "must-not-cross",
     }
-    runner = transport.ProductionCommandTransport(executor=executor, source_env=source)
-    assert runner.run_json(adapters.modal_preflight_call(checkout(tmp_path), adapters.MODAL_ALLOWED_SLUG)) == []
+    root = checkout(tmp_path)
+    runner = make_transport(transport, root, executor=executor, source_env=source)
+    assert runner.run_json(adapters.modal_preflight_call(root, adapters.MODAL_ALLOWED_SLUG)) == []
     args, kwargs = executor.calls[0]
     assert args[0][:3] == [sys.executable, "-m", "modal"]
     assert kwargs["shell"] is False
@@ -86,7 +98,7 @@ def test_cloudflare_environment_is_fresh_allowlisted_and_never_receives_modal(tm
         "CLOUDFLARE_API_TOKEN": "token", "MODAL_TOKEN_ID": "must-not-cross",
         "MODAL_TOKEN_SECRET": "must-not-cross", "GITHUB_TOKEN": "must-not-cross",
     }
-    runner = transport.ProductionCommandTransport(executor=executor, source_env=source)
+    runner = make_transport(transport, root, executor=executor, source_env=source)
     assert runner.run_json(adapters.cloudflare_versions_call(root)) == []
     child_env = executor.calls[0][1]["env"]
     assert child_env["HOME"] != "/safe/home" and "omo-production-provider-" in child_env["HOME"]
@@ -101,7 +113,7 @@ def test_mutations_require_explicit_gate_and_dry_run_remains_read_only(tmp_path)
     root = checkout(tmp_path)
     deploy = adapters.cloudflare_deploy_call(root, "a" * 40)
     denied_executor = Executor([Result()])
-    denied = transport.ProductionCommandTransport(executor=denied_executor, source_env={"PATH": "/bin"})
+    denied = make_transport(transport, root, executor=denied_executor, source_env={"PATH": "/bin"})
     with pytest.raises(transport.TransportError) as caught:
         denied.run(deploy)
     assert caught.value.code == "production_mutation_not_enabled" and denied_executor.calls == []
@@ -109,11 +121,11 @@ def test_mutations_require_explicit_gate_and_dry_run_remains_read_only(tmp_path)
     outdir = tmp_path / "private"
     outdir.mkdir(mode=0o700)
     read_executor = Executor([Result()])
-    reader = transport.ProductionCommandTransport(executor=read_executor, source_env={"PATH": "/bin"})
+    reader = make_transport(transport, root, executor=read_executor, source_env={"PATH": "/bin"})
     assert reader.run(adapters.cloudflare_preflight_call(root, outdir)) is None
 
     write_executor = Executor([Result()])
-    writer = transport.ProductionCommandTransport(
+    writer = make_transport(transport, root,
         executor=write_executor, source_env={"PATH": "/bin"}, allow_mutation=True
     )
     assert writer.run(deploy) is None and len(write_executor.calls) == 1
@@ -121,19 +133,66 @@ def test_mutations_require_explicit_gate_and_dry_run_remains_read_only(tmp_path)
 
 def test_forged_secret_or_future_commands_fail_even_with_mutation_enabled(tmp_path):
     adapters, transport = load_modules()
+    root = checkout(tmp_path)
     forged = object.__new__(adapters.CommandCall)
     object.__setattr__(forged, "argv", ("npx", "--no-install", "wrangler", "secret", "put", "TOKEN"))
-    object.__setattr__(forged, "cwd", tmp_path.resolve())
+    object.__setattr__(forged, "cwd", root)
     object.__setattr__(forged, "allowed_env", adapters.CLOUDFLARE_ENV_KEYS)
     object.__setattr__(forged, "timeout_seconds", 30)
     object.__setattr__(forged, "shell", False)
     executor = Executor([Result()])
-    runner = transport.ProductionCommandTransport(
+    runner = make_transport(transport, root,
         executor=executor, source_env={"PATH": "/bin"}, allow_mutation=True
     )
     with pytest.raises(transport.TransportError) as caught:
         runner.run(forged)
     assert caught.value.code == "invalid_production_command" and executor.calls == []
+
+
+def test_valid_command_from_untrusted_or_unverified_checkout_is_rejected_before_execution(tmp_path):
+    adapters, transport = load_modules()
+    trusted = checkout(tmp_path / "trusted")
+    other = checkout(tmp_path / "other")
+    executor = Executor([Result()])
+    runner = make_transport(
+        transport, trusted, executor=executor, source_env={"PATH": "/bin"}, allow_mutation=True
+    )
+    with pytest.raises(transport.TransportError) as caught:
+        runner.run(adapters.cloudflare_deploy_call(other, "a" * 40))
+    assert caught.value.code == "invalid_production_checkout" and executor.calls == []
+
+    unverified = transport.ProductionCommandTransport(
+        trusted_checkout=str(trusted), trusted_sha="a" * 40,
+        checkout_verifier=lambda checkout_path, target_sha: False,
+        executor=executor, source_env={"PATH": "/bin"}, allow_mutation=True,
+    )
+    with pytest.raises(transport.TransportError) as caught:
+        unverified.run(adapters.cloudflare_deploy_call(trusted, "a" * 40))
+    assert caught.value.code == "invalid_production_checkout" and executor.calls == []
+
+
+def test_default_checkout_verifier_rejects_untracked_contamination(tmp_path):
+    adapters, transport = load_modules()
+    root = checkout(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    (root / "site" / "deploy" / "untracked-provider-input.js").write_text(
+        "export default 'unsafe';", encoding="utf-8"
+    )
+    executor = Executor([Result(stdout="[]")])
+    runner = transport.ProductionCommandTransport(
+        trusted_checkout=str(root), trusted_sha=sha, executor=executor,
+        source_env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")},
+    )
+    with pytest.raises(transport.TransportError) as caught:
+        runner.run_json(adapters.cloudflare_versions_call(root))
+    assert caught.value.code == "invalid_production_checkout" and executor.calls == []
 
 
 @pytest.mark.parametrize(
@@ -147,21 +206,23 @@ def test_forged_secret_or_future_commands_fail_even_with_mutation_enabled(tmp_pa
 )
 def test_failures_are_typed_bounded_and_never_echo_provider_output(tmp_path, result, code):
     adapters, transport = load_modules()
+    root = checkout(tmp_path)
     executor = Executor([result])
-    runner = transport.ProductionCommandTransport(executor=executor, source_env={"PATH": "/bin"})
+    runner = make_transport(transport, root, executor=executor, source_env={"PATH": "/bin"})
     with pytest.raises(transport.TransportError) as caught:
-        runner.run_json(adapters.modal_preflight_call(checkout(tmp_path), adapters.MODAL_ALLOWED_SLUG))
+        runner.run_json(adapters.modal_preflight_call(root, adapters.MODAL_ALLOWED_SLUG))
     assert caught.value.code == code
     assert "SECRET" not in str(caught.value) and "provider" not in str(caught.value)
 
 
 def test_timeout_is_sanitized(tmp_path):
     adapters, transport = load_modules()
+    root = checkout(tmp_path)
 
     def timeout(*args, **kwargs):
         raise subprocess.TimeoutExpired(args[0], kwargs["timeout"], output="SECRET")
 
-    runner = transport.ProductionCommandTransport(executor=timeout, source_env={"PATH": "/bin"})
+    runner = make_transport(transport, root, executor=timeout, source_env={"PATH": "/bin"})
     with pytest.raises(transport.TransportError) as caught:
-        runner.run(adapters.modal_preflight_call(checkout(tmp_path), adapters.MODAL_ALLOWED_SLUG))
+        runner.run(adapters.modal_preflight_call(root, adapters.MODAL_ALLOWED_SLUG))
     assert caught.value.code == "production_command_timeout" and "SECRET" not in str(caught.value)

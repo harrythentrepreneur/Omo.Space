@@ -22,6 +22,7 @@ def test_deployment_sensitive_paths_require_maintainer_review():
         f"/.github/CODEOWNERS {OWNERS}",
         f"/.github/workflows/ {OWNERS}",
         f"/tools/host-skill/release_*.py {OWNERS}",
+        f"/tools/host-skill/production_release_controller.py {OWNERS}",
         f"/tools/host-skill/process-submissions.py {OWNERS}",
         f"/tools/host-skill/*release*_adapters.py {OWNERS}",
         f"/tools/host-skill/*release*_transport.py {OWNERS}",
@@ -57,7 +58,10 @@ def test_workflows_have_minimal_permissions_and_no_pr_target():
         text = workflow.read_text(encoding="utf-8")
         parsed = yaml.safe_load(text)
         assert "pull_request_target" not in text
-        assert parsed.get("permissions") == {"contents": "read"}
+        expected = {"contents": "read"}
+        if workflow.name == "trusted-release-trigger.yml":
+            expected["actions"] = "read"
+        assert parsed.get("permissions") == expected
         assert all("permissions" not in job for job in parsed.get("jobs", {}).values())
     trigger = (WORKFLOWS / "trusted-release-trigger.yml").read_text(encoding="utf-8")
     assert "persist-credentials: false" in trigger

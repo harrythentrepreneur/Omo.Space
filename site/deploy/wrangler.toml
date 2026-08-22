@@ -65,6 +65,7 @@ crons = ["*/1 * * * *"]
 # secret or add a public token-minting route.
 
 [vars]
+ENVIRONMENT = "production"
 LLM_BASE_URL = "https://opencode.ai/zen/go/v1"
 LLM_MODEL = "deepseek-v4-flash"
 CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsub21vLnNwYWNlJA"
