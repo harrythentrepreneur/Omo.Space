@@ -545,7 +545,7 @@ def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
     run_id = "run_" + "1" * 32
     responses = [
         (202, {"run_id": run_id}),
-        (200, {"run_id": run_id, "status": "succeeded", "result": {
+        (200, {"run_id": run_id, "status": "completed", "result": {
             "items": [
                 {"identifier": "ITEM_GREEN_APPLE"}, {"identifier": "ITEM_GREEN_APPLE"},
                 {"identifier": "ITEM_CLASS_2B"},
