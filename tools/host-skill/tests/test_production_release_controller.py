@@ -207,9 +207,18 @@ def test_failed_finalization_http_envelopes_are_exact_and_secret_free():
         raise AssertionError(request.full_url)
 
     store = mod.HttpFinalizationStore("finalizer-secret", opener=opener)
-    assert store.inspect_failed(SHA) == mod.FailedFinalization(**failed)
+    for failure_code in (
+        "release_head_not_ancestor",
+        "modal_preflight_failed",
+        "worker_preflight_failed",
+        "public_preflight_failed",
+    ):
+        failed["failure_code"] = failure_code
+        assert store.inspect_failed(SHA) == mod.FailedFinalization(**failed)
     assert store.resume_failed(SHA) is True
-    assert [request.full_url.rsplit('/', 1)[-1] for request in requests] == ["failed", "resume-failed"]
+    assert [request.full_url.rsplit('/', 1)[-1] for request in requests] == [
+        "failed", "failed", "failed", "failed", "resume-failed",
+    ]
 
 
 def test_failed_finalization_client_rejects_extra_or_malformed_safe_fields():

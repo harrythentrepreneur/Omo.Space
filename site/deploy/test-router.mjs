@@ -181,7 +181,9 @@ class MockPool {
           return neonFailedFinalizationRow ? { rows: [neonFailedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         if (entry.name === 'omo-internal-finalization-resume-failed-v1') {
-          return neonFailedResumeRow ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+          const allowed = Array.isArray(entry.values[1]) &&
+            entry.values[1].includes(neonFailedResumeRow && neonFailedResumeRow.finalization_failure_code);
+          return neonFailedResumeRow && allowed ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -408,7 +410,9 @@ const sandbox = {
         return neonFailedFinalizationRow ? { rows: [neonFailedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-internal-finalization-resume-failed-v1') {
-        return neonFailedResumeRow ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        const allowed = Array.isArray(entry.values[1]) &&
+          entry.values[1].includes(neonFailedResumeRow && neonFailedResumeRow.finalization_failure_code);
+        return neonFailedResumeRow && allowed ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-internal-finalization-registry-slugs-v1') {
         return { rows: neonFinalizationRegistryRows, rowCount: neonFinalizationRegistryRows.length };
@@ -1971,6 +1975,16 @@ const failedRecoveryRecord = {
   updated_at: '2026-08-21T00:00:00Z', automation_updated_at: '2026-08-21T00:00:00Z',
 };
 workerTest.mockSubmissions.set(failedRecoveryRecord.id, failedRecoveryRecord);
+const typedPreflightInspections = [];
+for (const failureCode of ['modal_preflight_failed', 'worker_preflight_failed', 'public_preflight_failed']) {
+  failedRecoveryRecord.finalization_failure_code = failureCode;
+  const response = await worker.fetch(mkReq('POST', '/api/internal/finalizations/failed', {
+    target_sha: failedRecoveryTarget,
+  }, finalizerHeaders), buildEnv);
+  const body = await response.json();
+  typedPreflightInspections.push(response.status === 200 && body.finalization.failure_code === failureCode);
+}
+failedRecoveryRecord.finalization_failure_code = 'release_head_not_ancestor';
 const builderFailedInspect = await worker.fetch(mkReq('POST', '/api/internal/finalizations/failed', {
   target_sha: failedRecoveryTarget,
 }, internalHeaders), buildEnv);
@@ -1989,7 +2003,8 @@ const failedResumeReplay = await worker.fetch(mkReq('POST', '/api/internal/final
   target_sha: failedRecoveryTarget,
 }, finalizerHeaders), buildEnv);
 check('failed finalization diagnosis/resume mock: finalizer-only exact safe envelope requeues once for a fresh standard claim',
-  builderFailedInspect.status === 401 && failedInspect.status === 200 && failedInspectExtra.status === 400 &&
+  typedPreflightInspections.every(Boolean) && builderFailedInspect.status === 401 &&
+  failedInspect.status === 200 && failedInspectExtra.status === 400 &&
   Object.keys(failedInspectBody.finalization).sort().join(',') === [
     'artifact_hash', 'attempts', 'failure_code', 'head_sha', 'id', 'merge_sha',
     'modal_receipt_present', 'release_phase', 'source_sha256', 'status', 'submission_id',
@@ -2035,20 +2050,35 @@ const neonFailedInspect = await workerTest.internalInspectFailedFinalization(
   { NEON_DATABASE_URL: 'postgres://example' }, '5'.repeat(40)
 );
 const neonFailedInspectCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-failed-v1');
+neonFailedResumeRow = { ...failedRecoveryRecord, finalization_id: 'fin_' + '7'.repeat(32),
+  finalization_failure_code: 'unknown_preflight_failure', finalization_target_sha: '7'.repeat(40),
+  finalization_attempts: 4, finalization_lease_expires_at: '2099-08-21T00:00:00Z' };
+const neonUnknownFailedResumed = await workerTest.internalResumeFailedFinalization(
+  { NEON_DATABASE_URL: 'postgres://example' }, '7'.repeat(40)
+);
 neonFailedResumeRow = { ...failedRecoveryRecord, finalization_id: 'fin_' + '6'.repeat(32),
+  finalization_failure_code: 'modal_preflight_failed',
   finalization_target_sha: '6'.repeat(40), finalization_attempts: 4,
   finalization_lease_expires_at: '2099-08-21T00:00:00Z' };
 const neonFailedResumed = await workerTest.internalResumeFailedFinalization(
   { NEON_DATABASE_URL: 'postgres://example' }, '6'.repeat(40)
 );
-const neonFailedResumeCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-resume-failed-v1');
-check('failed finalization Neon SQL: exact target, complete immutable equality, and no-receipt requeue CAS',
+const neonFailedResumeCall = neonSqlCalls.find((call) =>
+  call.name === 'omo-internal-finalization-resume-failed-v1' && call.values[0] === '6'.repeat(40)
+);
+check('failed finalization Neon SQL: exact target, allowlisted failure, complete immutable equality, and no-receipt requeue CAS',
+  neonUnknownFailedResumed === false &&
   workerTest.failedFinalizationRow(neonFailedInspect).worker_receipt_present === true &&
   neonFailedInspectCall.values[0] === '5'.repeat(40) &&
   neonFailedInspectCall.text.includes('source_sha256 = finalization_source_sha256') &&
   neonFailedInspectCall.text.includes('release_artifact_hash = finalization_artifact_hash') &&
   neonFailedResumeCall.values.includes('6'.repeat(40)) &&
-  neonFailedResumeCall.text.includes("finalization_status = 'failed'") &&
+  Array.isArray(neonFailedResumeCall.values[1]) &&
+  neonFailedResumeCall.values[1].includes('modal_preflight_failed') &&
+  neonFailedResumeCall.values[1].includes('worker_preflight_failed') &&
+  neonFailedResumeCall.values[1].includes('public_preflight_failed') &&
+  !neonFailedResumeCall.values[1].includes('unknown_preflight_failure') &&
+  neonFailedResumeCall.text.includes("finalization_failure_code = ANY($2::text[])") &&
   neonFailedResumeCall.text.includes("status IN ('ready_for_deploy', 'failed')") &&
   neonFailedResumeCall.text.includes('FOR UPDATE SKIP LOCKED') &&
   neonFailedResumeCall.text.includes('submission.id = candidate.id') &&

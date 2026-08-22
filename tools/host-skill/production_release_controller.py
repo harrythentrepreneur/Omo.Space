@@ -350,7 +350,8 @@ class HttpFinalizationStore:
             set(value) != expected or not re.fullmatch(r"fin_[0-9a-f]{32}", failed.id)
             or not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", failed.submission_id)
             or failed.status != "failed" or failed.failure_code not in {
-                "credential_preflight_failed", "modal_deploy_failed", "modal_canary_failed",
+                "credential_preflight_failed", "modal_preflight_failed", "worker_preflight_failed",
+                "public_preflight_failed", "modal_deploy_failed", "modal_canary_failed",
                 "worker_deploy_failed", "worker_smoke_failed", "public_verification_failed",
                 "superseded_main", "internal_finalizer_failed", "release_head_not_ancestor",
             }
