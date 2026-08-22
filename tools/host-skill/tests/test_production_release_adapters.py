@@ -106,10 +106,6 @@ def test_cloudflare_commands_are_exact_production_target_without_env_alias(tmp_p
         "npx", "--no-install", "wrangler", "deploy", "--name", "cognition-demos",
         "--strict", "--message", f"issue141:{SHA}",
     )
-    assert mod.cloudflare_triggers_deploy_call(root).argv == (
-        "npx", "--no-install", "wrangler", "triggers", "deploy",
-        "--name", "cognition-demos", "--schedule", "*/1 * * * *",
-    )
     assert mod.cloudflare_rollback_call(root, "cf-old", SHA).argv == (
         "npx", "--no-install", "wrangler", "rollback", "cf-old", "--name", "cognition-demos",
         "--message", f"production rollback {SHA}", "--yes",

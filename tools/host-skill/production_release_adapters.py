@@ -126,11 +126,6 @@ def _valid_cloudflare_argv(argv: tuple[str, ...]) -> bool:
             and rest[4].startswith("issue141:")
             and bool(SAFE_SHA_RE.fullmatch(rest[4][9:]))
         )
-    if tail == (
-        "triggers", "deploy", "--name", CLOUDFLARE_TARGET,
-        "--schedule", CLOUDFLARE_BUILDER_CRON,
-    ):
-        return True
     if tail[:1] == ("rollback",) and len(tail) == 7:
         return (
             bool(SAFE_VERSION_RE.fullmatch(tail[1]))
@@ -246,15 +241,6 @@ def cloudflare_deploy_call(checkout: Path, target_sha: str) -> CommandCall:
     root = _worker_root(checkout)
     sha = _sha(target_sha)
     return CommandCall(("npx", "--no-install", "wrangler", "deploy", "--name", CLOUDFLARE_TARGET, "--strict", "--message", f"issue141:{sha}"), root, CLOUDFLARE_ENV_KEYS, 300)
-
-
-def cloudflare_triggers_deploy_call(checkout: Path) -> CommandCall:
-    root = _worker_root(checkout)
-    return CommandCall(
-        ("npx", "--no-install", "wrangler", "triggers", "deploy", "--name", CLOUDFLARE_TARGET,
-         "--schedule", CLOUDFLARE_BUILDER_CRON),
-        root, CLOUDFLARE_ENV_KEYS, 180,
-    )
 
 
 def cloudflare_rollback_call(checkout: Path, version_id: str, target_sha: str) -> CommandCall:

@@ -415,32 +415,29 @@ def test_cloudflare_builder_schedule_is_applied_and_read_back_exactly(monkeypatc
     responses = [
         (200, {"success": True, "result": []}),
         (200, {"success": True, "result": [{"cron": "*/1 * * * *"}]}),
+        (200, {"success": True, "result": [{"cron": "*/1 * * * *"}]}),
     ]
-    requests, commands = [], []
+    requests = []
 
     def request_json_stage(stage, url, **kwargs):
         requests.append((stage, url, kwargs))
         return responses.pop(0)
 
-    class Transport:
-        def __init__(self, **kwargs):
-            assert kwargs["trusted_sha"] == SHA and kwargs["allow_mutation"] is True
-
-        def run(self, call):
-            commands.append(call.argv)
-
     monkeypatch.setattr(mod, "_request_json_stage", request_json_stage)
-    monkeypatch.setattr(mod, "ProductionCommandTransport", Transport)
     adapter = mod.ProductionCloudflareAdapter({
         "CLOUDFLARE_ACCOUNT_ID": "a" * 32, "CLOUDFLARE_API_TOKEN": "token",
     })
     assert adapter.ensure_builder_schedule(ROOT, SHA) == {"status": "passed", "changed": True}
-    assert commands == [mod.cloudflare_triggers_deploy_call(ROOT).argv]
-    assert len(requests) == 2 and all(item[0] == "cloudflare_schedule_http_failed" for item in requests)
+    assert len(requests) == 3 and all(item[0] == "cloudflare_schedule_http_failed" for item in requests)
     assert all(item[1].endswith("/workers/scripts/cognition-demos/schedules") for item in requests)
+    assert requests[1][2]["method"] == "PUT"
+    assert requests[1][2]["payload"] == [{"cron": "*/1 * * * *"}]
+    assert requests[1][2]["headers"] == {
+        "Authorization": "Bearer token", "Content-Type": "application/json",
+    }
     responses.append((200, {"success": True, "result": [{"cron": "*/1 * * * *"}]}))
     assert adapter.ensure_builder_schedule(ROOT, SHA) == {"status": "passed", "changed": False}
-    assert len(commands) == 1
+    assert len(requests) == 4
 
 
 def test_cloudflare_schedule_http_stage_is_allowlisted_without_exposing_response():
