@@ -35,7 +35,7 @@ def _command_mode(call: CommandCall) -> str:
         tail = argv[3:]
         if tail[:1] in {("versions",), ("deployments",)} or (tail[:1] == ("deploy",) and "--dry-run" in tail):
             return "read"
-        if tail[:1] in {("deploy",), ("rollback",)}:
+        if tail[:1] in {("deploy",), ("rollback",)} or tail[:2] == ("triggers", "deploy"):
             return "write"
         raise TransportError("invalid_production_command")
     tail = argv[3:]

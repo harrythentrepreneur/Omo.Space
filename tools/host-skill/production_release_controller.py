@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from production_release_adapters import (
+    CLOUDFLARE_BUILDER_CRON,
     CLOUDFLARE_TARGET,
     MODAL_ALLOWED_SLUG,
     MODAL_ENVIRONMENT,
@@ -33,6 +34,7 @@ from production_release_adapters import (
     cloudflare_preflight_call,
     cloudflare_receipt,
     cloudflare_rollback_call,
+    cloudflare_triggers_deploy_call,
     cloudflare_versions_call,
     modal_deploy_call,
     modal_history_call,
@@ -145,6 +147,7 @@ def _request_json_stage(stage: str, *args, **kwargs) -> tuple[int, dict[str, Any
     if stage not in {
         "github_http_failed", "finalizer_http_failed",
         "modal_canary_http_failed", "public_canary_http_failed",
+        "cloudflare_schedule_http_failed",
     }:
         raise ControllerError("invalid_http_stage")
     mapped = False
@@ -472,11 +475,45 @@ class ProductionCloudflareAdapter:
     def verify_registry(self, claim, checkout):
         return {"status": "passed"}
 
+    def _builder_schedules(self) -> list[str]:
+        account_id = str(self.source_env.get("CLOUDFLARE_ACCOUNT_ID") or "")
+        token = str(self.source_env.get("CLOUDFLARE_API_TOKEN") or "")
+        if not re.fullmatch(r"[0-9a-f]{32}", account_id) or not token:
+            raise ControllerError("invalid_cloudflare_configuration")
+        status, body = _request_json_stage(
+            "cloudflare_schedule_http_failed",
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/workers/scripts/{CLOUDFLARE_TARGET}/schedules",
+            headers={"Authorization": f"Bearer {token}"}, timeout=30,
+        )
+        rows = (body or {}).get("result")
+        if status != 200 or (body or {}).get("success") is not True or not isinstance(rows, list) or any(
+            not isinstance(row, dict) or set(row).isdisjoint({"cron"}) for row in rows
+        ):
+            raise ControllerError("cloudflare_schedule_readback_failed")
+        schedules = [str(row.get("cron") or "") for row in rows]
+        if any(not value or len(value) > 64 for value in schedules):
+            raise ControllerError("cloudflare_schedule_readback_failed")
+        return schedules
+
+    def ensure_builder_schedule(self, checkout: Path, target_sha: str) -> dict[str, object]:
+        schedules = self._builder_schedules()
+        if schedules == [CLOUDFLARE_BUILDER_CRON]:
+            return {"status": "passed", "changed": False}
+        transport = ProductionCommandTransport(
+            source_env=self.source_env, trusted_checkout=str(checkout), trusted_sha=target_sha,
+            allow_mutation=True,
+        )
+        transport.run(cloudflare_triggers_deploy_call(checkout))
+        if self._builder_schedules() != [CLOUDFLARE_BUILDER_CRON]:
+            raise ControllerError("cloudflare_schedule_readback_failed")
+        return {"status": "passed", "changed": True}
+
     def deploy_worker(self, claim, checkout):
         transport = self._transport(claim, checkout, True)
         versions_before = transport.run_json(cloudflare_versions_call(checkout))
         deployments_before = transport.run_json(cloudflare_deployments_call(checkout))
         transport.run(cloudflare_deploy_call(checkout, claim.target_sha))
+        self.ensure_builder_schedule(checkout, claim.target_sha)
         versions_after = transport.run_json(cloudflare_versions_call(checkout))
         deployments_after = transport.run_json(cloudflare_deployments_call(checkout))
         return asdict(cloudflare_receipt(
@@ -617,6 +654,7 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, str]:
     result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
     if result.get("status") == "idle":
         trusted_checkout = mainline.checkout_detached(result["target_sha"])
+        cloudflare.ensure_builder_schedule(trusted_checkout, result["target_sha"])
         seeded = public.seed_submission(trusted_checkout)
         return {**seeded, "status": "seeded", "target_sha": result["target_sha"]}
     return result
