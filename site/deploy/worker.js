@@ -5760,6 +5760,15 @@ async function authenticateAccount(request, env, allowApiKey, allowStagingCanary
   const explicitApiKey = String(request.headers.get('x-api-key') || '').trim();
   const credential = explicitApiKey || (bearer && bearer[1]) || '';
 
+  const productionCanaryKey = String(env.PRODUCTION_CANARY_API_KEY || '').trim();
+  if (
+    allowApiKey && allowStagingCanary && String(env.ENVIRONMENT || '') === 'production'
+    && /^omo_[0-9a-f]{32}$/.test(productionCanaryKey)
+    && timingSafeEqual(credential, productionCanaryKey)
+  ) {
+    return { ok: true, userId: 'user_prod_label_normalizer_canary_v1', method: 'production_canary' };
+  }
+
   const stagingCanaryKey = String(env.ISSUE141_CANARY_API_KEY || '').trim();
   if (
     allowApiKey && allowStagingCanary && String(env.ENVIRONMENT || '') === 'staging'
