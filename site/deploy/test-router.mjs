@@ -1920,6 +1920,8 @@ const neonCompletedResume = await workerTest.internalResumeCompletedFinalization
   { NEON_DATABASE_URL: 'postgres://example' }, '3'.repeat(40)
 );
 const neonCompletedResumeCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-resume-completed-v1');
+check('internal completed finalization resume: empty result is idle rather than an exception',
+  workerTest.completedFinalizationRow(null) === null);
 check('internal completed finalization resume Neon: exact target and immutable completed guards are parameterized',
   workerTest.completedFinalizationRow(neonCompletedResume).status === 'completed' &&
   neonCompletedResumeCall.values.length === 1 &&
