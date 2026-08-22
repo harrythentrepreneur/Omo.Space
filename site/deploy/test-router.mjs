@@ -2057,8 +2057,8 @@ const rollbackTarget = '8'.repeat(40);
 const rollbackArtifact = 'd'.repeat(64);
 const rollbackModalReceipt = workerTest.safeDeploymentReceipt({
   provider: 'modal', target: 'cognition-recovery-workflow', environment: 'main',
-  target_sha: rollbackTarget, artifact_hash: rollbackArtifact, version_id: 'modal-v6',
-  previous_version_id: null, reused: true, rollback_token: null, status: 'passed',
+  target_sha: rollbackTarget, artifact_hash: rollbackArtifact, version_id: 'modal-v7',
+  previous_version_id: 'modal-v6', reused: false, rollback_token: 'modal-v6', status: 'passed',
 }, 'modal_deploy', rollbackTarget);
 const rollbackWorkerReceipt = workerTest.safeDeploymentReceipt({
   provider: 'cloudflare', target: 'cognition-demos', environment: 'production',
@@ -2095,7 +2095,7 @@ const recoveryReplay = await worker.fetch(mkReq('POST', '/api/internal/finalizat
 }, finalizerHeaders), buildEnv);
 check('receipt-aware rollback recovery mock: exact target-only boundary preserves immutable evidence and rearms once',
   recoveryPlanResponse.status === 200 && recoveryPlanBody.recovery.target_sha === rollbackTarget &&
-  recoveryPlanBody.recovery.modal.expected_active_version_id === 'modal-v6' &&
+  recoveryPlanBody.recovery.modal.expected_active_version_id === 'modal-v7' &&
   recoveryPlanBody.recovery.cloudflare.expected_active_version_id === 'cf-v8' &&
   recoveryExtra.status === 400 && recoveryResponse.status === 200 &&
   recoveryBody.status === 'ready_for_deploy' && recoveryReplay.status === 409 &&
@@ -2104,9 +2104,9 @@ check('receipt-aware rollback recovery mock: exact target-only boundary preserve
   rollbackRecord.finalization_worker_receipt === null && recoverySnapshot.finalization_id === 'fin_' + '8'.repeat(32) &&
   recoverySnapshot.attempt === 5 && recoverySnapshot.target_sha === rollbackTarget &&
   recoverySnapshot.failure_code === 'worker_smoke_failed' &&
-  recoverySnapshot.modal_receipt.version_id === 'modal-v6' &&
+  recoverySnapshot.modal_receipt.version_id === 'modal-v7' &&
   recoverySnapshot.worker_receipt.previous_version_id === 'cf-v8' &&
-  recoverySnapshot.expected_provider_state.modal.version_id === 'modal-v6' &&
+  recoverySnapshot.expected_provider_state.modal.version_id === 'modal-v7' &&
   recoverySnapshot.expected_provider_state.cloudflare.version_id === 'cf-v8' &&
   recoverySnapshot.verified_by === 'trusted_production_finalizer');
 workerTest.mockSubmissions.delete(rollbackRecord.id);
@@ -3065,7 +3065,7 @@ check('receipt-aware rollback recovery D1: real SQLite CAS has one winner and or
   d1RecoveryAfter.finalization_target_sha === d1RecoveryFreshTarget &&
   d1RecoveryAfter.finalization_attempts === 6 &&
   d1RecoveryEvidence.target_sha === rollbackTarget &&
-  d1RecoveryEvidence.modal_receipt.version_id === 'modal-v6' &&
+  d1RecoveryEvidence.modal_receipt.version_id === 'modal-v7' &&
   d1RecoveryEvidence.worker_receipt.previous_version_id === 'cf-v8');
 d1Recovery.db.close();
 

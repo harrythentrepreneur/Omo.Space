@@ -250,8 +250,8 @@ def recovery_plan(mod):
         }
     return {
         "target_sha": OLD_TARGET,
-        "modal": {"receipt": receipt("modal", mod.MODAL_TARGET, mod.MODAL_ENVIRONMENT, True, "modal-v6", None),
-                  "expected_active_version_id": "modal-v6"},
+        "modal": {"receipt": receipt("modal", mod.MODAL_TARGET, mod.MODAL_ENVIRONMENT, False, "modal-v7", "modal-v6"),
+                  "expected_active_version_id": "modal-v7"},
         "cloudflare": {"receipt": receipt("cloudflare", mod.CLOUDFLARE_TARGET, "production", False, "cf-v9", "cf-v8"),
                        "expected_active_version_id": "cf-v8"},
     }
@@ -293,7 +293,7 @@ def test_receipt_aware_recovery_verifies_ancestry_and_exact_provider_state_witho
         recovery_plan=lambda target: events.append(("plan", target)) or plan,
         recover_rolled_back=lambda target: events.append(("recover", target)) or True,
     )
-    modal = SimpleNamespace(active_version=lambda checkout, sha: events.append(("modal_read", checkout, sha)) or "modal-v6")
+    modal = SimpleNamespace(active_version=lambda checkout, sha: events.append(("modal_read", checkout, sha)) or "modal-v7")
     cloudflare = SimpleNamespace(active_version=lambda checkout, sha: events.append(("cloudflare_read", checkout, sha)) or "cf-v8")
 
     assert mod.recover_rolled_back_finalization(mainline, store, modal, cloudflare, OLD_TARGET) == {
@@ -323,7 +323,7 @@ def test_receipt_aware_recovery_mismatch_never_posts(failure, code):
         recovery_plan=lambda target: plan,
         recover_rolled_back=lambda target: posts.append(target) or True,
     )
-    modal = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "modal" else "modal-v6")
+    modal = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "modal" else "modal-v7")
     cloudflare = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "cloudflare" else "cf-v8")
     with pytest.raises(mod.ControllerError) as caught:
         mod.recover_rolled_back_finalization(mainline, store, modal, cloudflare, OLD_TARGET)
@@ -450,6 +450,15 @@ def test_worker_smoke_reaches_worker_with_trusted_user_agent(monkeypatch):
     assert requests[0].get_header("Accept") == "application/json"
 
 
+def test_modal_failure_recovery_retains_exact_deployed_version_without_plan_rollback(monkeypatch):
+    mod = load_module()
+    adapter = mod.ProductionModalAdapter({})
+    claim = SimpleNamespace(id="fin_" + "1" * 32, target_sha=SHA)
+    adapter.checkouts[claim.id] = ROOT
+    monkeypatch.setattr(adapter, "active_version", lambda checkout, sha: "v7")
+    assert adapter.rollback(claim, {"version_id": "v7", "rollback_token": "v6"}) == {"status": "passed"}
+
+
 def test_modal_deploy_reuses_existing_exact_tag_without_mutation(monkeypatch):
     mod = load_module()
     rows = [
@@ -557,6 +566,8 @@ def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
     claim = SimpleNamespace(target_sha=SHA, artifact_hash=ARTIFACT)
     adapter.preflight(claim)
     assert adapter.verify_public(claim, ROOT) == {"status": "passed"}
+    assert all(call[1]["headers"]["User-Agent"] == "OmoProductionFinalizer/1.0" for call in calls)
+    assert all(call[1]["headers"]["Accept"] == "application/json" for call in calls)
     assert calls[0][1]["headers"]["Idempotency-Key"] == calls[2][1]["headers"]["Idempotency-Key"]
     assert calls[0][1]["payload"] == calls[2][1]["payload"]
     assert calls[1][0].endswith(run_id)

@@ -105,7 +105,7 @@ def _validate_recovery_plan(value: object, target_sha: str) -> dict[str, Any]:
         if not isinstance(item, dict) or set(item) != {"receipt", "expected_active_version_id"}:
             raise ControllerError("invalid_recovery_plan")
         receipt = _validate_recovery_receipt(item.get("receipt"), provider, target_sha)
-        expected = receipt["version_id"] if receipt["reused"] else receipt["previous_version_id"]
+        expected = receipt["version_id"] if provider == "modal" or receipt["reused"] else receipt["previous_version_id"]
         if item.get("expected_active_version_id") != expected:
             raise ControllerError("invalid_recovery_plan")
     return value
@@ -598,11 +598,12 @@ class ProductionModalAdapter:
         return {"status": "passed" if valid else "failed"}
 
     def rollback(self, claim, deploy_receipt):
-        version = str(deploy_receipt.get("rollback_token") or "")
         checkout = self.checkouts.get(claim.id)
         if not checkout:
             raise ControllerError("rollback_checkout_missing")
-        self._transport(claim, checkout, True).run(modal_rollback_call(checkout, claim.slug, version))
+        version = str(deploy_receipt.get("version_id") or "")
+        if self.active_version(checkout, claim.target_sha) != version:
+            raise ControllerError("modal_recovery_readback_mismatch")
         return {"status": "passed"}
 
 
@@ -785,7 +786,11 @@ class ProductionPublicAdapter:
         payload = {"slug": MODAL_ALLOWED_SLUG, "input": {
             "labels": [" Green Apple ", "green-apple", "Class 2B"], "prefix": "item",
         }}
-        headers = {"X-API-Key": self.api_key, "Idempotency-Key": f"v0.1-{key}", "Content-Type": "application/json"}
+        headers = {
+            "X-API-Key": self.api_key, "Idempotency-Key": f"v0.1-{key}",
+            "Content-Type": "application/json", "Accept": "application/json",
+            "User-Agent": "OmoProductionFinalizer/1.0",
+        }
         return _request_json_stage(
             "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/run",
             method="POST", payload=payload, headers=headers, timeout=60,
@@ -800,7 +805,10 @@ class ProductionPublicAdapter:
         for _ in range(60):
             poll_status, poll = _request_json_stage(
                 "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/run/{run_id}",
-                headers={"X-API-Key": self.api_key}, timeout=30
+                headers={
+                    "X-API-Key": self.api_key, "Accept": "application/json",
+                    "User-Agent": "OmoProductionFinalizer/1.0",
+                }, timeout=30
             )
             if poll_status == 200 and poll and poll.get("status") in {"succeeded", "failed", "refunded"}:
                 terminal = poll

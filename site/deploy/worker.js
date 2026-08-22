@@ -4241,15 +4241,15 @@ function recoveryCandidate(row) {
   return { row, failed, modalReceipt, workerReceipt };
 }
 
-function expectedRecoveryVersion(receipt) {
-  return receipt.reused ? receipt.version_id : receipt.previous_version_id;
+function expectedRecoveryVersion(receipt, provider) {
+  return provider === 'modal' || receipt.reused ? receipt.version_id : receipt.previous_version_id;
 }
 
 function recoveryPlan(candidate) {
   return {
     target_sha: candidate.failed.target_sha,
-    modal: { receipt: candidate.modalReceipt, expected_active_version_id: expectedRecoveryVersion(candidate.modalReceipt) },
-    cloudflare: { receipt: candidate.workerReceipt, expected_active_version_id: expectedRecoveryVersion(candidate.workerReceipt) },
+    modal: { receipt: candidate.modalReceipt, expected_active_version_id: expectedRecoveryVersion(candidate.modalReceipt, 'modal') },
+    cloudflare: { receipt: candidate.workerReceipt, expected_active_version_id: expectedRecoveryVersion(candidate.workerReceipt, 'cloudflare') },
   };
 }
 
@@ -4261,8 +4261,8 @@ function recoverySnapshot(candidate, recoveredAt) {
     artifact_hash: failed.artifact_hash, failure_code: failed.failure_code,
     modal_receipt: candidate.modalReceipt, worker_receipt: candidate.workerReceipt,
     expected_provider_state: {
-      modal: { version_id: expectedRecoveryVersion(candidate.modalReceipt) },
-      cloudflare: { version_id: expectedRecoveryVersion(candidate.workerReceipt) },
+      modal: { version_id: expectedRecoveryVersion(candidate.modalReceipt, 'modal') },
+      cloudflare: { version_id: expectedRecoveryVersion(candidate.workerReceipt, 'cloudflare') },
     },
     verified_by: 'trusted_production_finalizer', recovered_at: recoveredAt,
   });
