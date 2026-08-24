@@ -1,20 +1,24 @@
 """Ephemeral, isolated Hermes build worker for Omo marketplace submissions."""
 from __future__ import annotations
 
-import base64
-import datetime
 import hashlib
+import hmac
+import http.server
 import json
 import os
 import re
+import secrets
 import selectors
 import signal
-import ctypes
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -22,18 +26,24 @@ import modal
 
 APP_NAME = "omo-hermes-builder"
 SECRET_NAME = "omo-hermes-builder"
-NOUS_REFRESH_SECRET_NAME = "omo-hermes-builder-nous-refresh"
-NOUS_AUTH_VOLUME_NAME = "omo-hermes-builder-auth"
-NOUS_AUTH_ROOT = Path("/root/secure-nous-auth")
-MAX_NOUS_INVOKE_JWT_TTL_SECONDS = 24 * 60 * 60
-MAX_NOUS_REFRESH_TOKEN_BYTES = 16 * 1024
 DISPATCH_STORE = "omo-hermes-builder-dispatches"
 HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
 PYTEST_VERSION = "8.4.0"
 JSONSCHEMA_VERSION = "4.26.0"
 FASTAPI_VERSION = "0.109.0"
-DEFAULT_MODEL = "Hermes-4-70B"
+DEFAULT_MODEL = "deepseek-v4-pro"
+OPENCODE_GO_BASE_URL = "https://opencode.ai/zen/go/v1"
+OPENCODE_GO_CHAT_COMPLETIONS_URL = OPENCODE_GO_BASE_URL + "/chat/completions"
+OPENCODE_PROXY_MAX_REQUEST_BYTES = 4 * 1024 * 1024
+OPENCODE_PROXY_MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+OPENCODE_PROXY_MAX_REQUESTS = 80
+OPENCODE_PROXY_UPSTREAM_TIMEOUT_SECONDS = 180
+OPENCODE_PROXY_TOTAL_TIMEOUT_SECONDS = 180
+OPENCODE_PROXY_INBOUND_TIMEOUT_SECONDS = 15
+OPENCODE_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS = 15
+OPENCODE_PROXY_MAX_HEADER_BYTES = 16 * 1024
+OPENCODE_PROXY_MAX_CONCURRENT_HANDLERS = 4
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "86361b0cfc67e5f6db805a2d90e7816b2121919a"
 MAX_SOURCE_BYTES = 200 * 1024
@@ -62,7 +72,7 @@ app = modal.App(APP_NAME)
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .env({"DEBIAN_FRONTEND": "noninteractive", "TZ": "UTC"})
-    .apt_install("ca-certificates", "curl", "gh", "git", "nodejs", "npm", "passwd")
+    .apt_install("ca-certificates", "curl", "gh", "git", "nodejs", "npm", "passwd", "util-linux")
     .run_commands(
         f"groupadd --gid {HERMES_GID} omo-hermes && "
         f"useradd --uid {HERMES_UID} --gid {HERMES_GID} --no-create-home --shell /usr/sbin/nologin omo-hermes"
@@ -77,7 +87,6 @@ image = (
     )
 )
 dispatches = modal.Dict.from_name(DISPATCH_STORE, create_if_missing=True)
-nous_auth_volume = modal.Volume.from_name(NOUS_AUTH_VOLUME_NAME, create_if_missing=True)
 
 
 def expected_dispatch_id(submission_id: str, source_sha256: str, base_revision: str) -> str:
@@ -207,17 +216,6 @@ def chown_tree(path: Path, uid: int = HERMES_UID, gid: int = HERMES_GID) -> None
             os.chown(Path(directory) / name, uid, gid, follow_symlinks=False)
 
 
-def drop_hermes_privileges() -> None:
-    """Run Hermes under a UID that cannot inspect the root parent's /proc."""
-    os.setgroups([])
-    os.setgid(HERMES_GID)
-    os.setuid(HERMES_UID)
-    # PR_SET_NO_NEW_PRIVS prevents gaining privilege through future execs.
-    if ctypes.CDLL(None).prctl(38, 1, 0, 0, 0) != 0:
-        raise OSError("could not enable no_new_privs")
-    os.umask(0o077)
-
-
 def prepare_trusted_checkout(root: Path, source_checkout: Path, base_revision: str, slug: str, token: str) -> Path:
     """Create a fresh pinned checkout after Hermes exits and import one profile."""
     checkout = root / "trusted-repo"
@@ -239,136 +237,366 @@ def prepare_trusted_checkout(root: Path, source_checkout: Path, base_revision: s
     return checkout
 
 
-def _validate_nous_invoke_jwt(token: str) -> int:
-    try:
-        parts = str(token or "").strip().split(".")
-        if len(parts) != 3:
-            raise ValueError("invalid JWT segment count")
-        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
-        expires_at = int(payload["exp"])
-        raw_scopes = payload.get("scope") if payload.get("scope") is not None else payload.get("scp")
-        if isinstance(raw_scopes, str):
-            scopes = set(raw_scopes.replace(",", " ").split())
-        elif isinstance(raw_scopes, (list, tuple, set)):
-            scopes = {value for value in raw_scopes if isinstance(value, str)}
-        else:
-            scopes = set()
-    except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        raise RuntimeError("Nous agent key is invalid") from error
-    now = int(time.time())
-    if (
-        "inference:invoke" not in scopes
-        or expires_at <= now + 900
-        or expires_at > now + MAX_NOUS_INVOKE_JWT_TTL_SECONDS
-    ):
-        raise RuntimeError("Nous agent key is expired or incorrectly scoped")
-    return expires_at
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
-def _seed_parent_nous_auth(auth_root: Path, environ: Mapping[str, str]) -> None:
-    auth_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    auth_root.chmod(0o700)
-    auth_path = auth_root / "auth.json"
-    if auth_path.exists():
-        metadata = auth_path.lstat()
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or stat.S_IMODE(metadata.st_mode) != 0o600
-            or metadata.st_uid != 0
-            or metadata.st_nlink != 1
-        ):
-            raise RuntimeError("trusted Nous auth store permissions are invalid")
-        return
-    encoded = str(environ.get("NOUS_AUTH_SEED_B64") or "").strip()
-    if not encoded or len(encoded) > 128 * 1024:
-        raise RuntimeError("Nous Portal refresh credential is missing")
-    try:
-        decoded = base64.b64decode(encoded, validate=True)
-        state = json.loads(decoded)
-        provider = state["providers"]["nous"]
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        raise RuntimeError("Nous Portal refresh credential is invalid") from error
-    refresh_token = provider.get("refresh_token") if isinstance(provider, dict) else None
-    if (
-        not isinstance(state, dict)
-        or set(state) - {"version", "active_provider", "providers"}
-        or state.get("active_provider") != "nous"
-        or set(state.get("providers") or {}) != {"nous"}
-        or not isinstance(provider, dict)
-        or not isinstance(refresh_token, str)
-        or not refresh_token.strip()
-        or len(refresh_token.encode("utf-8")) > MAX_NOUS_REFRESH_TOKEN_BYTES
-    ):
-        raise RuntimeError("Nous Portal refresh credential is invalid")
-    descriptor = os.open(auth_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        json.dump(state, handle, sort_keys=True)
-        handle.flush()
-        os.fsync(handle.fileno())
+class OpenCodeInferenceProxy:
+    """Loopback-only, per-run credential boundary for OpenCode Go inference."""
 
+    _FORBIDDEN_TARGET_FIELDS = {"base_url", "url", "host", "endpoint"}
 
-def _resolve_nous_in_subprocess(auth_root: Path) -> dict[str, Any]:
-    code = (
-        "import json; "
-        "from hermes_cli.auth import resolve_nous_runtime_credentials; "
-        "c=resolve_nous_runtime_credentials(timeout_seconds=30); "
-        "print(json.dumps({'api_key':c.get('api_key'),'expires_at':c.get('expires_at')}))"
-    )
-    trusted_env = {
-        key: value for key, value in os.environ.items()
-        if key in {"PATH", "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"}
-    }
-    trusted_env.update({"HERMES_HOME": str(auth_root), "HOME": str(auth_root), "NO_COLOR": "1"})
-    process = subprocess.run(
-        [sys.executable, "-c", code], env=trusted_env, text=True,
-        capture_output=True, timeout=60, check=False,
-    )
-    if process.returncode != 0:
-        raise RuntimeError("Nous Portal refresh failed")
-    try:
-        return json.loads(process.stdout)
-    except json.JSONDecodeError as error:
-        raise RuntimeError("Nous Portal refresh returned invalid data") from error
+    def __init__(
+        self,
+        api_key: str,
+        local_token: str,
+        *,
+        opener: Any = None,
+        max_requests: int = OPENCODE_PROXY_MAX_REQUESTS,
+    ) -> None:
+        self._api_key = str(api_key or "").strip()
+        self._local_token = str(local_token or "").strip()
+        if not self._api_key:
+            raise RuntimeError("OpenCode Go credential is missing")
+        if not self._local_token:
+            raise RuntimeError("local inference credential is missing")
+        if not 1 <= max_requests <= OPENCODE_PROXY_MAX_REQUESTS:
+            raise ValueError("invalid inference request budget")
+        self._remaining = max_requests
+        self._budget_lock = threading.Lock()
+        self._opener = opener or urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), _NoRedirect()
+        )
+        self._server: http.server.ThreadingHTTPServer | None = None
+        self._thread: threading.Thread | None = None
+        self._active_lock = threading.Lock()
+        self._active_upstreams: set[Any] = set()
+        self._active_connections: set[Any] = set()
+        self._stopping = False
 
+    @property
+    def port(self) -> int:
+        if self._server is None:
+            raise RuntimeError("inference proxy is not running")
+        return int(self._server.server_address[1])
 
-def resolve_parent_nous_agent_key(
-    auth_root: Path,
-    environ: Mapping[str, str],
-    *,
-    resolver: Any = None,
-    volume: Any = None,
-) -> str:
-    _seed_parent_nous_auth(auth_root, environ)
-    try:
-        credentials = (resolver or _resolve_nous_in_subprocess)(auth_root)
-    except Exception:
-        if volume is not None:
+    @property
+    def base_url(self) -> str:
+        return f"http://127.0.0.1:{self.port}/v1"
+
+    def _consume_budget(self) -> bool:
+        with self._budget_lock:
+            if self._remaining <= 0:
+                return False
+            self._remaining -= 1
+            return True
+
+    @staticmethod
+    def _set_upstream_timeout(upstream: Any, seconds: float) -> None:
+        try:
+            upstream.fp.raw._sock.settimeout(max(0.1, seconds))
+        except (AttributeError, OSError):
+            pass
+
+    def __enter__(self) -> "OpenCodeInferenceProxy":
+        owner = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            server_version = "OmoInferenceBoundary/1"
+            sys_version = ""
+
+            def setup(self) -> None:
+                super().setup()
+                self.connection.settimeout(OPENCODE_PROXY_INBOUND_TIMEOUT_SECONDS)
+                self._deadline_timer = threading.Timer(
+                    OPENCODE_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS,
+                    self._expire_connection,
+                )
+                self._deadline_timer.daemon = True
+                self._deadline_timer.start()
+
+            def _expire_connection(self) -> None:
+                try:
+                    self.connection.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                try:
+                    self.connection.close()
+                except OSError:
+                    pass
+
+            def finish(self) -> None:
+                try:
+                    super().finish()
+                finally:
+                    self._deadline_timer.cancel()
+
+            def log_message(self, _format: str, *_args: Any) -> None:
+                # Request lines and headers are deliberately never logged.
+                return None
+
+            def _json_error(self, status: int, code: str) -> None:
+                body = json.dumps(
+                    {"error": {"message": code.replace("_", " "), "type": code, "code": code}},
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                try:
+                    self.send_response(status)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.write(body)
+                except (BrokenPipeError, ConnectionError, OSError):
+                    pass
+                self.close_connection = True
+
+            def do_POST(self) -> None:
+                deadline = time.monotonic() + OPENCODE_PROXY_TOTAL_TIMEOUT_SECONDS
+                header_bytes = sum(
+                    len(str(key).encode("utf-8")) + len(str(value).encode("utf-8")) + 4
+                    for key, value in self.headers.items()
+                )
+                if header_bytes > OPENCODE_PROXY_MAX_HEADER_BYTES:
+                    self._json_error(431, "headers_too_large")
+                    return
+                if self.path != "/v1/chat/completions":
+                    self._json_error(404, "route_not_allowed")
+                    return
+                supplied = self.headers.get("Authorization", "")
+                expected = "Bearer " + owner._local_token
+                if not hmac.compare_digest(supplied, expected):
+                    self._json_error(401, "local_auth_failed")
+                    return
+                if self.headers.get("Transfer-Encoding"):
+                    self._json_error(400, "invalid_request")
+                    return
+                try:
+                    length = int(self.headers.get("Content-Length", ""))
+                except ValueError:
+                    length = -1
+                if length <= 0 or length > OPENCODE_PROXY_MAX_REQUEST_BYTES:
+                    self._json_error(413 if length > 0 else 400, "request_too_large" if length > 0 else "invalid_request")
+                    return
+                if not owner._consume_budget():
+                    self._json_error(429, "request_budget_exhausted")
+                    return
+                try:
+                    raw = self.rfile.read(length)
+                except (TimeoutError, socket.timeout, OSError):
+                    self._json_error(408, "request_timeout")
+                    return
+                if len(raw) != length:
+                    self._json_error(400, "invalid_request")
+                    return
+                try:
+                    body = json.loads(raw)
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    self._json_error(400, "invalid_request")
+                    return
+                if (
+                    not isinstance(body, dict)
+                    or body.get("model") != DEFAULT_MODEL
+                    or owner._FORBIDDEN_TARGET_FIELDS.intersection(body)
+                ):
+                    self._json_error(400, "request_not_allowed")
+                    return
+                request = urllib.request.Request(
+                    OPENCODE_GO_CHAT_COMPLETIONS_URL,
+                    data=raw,
+                    method="POST",
+                    headers={
+                        "Authorization": "Bearer " + owner._api_key,
+                        "Content-Type": "application/json",
+                        "Accept": "text/event-stream, application/json",
+                        "Accept-Encoding": "identity",
+                        "User-Agent": "omo-hermes-builder/1",
+                    },
+                )
+                try:
+                    remaining = max(0.1, deadline - time.monotonic())
+                    upstream = owner._opener.open(request, timeout=remaining)
+                except urllib.error.HTTPError as error:
+                    code = "opencode_auth_failed" if error.code in {401, 403} else "opencode_inference_failed"
+                    self._json_error(502, code)
+                    return
+                except Exception:
+                    self._json_error(502, "opencode_inference_failed")
+                    return
+                with owner._active_lock:
+                    if owner._stopping:
+                        try:
+                            upstream.close()
+                        except Exception:
+                            pass
+                        self._json_error(503, "proxy_stopping")
+                        return
+                    owner._active_upstreams.add(upstream)
+                try:
+                    content_type = str(upstream.headers.get("Content-Type") or "application/json")
+                    content_type = content_type.split(";", 1)[0].strip().lower()
+                    if content_type not in {"application/json", "text/event-stream"}:
+                        content_type = "application/octet-stream"
+                    try:
+                        declared = int(upstream.headers.get("Content-Length") or 0)
+                    except (TypeError, ValueError):
+                        declared = 0
+                    if declared > OPENCODE_PROXY_MAX_RESPONSE_BYTES:
+                        self._json_error(502, "opencode_response_too_large")
+                        return
+                    buffered = bytearray()
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            self._json_error(504, "opencode_inference_timeout")
+                            return
+                        owner._set_upstream_timeout(upstream, remaining)
+                        try:
+                            chunk = upstream.read(64 * 1024)
+                        except (TimeoutError, socket.timeout, OSError):
+                            self._json_error(504, "opencode_inference_timeout")
+                            return
+                        if not chunk:
+                            break
+                        buffered.extend(chunk)
+                        if len(buffered) > OPENCODE_PROXY_MAX_RESPONSE_BYTES:
+                            self._json_error(502, "opencode_response_too_large")
+                            return
+                    self.send_response(int(getattr(upstream, "status", 200)))
+                    self.send_header("Content-Type", content_type)
+                    self.send_header("Content-Length", str(len(buffered)))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.write(buffered)
+                    self.close_connection = True
+                except (BrokenPipeError, ConnectionError, OSError):
+                    self.close_connection = True
+                finally:
+                    with owner._active_lock:
+                        owner._active_upstreams.discard(upstream)
+                    try:
+                        upstream.close()
+                    except Exception:
+                        pass
+
+            def do_GET(self) -> None:
+                self._json_error(405, "method_not_allowed")
+
+            do_PUT = do_GET
+            do_PATCH = do_GET
+            do_DELETE = do_GET
+
+        class Server(http.server.ThreadingHTTPServer):
+            daemon_threads = True
+            block_on_close = False
+            allow_reuse_address = False
+
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                self._handler_slots = threading.BoundedSemaphore(OPENCODE_PROXY_MAX_CONCURRENT_HANDLERS)
+                super().__init__(*args, **kwargs)
+
+            def process_request(self, request: Any, client_address: Any) -> None:
+                if not self._handler_slots.acquire(blocking=False):
+                    self.shutdown_request(request)
+                    return
+                with owner._active_lock:
+                    owner._active_connections.add(request)
+                try:
+                    super().process_request(request, client_address)
+                except Exception:
+                    with owner._active_lock:
+                        owner._active_connections.discard(request)
+                    self._handler_slots.release()
+                    raise
+
+            def process_request_thread(self, request: Any, client_address: Any) -> None:
+                try:
+                    super().process_request_thread(request, client_address)
+                finally:
+                    with owner._active_lock:
+                        owner._active_connections.discard(request)
+                    self._handler_slots.release()
+
+        self._server = Server(("127.0.0.1", 0), Handler)
+        self._thread = threading.Thread(
+            target=self._server.serve_forever,
+            name="opencode-inference-boundary",
+            daemon=True,
+        )
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_args: Any) -> None:
+        with self._active_lock:
+            self._stopping = True
+        if self._server is not None:
+            self._server.shutdown()
+        with self._active_lock:
+            upstreams = list(self._active_upstreams)
+            connections = list(self._active_connections)
+        for upstream in upstreams:
             try:
-                volume.commit()
+                upstream.close()
             except Exception:
                 pass
-        raise
-    if volume is not None:
-        volume.commit()
-    token = str(credentials.get("api_key") or "").strip()
-    _validate_nous_invoke_jwt(token)
-    return token
+        for connection in connections:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                connection.close()
+            except OSError:
+                pass
+        if self._server is not None:
+            self._server.server_close()
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+            if self._thread.is_alive():
+                raise RuntimeError("inference proxy cleanup failed")
+        cleanup_deadline = time.monotonic() + 1.0
+        while time.monotonic() < cleanup_deadline:
+            with self._active_lock:
+                if not self._active_upstreams and not self._active_connections:
+                    break
+            time.sleep(0.01)
+        cleanup_failed = False
+        with self._active_lock:
+            if self._active_upstreams or self._active_connections:
+                cleanup_failed = True
+        self._thread = None
+        self._server = None
+        self._api_key = ""
+        self._local_token = ""
+        if cleanup_failed:
+            raise RuntimeError("inference proxy handlers did not terminate")
 
 
 def hermes_environment(
-    root: Path, environ: Mapping[str, str], *, agent_key: str | None = None
+    root: Path,
+    environ: Mapping[str, str],
+    *,
+    proxy_base_url: str,
+    proxy_token: str,
 ) -> dict[str, str]:
+    if not re.fullmatch(r"http://127\.0\.0\.1:[1-9][0-9]{0,4}/v1", proxy_base_url):
+        raise RuntimeError("local inference endpoint is invalid")
+    if not proxy_token:
+        raise RuntimeError("local inference credential is missing")
     home = root / "hermes"
     home.mkdir(mode=0o700, parents=True)
-    token = str(agent_key or environ.get("NOUS_AGENT_KEY") or "").strip()
-    expires_at = _validate_nous_invoke_jwt(token)
-    expires_iso = datetime.datetime.fromtimestamp(
-        expires_at, datetime.timezone.utc
-    ).isoformat().replace("+00:00", "Z")
     config = {
         "model": {
-            "provider": "nous",
+            "provider": "custom",
             "default": DEFAULT_MODEL,
+            "base_url": proxy_base_url,
+            "api_key": proxy_token,
+            "api_mode": "chat_completions",
         },
         "agent": {"max_turns": 60},
         "memory": {"memory_enabled": False, "user_profile_enabled": False},
@@ -377,42 +605,20 @@ def hermes_environment(
         "security": {"redact_secrets": True},
         "approvals": {"mode": "manual"},
     }
-    auth = {
-        "version": 1,
-        "active_provider": "nous",
-        "providers": {
-            "nous": {
-                "agent_key": token,
-                "agent_key_expires_at": expires_iso,
-                "scope": "inference:invoke",
-                "inference_base_url": "https://inference-api.nousresearch.com/v1",
-            }
-        },
-    }
     (home / "config.yaml").write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
-    auth_path = home / "auth.json"
-    descriptor = os.open(auth_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        json.dump(auth, handle, sort_keys=True)
-    result = dict(environ)
+    safe_names = {
+        "PATH", "LANG", "LC_ALL", "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE",
+    }
+    result = {key: value for key, value in environ.items() if key in safe_names}
     result.update({
         "HERMES_HOME": str(home),
         "HOME": str(home),
-        "HERMES_NOUS_MIN_KEY_TTL_SECONDS": "900",
         "HERMES_YOLO_MODE": "0",
         "HERMES_REDACT_SECRETS": "true",
+        "NO_PROXY": "127.0.0.1,localhost",
+        "no_proxy": "127.0.0.1,localhost",
         "NO_COLOR": "1",
     })
-    result.pop("NOUS_AGENT_KEY", None)
-    result.pop("NOUS_AUTH_SEED_B64", None)
-    for key in tuple(result):
-        if key.startswith(("TELEGRAM_", "DISCORD_", "WHATSAPP_", "SLACK_", "STRIPE_", "CLOUDFLARE_")):
-            result.pop(key, None)
-    # The untrusted Hermes phase never receives control-plane or GitHub write
-    # credentials. The parent process keeps those for the constrained release
-    # adapter after Hermes has exited.
-    result.pop("BUILD_WORKER_TOKEN", None)
-    result.pop("GH_TOKEN", None)
     return result
 
 
@@ -459,6 +665,8 @@ def classify_hermes_failure(raw: str) -> str:
     text = str(raw or "")[:MAX_HERMES_DIAGNOSTIC_BYTES].lower()
     if "hermes_process_timeout" in text:
         return "hermes_timeout"
+    if "opencode_auth_failed" in text:
+        return "opencode_auth_failed"
     if any(value in text for value in ("401", "unauthorized", "invalid api key", "authentication failed")):
         return "hermes_auth_failed"
     if "model" in text and any(value in text for value in ("not found", "unknown", "unavailable", "unsupported")):
@@ -475,9 +683,9 @@ def classify_hermes_failure(raw: str) -> str:
 def classify_builder_exception(stage: str, error: Exception) -> str:
     text = str(error or "").lower()
     if stage == "hermes" and any(value in text for value in (
-        "nous portal", "nous agent key", "inference credential",
+        "opencode go credential", "local inference credential", "local inference endpoint",
     )):
-        return "hermes_auth_failed"
+        return "opencode_auth_failed"
     return "builder_internal_failed"
 
 
@@ -486,9 +694,13 @@ def run_hermes_agent(
 ) -> tuple[int, str]:
     if not 0.05 <= timeout_seconds <= 3600:
         raise ValueError("invalid Hermes timeout")
+    privileged_argv = [
+        "/usr/bin/setpriv", "--reuid", str(HERMES_UID), "--regid", str(HERMES_GID),
+        "--clear-groups", "--no-new-privs", "--", *argv,
+    ]
     process = subprocess.Popen(
-        argv, cwd=cwd, env=dict(env), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-        preexec_fn=drop_hermes_privileges, start_new_session=True,
+        privileged_argv, cwd=cwd, env=dict(env), stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE, start_new_session=True,
     )
     assert process.stderr is not None
     descriptor = process.stderr.fileno()
@@ -579,14 +791,14 @@ def smoke() -> dict[str, Any]:
         "returncode": check.returncode,
         "hermes_version": HERMES_VERSION,
         "model": DEFAULT_MODEL,
-        "provider": "nous",
+        "provider": "opencode-go",
         "duration_ms": round((time.monotonic() - started) * 1000),
     }
 
 
 @app.function(
     image=image,
-    secrets=[modal.Secret.from_name(SECRET_NAME), modal.Secret.from_name(NOUS_REFRESH_SECRET_NAME)],
+    secrets=[modal.Secret.from_name(SECRET_NAME)],
     cpu=2.0,
     memory=4096,
     # Modal 1.3.4 serializes this field in KiB despite documenting MiB; the
@@ -595,12 +807,11 @@ def smoke() -> dict[str, Any]:
     timeout=3900,
     max_containers=1,
     single_use_containers=True,
-    volumes={str(NOUS_AUTH_ROOT): nous_auth_volume},
 )
 @modal.concurrent(max_inputs=1)
 def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str) -> dict[str, Any]:
     validate_job_identity(submission_id, slug, source_sha256, dispatch_id, base_revision)
-    required = ("BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
+    required = ("OPENCODE_GO_API_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
     if any(not os.environ.get(name) for name in required):
         raise RuntimeError("builder secret is incomplete")
 
@@ -659,27 +870,34 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 raise RuntimeError("private source handoff failed")
 
             stage = "hermes"
-            agent_key = resolve_parent_nous_agent_key(
-                NOUS_AUTH_ROOT, os.environ, volume=nous_auth_volume
-            )
-            env = hermes_environment(root, os.environ, agent_key=agent_key)
-            # The parent retains release credentials as root. Hermes owns only
-            # these disposable paths and cannot read the parent's /proc env.
-            root.chmod(0o711)
-            chown_tree(checkout)
-            chown_tree(review_dir)
-            chown_tree(Path(env["HERMES_HOME"]))
-            model = DEFAULT_MODEL
-            prompt = builder_prompt(submission_id, slug, source_sha256, review_path, base_revision)
-            agent_returncode, hermes_reason = run_hermes_agent(
-                [
-                    "hermes", "chat", "-q", prompt, "-Q",
-                    "--provider", "nous", "-m", model,
-                    "--toolsets", "file,skills",
-                ],
-                checkout,
-                env,
-            )
+            local_token = secrets.token_urlsafe(32)
+            with OpenCodeInferenceProxy(
+                str(os.environ["OPENCODE_GO_API_KEY"]), local_token
+            ) as inference_proxy:
+                env = hermes_environment(
+                    root,
+                    os.environ,
+                    proxy_base_url=inference_proxy.base_url,
+                    proxy_token=local_token,
+                )
+                # The parent retains permanent inference and release credentials
+                # as root. Hermes owns only disposable paths, a per-run loopback
+                # bearer, and cannot read the parent's /proc environment.
+                root.chmod(0o711)
+                chown_tree(checkout)
+                chown_tree(review_dir)
+                chown_tree(Path(env["HERMES_HOME"]))
+                model = DEFAULT_MODEL
+                prompt = builder_prompt(submission_id, slug, source_sha256, review_path, base_revision)
+                agent_returncode, hermes_reason = run_hermes_agent(
+                    [
+                        "hermes", "chat", "-q", prompt, "-Q",
+                        "--provider", "custom", "-m", model,
+                        "--toolsets", "file,skills",
+                    ],
+                    checkout,
+                    env,
+                )
             if agent_returncode != 0:
                 repository.set_status(submission_id, "failed", "build_or_deploy_failed")
                 result = _safe_result(

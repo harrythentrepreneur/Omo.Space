@@ -11,7 +11,7 @@ This is a private, outbound-only bridge from Cloudflare's authoritative submissi
 5. A genuinely new valid source is stored beneath `OMO_BUILD_REVIEW_ROOT` as a mode-0600 `SKILL.md` inside a mode-0700 submission directory.
 6. Only `needs_review/reviewed_profile_required` launches Modal. The launch payload contains only validated submission ID, slug, source SHA-256 and a deterministic dispatch ID; it never contains source bytes or a host path.
 7. The Modal job re-claims that exact reviewed submission through the protected API, persists the source in its own mode-0600 temporary file, verifies SHA-256, and starts a fresh Hermes home with messaging, memory and cron disabled.
-8. Hermes uses OpenCode Go with the server-controlled low-cost model (default `minimax-m2.7`). It may open a verified PR but cannot merge, deploy or publish.
+8. The trusted root parent keeps the permanent OpenCode Go key and exposes only a random per-run bearer through a loopback-only inference boundary. The unprivileged Hermes child receives `http://127.0.0.1:<random>/v1`, uses the fixed `deepseek-v4-pro` model, and has only `file,skills` tools. The boundary accepts only bounded `POST /v1/chat/completions` calls, fixes the upstream/model, rejects redirects and host overrides, enforces a request budget, strips headers/errors, streams bounded responses, and shuts down immediately after Hermes. The trusted parent—not Hermes—may open a verified PR; neither phase may merge, deploy, or publish.
 
 ## Installation
 

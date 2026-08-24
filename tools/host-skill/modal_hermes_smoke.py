@@ -5,7 +5,7 @@ import modal
 
 HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
-DEFAULT_MODEL = "minimax-m2.7"
+DEFAULT_MODEL = "deepseek-v4-pro"
 
 smoke_app = modal.App("omo-hermes-builder-smoke")
 image = (
