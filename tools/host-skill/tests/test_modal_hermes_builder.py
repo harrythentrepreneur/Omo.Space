@@ -99,9 +99,115 @@ def test_dispatch_payload_is_exact_and_identifier_only() -> None:
             raise AssertionError(f"dispatch accepted forbidden field: {forbidden}")
 
 
-def _fake_nous_jwt(expires_at: int, scope: str = "inference:invoke") -> str:
-    payload = base64.urlsafe_b64encode(json.dumps({"exp": expires_at, "scope": scope}).encode()).decode().rstrip("=")
+def _fake_nous_jwt(expires_at: int, scope: object = "inference:invoke", *, claim: str = "scope") -> str:
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": expires_at, claim: scope}).encode()).decode().rstrip("=")
     return f"eyJhbGciOiJub25lIn0.{payload}.signature"
+
+
+def test_parent_nous_auth_seed_is_root_only_and_not_forwarded_to_agent(tmp_path: Path) -> None:
+    builder = load_builder()
+    refresh_state = {
+        "version": 1,
+        "active_provider": "nous",
+        "providers": {
+            "nous": {
+                "refresh_token": "refresh-only-parent",
+                "access_token": "expired-access",
+                "portal_base_url": "https://portal.nousresearch.com",
+                "inference_base_url": "https://inference-api.nousresearch.com/v1",
+                "client_id": "hermes-cli",
+                "scope": "inference:invoke",
+            }
+        },
+    }
+    seed = base64.b64encode(json.dumps(refresh_state).encode()).decode()
+    fresh_key = _fake_nous_jwt(int(time.time()) + 3600)
+    observed: dict[str, object] = {}
+
+    def resolver(auth_root: Path) -> dict[str, object]:
+        auth_path = auth_root / "auth.json"
+        observed["mode"] = auth_path.stat().st_mode & 0o777
+        observed["state"] = json.loads(auth_path.read_text())
+        return {"api_key": fresh_key, "expires_at": int(time.time()) + 3600}
+
+    class Volume:
+        commits = 0
+        def commit(self) -> None:
+            self.commits += 1
+
+    volume = Volume()
+    auth_root = tmp_path / "trusted-auth"
+    key = builder.resolve_parent_nous_agent_key(
+        auth_root, {"NOUS_AUTH_SEED_B64": seed}, resolver=resolver, volume=volume
+    )
+    assert key == fresh_key
+    assert observed["mode"] == 0o600
+    assert observed["state"]["providers"]["nous"]["refresh_token"] == "refresh-only-parent"
+    assert volume.commits == 1
+
+    child = builder.hermes_environment(tmp_path / "child", {"NOUS_AUTH_SEED_B64": seed}, agent_key=key)
+    assert "NOUS_AUTH_SEED_B64" not in child
+    child_auth = json.loads((Path(child["HERMES_HOME"]) / "auth.json").read_text())
+    assert child_auth["providers"]["nous"]["agent_key"] == fresh_key
+    assert "refresh_token" not in child_auth["providers"]["nous"]
+
+
+def test_parent_nous_auth_reuses_persisted_volume_without_seed(tmp_path: Path) -> None:
+    builder = load_builder()
+    auth_root = tmp_path / "trusted-auth"
+    auth_root.mkdir(mode=0o700)
+    (auth_root / "auth.json").write_text(json.dumps({
+        "version": 1,
+        "active_provider": "nous",
+        "providers": {"nous": {"refresh_token": "persisted"}},
+    }))
+    os.chmod(auth_root / "auth.json", 0o600)
+    fresh_key = _fake_nous_jwt(int(time.time()) + 3600)
+    key = builder.resolve_parent_nous_agent_key(
+        auth_root, {}, resolver=lambda root: {"api_key": fresh_key}, volume=None
+    )
+    assert key == fresh_key
+
+
+def test_parent_nous_auth_commits_rotated_state_even_when_resolver_fails(tmp_path: Path) -> None:
+    builder = load_builder()
+    auth_root = tmp_path / "trusted-auth"
+    state = {"version": 1, "active_provider": "nous", "providers": {"nous": {"refresh_token": "old"}}}
+    seed = base64.b64encode(json.dumps(state).encode()).decode()
+
+    class Volume:
+        commits = 0
+        def commit(self) -> None:
+            self.commits += 1
+
+    def resolver(root: Path) -> dict[str, object]:
+        updated = {"version": 1, "active_provider": "nous", "providers": {"nous": {"refresh_token": "rotated"}}}
+        (root / "auth.json").write_text(json.dumps(updated))
+        os.chmod(root / "auth.json", 0o600)
+        raise RuntimeError("Nous Portal refresh failed")
+
+    volume = Volume()
+    with pytest.raises(RuntimeError, match="Nous Portal refresh failed"):
+        builder.resolve_parent_nous_agent_key(
+            auth_root, {"NOUS_AUTH_SEED_B64": seed}, resolver=resolver, volume=volume
+        )
+    assert volume.commits == 1
+    assert json.loads((auth_root / "auth.json").read_text())["providers"]["nous"]["refresh_token"] == "rotated"
+
+
+def test_builder_declares_root_only_renewable_nous_auth_boundary() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert 'NOUS_REFRESH_SECRET_NAME = "omo-hermes-builder-nous-refresh"' in source
+    assert 'NOUS_AUTH_VOLUME_NAME = "omo-hermes-builder-auth"' in source
+    assert 'volumes={str(NOUS_AUTH_ROOT): nous_auth_volume}' in source
+    assert 'modal.Secret.from_name(NOUS_REFRESH_SECRET_NAME)' in source
+    assert 'NOUS_AGENT_KEY' not in source[source.index('required = '):source.index('now = int(time.time())')]
+
+
+def test_hermes_auth_preparation_exception_is_typed() -> None:
+    builder = load_builder()
+    assert builder.classify_builder_exception("hermes", RuntimeError("Nous Portal refresh failed")) == "hermes_auth_failed"
+    assert builder.classify_builder_exception("checkout", RuntimeError("anything")) == "builder_internal_failed"
 
 
 def test_hermes_environment_is_fresh_locked_down_and_nous_scoped(tmp_path: Path) -> None:
@@ -163,6 +269,23 @@ def test_hermes_environment_accepts_inference_scope_membership(tmp_path: Path) -
     assert auth["providers"]["nous"]["scope"] == "inference:invoke"
 
 
+def test_hermes_environment_accepts_scp_collection_claim(tmp_path: Path) -> None:
+    builder = load_builder()
+    token = _fake_nous_jwt(
+        int(time.time()) + 3600, ["profile:read", "inference:invoke"], claim="scp"
+    )
+    env = builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": token})
+    assert Path(env["HERMES_HOME"]).is_dir()
+
+
+def test_hermes_environment_rejects_implausibly_long_lived_key(tmp_path: Path) -> None:
+    builder = load_builder()
+    with pytest.raises(RuntimeError, match="Nous agent key"):
+        builder.hermes_environment(
+            tmp_path, {"NOUS_AGENT_KEY": _fake_nous_jwt(int(time.time()) + 25 * 60 * 60)}
+        )
+
+
 def test_hermes_environment_rejects_missing_inference_scope(tmp_path: Path) -> None:
     builder = load_builder()
     token = _fake_nous_jwt(int(time.time()) + 3600, "profile:read")
@@ -176,10 +299,10 @@ def test_builder_model_is_fixed_not_environment_selected() -> None:
     assert 'environ.get("OMO_BUILDER_MODEL"' not in source
 
 
-def test_builder_declares_separate_nous_secret() -> None:
+def test_builder_declares_separate_renewable_nous_secret() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
-    assert 'modal.Secret.from_name(NOUS_SECRET_NAME)' in source
-    assert 'NOUS_SECRET_NAME = "omo-hermes-builder-nous"' in source
+    assert 'modal.Secret.from_name(NOUS_REFRESH_SECRET_NAME)' in source
+    assert 'NOUS_REFRESH_SECRET_NAME = "omo-hermes-builder-nous-refresh"' in source
 
 
 def test_hermes_failure_classifier_is_closed_and_never_returns_raw_text() -> None:

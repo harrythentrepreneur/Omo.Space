@@ -22,7 +22,11 @@ import modal
 
 APP_NAME = "omo-hermes-builder"
 SECRET_NAME = "omo-hermes-builder"
-NOUS_SECRET_NAME = "omo-hermes-builder-nous"
+NOUS_REFRESH_SECRET_NAME = "omo-hermes-builder-nous-refresh"
+NOUS_AUTH_VOLUME_NAME = "omo-hermes-builder-auth"
+NOUS_AUTH_ROOT = Path("/root/secure-nous-auth")
+MAX_NOUS_INVOKE_JWT_TTL_SECONDS = 24 * 60 * 60
+MAX_NOUS_REFRESH_TOKEN_BYTES = 16 * 1024
 DISPATCH_STORE = "omo-hermes-builder-dispatches"
 HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
@@ -73,6 +77,7 @@ image = (
     )
 )
 dispatches = modal.Dict.from_name(DISPATCH_STORE, create_if_missing=True)
+nous_auth_volume = modal.Volume.from_name(NOUS_AUTH_VOLUME_NAME, create_if_missing=True)
 
 
 def expected_dispatch_id(submission_id: str, source_sha256: str, base_revision: str) -> str:
@@ -234,21 +239,129 @@ def prepare_trusted_checkout(root: Path, source_checkout: Path, base_revision: s
     return checkout
 
 
-def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]:
-    home = root / "hermes"
-    home.mkdir(mode=0o700, parents=True)
-    token = str(environ.get("NOUS_AGENT_KEY") or "").strip()
+def _validate_nous_invoke_jwt(token: str) -> int:
     try:
-        parts = token.split(".")
+        parts = str(token or "").strip().split(".")
         if len(parts) != 3:
             raise ValueError("invalid JWT segment count")
         payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
         expires_at = int(payload["exp"])
-        scopes = set(str(payload.get("scope") or "").split())
+        raw_scopes = payload.get("scope") if payload.get("scope") is not None else payload.get("scp")
+        if isinstance(raw_scopes, str):
+            scopes = set(raw_scopes.replace(",", " ").split())
+        elif isinstance(raw_scopes, (list, tuple, set)):
+            scopes = {value for value in raw_scopes if isinstance(value, str)}
+        else:
+            scopes = set()
     except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise RuntimeError("Nous agent key is invalid") from error
-    if "inference:invoke" not in scopes or expires_at <= int(time.time()) + 900:
+    now = int(time.time())
+    if (
+        "inference:invoke" not in scopes
+        or expires_at <= now + 900
+        or expires_at > now + MAX_NOUS_INVOKE_JWT_TTL_SECONDS
+    ):
         raise RuntimeError("Nous agent key is expired or incorrectly scoped")
+    return expires_at
+
+
+def _seed_parent_nous_auth(auth_root: Path, environ: Mapping[str, str]) -> None:
+    auth_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    auth_root.chmod(0o700)
+    auth_path = auth_root / "auth.json"
+    if auth_path.exists():
+        metadata = auth_path.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_uid != 0
+            or metadata.st_nlink != 1
+        ):
+            raise RuntimeError("trusted Nous auth store permissions are invalid")
+        return
+    encoded = str(environ.get("NOUS_AUTH_SEED_B64") or "").strip()
+    if not encoded or len(encoded) > 128 * 1024:
+        raise RuntimeError("Nous Portal refresh credential is missing")
+    try:
+        decoded = base64.b64decode(encoded, validate=True)
+        state = json.loads(decoded)
+        provider = state["providers"]["nous"]
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise RuntimeError("Nous Portal refresh credential is invalid") from error
+    refresh_token = provider.get("refresh_token") if isinstance(provider, dict) else None
+    if (
+        not isinstance(state, dict)
+        or set(state) - {"version", "active_provider", "providers"}
+        or state.get("active_provider") != "nous"
+        or set(state.get("providers") or {}) != {"nous"}
+        or not isinstance(provider, dict)
+        or not isinstance(refresh_token, str)
+        or not refresh_token.strip()
+        or len(refresh_token.encode("utf-8")) > MAX_NOUS_REFRESH_TOKEN_BYTES
+    ):
+        raise RuntimeError("Nous Portal refresh credential is invalid")
+    descriptor = os.open(auth_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        json.dump(state, handle, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _resolve_nous_in_subprocess(auth_root: Path) -> dict[str, Any]:
+    code = (
+        "import json; "
+        "from hermes_cli.auth import resolve_nous_runtime_credentials; "
+        "c=resolve_nous_runtime_credentials(timeout_seconds=30); "
+        "print(json.dumps({'api_key':c.get('api_key'),'expires_at':c.get('expires_at')}))"
+    )
+    trusted_env = {
+        key: value for key, value in os.environ.items()
+        if key in {"PATH", "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"}
+    }
+    trusted_env.update({"HERMES_HOME": str(auth_root), "HOME": str(auth_root), "NO_COLOR": "1"})
+    process = subprocess.run(
+        [sys.executable, "-c", code], env=trusted_env, text=True,
+        capture_output=True, timeout=60, check=False,
+    )
+    if process.returncode != 0:
+        raise RuntimeError("Nous Portal refresh failed")
+    try:
+        return json.loads(process.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("Nous Portal refresh returned invalid data") from error
+
+
+def resolve_parent_nous_agent_key(
+    auth_root: Path,
+    environ: Mapping[str, str],
+    *,
+    resolver: Any = None,
+    volume: Any = None,
+) -> str:
+    _seed_parent_nous_auth(auth_root, environ)
+    try:
+        credentials = (resolver or _resolve_nous_in_subprocess)(auth_root)
+    except Exception:
+        if volume is not None:
+            try:
+                volume.commit()
+            except Exception:
+                pass
+        raise
+    if volume is not None:
+        volume.commit()
+    token = str(credentials.get("api_key") or "").strip()
+    _validate_nous_invoke_jwt(token)
+    return token
+
+
+def hermes_environment(
+    root: Path, environ: Mapping[str, str], *, agent_key: str | None = None
+) -> dict[str, str]:
+    home = root / "hermes"
+    home.mkdir(mode=0o700, parents=True)
+    token = str(agent_key or environ.get("NOUS_AGENT_KEY") or "").strip()
+    expires_at = _validate_nous_invoke_jwt(token)
     expires_iso = datetime.datetime.fromtimestamp(
         expires_at, datetime.timezone.utc
     ).isoformat().replace("+00:00", "Z")
@@ -291,6 +404,7 @@ def hermes_environment(root: Path, environ: Mapping[str, str]) -> dict[str, str]
         "NO_COLOR": "1",
     })
     result.pop("NOUS_AGENT_KEY", None)
+    result.pop("NOUS_AUTH_SEED_B64", None)
     for key in tuple(result):
         if key.startswith(("TELEGRAM_", "DISCORD_", "WHATSAPP_", "SLACK_", "STRIPE_", "CLOUDFLARE_")):
             result.pop(key, None)
@@ -356,6 +470,15 @@ def classify_hermes_failure(raw: str) -> str:
     if "permission denied" in text:
         return "hermes_permission_failed"
     return "hermes_unclassified"
+
+
+def classify_builder_exception(stage: str, error: Exception) -> str:
+    text = str(error or "").lower()
+    if stage == "hermes" and any(value in text for value in (
+        "nous portal", "nous agent key", "inference credential",
+    )):
+        return "hermes_auth_failed"
+    return "builder_internal_failed"
 
 
 def run_hermes_agent(
@@ -463,7 +586,7 @@ def smoke() -> dict[str, Any]:
 
 @app.function(
     image=image,
-    secrets=[modal.Secret.from_name(SECRET_NAME), modal.Secret.from_name(NOUS_SECRET_NAME)],
+    secrets=[modal.Secret.from_name(SECRET_NAME), modal.Secret.from_name(NOUS_REFRESH_SECRET_NAME)],
     cpu=2.0,
     memory=4096,
     # Modal 1.3.4 serializes this field in KiB despite documenting MiB; the
@@ -472,11 +595,12 @@ def smoke() -> dict[str, Any]:
     timeout=3900,
     max_containers=1,
     single_use_containers=True,
+    volumes={str(NOUS_AUTH_ROOT): nous_auth_volume},
 )
 @modal.concurrent(max_inputs=1)
 def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str) -> dict[str, Any]:
     validate_job_identity(submission_id, slug, source_sha256, dispatch_id, base_revision)
-    required = ("NOUS_AGENT_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
+    required = ("BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
     if any(not os.environ.get(name) for name in required):
         raise RuntimeError("builder secret is incomplete")
 
@@ -535,7 +659,10 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 raise RuntimeError("private source handoff failed")
 
             stage = "hermes"
-            env = hermes_environment(root, os.environ)
+            agent_key = resolve_parent_nous_agent_key(
+                NOUS_AUTH_ROOT, os.environ, volume=nous_auth_volume
+            )
+            env = hermes_environment(root, os.environ, agent_key=agent_key)
             # The parent retains release credentials as root. Hermes owns only
             # these disposable paths and cannot read the parent's /proc env.
             root.chmod(0o711)
@@ -595,13 +722,16 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                     result = _safe_result("completed", dispatch_id, submission_id, returncode=0, model=model)
             dispatches[dispatch_id] = {**result, "started_at": now, "finished_at": int(time.time())}
             return result
-    except Exception:
+    except Exception as error:
         if repository is not None:
             try:
                 repository.set_status(submission_id, "failed", "canary_or_internal_failed")
             except Exception:
                 pass
-        failed = _safe_result("failed", dispatch_id, submission_id, reason="builder_internal_failed", stage=stage)
+        failed = _safe_result(
+            "failed", dispatch_id, submission_id,
+            reason=classify_builder_exception(stage, error), stage=stage,
+        )
         dispatches[dispatch_id] = {**failed, "started_at": now, "finished_at": int(time.time())}
         return failed
     finally:
