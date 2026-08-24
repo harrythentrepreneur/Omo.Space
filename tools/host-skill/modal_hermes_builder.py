@@ -404,6 +404,9 @@ class OpenCodeInferenceProxy:
                 ):
                     self._json_error(400, "request_not_allowed")
                     return
+                # The short timer protects only request ingestion. Model inference
+                # has its own larger end-to-end deadline below.
+                self._deadline_timer.cancel()
                 request = urllib.request.Request(
                     OPENCODE_GO_CHAT_COMPLETIONS_URL,
                     data=raw,
@@ -465,6 +468,9 @@ class OpenCodeInferenceProxy:
                         if len(buffered) > OPENCODE_PROXY_MAX_RESPONSE_BYTES:
                             self._json_error(502, "opencode_response_too_large")
                             return
+                    if owner._api_key.encode("utf-8") in buffered:
+                        self._json_error(502, "opencode_response_rejected")
+                        return
                     self.send_response(int(getattr(upstream, "status", 200)))
                     self.send_header("Content-Type", content_type)
                     self.send_header("Content-Length", str(len(buffered)))

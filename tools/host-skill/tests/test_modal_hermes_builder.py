@@ -154,6 +154,19 @@ class PeriodicResponse(FakeResponse):
         return b"x"
 
 
+class DelayedResponse(FakeResponse):
+    def __init__(self, body: bytes, delay: float) -> None:
+        super().__init__(body)
+        self._delay = delay
+        self._delayed = False
+
+    def read(self, size: int = -1) -> bytes:
+        if not self._delayed:
+            self._delayed = True
+            time.sleep(self._delay)
+        return super().read(size)
+
+
 class RecordingOpener:
     def __init__(self, response: FakeResponse | Exception) -> None:
         self.response = response
@@ -288,6 +301,17 @@ def test_proxy_maps_raw_upstream_errors_without_leaking_key_or_body() -> None:
     assert b"RAW_ERROR_SENTINEL" not in body
 
 
+def test_proxy_rejects_success_body_that_reflects_permanent_key() -> None:
+    builder = load_builder()
+    permanent = "permanent-key-sentinel"
+    opener = RecordingOpener(FakeResponse(b'{"debug":"permanent-key-sentinel"}'))
+    with builder.OpenCodeInferenceProxy(permanent, "local-token", opener=opener) as proxy:
+        status, _headers, body = proxy_request(proxy, token="local-token")
+    assert status == 502
+    assert json.loads(body)["error"]["code"] == "opencode_response_rejected"
+    assert permanent.encode() not in body
+
+
 def test_proxy_streams_bounded_success_response() -> None:
     builder = load_builder()
     payload = b"data: first\n\ndata: second\n\n"
@@ -325,6 +349,16 @@ def test_proxy_total_deadline_stops_periodic_upstream(monkeypatch) -> None:
     assert status == 504
     assert json.loads(body)["error"]["code"] == "opencode_inference_timeout"
     assert response.closed
+
+
+def test_proxy_inbound_deadline_is_cancelled_before_slow_valid_inference(monkeypatch) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "OPENCODE_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS", 0.05)
+    opener = RecordingOpener(DelayedResponse(b'{"ok":true}', 0.12))
+    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+        status, _headers, body = proxy_request(proxy, token="local-token")
+    assert status == 200
+    assert body == b'{"ok":true}'
 
 
 def test_proxy_exit_closes_blocked_upstream_and_waits_for_handler() -> None:
