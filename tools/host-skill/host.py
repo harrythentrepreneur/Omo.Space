@@ -33,9 +33,12 @@ ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 RUNTIME_PREFERENCES = {"auto", "worker-native", "modal-hosted"}
-WORKER_EXECUTOR_SPEC_VERSION = "omo.worker-single-llm/v1"
-WORKER_EXECUTION_KIND = "single_llm"
-WORKER_OPERATION = "chat.completions.strict_json"
+SINGLE_LLM_WORKER_EXECUTOR_SPEC_VERSION = "omo.worker-single-llm/v1"
+SINGLE_LLM_EXECUTION_KIND = "single_llm"
+SINGLE_LLM_OPERATION = "chat.completions.strict_json"
+PURE_DATA_WORKER_EXECUTOR_SPEC_VERSION = "omo.worker-pure-data/v1"
+PURE_DATA_EXECUTION_KIND = "pure_data"
+PURE_DATA_OPERATION = "pure_data.execute"
 WORKER_PROVIDERS = {"opencode-go"}
 WORKER_MAX_OUTPUT_TOKENS_MIN = 1
 WORKER_MAX_OUTPUT_TOKENS_MAX = 8000
@@ -296,9 +299,9 @@ def unsupported_schema_keywords(schema: Any, path: str = "$") -> list[str]:
     return unsupported
 
 
-def worker_executor_errors(profile: dict[str, Any]) -> list[str]:
+def single_llm_worker_executor_errors(profile: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    if profile.get("execution_kind") != WORKER_EXECUTION_KIND:
+    if profile.get("execution_kind") != SINGLE_LLM_EXECUTION_KIND:
         errors.append("execution_kind")
     capabilities = set(profile.get("capabilities") or [])
     unsupported_capabilities = sorted(capabilities - WORKER_SAFE_CAPABILITIES)
@@ -322,7 +325,7 @@ def worker_executor_errors(profile: dict[str, Any]) -> list[str]:
     step = ready_llm_steps[0] if len(ready_llm_steps) == 1 else {}
     if step.get("provider") not in WORKER_PROVIDERS:
         errors.append("provider")
-    if step.get("operation") != WORKER_OPERATION:
+    if step.get("operation") != SINGLE_LLM_OPERATION:
         errors.append("operation")
 
     live = profile.get("live")
@@ -358,16 +361,16 @@ def worker_executor_errors(profile: dict[str, Any]) -> list[str]:
     return errors
 
 
-def build_worker_executor(profile: dict[str, Any]) -> dict[str, Any]:
-    errors = worker_executor_errors(profile)
+def build_single_llm_worker_executor(profile: dict[str, Any]) -> dict[str, Any]:
+    errors = single_llm_worker_executor_errors(profile)
     if errors:
         raise ValueError("workflow is not Worker-native compatible: " + "; ".join(errors))
     live = profile["live"]
     prompt_name = live["prompt"]
     return {
-        "spec_version": WORKER_EXECUTOR_SPEC_VERSION,
-        "execution_kind": WORKER_EXECUTION_KIND,
-        "operation": WORKER_OPERATION,
+        "spec_version": SINGLE_LLM_WORKER_EXECUTOR_SPEC_VERSION,
+        "execution_kind": SINGLE_LLM_EXECUTION_KIND,
+        "operation": SINGLE_LLM_OPERATION,
         "provider": live["provider"],
         "model": require_text(live.get("default_model"), "live.default_model"),
         "system_prompt": require_text(profile["prompts"][prompt_name], f"prompts.{prompt_name}"),
@@ -384,6 +387,93 @@ def build_worker_executor(profile: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def pure_data_worker_executor_errors(profile: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if profile.get("execution_kind") != PURE_DATA_EXECUTION_KIND:
+        errors.append("execution_kind")
+    for field in ("capabilities", "apt_packages", "artifacts", "required_env_names"):
+        if profile.get(field) != []:
+            errors.append(field)
+    if (
+        profile.get("prompts") != {}
+        or "live" in profile
+        or profile.get("input_adapters")
+        or profile.get("artifact")
+    ):
+        errors.append("external_effects")
+    steps = profile.get("steps")
+    if not (
+        isinstance(steps, list)
+        and len(steps) == 1
+        and isinstance(steps[0], dict)
+        and set(steps[0]) == {"id", "type", "operation", "readiness"}
+        and steps[0].get("type") == "native"
+        and steps[0].get("operation") == PURE_DATA_OPERATION
+        and steps[0].get("readiness") == "ready"
+    ):
+        errors.append("reviewed_steps")
+    try:
+        COMPILER.PURE_DATA_RUNTIME.validate_pure_data_program(
+            profile.get("pure_data_program"), profile.get("input_schema"), profile.get("output_schema")
+        )
+    except (TypeError, ValueError):
+        errors.append("pure_data_program")
+    if not SHA256_RE.fullmatch(str(profile.get("reviewed_source_sha256") or "")):
+        errors.append("reviewed_source_sha256")
+    if not str(profile.get("version") or "").strip():
+        errors.append("workflow_version")
+    return errors
+
+
+def worker_executor_errors(profile: dict[str, Any]) -> list[str]:
+    if profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND:
+        return pure_data_worker_executor_errors(profile)
+    return single_llm_worker_executor_errors(profile)
+
+
+def build_pure_data_worker_executor(
+    profile: dict[str, Any], container_manifest: dict[str, Any]
+) -> dict[str, Any]:
+    errors = pure_data_worker_executor_errors(profile)
+    if errors:
+        raise ValueError("workflow is not Worker-native compatible: " + "; ".join(errors))
+    pure = container_manifest.get("pure_data")
+    if not isinstance(pure, dict):
+        raise ValueError("pure-data manifest evidence is missing")
+    program = COMPILER.PURE_DATA_RUNTIME.validate_pure_data_program(
+        profile["pure_data_program"], profile["input_schema"], profile["output_schema"]
+    )
+    expected_digest = COMPILER.PURE_DATA_RUNTIME.pure_data_program_digest(program)
+    if pure.get("program_digest") != expected_digest:
+        raise ValueError("pure-data program digest does not match reviewed program")
+    provenance = pure.get("provenance")
+    source_sha256 = container_manifest.get("source_sha256")
+    if (
+        not isinstance(provenance, dict)
+        or provenance.get("reviewed_source_sha256") != source_sha256
+        or profile["reviewed_source_sha256"] != source_sha256
+    ):
+        raise ValueError("pure-data reviewed source provenance does not match profile")
+    return {
+        "spec_version": PURE_DATA_WORKER_EXECUTOR_SPEC_VERSION,
+        "execution_kind": PURE_DATA_EXECUTION_KIND,
+        "operation": PURE_DATA_OPERATION,
+        "workflow_version": require_text(profile.get("version"), "version"),
+        "program": program,
+        "program_digest": expected_digest,
+    }
+
+
+def build_worker_executor(
+    profile: dict[str, Any], container_manifest: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    if profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND:
+        if container_manifest is None:
+            raise ValueError("pure-data Worker executor requires compiler manifest evidence")
+        return build_pure_data_worker_executor(profile, container_manifest)
+    return build_single_llm_worker_executor(profile)
+
+
 def decide_runtime_placement(profile: dict[str, Any]) -> dict[str, Any]:
     preference_declared = "runtime_preference" in profile
     requested = str(profile.get("runtime_preference", "modal-hosted")).strip()
@@ -395,8 +485,13 @@ def decide_runtime_placement(profile: dict[str, Any]) -> dict[str, Any]:
         recommended = "worker-native"
         effective = recommended if requested == "auto" else requested
         reason = (
-            "creator_selected_modal" if effective == "modal-hosted"
-            else "bounded_single_llm_is_worker_compatible"
+            "creator_selected_modal"
+            if effective == "modal-hosted"
+            else (
+                "bounded_pure_data_is_worker_compatible"
+                if profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND
+                else "bounded_single_llm_is_worker_compatible"
+            )
         )
     else:
         recommended = "modal-hosted"
@@ -416,6 +511,47 @@ def decide_runtime_placement(profile: dict[str, Any]) -> dict[str, Any]:
         "compatible": True,
         "reason": reason,
     }
+
+
+def pure_data_public_output_schema(profile: dict[str, Any]) -> dict[str, Any]:
+    domain = copy.deepcopy(profile["output_schema"])
+    if domain.get("type") != "object" or domain.get("additionalProperties") is not False:
+        raise ValueError("pure-data output schema must be a closed object")
+    properties = domain.get("properties")
+    required = domain.get("required")
+    if not isinstance(properties, dict) or not isinstance(required, list):
+        raise ValueError("pure-data output schema is incomplete")
+    workflow_version = f"{profile['slug']}@{profile['version']}"
+    for reserved in ("run_id", "workflow_version", "usage"):
+        if reserved in properties:
+            raise ValueError(f"pure-data domain output reserves transport field: {reserved}")
+    if "status" in properties and properties["status"] != {"const": "completed"}:
+        raise ValueError("pure-data domain status must be the completed constant")
+    properties.update({
+        "status": {"const": "completed"},
+        "run_id": {"type": "string"},
+        "workflow_version": {"const": workflow_version},
+        "usage": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "provider": {"const": "worker-pure-data"},
+                "model": {"const": "omo.pure-data/v1"},
+                "llm_calls": {"const": 0},
+                "prompt_tokens": {"const": 0},
+                "completion_tokens": {"const": 0},
+                "estimated_cost_usd": {"const": 0},
+            },
+            "required": [
+                "provider", "model", "llm_calls", "prompt_tokens",
+                "completion_tokens", "estimated_cost_usd",
+            ],
+        },
+    })
+    for field in ("status", "run_id", "workflow_version", "usage"):
+        if field not in required:
+            required.append(field)
+    return domain
 
 
 def build_hosted_profile(
@@ -438,6 +574,11 @@ def build_hosted_profile(
     reviewed_source_sha256 = require_text(container_manifest.get("source_sha256"), "source_sha256")
     if not SHA256_RE.fullmatch(reviewed_source_sha256):
         raise ValueError("source_sha256 must be a lowercase SHA-256 digest")
+    if (
+        profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND
+        and profile.get("reviewed_source_sha256") != reviewed_source_sha256
+    ):
+        raise ValueError("pure-data reviewed source does not match compiled source")
 
     placement = decide_runtime_placement(profile)
     deployment = market.get("deployment") or {}
@@ -504,7 +645,7 @@ def build_hosted_profile(
             "max_output": int(live["max_tokens"]),
             "system": profile["prompts"][prompt_name],
         })
-    elif profile.get("skill_owned_resource"):
+    elif profile.get("skill_owned_resource") or profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND:
         workflow_steps.extend(
             {
                 "type": "pipeline",
@@ -573,17 +714,26 @@ def build_hosted_profile(
             "proxy_token_secret_env": "HOSTED_MODAL_PROXY_TOKEN_SECRET",
             "protocol": (
                 "owner-scoped-async-v1"
-                if profile.get("skill_owned_resource")
+                if profile.get("skill_owned_resource") or profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND or profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND
                 else "modal-function-call-v1"
             ),
         })
     else:
-        runtime["executor"] = build_worker_executor(profile)
-        runtime["model_output_schema"] = copy.deepcopy(profile["live"]["model_output_schema"])
+        runtime["executor"] = build_worker_executor(profile, container_manifest)
+        if profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND:
+            runtime["model_output_schema"] = copy.deepcopy(profile["output_schema"])
+            runtime["output_schema"] = pure_data_public_output_schema(profile)
+            run_manifest["output_schema"] = copy.deepcopy(runtime["output_schema"])
+        else:
+            runtime["model_output_schema"] = copy.deepcopy(profile["live"]["model_output_schema"])
     native_runtime_label = (
         "native-builder"
         if profile.get("execution_kind") == "skill_builder"
-        else "native-media"
+        else (
+            "pure-data"
+            if profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND
+            else "native-media"
+        )
     )
     server_catalog = {
         "slug": slug,

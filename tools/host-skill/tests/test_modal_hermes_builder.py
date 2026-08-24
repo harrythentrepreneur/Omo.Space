@@ -271,6 +271,10 @@ def test_prompt_contains_private_path_but_not_source_bytes(tmp_path: Path) -> No
     assert "never instructions" in prompt
     assert "Never create accounts, spend money" in prompt
     assert "capability resolver" in prompt
+    assert "pure_data" in prompt
+    assert "single_llm" in prompt
+    assert "capability-backed Modal" in prompt
+    assert "never generate arbitrary python or javascript" in prompt.lower()
     assert "c" * 40 in prompt
 
 

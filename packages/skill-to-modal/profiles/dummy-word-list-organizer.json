@@ -1,0 +1,327 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "capabilities": [],
+  "cost_drivers": [
+    "bounded deterministic CPU"
+  ],
+  "execution_kind": "pure_data",
+  "form": [
+    {
+      "field": "words",
+      "widget": "textarea"
+    },
+    {
+      "field": "remove_duplicates",
+      "widget": "checkbox"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "remove_duplicates": true,
+      "words": [
+        "banana",
+        " apple ",
+        "banana",
+        "pear"
+      ]
+    },
+    "output": {
+      "final_count": 3,
+      "original_count": 4,
+      "sorted_words": [
+        "apple",
+        "banana",
+        "pear"
+      ],
+      "status": "completed"
+    }
+  },
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "remove_duplicates": {
+        "default": true,
+        "type": "boolean"
+      },
+      "words": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "words"
+    ],
+    "type": "object"
+  },
+  "inputs": [
+    "bounded words"
+  ],
+  "marketplace": {
+    "catalog_managed": false,
+    "category": "ops",
+    "cover": null,
+    "demo_cap": "Bounded CPU-only deterministic transform; zero provider calls",
+    "deployment": {
+      "default_endpoint": "https://omo-space--cognition-dummy-word-list-organizer-api.modal.run",
+      "endpoint_env": "DUMMY_WORD_LIST_ORGANIZER_MODAL_URL"
+    },
+    "description": "Trim, deduplicate, and sort a bounded word list.",
+    "emoji": "🔤",
+    "example_in": "banana · apple · banana · pear",
+    "example_out": [
+      "apple",
+      "banana",
+      "pear"
+    ],
+    "examples": [
+      {
+        "caption": "Trim, deduplicate and sort",
+        "id": "word-list-organizer",
+        "input": {
+          "remove_duplicates": true,
+          "words": [
+            "banana",
+            " apple ",
+            "banana",
+            "pear"
+          ]
+        },
+        "output_preview": "Three sorted unique words with exact counts.",
+        "title": "Word List Organizer"
+      }
+    ],
+    "free": false,
+    "inputs": [
+      "words: 1–20 bounded strings",
+      "remove_duplicates: optional boolean"
+    ],
+    "maker": "Omo",
+    "maker_name": "Omo Studio",
+    "niche": "productivity",
+    "outputs": [
+      "sorted words",
+      "original and final counts"
+    ],
+    "phases": [
+      {
+        "id": "validate",
+        "label": "Validating words"
+      },
+      {
+        "id": "transform",
+        "label": "Organizing list"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_maintain": 0,
+    "price_own": 0,
+    "promise": "Clean and alphabetize a bounded word list.",
+    "runtime_preference": "auto",
+    "slug": "dummy-word-list-organizer",
+    "tags": [
+      "deterministic",
+      "text",
+      "productivity"
+    ],
+    "title": "Word List Organizer",
+    "ui": {
+      "fields": {
+        "remove_duplicates": {
+          "widget": "checkbox"
+        },
+        "words": {
+          "rows": 8,
+          "widget": "textarea"
+        }
+      },
+      "order": [
+        "words",
+        "remove_duplicates"
+      ]
+    },
+    "upvotes": 0,
+    "version": "v1.0.0 · 2026-08-24"
+  },
+  "name": "dummy-word-list-organizer",
+  "negative_cases": [
+    {
+      "id": "empty",
+      "input": {
+        "words": []
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "control",
+      "input": {
+        "words": [
+          "bad\u0000word"
+        ]
+      },
+      "reason": "INVALID_VALUE"
+    }
+  ],
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "final_count": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "original_count": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "sorted_words": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      }
+    },
+    "required": [
+      "status",
+      "original_count",
+      "final_count",
+      "sorted_words"
+    ],
+    "type": "object"
+  },
+  "outputs": [
+    "sorted words and counts"
+  ],
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "deterministic",
+    "estimates": [
+      {
+        "guard_cost_usd": 0.02,
+        "notes": [
+          "zero provider calls"
+        ],
+        "tier": "deterministic",
+        "workflow": {
+          "steps": []
+        }
+      }
+    ],
+    "quote_status": "reviewed_deterministic",
+    "unpriced_costs": []
+  },
+  "prompts": {},
+  "pure_data_program": {
+    "limits": {
+      "max_input_bytes": 8192,
+      "max_list_items": 20,
+      "max_output_bytes": 8192,
+      "max_steps": 16,
+      "max_text_bytes": 80
+    },
+    "result": "result",
+    "spec_version": "omo.pure-data/v1",
+    "steps": [
+      {
+        "id": "words",
+        "op": "input.get",
+        "path": "/words"
+      },
+      {
+        "id": "clean_words",
+        "input": "words",
+        "op": "text_list.normalize_ascii",
+        "reject_control_characters": true,
+        "reject_empty": true,
+        "trim_ascii_whitespace": true
+      },
+      {
+        "comparison": "exact",
+        "enabled_from": {
+          "default": true,
+          "path": "/remove_duplicates"
+        },
+        "id": "organized_words",
+        "input": "clean_words",
+        "op": "text_list.unique"
+      },
+      {
+        "id": "sorted_words",
+        "input": "organized_words",
+        "key": "ascii_case_insensitive",
+        "op": "text_list.sort_ascii",
+        "tie_break": "ascii_bytes"
+      },
+      {
+        "id": "original_count",
+        "input": "words",
+        "op": "list.length"
+      },
+      {
+        "id": "final_count",
+        "input": "sorted_words",
+        "op": "list.length"
+      },
+      {
+        "fields": {
+          "final_count": {
+            "ref": "final_count"
+          },
+          "original_count": {
+            "ref": "original_count"
+          },
+          "sorted_words": {
+            "ref": "sorted_words"
+          },
+          "status": {
+            "const": "completed"
+          }
+        },
+        "id": "result",
+        "op": "result.object"
+      }
+    ]
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true
+  },
+  "required_env_names": [],
+  "resources": {
+    "cpu": 0.25,
+    "max_containers": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 30
+  },
+  "reviewed_source_sha256": "83e896077638d8f7796e648229bd361f3b517ab4199e45086a7ffcd1d95e045e",
+  "runtime_preference": "auto",
+  "slug": "dummy-word-list-organizer",
+  "steps": [
+    {
+      "id": "organize",
+      "operation": "pure_data.execute",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "version": "1.0.0"
+}

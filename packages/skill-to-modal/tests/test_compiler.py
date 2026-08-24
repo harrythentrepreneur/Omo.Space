@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -976,6 +977,96 @@ def test_loader_owned_resource_compiles_to_secret_free_builder_surface(tmp_path:
     assert "LOCAL_ROOT.parents[1]" not in runtime
     assert "_runtime_repository_root" in runtime
     compile(runtime, "generated-loader-modal-app", "exec")
+
+
+PURE_DATA_PROFILE_PATH = (
+    ROOT / "packages" / "skill-to-modal" / "profiles" / "dummy-word-list-organizer.json"
+)
+PURE_DATA_SKILL_PATH = (
+    ROOT / "packages" / "skill-to-modal" / "tests" / "fixtures" / "pure-data" / "dummy-word-list-organizer" / "SKILL.md"
+)
+
+
+def _pure_data_fixture() -> tuple[str, dict]:
+    skill = PURE_DATA_SKILL_PATH.read_text(encoding="utf-8")
+    profile = json.loads(PURE_DATA_PROFILE_PATH.read_text(encoding="utf-8"))
+    return skill, profile
+
+
+def test_pure_data_compiles_canonical_program_with_exact_provenance_and_executes_fixture(
+    tmp_path: Path,
+) -> None:
+    skill, profile = _pure_data_fixture()
+    source_sha256 = hashlib.sha256(skill.encode("utf-8")).hexdigest()
+    assert profile["reviewed_source_sha256"] == source_sha256
+
+    files = compiler.build_files(skill, profile)
+    manifest = json.loads(files["manifest.json"])
+    program = profile["pure_data_program"]
+    assert files["runtime/pure-data-program.json"] == compiler.PURE_DATA_RUNTIME.canonical_pure_data_program(program) + "\n"
+    assert files["runtime/pure_data_runtime.py"] == compiler.PURE_DATA_RUNTIME_PATH.read_text(encoding="utf-8")
+    assert manifest["pure_data"] == {
+        "program_digest": "sha256:40103f810402ebed176e4bb38e9d1c30bbe7bd4c27f515422f7007a35797d3fd",
+        "program_path": "runtime/pure-data-program.json",
+        "provenance": {
+            "compiler_version": compiler.COMPILER_VERSION,
+            "profile_version": "1.0.0",
+            "reviewed_source_sha256": source_sha256,
+        },
+    }
+    assert manifest["providers"] == []
+    assert manifest["required_env_names"] == []
+    assert manifest["artifacts"] == []
+
+    output = tmp_path / "pure-data-word-list"
+    assert compiler.write_or_check(files, output, check=False) == 0
+    spec = importlib.util.spec_from_file_location("generated_pure_data", output / "modal_app.py")
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.execute_workflow(profile["happy_path"]["input"]) == profile["happy_path"]["output"]
+    source = files["modal_app.py"]
+    assert all(token not in source for token in ("eval(", "exec(", "subprocess", "modal.Secret", "urllib", "requests"))
+
+
+def test_pure_data_requires_exact_reviewed_source_hash() -> None:
+    skill, profile = _pure_data_fixture()
+    profile["reviewed_source_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="reviewed source SHA-256"):
+        compiler.build_files(skill, profile)
+
+
+def test_pure_data_profile_is_closed_and_effect_free() -> None:
+    skill, profile = _pure_data_fixture()
+    assert profile["execution_kind"] == "pure_data"
+    for field in ("apt_packages", "artifacts", "capabilities", "required_env_names"):
+        assert profile[field] == []
+    assert profile["prompts"] == {}
+    assert "live" not in profile
+    assert all("provider" not in step for step in profile["steps"])
+
+    for field, value in (
+        ("capabilities", ["network"]),
+        ("required_env_names", ["API_KEY"]),
+        ("artifacts", [{"kind": "file"}]),
+    ):
+        poisoned = json.loads(json.dumps(profile))
+        poisoned[field] = value
+        with pytest.raises(ValueError, match="provider-free|effect-free"):
+            compiler.build_files(skill, poisoned)
+
+    open_schema = json.loads(json.dumps(profile))
+    open_schema["input_schema"]["additionalProperties"] = True
+    with pytest.raises(ValueError, match="reject unknown fields"):
+        compiler.build_files(skill, open_schema)
+
+
+def test_obsolete_deterministic_program_execution_kind_is_rejected() -> None:
+    skill, profile = _pure_data_fixture()
+    profile["execution_kind"] = "deterministic_program"
+    profile["deterministic_program"] = profile.pop("pure_data_program")
+    with pytest.raises(ValueError, match="execution kind"):
+        compiler.build_files(skill, profile)
 
 
 def test_plain_llm_contract_resolves_neither_video_nor_domain_state() -> None:
