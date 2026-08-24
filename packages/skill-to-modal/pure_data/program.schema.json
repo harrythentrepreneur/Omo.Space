@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omo.example/schemas/pure-data-program-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_version", "limits", "steps", "result"],
+  "properties": {
+    "spec_version": {"const": "omo.pure-data/v1"},
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_steps", "max_input_bytes", "max_output_bytes", "max_list_items", "max_text_bytes"],
+      "properties": {
+        "max_steps": {"type": "integer", "minimum": 1, "maximum": 16},
+        "max_input_bytes": {"type": "integer", "minimum": 1, "maximum": 65536},
+        "max_output_bytes": {"type": "integer", "minimum": 1, "maximum": 65536},
+        "max_list_items": {"type": "integer", "minimum": 1, "maximum": 100},
+        "max_text_bytes": {"type": "integer", "minimum": 1, "maximum": 1000}
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {"$ref": "#/$defs/step"}
+    },
+    "result": {"$ref": "#/$defs/id"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref"],
+      "properties": {"ref": {"$ref": "#/$defs/id"}}
+    },
+    "const": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["const"],
+      "properties": {"const": {"type": ["string", "number", "integer", "boolean", "null"]}}
+    },
+    "step": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "op", "path"],
+          "properties": {
+            "id": {"$ref": "#/$defs/id"},
+            "op": {"const": "input.get"},
+            "path": {"type": "string", "pattern": "^/[a-z][a-z0-9_]{0,63}$"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "op", "input", "trim_ascii_whitespace", "reject_empty", "reject_control_characters"],
+          "properties": {
+            "id": {"$ref": "#/$defs/id"},
+            "op": {"const": "text_list.normalize_ascii"},
+            "input": {"$ref": "#/$defs/id"},
+            "trim_ascii_whitespace": {"const": true},
+            "reject_empty": {"const": true},
+            "reject_control_characters": {"const": true}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "op", "input", "comparison", "enabled_from"],
+          "properties": {
+            "id": {"$ref": "#/$defs/id"},
+            "op": {"const": "text_list.unique"},
+            "input": {"$ref": "#/$defs/id"},
+            "comparison": {"const": "exact"},
+            "enabled_from": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "default"],
+              "properties": {
+                "path": {"type": "string", "pattern": "^/[a-z][a-z0-9_]{0,63}$"},
+                "default": {"type": "boolean"}
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "op", "input", "key", "tie_break"],
+          "properties": {
+            "id": {"$ref": "#/$defs/id"},
+            "op": {"const": "text_list.sort_ascii"},
+            "input": {"$ref": "#/$defs/id"},
+            "key": {"const": "ascii_case_insensitive"},
+            "tie_break": {"const": "ascii_bytes"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "op", "input"],
+          "properties": {
+            "id": {"$ref": "#/$defs/id"},
+            "op": {"const": "list.length"},
+            "input": {"$ref": "#/$defs/id"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "op", "fields"],
+          "properties": {
+            "id": {"$ref": "#/$defs/id"},
+            "op": {"const": "result.object"},
+            "fields": {
+              "type": "object",
+              "minProperties": 1,
+              "maxProperties": 32,
+              "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,63}$"},
+              "additionalProperties": {"oneOf": [{"$ref": "#/$defs/ref"}, {"$ref": "#/$defs/const"}]}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

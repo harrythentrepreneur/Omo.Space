@@ -73,6 +73,7 @@ import { PilotTokenError, verifyPilotToken } from './pilot-magic.mjs';
 import { runPrice, llmWorkflow, LLM_RATES } from './cost-model.mjs';
 import { handleMcpRequest } from './mcp-server.mjs';
 import { HOSTED_WORKER_SKILL_ROWS, HOSTED_MODAL_SKILL_ROWS, HOSTED_SERVER_CATALOG_ROWS } from './hosted-skills.generated.mjs';
+import { PureDataRuntimeError, executePureDataProgram, pureDataProgramDigest, validatePureDataProgram } from './pure-data-runtime.mjs';
 
 // ── System prompts (hardened: exact JSON shape, flat string arrays, no fences) ──
 
@@ -166,9 +167,12 @@ const HOSTED_MODAL_SKILLS = new Map(HOSTED_MODAL_SKILL_ROWS);
 assertHostedRegistryDisjoint();
 const REQUESTED_RUNTIMES = new Set(['auto', 'worker-native', 'modal-hosted']);
 const SUBMISSION_RUNTIME_MUTABLE_STATES = new Set(['queued', 'needs_review']);
-const HOSTED_WORKER_EXECUTOR_SPEC_VERSION = 'omo.worker-single-llm/v1';
-const HOSTED_WORKER_EXECUTION_KIND = 'single_llm';
-const HOSTED_WORKER_OPERATION = 'chat.completions.strict_json';
+const HOSTED_WORKER_LLM_SPEC_VERSION = 'omo.worker-single-llm/v1';
+const HOSTED_WORKER_LLM_EXECUTION_KIND = 'single_llm';
+const HOSTED_WORKER_LLM_OPERATION = 'chat.completions.strict_json';
+const HOSTED_WORKER_PURE_DATA_SPEC_VERSION = 'omo.worker-pure-data/v1';
+const HOSTED_WORKER_PURE_DATA_EXECUTION_KIND = 'pure_data';
+const HOSTED_WORKER_PURE_DATA_OPERATION = 'pure_data.execute';
 const HOSTED_WORKER_PROVIDERS = new Set(['opencode-go']);
 const HOSTED_WORKER_PROVIDER_DESCRIPTORS = new Map([
   ['opencode-go', {
@@ -751,7 +755,7 @@ async function handleGenericRun(request, env) {
       const configError = hostedModalConfigError(env, hosted);
       if (configError) return json({ error: configError }, 503, cors());
     } else {
-      const configError = hostedWorkerConfigError(env, hosted);
+      const configError = await hostedWorkerConfigError(env, hosted);
       if (configError) return json({ error: configError }, 503, cors());
     }
     const candidate = body.input && typeof body.input === 'object' && !Array.isArray(body.input)
@@ -1001,6 +1005,9 @@ function hostedWorkerPublicOutput(hosted, runId, modelOutput, rawUsage) {
 }
 
 async function dispatchHostedWorkerRun(env, hosted, context) {
+  if (hosted.executor.execution_kind === HOSTED_WORKER_PURE_DATA_EXECUTION_KIND) {
+    return dispatchHostedPureDataRun(env, hosted, context);
+  }
   const {
     runRequest, runId, userId, hostedInput, costUsd, balanceAfterDebit, authMethod,
   } = context;
@@ -1041,19 +1048,94 @@ async function dispatchHostedWorkerRun(env, hosted, context) {
   return json(result, 200, cors());
 }
 
-function hostedWorkerConfigError(env, hosted) {
+function hostedPureDataUsage() {
+  return {
+    provider: 'worker-pure-data',
+    model: 'omo.pure-data/v1',
+    llm_calls: 0,
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    estimated_cost_usd: 0,
+  };
+}
+
+async function dispatchHostedPureDataRun(env, hosted, context) {
+  const { runRequest, runId, hostedInput, costUsd, balanceAfterDebit, authMethod } = context;
+  let modelOutput;
+  try {
+    modelOutput = executePureDataProgram(hosted.executor.program, hostedInput);
+  } catch (error) {
+    const isRuntimeViolation = error instanceof PureDataRuntimeError;
+    const code = isRuntimeViolation
+      ? String(error.code || 'INVALID_VALUE').toLowerCase()
+      : 'internal_error';
+    return failHostedWorkerRun(
+      env, hosted, runRequest.row, `worker_native_pure_data_${code}`, isRuntimeViolation ? 422 : 500,
+    );
+  }
+  const modelOutputErrors = validateSchemaValue(modelOutput, hosted.model_output_schema);
+  if (modelOutputErrors.length) {
+    return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_invalid_output', 502);
+  }
+  const publicOutput = {
+    ...modelOutput,
+    run_id: runId,
+    status: 'completed',
+    workflow_version: `${hosted.container_slug}@${hosted.executor.workflow_version}`,
+    usage: hostedPureDataUsage(),
+  };
+  const outputErrors = validateSchemaValue(publicOutput, hosted.output_schema);
+  if (outputErrors.length) {
+    return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_invalid_output', 502);
+  }
+  const result = {
+    ok: true, slug: hosted.slug, run_id: runId, status: 'completed', state: 'succeeded',
+    phase: 'delivered', progress_pct: 100, status_url: `/api/run/${encodeURIComponent(runId)}`,
+    quoted_cost_usd: Number(hosted.run_price_cents) / 100,
+    billed_amount_usd: Number(runRequest.row.cost_cents) / 100,
+    cost_usd: costUsd, balance: +(balanceAfterDebit / 100).toFixed(2),
+    auth: authMethod, output: publicOutput,
+  };
+  const ownsSuccess = await finishRunRequest(env, runId, 'succeeded', result, 200);
+  if (!ownsSuccess) {
+    const terminal = await getRunRequestById(env, runId);
+    if (terminal) {
+      const authoritative = terminalRunResult(terminal);
+      return json(authoritative.body, authoritative.status, cors());
+    }
+    return json({ ok: false, error: 'run_terminal_state_unknown', run_id: runId }, 409, cors());
+  }
+  return json(result, 200, cors());
+}
+
+async function hostedWorkerConfigError(env, hosted) {
   const executor = hosted && hosted.executor;
   if (!executor || typeof executor !== 'object') return 'hosted_worker_executor_missing';
-  if (executor.spec_version !== HOSTED_WORKER_EXECUTOR_SPEC_VERSION) return 'hosted_worker_executor_spec_unsupported';
-  if (executor.execution_kind !== HOSTED_WORKER_EXECUTION_KIND) return 'hosted_worker_execution_kind_unsupported';
-  if (executor.operation !== HOSTED_WORKER_OPERATION) return 'hosted_worker_operation_unsupported';
+  if (!hosted.model_output_schema || typeof hosted.model_output_schema !== 'object' || Array.isArray(hosted.model_output_schema)) return 'hosted_worker_model_output_schema_missing';
+  if (!String(executor.workflow_version || '').trim()) return 'hosted_worker_workflow_version_missing';
+
+  if (executor.execution_kind === HOSTED_WORKER_PURE_DATA_EXECUTION_KIND) {
+    if (executor.spec_version !== HOSTED_WORKER_PURE_DATA_SPEC_VERSION) return 'hosted_worker_executor_spec_unsupported';
+    if (executor.operation !== HOSTED_WORKER_PURE_DATA_OPERATION) return 'hosted_worker_operation_unsupported';
+    if (!executor.program || typeof executor.program !== 'object' || Array.isArray(executor.program)) return 'hosted_worker_pure_data_program_missing';
+    if (!/^sha256:[0-9a-f]{64}$/.test(String(executor.program_digest || ''))) return 'hosted_worker_pure_data_digest_invalid';
+    try {
+      validatePureDataProgram(executor.program);
+    } catch {
+      return 'hosted_worker_pure_data_program_invalid';
+    }
+    if (await pureDataProgramDigest(executor.program) !== executor.program_digest) return 'hosted_worker_pure_data_digest_mismatch';
+    return '';
+  }
+
+  if (executor.execution_kind !== HOSTED_WORKER_LLM_EXECUTION_KIND) return 'hosted_worker_execution_kind_unsupported';
+  if (executor.spec_version !== HOSTED_WORKER_LLM_SPEC_VERSION) return 'hosted_worker_executor_spec_unsupported';
+  if (executor.operation !== HOSTED_WORKER_LLM_OPERATION) return 'hosted_worker_operation_unsupported';
   if (!HOSTED_WORKER_PROVIDERS.has(executor.provider)) return 'hosted_worker_provider_unsupported';
   const provider = HOSTED_WORKER_PROVIDER_DESCRIPTORS.get(executor.provider);
   if (!provider) return 'hosted_worker_provider_unsupported';
-  if (!hosted.model_output_schema || typeof hosted.model_output_schema !== 'object' || Array.isArray(hosted.model_output_schema)) return 'hosted_worker_model_output_schema_missing';
   if (!String(executor.model || '').trim()) return 'hosted_worker_model_missing';
   if (!String(executor.system_prompt || '').trim()) return 'hosted_worker_system_prompt_missing';
-  if (!String(executor.workflow_version || '').trim()) return 'hosted_worker_workflow_version_missing';
   if (!Number.isInteger(executor.max_output_tokens) || executor.max_output_tokens < 1 || executor.max_output_tokens > 8000) return 'hosted_worker_max_output_tokens_unbounded';
   if (!Number.isFinite(Number(executor.temperature)) || Number(executor.temperature) < 0 || Number(executor.temperature) > 1) return 'hosted_worker_temperature_unbounded';
   if (!Number.isInteger(executor.timeout_seconds) || executor.timeout_seconds < 1 || executor.timeout_seconds > 120) return 'hosted_worker_timeout_unbounded';

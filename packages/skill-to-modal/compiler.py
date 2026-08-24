@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -27,8 +28,24 @@ CAPABILITY_REGISTRY_VERSION = "1.4.0"
 COST_MODEL_PATH = Path(__file__).resolve().parents[2] / "site" / "deploy" / "cost-model.mjs"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SKILL_OWNED_TEMPLATE_ROOT = Path(__file__).resolve().parent / "skill_owned_resources"
-ALLOWED_EXECUTION_KINDS = {"single_llm", "sample_media_pipeline", "skill_builder"}
+PURE_DATA_TEMPLATE_ROOT = Path(__file__).resolve().parent / "pure_data"
+PURE_DATA_RUNTIME_PATH = Path(__file__).resolve().parent / "pure_data_runtime.py"
+ALLOWED_EXECUTION_KINDS = {
+    "single_llm", "sample_media_pipeline", "skill_builder", "pure_data"
+}
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def _load_pure_data_runtime() -> Any:
+    spec = importlib.util.spec_from_file_location("omo_pure_data_runtime", PURE_DATA_RUNTIME_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("pure-data runtime could not be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+PURE_DATA_RUNTIME = _load_pure_data_runtime()
 
 
 # Slug-locked resources are deliberately outside CAPABILITY_REGISTRY. They are
@@ -944,6 +961,57 @@ def _render_skill_owned_template(profile: dict[str, Any], filename: str) -> str:
         template = template.replace(marker, value)
     if "__" + "COMPILER_VERSION__" in template:
         raise ValueError("skill-owned runtime template contains an unresolved marker")
+    return template
+
+
+def validate_pure_data_profile(
+    profile: dict[str, Any], source_sha256: str
+) -> tuple[dict[str, Any], str]:
+    reviewed_source_sha256 = profile.get("reviewed_source_sha256")
+    if (
+        not isinstance(reviewed_source_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", reviewed_source_sha256)
+        or reviewed_source_sha256 != source_sha256
+    ):
+        raise ValueError("pure_data reviewed source SHA-256 does not match SKILL.md")
+    effect_fields = ("apt_packages", "artifacts", "capabilities", "required_env_names")
+    if any(profile.get(field) != [] for field in effect_fields):
+        raise ValueError("pure_data profiles must be provider-free and effect-free")
+    if profile.get("prompts") != {} or "live" in profile or profile.get("input_adapters") or profile.get("artifact"):
+        raise ValueError("pure_data profiles must be provider-free and effect-free")
+    steps = profile.get("steps")
+    if (
+        not isinstance(steps, list)
+        or len(steps) != 1
+        or not isinstance(steps[0], dict)
+        or set(steps[0]) != {"id", "type", "operation", "readiness"}
+        or steps[0].get("type") != "native"
+        or steps[0].get("operation") != "pure_data.execute"
+        or steps[0].get("readiness") != "ready"
+    ):
+        raise ValueError("pure_data profiles require one provider-free pure_data.execute step")
+    program = PURE_DATA_RUNTIME.validate_pure_data_program(
+        profile.get("pure_data_program"),
+        profile.get("input_schema"),
+        profile.get("output_schema"),
+    )
+    return program, PURE_DATA_RUNTIME.pure_data_program_digest(program)
+
+
+def pure_data_template(profile: dict[str, Any], filename: str) -> str:
+    template = (PURE_DATA_TEMPLATE_ROOT / filename).read_text(encoding="utf-8")
+    slug = profile["slug"]
+    replacements = {
+        "__APP_NAME_LITERAL__": repr(f"cognition-{slug}"),
+        "__WORKFLOW_VERSION__": f"{slug}@{profile['version']}",
+        "__WORKFLOW_VERSION_LITERAL__": repr(f"{slug}@{profile['version']}"),
+        "__PROFILE_VERSION_LITERAL__": repr(str(profile["version"])),
+        "__IMAGE_ROOT_LITERAL__": repr("/root/" + slug.replace("-", "_")),
+    }
+    for marker, value in replacements.items():
+        template = template.replace(marker, value)
+    if any(marker in template for marker in replacements):
+        raise ValueError("pure_data runtime template contains an unresolved marker")
     return template
 
 
@@ -2259,6 +2327,8 @@ def runtime_timeout_seconds(profile: dict[str, Any]) -> int:
 
 
 def modal_app_template(profile: dict[str, Any]) -> str:
+    if profile.get("execution_kind") == "pure_data":
+        return pure_data_template(profile, "modal_app.py.tmpl")
     if skill_owned_resource_template(profile) is not None:
         return _render_skill_owned_template(profile, "modal_app.py.tmpl")
     slug = profile["slug"]
@@ -5761,6 +5831,8 @@ def api() -> Any:
 
 
 def contract_test_template(profile: dict[str, Any]) -> str:
+    if profile.get("execution_kind") == "pure_data":
+        return pure_data_template(profile, "test_contract.py.tmpl")
     if skill_owned_resource_template(profile) is not None:
         return _render_skill_owned_template(profile, "test_contract.py.tmpl")
     module_name = profile["slug"].replace("-", "_")
@@ -6236,6 +6308,12 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
         effective_profile["readiness"]["can_submit"] = False
     validate_generator_capabilities(effective_profile)
     execution_kind = effective_profile.get("execution_kind")
+    pure_data_program: dict[str, Any] | None = None
+    pure_data_digest: str | None = None
+    if execution_kind == "pure_data":
+        pure_data_program, pure_data_digest = validate_pure_data_profile(
+            effective_profile, source_hash
+        )
     readiness = effective_profile["readiness"]
     ready = bool(readiness.get("can_submit"))
     if execution_kind not in ALLOWED_EXECUTION_KINDS and not readiness["blockers"]:
@@ -6251,8 +6329,13 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
         raise ValueError("skill-owned resource source does not match reviewed canary")
     if ready and readiness["blockers"]:
         raise ValueError("ready profiles cannot retain readiness blockers")
-    if ready and not effective_profile.get("live") and owned_resource is None:
-        raise ValueError("ready profiles require live config or a skill-owned executor")
+    if (
+        ready
+        and not effective_profile.get("live")
+        and owned_resource is None
+        and execution_kind != "pure_data"
+    ):
+        raise ValueError("ready profiles require live config or a reviewed pure_data executor")
 
     pricing = price_report(effective_profile)
     if not ready:
@@ -6291,7 +6374,7 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
             "path": "/v1/runs",
             "poll_path_template": (
                 "/v1/runs/{run_id}"
-                if owned_resource is not None
+                if owned_resource is not None or execution_kind == "pure_data"
                 else "/v1/runs/{call_id}"
             ),
             "auth": "modal_proxy_token",
@@ -6318,6 +6401,19 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
             "report_path": "pricing-report.json",
         },
     }
+    if execution_kind == "pure_data":
+        assert pure_data_program is not None and pure_data_digest is not None
+        manifest["providers"] = []
+        manifest["required_env_names"] = []
+        manifest["pure_data"] = {
+            "program_digest": pure_data_digest,
+            "program_path": "runtime/pure-data-program.json",
+            "provenance": {
+                "compiler_version": COMPILER_VERSION,
+                "profile_version": str(effective_profile["version"]),
+                "reviewed_source_sha256": source_hash,
+            },
+        }
     cases = {
         "happy_path": effective_profile["happy_path"],
         "negative_cases": effective_profile["negative_cases"],
@@ -6336,6 +6432,14 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
         "tests/test_contract.py": contract_test_template(effective_profile),
         "source/SKILL.md": skill_text,
     }
+    if execution_kind == "pure_data":
+        assert pure_data_program is not None
+        files["runtime/pure-data-program.json"] = (
+            PURE_DATA_RUNTIME.canonical_pure_data_program(pure_data_program) + "\n"
+        )
+        files["runtime/pure_data_runtime.py"] = PURE_DATA_RUNTIME_PATH.read_text(
+            encoding="utf-8"
+        )
     for name, prompt in effective_profile["prompts"].items():
         files[f"prompts/{name}"] = prompt.strip() + "\n"
     if "whatsapp_zip_adapter" in _selected_capability_names(effective_profile):

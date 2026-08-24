@@ -258,6 +258,74 @@ def test_modal_endpoint_must_match_expected_omo_workspace() -> None:
     assert endpoint.startswith("https://omo-space--")
 
 
+def pure_data_compiled_inputs() -> tuple[dict, dict, dict]:
+    profile_path = ROOT / "packages" / "skill-to-modal" / "profiles" / "dummy-word-list-organizer.json"
+    skill_path = ROOT / "packages" / "skill-to-modal" / "tests" / "fixtures" / "pure-data" / "dummy-word-list-organizer" / "SKILL.md"
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    files = host.COMPILER.build_files(skill_path.read_text(encoding="utf-8"), profile)
+    return profile, json.loads(files["manifest.json"]), json.loads(files["pricing-report.json"])
+
+
+def test_pure_data_defaults_to_worker_native_with_exact_executor() -> None:
+    profile, manifest, pricing = pure_data_compiled_inputs()
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    assert hosted["runtime_placement"] == {
+        "recommended": "worker-native",
+        "requested": "auto",
+        "effective": "worker-native",
+        "compatible": True,
+        "reason": "bounded_pure_data_is_worker_compatible",
+    }
+    assert hosted["runtime"]["executor"] == {
+        "spec_version": "omo.worker-pure-data/v1",
+        "execution_kind": "pure_data",
+        "operation": "pure_data.execute",
+        "workflow_version": profile["version"],
+        "program": profile["pure_data_program"],
+        "program_digest": manifest["pure_data"]["program_digest"],
+    }
+    assert hosted["runtime"]["model_output_schema"] == profile["output_schema"]
+    assert hosted["runtime"]["output_schema"]["properties"]["usage"]["properties"]["llm_calls"] == {"const": 0}
+    assert "default_endpoint" not in hosted["runtime"]
+    assert all(key not in hosted["runtime"]["executor"] for key in ("provider", "secret", "network", "artifacts"))
+
+
+def test_pure_data_public_envelope_adds_status_for_domain_without_status() -> None:
+    profile, _manifest, _pricing = pure_data_compiled_inputs()
+    profile["output_schema"]["properties"].pop("status")
+    profile["output_schema"]["required"].remove("status")
+    profile["happy_path"]["output"].pop("status")
+    profile["pure_data_program"]["steps"][-1]["fields"].pop("status")
+    skill_path = ROOT / "packages" / "skill-to-modal" / "tests" / "fixtures" / "pure-data" / "dummy-word-list-organizer" / "SKILL.md"
+    files = host.COMPILER.build_files(skill_path.read_text(encoding="utf-8"), profile)
+    hosted = host.build_hosted_profile(
+        profile, json.loads(files["manifest.json"]), json.loads(files["pricing-report.json"])
+    )
+    assert "status" not in hosted["runtime"]["model_output_schema"]["properties"]
+    assert hosted["runtime"]["output_schema"]["properties"]["status"] == {"const": "completed"}
+    assert "status" in hosted["runtime"]["output_schema"]["required"]
+
+
+def test_pure_data_modal_override_preserves_existing_modal_path() -> None:
+    profile, manifest, pricing = pure_data_compiled_inputs()
+    profile["runtime_preference"] = "modal-hosted"
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    assert hosted["runtime_placement"]["recommended"] == "worker-native"
+    assert hosted["runtime_placement"]["effective"] == "modal-hosted"
+    assert hosted["runtime"]["default_endpoint"].endswith(".modal.run")
+
+
+def test_pure_data_executor_rejects_manifest_digest_or_source_mismatch() -> None:
+    profile, manifest, pricing = pure_data_compiled_inputs()
+    manifest["pure_data"]["program_digest"] = "sha256:" + "0" * 64
+    with pytest.raises(ValueError, match="program digest"):
+        host.build_hosted_profile(profile, manifest, pricing)
+    profile, manifest, pricing = pure_data_compiled_inputs()
+    profile["reviewed_source_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="reviewed source"):
+        host.build_hosted_profile(profile, manifest, pricing)
+
+
 def test_lightweight_single_llm_defaults_to_worker_native() -> None:
     profile, manifest, pricing = compiled_inputs()
     profile["runtime_preference"] = "auto"

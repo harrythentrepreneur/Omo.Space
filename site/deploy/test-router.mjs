@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 globalThis.crypto ??= webcrypto;
 const { signPilotToken } = await import('./pilot-magic.mjs');
+const { pureDataProgramDigest } = await import('./pure-data-runtime.mjs');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clerkFrontendApi = 'example.clerk.accounts.dev';
@@ -71,10 +72,81 @@ async function signedStripeRequest(event, secret) {
   }), { text: async () => raw });
 }
 
-// worker.js imports balance.mjs + cost-model.mjs (bundled at deploy time).
+const pureDataProgram = {
+  spec_version: 'omo.pure-data/v1',
+  limits: {
+    max_steps: 16, max_input_bytes: 8192, max_output_bytes: 8192,
+    max_list_items: 20, max_text_bytes: 80,
+  },
+  steps: [
+    { id: 'words', op: 'input.get', path: '/words' },
+    {
+      id: 'clean_words', op: 'text_list.normalize_ascii', input: 'words',
+      trim_ascii_whitespace: true, reject_empty: true, reject_control_characters: true,
+    },
+    {
+      id: 'organized_words', op: 'text_list.unique', input: 'clean_words', comparison: 'exact',
+      enabled_from: { path: '/remove_duplicates', default: true },
+    },
+    {
+      id: 'sorted_words', op: 'text_list.sort_ascii', input: 'organized_words',
+      key: 'ascii_case_insensitive', tie_break: 'ascii_bytes',
+    },
+    { id: 'original_count', op: 'list.length', input: 'words' },
+    { id: 'final_count', op: 'list.length', input: 'sorted_words' },
+    {
+      id: 'result', op: 'result.object', fields: {
+        original_count: { ref: 'original_count' },
+        final_count: { ref: 'final_count' }, sorted_words: { ref: 'sorted_words' },
+      },
+    },
+  ],
+  result: 'result',
+};
+const pureDataHostedRow = ['pure-word-list', {
+  artifact: null,
+  container_slug: 'pure-word-list',
+  executor: {
+    spec_version: 'omo.worker-pure-data/v1', execution_kind: 'pure_data',
+    operation: 'pure_data.execute', workflow_version: '1.0.0',
+    program: pureDataProgram, program_digest: await pureDataProgramDigest(pureDataProgram),
+  },
+  input_adapters: [], kind: 'worker-native', run_price_cents: 10, slug: 'pure-word-list',
+  input_schema: {
+    type: 'object', additionalProperties: false, required: ['words'],
+    properties: {
+      words: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 80 } },
+      remove_duplicates: { type: 'boolean' },
+    },
+  },
+  model_output_schema: {
+    type: 'object', additionalProperties: false,
+    required: ['original_count', 'final_count', 'sorted_words'],
+    properties: {
+      original_count: { type: 'integer' }, final_count: { type: 'integer' },
+      sorted_words: { type: 'array', items: { type: 'string' } },
+    },
+  },
+  output_schema: {
+    type: 'object', required: ['status', 'original_count', 'final_count', 'sorted_words', 'run_id', 'workflow_version', 'usage'],
+    properties: {
+      status: { const: 'completed' }, original_count: { type: 'integer' }, final_count: { type: 'integer' },
+      sorted_words: { type: 'array', items: { type: 'string' } }, run_id: { type: 'string' },
+      workflow_version: { const: 'pure-word-list@1.0.0' },
+      usage: {
+        type: 'object', required: ['provider', 'model', 'llm_calls', 'prompt_tokens', 'completion_tokens', 'estimated_cost_usd'],
+        properties: {
+          provider: { const: 'worker-pure-data' }, model: { const: 'omo.pure-data/v1' }, llm_calls: { const: 0 },
+          prompt_tokens: { const: 0 }, completion_tokens: { const: 0 }, estimated_cost_usd: { const: 0 },
+        },
+      },
+    },
+  },
+}];
+
+// worker.js imports dependency-free modules (bundled at deploy time).
 // The vm sandbox can't resolve imports, so concatenate them first with the
-// `export`/`import` keywords stripped — they are dependency-free modules, so
-// plain concatenation is safe and keeps a single source of truth.
+// `export`/`import` keywords stripped to keep a single source of truth.
 function stripModule(p) {
   return fs.readFileSync(path.join(here, p), 'utf8')
     .replace(/^import .*$/gm, '')
@@ -83,7 +155,9 @@ function stripModule(p) {
 const prelude = stripModule('balance.mjs') + '\n'
   + stripModule('cost-model.mjs') + '\n'
   + stripModule('pilot-magic.mjs') + '\n'
-  + stripModule('hosted-skills.generated.mjs') + '\n';
+  + stripModule('pure-data-runtime.mjs') + '\n'
+  + stripModule('hosted-skills.generated.mjs') + '\n'
+  + `HOSTED_WORKER_SKILL_ROWS.push(${JSON.stringify(pureDataHostedRow)});\n`;
 const workerSrc = fs.readFileSync(path.join(here, 'worker.js'), 'utf8').replace(/^import .*$/gm, '');
 const cjs = prelude + workerSrc.replace('export default', 'const __workerExport =');
 
@@ -3596,6 +3670,45 @@ check('hosted registry: late Worker-native success returns the authoritative ref
 workerNativeProviderGate = null;
 releaseWorkerNativeProvider = null;
 workerNativeMode = 'valid';
+
+// ── Pure-data generated executor → closed synchronous Worker runtime ───────
+
+const pureMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_pure_data', {}), env)).json();
+const pureHeaders = { Authorization: `Bearer ${pureMe.api_key}`, 'Idempotency-Key': 'pure-data-router-0001' };
+const pureInput = {
+  slug: 'pure-word-list',
+  input: { words: ['banana', ' apple ', 'Banana', 'banana', 'pear'], remove_duplicates: true },
+};
+const outboundBeforePure = llmCalls.length + facebookCalls.length + modalCalls.length;
+const pureStartResponse = await worker.fetch(mkReq('POST', '/api/run', pureInput, pureHeaders), {
+  ...realEnv, LLM_API_KEY: '', LLM_BASE_URL: 'https://attacker.invalid/steal',
+});
+const pureStart = await pureStartResponse.json();
+const pureAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_pure_data', {}), env)).json();
+check('hosted registry: pure-data executor completes synchronously with deterministic zero-LLM usage',
+  pureStartResponse.status === 200 && pureStart.state === 'succeeded' &&
+  JSON.stringify(pureStart.output.sorted_words) === JSON.stringify(['apple', 'Banana', 'banana', 'pear']) &&
+  pureStart.output.original_count === 5 && pureStart.output.final_count === 4 &&
+  pureStart.output.workflow_version === 'pure-word-list@1.0.0' &&
+  pureStart.output.usage.provider === 'worker-pure-data' && pureStart.output.usage.llm_calls === 0);
+check('hosted registry: pure-data reuses billing and performs no network/provider effect',
+  pureStart.cost_usd === 0.1 && pureAfter.balance_usd === 4.9 &&
+  llmCalls.length + facebookCalls.length + modalCalls.length === outboundBeforePure);
+const pureReplay = await (await worker.fetch(mkReq('POST', '/api/run', pureInput, pureHeaders), realEnv)).json();
+check('hosted registry: pure-data idempotent replay returns the stored success without a second debit',
+  pureReplay.idempotent_replay === true && pureReplay.run_id === pureStart.run_id &&
+  (await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_pure_data', {}), env)).json()).balance_usd === 4.9);
+
+const pureBadMe = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_pure_data_bad', {}), env)).json();
+const pureBadHeaders = { Authorization: `Bearer ${pureBadMe.api_key}`, 'Idempotency-Key': 'pure-data-router-bad1' };
+const pureBadInput = { slug: 'pure-word-list', input: { words: ['bad\u0000word'] } };
+const pureBadResponse = await worker.fetch(mkReq('POST', '/api/run', pureBadInput, pureBadHeaders), realEnv);
+const pureBad = await pureBadResponse.json();
+const pureBadReplay = await worker.fetch(mkReq('POST', '/api/run', pureBadInput, pureBadHeaders), realEnv);
+const pureBadAfter = await (await worker.fetch(mkReq('GET', '/api/me?user_id=user_pure_data_bad', {}), env)).json();
+check('hosted registry: pure-data runtime violation refunds once and replays the terminal failure',
+  pureBadResponse.status === 422 && pureBad.reason === 'worker_native_pure_data_invalid_value' &&
+  pureBadReplay.status === 422 && pureBadAfter.balance_usd === 5);
 
 // ── Japanese generated executor → owner-scoped Modal async run ───────────
 
