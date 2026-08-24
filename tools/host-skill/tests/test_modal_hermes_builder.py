@@ -32,6 +32,15 @@ def test_modal_image_includes_trusted_gate_dependencies() -> None:
     assert 'f"fastapi=={FASTAPI_VERSION}"' in source
 
 
+def test_builder_and_worker_base_revision_pins_match() -> None:
+    builder = load_builder()
+    wrangler = (SCRIPT.parents[2] / "site" / "deploy" / "wrangler.toml").read_text(encoding="utf-8")
+    match = __import__("re").search(r'^OMO_BUILDER_BASE_REVISION = "([0-9a-f]{40})"$', wrangler, __import__("re").MULTILINE)
+    assert match is not None
+    assert match.group(1) == builder.ALLOWED_BASE_REVISION
+    assert builder.ALLOWED_BASE_REVISION == "86361b0cfc67e5f6db805a2d90e7816b2121919a"
+
+
 def test_job_identity_is_exact_and_source_scoped() -> None:
     builder = load_builder()
     submission_id = "sub_abcdefgh12345678"
