@@ -748,7 +748,11 @@ def build_hosted_profile(
             else (
                 "Execute the reviewed deterministic build-analysis pipeline."
                 if native_runtime_label == "native-builder"
-                else "Execute the reviewed server-owned native media pipeline."
+                else (
+                    "Execute the reviewed deterministic pure-data pipeline."
+                    if native_runtime_label == "pure-data"
+                    else "Execute the reviewed server-owned native media pipeline."
+                )
             )
         ),
     }

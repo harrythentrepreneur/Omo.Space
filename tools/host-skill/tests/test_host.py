@@ -288,6 +288,10 @@ def test_pure_data_defaults_to_worker_native_with_exact_executor() -> None:
     assert hosted["runtime"]["output_schema"]["properties"]["usage"]["properties"]["llm_calls"] == {"const": 0}
     assert "default_endpoint" not in hosted["runtime"]
     assert all(key not in hosted["runtime"]["executor"] for key in ("provider", "secret", "network", "artifacts"))
+    assert hosted["server_catalog"]["model"] == "pure-data"
+    assert hosted["server_catalog"]["system_prompt"] == (
+        "Execute the reviewed deterministic pure-data pipeline."
+    )
 
 
 def test_pure_data_public_envelope_adds_status_for_domain_without_status() -> None:

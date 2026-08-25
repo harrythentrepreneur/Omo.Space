@@ -6093,6 +6093,10 @@ def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
     steps = profile["steps"]
     ready = bool(profile["readiness"]["can_submit"])
     selected = _selected_capability_names(profile)
+    owner_scoped_poll = (
+        profile.get("execution_kind") == "pure_data"
+        or skill_owned_resource_template(profile) is not None
+    )
     lines = [
         "spec_version: cognition.container/v1",
         f"name: {yaml_quote(profile['name'])}",
@@ -6135,7 +6139,12 @@ def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
             "endpoint:",
             "  mode: async_job",
             "  submit_path: /v1/runs",
-            "  result_path: /v1/runs/{call_id}",
+            (
+                "  result_path: /v1/runs/{run_id}"
+                if owner_scoped_poll
+                else "  result_path: /v1/runs/{call_id}"
+            ),
+            *(["  result_query: call_id,access_token"] if owner_scoped_poll else []),
             "  auth: modal_proxy_token",
             "  invalid_input_status: 422",
             "  not_ready_status: 503",
@@ -6222,6 +6231,15 @@ def readme(profile: dict[str, Any], source_hash: str, pricing: dict[str, Any]) -
     env_names = "\n".join(f"- `{name}`" for name in profile["required_env_names"])
     prompts = "\n".join(f"- `prompts/{name}`" for name in sorted(profile["prompts"]))
     ready = bool(profile["readiness"]["can_submit"])
+    owner_scoped_poll = (
+        profile.get("execution_kind") == "pure_data"
+        or skill_owned_resource_template(profile) is not None
+    )
+    poll_contract = (
+        "GET /v1/runs/{run_id}?call_id={call_id}&access_token={access_token}"
+        if owner_scoped_poll
+        else "GET /v1/runs/{call_id}"
+    )
     readiness_copy = (
         "**READY for authenticated staging runs.** `POST /v1/runs` validates the input "
         "schema before spawning a provider-backed job."
@@ -6262,7 +6280,7 @@ Required environment variable names (values never belong in this repository):
 ## Contract
 
 - Submit: `POST /v1/runs` → `202` with `run_id`, `call_id`, and `result_url`
-- Poll: `GET /v1/runs/{{call_id}}` → `202 running` or the validated output
+- Poll: `{poll_contract}` → `202 running` or the validated output
 - Invalid input: `422` before spawn
 - Blocked release: `503` before spawn when `readiness.can_submit` is false
 - Input/UI contract: `manifest.json`
