@@ -770,6 +770,35 @@ def test_only_regular_bounded_json_profile_crosses_trust_boundary(tmp_path: Path
         raise AssertionError("symlinked profile crossed the trust boundary")
 
 
+def test_exact_pinned_reviewed_profile_is_reused_without_authoring(tmp_path: Path) -> None:
+    builder = load_builder()
+    checkout = tmp_path / "repo"
+    profile = checkout / "packages" / "skill-to-modal" / "profiles" / "safe-skill.json"
+    profile.parent.mkdir(parents=True)
+    source_sha256 = "a" * 64
+    profile.write_text(
+        json.dumps({
+            "slug": "safe-skill",
+            "reviewed_source_sha256": source_sha256,
+            "execution_kind": "pure_data",
+        }),
+        encoding="utf-8",
+    )
+
+    assert builder.pinned_reviewed_profile(checkout, "safe-skill", source_sha256) == profile
+    assert builder.pinned_reviewed_profile(checkout, "safe-skill", source_sha256.upper()) is None
+    assert builder.pinned_reviewed_profile(checkout, "safe-skill", "b" * 64) is None
+    source = SCRIPT.read_text(encoding="utf-8")
+    selector = "if pinned_reviewed_profile(checkout, slug, source_sha256) is None:"
+    assert selector in source
+    assert source.index(selector) < source.index("with GeminiInferenceProxy(", source.index(selector))
+
+    profile.unlink()
+    profile.symlink_to(checkout / "outside.json")
+    with pytest.raises(RuntimeError, match="pinned reviewed profile is unsafe"):
+        builder.pinned_reviewed_profile(checkout, "safe-skill", source_sha256)
+
+
 def test_dispatch_reservation_lease_recovers_stale_jobs() -> None:
     builder = load_builder()
     now = 10_000
