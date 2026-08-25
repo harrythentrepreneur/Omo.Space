@@ -2,6 +2,233 @@
 // Contains public contracts and environment-variable names only.
 export const HOSTED_WORKER_SKILL_ROWS = [
   [
+    "dummy-word-list-organizer",
+    {
+      "artifact": null,
+      "container_slug": "dummy-word-list-organizer",
+      "executor": {
+        "execution_kind": "pure_data",
+        "operation": "pure_data.execute",
+        "program": {
+          "limits": {
+            "max_input_bytes": 8192,
+            "max_list_items": 20,
+            "max_output_bytes": 8192,
+            "max_steps": 16,
+            "max_text_bytes": 80
+          },
+          "result": "result",
+          "spec_version": "omo.pure-data/v1",
+          "steps": [
+            {
+              "id": "words",
+              "op": "input.get",
+              "path": "/words"
+            },
+            {
+              "id": "clean_words",
+              "input": "words",
+              "op": "text_list.normalize_ascii",
+              "reject_control_characters": true,
+              "reject_empty": true,
+              "trim_ascii_whitespace": true
+            },
+            {
+              "comparison": "exact",
+              "enabled_from": {
+                "default": true,
+                "path": "/remove_duplicates"
+              },
+              "id": "organized_words",
+              "input": "clean_words",
+              "op": "text_list.unique"
+            },
+            {
+              "id": "sorted_words",
+              "input": "organized_words",
+              "key": "ascii_case_insensitive",
+              "op": "text_list.sort_ascii",
+              "tie_break": "ascii_bytes"
+            },
+            {
+              "id": "original_count",
+              "input": "words",
+              "op": "list.length"
+            },
+            {
+              "id": "final_count",
+              "input": "sorted_words",
+              "op": "list.length"
+            },
+            {
+              "fields": {
+                "final_count": {
+                  "ref": "final_count"
+                },
+                "original_count": {
+                  "ref": "original_count"
+                },
+                "sorted_words": {
+                  "ref": "sorted_words"
+                },
+                "status": {
+                  "const": "completed"
+                }
+              },
+              "id": "result",
+              "op": "result.object"
+            }
+          ]
+        },
+        "program_digest": "sha256:40103f810402ebed176e4bb38e9d1c30bbe7bd4c27f515422f7007a35797d3fd",
+        "spec_version": "omo.worker-pure-data/v1",
+        "workflow_version": "1.0.0"
+      },
+      "input_adapters": [],
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "remove_duplicates": {
+            "default": true,
+            "type": "boolean"
+          },
+          "words": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "type": "object"
+      },
+      "kind": "worker-native",
+      "model_output_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "final_count": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "original_count": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sorted_words": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "status": {
+            "const": "completed"
+          }
+        },
+        "required": [
+          "status",
+          "original_count",
+          "final_count",
+          "sorted_words"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "final_count": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "original_count": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "sorted_words": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "status": {
+            "const": "completed"
+          },
+          "usage": {
+            "additionalProperties": false,
+            "properties": {
+              "completion_tokens": {
+                "const": 0
+              },
+              "estimated_cost_usd": {
+                "const": 0
+              },
+              "llm_calls": {
+                "const": 0
+              },
+              "model": {
+                "const": "omo.pure-data/v1"
+              },
+              "prompt_tokens": {
+                "const": 0
+              },
+              "provider": {
+                "const": "worker-pure-data"
+              }
+            },
+            "required": [
+              "provider",
+              "model",
+              "llm_calls",
+              "prompt_tokens",
+              "completion_tokens",
+              "estimated_cost_usd"
+            ],
+            "type": "object"
+          },
+          "workflow_version": {
+            "const": "dummy-word-list-organizer@1.0.0"
+          }
+        },
+        "required": [
+          "status",
+          "original_count",
+          "final_count",
+          "sorted_words",
+          "run_id",
+          "workflow_version",
+          "usage"
+        ],
+        "type": "object"
+      },
+      "reviewed_source_sha256": "83e896077638d8f7796e648229bd361f3b517ab4199e45086a7ffcd1d95e045e",
+      "run_price_cents": 10,
+      "slug": "dummy-word-list-organizer"
+    }
+  ],
+  [
     "facebook-ads-copywriter",
     {
       "artifact": null,
@@ -5208,6 +5435,15 @@ export const HOSTED_SERVER_CATALOG_ROWS = [
     "deepseek-v4-flash",
     1200,
     "Identify only requested digraph types in the exact supplied text. Return zero-based start-inclusive/end-exclusive spans whose substring exactly matches text. Explain cautiously and return only JSON with occurrences, summary, and warnings."
+  ],
+  [
+    "dummy-word-list-organizer",
+    "Word List Organizer",
+    0.0,
+    0.1,
+    "pure-data",
+    0,
+    "Execute the reviewed server-owned native media pipeline."
   ],
   [
     "facebook-ads-copywriter",
