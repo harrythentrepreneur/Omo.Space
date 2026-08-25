@@ -29,6 +29,8 @@ RUN_MANIFEST_ROOT = ROOT / "site" / "run-manifests"
 HOSTED_REGISTRY_PATH = ROOT / "site" / "deploy" / "hosted-skills.generated.mjs"
 CATALOG_START = "  // host-skill:generated:start"
 CATALOG_END = "  // host-skill:generated:end"
+VISIBLE_START = "  // host-skill:visible:start"
+VISIBLE_END = "  // host-skill:visible:end"
 ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -760,6 +762,7 @@ def build_hosted_profile(
         "schema_version": "omo.hosted-profile/v1",
         "generator": "tools/host-skill/1.0.0",
         "catalog_managed": bool(market.get("catalog_managed", True)),
+        "storefront_visible": bool(market.get("storefront_visible", False)),
         "catalog": catalog,
         "run_manifest": run_manifest,
         "runtime_placement": placement,
@@ -843,6 +846,45 @@ def patch_catalog(source: str, profiles: list[dict[str, Any]]) -> str:
         if not array_end:
             raise ValueError("site/catalog.js does not contain a catalog array terminator")
         patched = source[:array_end.start()] + block + "\n" + source[array_end.start():]
+    if (VISIBLE_START in patched) != (VISIBLE_END in patched):
+        raise ValueError("site/catalog.js has an incomplete host-skill visibility marker pair")
+    visible_match = re.search(
+        r"window\.OMO_VISIBLE_SLUGS\s*=\s*\[(?P<body>.*?)\];",
+        patched,
+        flags=re.S,
+    )
+    visible = sorted(
+        item["catalog"]["slug"]
+        for item in profiles
+        if item.get("storefront_visible")
+    )
+    if visible and not visible_match:
+        raise ValueError("site/catalog.js does not contain OMO_VISIBLE_SLUGS")
+    if visible_match:
+        external_visible = re.sub(
+            re.escape(VISIBLE_START) + r".*?" + re.escape(VISIBLE_END),
+            "",
+            visible_match.group("body"),
+            count=1,
+            flags=re.S,
+        )
+        existing = set(re.findall(r"['\"]([a-z0-9]+(?:-[a-z0-9]+)*)['\"]", external_visible))
+        lines = [VISIBLE_START]
+        lines.extend(f"  '{slug}'," for slug in visible if slug not in existing)
+        lines.append(VISIBLE_END)
+        visibility_block = "\n".join(lines)
+        body = visible_match.group("body")
+        if VISIBLE_START in body:
+            body = re.sub(
+                re.escape(VISIBLE_START) + r".*?" + re.escape(VISIBLE_END),
+                visibility_block,
+                body,
+                count=1,
+                flags=re.S,
+            )
+        else:
+            body = "\n" + visibility_block + body
+        patched = patched[:visible_match.start("body")] + body + patched[visible_match.end("body"):]
     return patched.rstrip() + "\n"
 
 
