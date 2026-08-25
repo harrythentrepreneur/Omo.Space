@@ -6097,6 +6097,7 @@ def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
         profile.get("execution_kind") == "pure_data"
         or skill_owned_resource_template(profile) is not None
     )
+    pure_data = profile.get("execution_kind") == "pure_data"
     lines = [
         "spec_version: cognition.container/v1",
         f"name: {yaml_quote(profile['name'])}",
@@ -6147,7 +6148,7 @@ def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
             *(["  result_query: call_id,access_token"] if owner_scoped_poll else []),
             "  auth: modal_proxy_token",
             "  invalid_input_status: 422",
-            "  not_ready_status: 503",
+            *([] if pure_data else ["  not_ready_status: 503"]),
             "readiness:",
             f"  can_submit: {'true' if ready else 'false'}",
             f"  execution_kind: {profile['execution_kind']}",
@@ -6231,9 +6232,9 @@ def readme(profile: dict[str, Any], source_hash: str, pricing: dict[str, Any]) -
     env_names = "\n".join(f"- `{name}`" for name in profile["required_env_names"])
     prompts = "\n".join(f"- `prompts/{name}`" for name in sorted(profile["prompts"]))
     ready = bool(profile["readiness"]["can_submit"])
+    pure_data = profile.get("execution_kind") == "pure_data"
     owner_scoped_poll = (
-        profile.get("execution_kind") == "pure_data"
-        or skill_owned_resource_template(profile) is not None
+        pure_data or skill_owned_resource_template(profile) is not None
     )
     poll_contract = (
         "GET /v1/runs/{run_id}?call_id={call_id}&access_token={access_token}"
@@ -6241,6 +6242,9 @@ def readme(profile: dict[str, Any], source_hash: str, pricing: dict[str, Any]) -
         else "GET /v1/runs/{call_id}"
     )
     readiness_copy = (
+        "**READY for authenticated staging runs.** `POST /v1/runs` validates the input "
+        "schema before spawning a deterministic provider-free job."
+        if ready and pure_data else
         "**READY for authenticated staging runs.** `POST /v1/runs` validates the input "
         "schema before spawning a provider-backed job."
         if ready else
@@ -6255,11 +6259,17 @@ def readme(profile: dict[str, Any], source_hash: str, pricing: dict[str, Any]) -
         f"display estimate `${pricing['display_price_usd']:.2f}`, not chargeable"
     )
     deploy_copy = (
+        "Deploy after the offline tests pass; this deterministic runtime uses no provider secret:"
+        if ready and pure_data else
         "Deploy after the named Modal secret exists and the offline tests pass:"
         if ready else
         "Deployment is intentionally gated on readiness review. Once the generated "
         "manifest says `can_submit: true`, required provider capabilities exist, and "
         "tests pass:"
+    )
+    blocked_release_copy = (
+        "" if pure_data else
+        "- Blocked release: `503` before spawn when `readiness.can_submit` is false"
     )
     return f"""# {profile['name']}
 
@@ -6282,7 +6292,7 @@ Required environment variable names (values never belong in this repository):
 - Submit: `POST /v1/runs` → `202` with `run_id`, `call_id`, and `result_url`
 - Poll: `{poll_contract}` → `202 running` or the validated output
 - Invalid input: `422` before spawn
-- Blocked release: `503` before spawn when `readiness.can_submit` is false
+{blocked_release_copy}
 - Input/UI contract: `manifest.json`
 - Pricing evidence: `pricing-report.json` ({price_copy})
 
