@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-import base64
+import http.client
 import importlib.util
+import io
 import json
 import os
+import socket
 import sys
+import threading
 import time
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -99,95 +103,447 @@ def test_dispatch_payload_is_exact_and_identifier_only() -> None:
             raise AssertionError(f"dispatch accepted forbidden field: {forbidden}")
 
 
-def _fake_nous_jwt(expires_at: int, scope: str = "inference:invoke") -> str:
-    payload = base64.urlsafe_b64encode(json.dumps({"exp": expires_at, "scope": scope}).encode()).decode().rstrip("=")
-    return f"eyJhbGciOiJub25lIn0.{payload}.signature"
+class FakeResponse:
+    def __init__(
+        self,
+        body: bytes,
+        *,
+        status: int = 200,
+        content_type: str = "application/json",
+        declared_length: int | None = None,
+    ) -> None:
+        self._body = io.BytesIO(body)
+        self.status = status
+        self.headers = {"Content-Type": content_type, "X-Upstream-Secret": "must-not-forward"}
+        if declared_length is not None:
+            self.headers["Content-Length"] = str(declared_length)
+        self.closed = False
+
+    def read(self, size: int = -1) -> bytes:
+        return self._body.read(size)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args) -> None:
+        return None
+
+    def close(self) -> None:
+        self.closed = True
 
 
-def test_hermes_environment_is_fresh_locked_down_and_nous_scoped(tmp_path: Path) -> None:
+class BlockingResponse(FakeResponse):
+    def __init__(self) -> None:
+        super().__init__(b"")
+        self.started = threading.Event()
+        self.released = threading.Event()
+
+    def read(self, size: int = -1) -> bytes:
+        self.started.set()
+        self.released.wait(timeout=10)
+        return b""
+
+    def close(self) -> None:
+        self.closed = True
+        self.released.set()
+
+
+class PeriodicResponse(FakeResponse):
+    def read(self, size: int = -1) -> bytes:
+        time.sleep(0.03)
+        return b"x"
+
+
+class DelayedResponse(FakeResponse):
+    def __init__(self, body: bytes, delay: float) -> None:
+        super().__init__(body)
+        self._delay = delay
+        self._delayed = False
+
+    def read(self, size: int = -1) -> bytes:
+        if not self._delayed:
+            self._delayed = True
+            time.sleep(self._delay)
+        return super().read(size)
+
+
+class RecordingOpener:
+    def __init__(self, response: FakeResponse | Exception) -> None:
+        self.response = response
+        self.requests = []
+
+    def open(self, request, timeout: float):
+        self.requests.append((request, timeout))
+        if isinstance(self.response, Exception):
+            raise self.response
+        return self.response
+
+
+class BlockingOpener:
+    def __init__(self) -> None:
+        self.started = threading.Event()
+        self.released = threading.Event()
+
+    def open(self, request, timeout: float):
+        self.started.set()
+        self.released.wait(timeout=10)
+        raise TimeoutError("blocked opener released")
+
+
+def proxy_request(proxy, *, token: str, path: str = "/v1/chat/completions", body: dict | None = None, host: str = "attacker.invalid"):
+    connection = http.client.HTTPConnection("127.0.0.1", proxy.port, timeout=3)
+    payload = json.dumps(body or {"model": "gemini-2.5-flash", "messages": []}).encode()
+    connection.request(
+        "POST", path, body=payload,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Host": host},
+    )
+    response = connection.getresponse()
+    raw = response.read()
+    headers = dict(response.getheaders())
+    connection.close()
+    return response.status, headers, raw
+
+
+def test_hermes_environment_contains_only_ephemeral_proxy_credential(tmp_path: Path) -> None:
     builder = load_builder()
-    token = _fake_nous_jwt(int(time.time()) + 3600)
+    permanent = "gemini-permanent-key-sentinel"
+    local_token = "local-per-run-token"
     env = builder.hermes_environment(tmp_path, {
-        "NOUS_AGENT_KEY": token,
+        "GEMINI_API_KEY": permanent,
         "BUILD_WORKER_TOKEN": "worker-secret",
         "GH_TOKEN": "github-secret",
         "TELEGRAM_BOT_TOKEN": "remove-me",
-        "WHATSAPP_ALLOWED_USERS": "remove-me",
-        "STRIPE_SECRET_KEY": "remove-me",
-        "CLOUDFLARE_API_TOKEN": "remove-me",
-    })
+        "UNRELATED_SECRET": "remove-me-too",
+    }, proxy_base_url="http://127.0.0.1:41823/v1", proxy_token=local_token)
     home = Path(env["HERMES_HOME"])
-    assert home.parent == tmp_path
-    assert env["HOME"] == str(home)
-    config = json.loads((home / "config.yaml").read_text())
-    assert config["model"] == {"provider": "nous", "default": "Hermes-4-70B"}
+    config_text = (home / "config.yaml").read_text()
+    config = json.loads(config_text)
+    assert config["model"] == {
+        "provider": "custom", "default": "gemini-2.5-flash",
+        "base_url": "http://127.0.0.1:41823/v1", "api_key": local_token,
+        "api_mode": "chat_completions",
+    }
     assert config["memory"] == {"memory_enabled": False, "user_profile_enabled": False}
     assert config["gateway"]["enabled"] is False
     assert config["cron"]["enabled"] is False
-    auth = json.loads((home / "auth.json").read_text())
-    assert auth["active_provider"] == "nous"
-    assert auth["providers"]["nous"]["agent_key"] == token
-    assert auth["providers"]["nous"]["scope"] == "inference:invoke"
-    assert set(auth["providers"]["nous"]) == {
-        "agent_key", "agent_key_expires_at", "scope", "inference_base_url",
-    }
-    assert "refresh_token" not in auth["providers"]["nous"]
-    assert "NOUS_AGENT_KEY" not in env
-    assert env["HERMES_NOUS_MIN_KEY_TTL_SECONDS"] == "900"
+    assert not (home / "auth.json").exists()
+    serialized_env = json.dumps(env, sort_keys=True)
+    assert permanent not in serialized_env
+    assert permanent not in config_text
+    assert "GEMINI_API_KEY" not in env
     assert "BUILD_WORKER_TOKEN" not in env
     assert "GH_TOKEN" not in env
     assert "TELEGRAM_BOT_TOKEN" not in env
-    assert "WHATSAPP_ALLOWED_USERS" not in env
-    assert "STRIPE_SECRET_KEY" not in env
-    assert "CLOUDFLARE_API_TOKEN" not in env
+    assert "UNRELATED_SECRET" not in env
 
 
-def test_hermes_environment_rejects_expired_nous_agent_key(tmp_path: Path) -> None:
+def test_proxy_rejects_invalid_local_bearer_without_upstream_request() -> None:
     builder = load_builder()
-    with pytest.raises(RuntimeError, match="Nous agent key"):
-        builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": _fake_nous_jwt(int(time.time()) - 1)})
+    opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
+    with builder.GeminiInferenceProxy("permanent-key", "valid-local-token", opener=opener) as proxy:
+        status, _headers, body = proxy_request(proxy, token="wrong-token")
+    assert status == 401
+    assert opener.requests == []
+    assert b"wrong-token" not in body and b"permanent-key" not in body
 
 
-def test_hermes_environment_rejects_non_three_segment_jwt(tmp_path: Path) -> None:
+def test_proxy_fixes_upstream_path_host_model_and_strips_headers() -> None:
     builder = load_builder()
-    token = _fake_nous_jwt(int(time.time()) + 3600) + ".extra"
-    with pytest.raises(RuntimeError, match="Nous agent key"):
-        builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": token})
+    opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+        rejected_path = proxy_request(proxy, token="local-token", path="/v1/models")
+        rejected_target = proxy_request(
+            proxy, token="local-token",
+            body={"model": "gemini-2.5-flash", "messages": [], "base_url": "https://attacker.invalid/v1"},
+        )
+        rejected_model = proxy_request(proxy, token="local-token", body={"model": "other", "messages": []})
+        status, headers, body = proxy_request(proxy, token="local-token", host="attacker.invalid")
+    assert rejected_path[0] == 404
+    assert rejected_target[0] == 400
+    assert rejected_model[0] == 400
+    assert status == 200 and body == b'{"ok":true}'
+    assert "X-Upstream-Secret" not in headers
+    assert len(opener.requests) == 1
+    request, timeout = opener.requests[0]
+    assert request.full_url == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    assert request.get_header("Authorization") == "Bearer permanent-key"
+    assert request.get_header("Host") is None
+    assert 0 < timeout <= builder.GEMINI_PROXY_TOTAL_TIMEOUT_SECONDS
 
 
-def test_hermes_environment_accepts_inference_scope_membership(tmp_path: Path) -> None:
+def test_proxy_enforces_request_budget() -> None:
     builder = load_builder()
-    token = _fake_nous_jwt(int(time.time()) + 3600, "profile:read inference:invoke")
-    env = builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": token})
-    auth = json.loads((Path(env["HERMES_HOME"]) / "auth.json").read_text())
-    assert auth["providers"]["nous"]["scope"] == "inference:invoke"
+    opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
+    with builder.GeminiInferenceProxy(
+        "permanent-key", "local-token", opener=opener, max_requests=1,
+    ) as proxy:
+        first = proxy_request(proxy, token="local-token")
+        second = proxy_request(proxy, token="local-token")
+    assert first[0] == 200
+    assert second[0] == 429
+    assert len(opener.requests) == 1
 
 
-def test_hermes_environment_rejects_missing_inference_scope(tmp_path: Path) -> None:
+def test_proxy_maps_raw_upstream_errors_without_leaking_key_or_body() -> None:
     builder = load_builder()
-    token = _fake_nous_jwt(int(time.time()) + 3600, "profile:read")
-    with pytest.raises(RuntimeError, match="Nous agent key"):
-        builder.hermes_environment(tmp_path, {"NOUS_AGENT_KEY": token})
+    permanent = "permanent-key-sentinel"
+    raw_error = b'provider failure permanent-key-sentinel RAW_ERROR_SENTINEL'
+    error = urllib.error.HTTPError(
+        builder.GEMINI_CHAT_COMPLETIONS_URL, 401, permanent, {}, io.BytesIO(raw_error)
+    )
+    opener = RecordingOpener(error)
+    with builder.GeminiInferenceProxy(permanent, "local-token", opener=opener) as proxy:
+        status, headers, body = proxy_request(proxy, token="local-token")
+    assert status == 502
+    assert headers["Content-Type"] == "application/json"
+    assert json.loads(body)["error"]["code"] == "gemini_auth_failed"
+    assert permanent.encode() not in body
+    assert b"RAW_ERROR_SENTINEL" not in body
+
+
+def test_proxy_rejects_success_body_that_reflects_permanent_key() -> None:
+    builder = load_builder()
+    permanent = "permanent-key-sentinel"
+    opener = RecordingOpener(FakeResponse(b'{"debug":"permanent-key-sentinel"}'))
+    with builder.GeminiInferenceProxy(permanent, "local-token", opener=opener) as proxy:
+        status, _headers, body = proxy_request(proxy, token="local-token")
+    assert status == 502
+    assert json.loads(body)["error"]["code"] == "gemini_response_rejected"
+    assert permanent.encode() not in body
+
+
+def test_proxy_streams_bounded_success_response() -> None:
+    builder = load_builder()
+    payload = b"data: first\n\ndata: second\n\n"
+    opener = RecordingOpener(FakeResponse(payload, content_type="text/event-stream"))
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+        status, headers, body = proxy_request(
+            proxy, token="local-token",
+            body={"model": "gemini-2.5-flash", "messages": [], "stream": True},
+        )
+    assert status == 200 and body == payload
+    assert headers["Content-Type"] == "text/event-stream"
+    assert headers["Content-Length"] == str(len(payload))
+    assert int(headers["X-Content-Type-Options"] == "nosniff") == 1
+
+
+def test_proxy_undeclared_response_overflow_is_typed_before_success(monkeypatch) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "GEMINI_PROXY_MAX_RESPONSE_BYTES", 8)
+    opener = RecordingOpener(FakeResponse(b"0123456789"))
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+        status, _headers, body = proxy_request(proxy, token="local-token")
+    assert status == 502
+    assert json.loads(body)["error"]["code"] == "gemini_response_too_large"
+
+
+def test_proxy_total_deadline_stops_periodic_upstream(monkeypatch) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "GEMINI_PROXY_TOTAL_TIMEOUT_SECONDS", 0.08)
+    response = PeriodicResponse(b"")
+    opener = RecordingOpener(response)
+    started = time.monotonic()
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+        status, _headers, body = proxy_request(proxy, token="local-token")
+    assert time.monotonic() - started < 1
+    assert status == 504
+    assert json.loads(body)["error"]["code"] == "gemini_inference_timeout"
+    assert response.closed
+
+
+def test_proxy_inbound_deadline_is_cancelled_before_slow_valid_inference(monkeypatch) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "GEMINI_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS", 0.05)
+    opener = RecordingOpener(DelayedResponse(b'{"ok":true}', 0.12))
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+        status, _headers, body = proxy_request(proxy, token="local-token")
+    assert status == 200
+    assert body == b'{"ok":true}'
+
+
+def test_proxy_exit_closes_blocked_upstream_and_waits_for_handler() -> None:
+    builder = load_builder()
+    response = BlockingResponse()
+    opener = RecordingOpener(response)
+    proxy = builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener)
+    proxy.__enter__()
+    result: list[object] = []
+
+    def request() -> None:
+        try:
+            result.append(proxy_request(proxy, token="local-token"))
+        except Exception as error:
+            result.append(type(error).__name__)
+
+    client = threading.Thread(target=request)
+    client.start()
+    assert response.started.wait(timeout=2)
+    started = time.monotonic()
+    proxy.__exit__(None, None, None)
+    client.join(timeout=2)
+    assert time.monotonic() - started < 2
+    assert response.closed and not client.is_alive()
+
+
+def test_proxy_rejects_excessive_headers() -> None:
+    builder = load_builder()
+    opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+        connection = http.client.HTTPConnection("127.0.0.1", proxy.port, timeout=3)
+        payload = json.dumps({"model": "gemini-2.5-flash", "messages": []}).encode()
+        connection.request("POST", "/v1/chat/completions", body=payload, headers={
+            "Authorization": "Bearer local-token",
+            "Content-Type": "application/json",
+            "X-Padding": "x" * (builder.GEMINI_PROXY_MAX_HEADER_BYTES + 1),
+        })
+        response = connection.getresponse()
+        body = response.read()
+        connection.close()
+    assert response.status == 431
+    assert json.loads(body)["error"]["code"] == "headers_too_large"
+    assert opener.requests == []
+
+
+def test_proxy_total_deadline_closes_slow_header_connection(monkeypatch) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "GEMINI_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS", 0.2)
+    opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+        client = socket.create_connection(("127.0.0.1", proxy.port), timeout=2)
+        request = (
+            b"POST /v1/chat/completions HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\nAuthorization: Bearer local-token\r\n"
+            b"Content-Length: 50\r\nContent-Type: application/json\r\n\r\n"
+        )
+        started = time.monotonic()
+        for byte in request:
+            try:
+                client.send(bytes([byte]))
+            except OSError:
+                break
+            time.sleep(0.01)
+        assert time.monotonic() - started < 1
+        client.close()
+    assert opener.requests == []
+
+
+def test_proxy_shutdown_allows_bounded_local_connection_drain() -> None:
+    builder = load_builder()
+    proxy = builder.GeminiInferenceProxy("permanent-key", "local-token")
+    proxy.__enter__()
+    left, right = socket.socketpair()
+    with proxy._active_lock:
+        proxy._active_connections.add(left)
+
+    def finish_connection() -> None:
+        time.sleep(2)
+        with proxy._active_lock:
+            proxy._active_connections.discard(left)
+
+    finisher = threading.Thread(target=finish_connection)
+    finisher.start()
+    started = time.monotonic()
+    proxy.__exit__(None, None, None)
+    finisher.join(timeout=2)
+    right.close()
+    assert 1.5 <= time.monotonic() - started < 5
+
+
+def test_proxy_shutdown_fails_closed_when_outbound_open_cannot_cancel() -> None:
+    builder = load_builder()
+    opener = BlockingOpener()
+    proxy = builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener)
+    proxy.__enter__()
+
+    def request() -> None:
+        try:
+            proxy_request(proxy, token="local-token")
+        except Exception:
+            pass
+
+    client = threading.Thread(target=request, daemon=True)
+    client.start()
+    assert opener.started.wait(timeout=2)
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="handlers did not terminate"):
+        proxy.__exit__(None, None, None)
+    assert time.monotonic() - started < 6
+    opener.released.set()
+    client.join(timeout=2)
+
+
+def test_proxy_tracks_socket_before_handler_thread_starts(monkeypatch) -> None:
+    builder = load_builder()
+    opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
+    proxy = builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener)
+    proxy.__enter__()
+    real_start = threading.Thread.start
+    captured: list[threading.Thread] = []
+    accepted = threading.Event()
+
+    def gated_start(thread: threading.Thread) -> None:
+        if "process_request_thread" in thread.name:
+            captured.append(thread)
+            accepted.set()
+            return
+        real_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", gated_start)
+    client = socket.create_connection(("127.0.0.1", proxy.port), timeout=2)
+    payload = json.dumps({"model": "gemini-2.5-flash", "messages": []}).encode()
+    client.sendall(
+        b"POST /v1/chat/completions HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+        b"Authorization: Bearer local-token\r\nContent-Type: application/json\r\n"
+        + f"Content-Length: {len(payload)}\r\n\r\n".encode()
+        + payload
+    )
+    assert accepted.wait(timeout=2) and captured
+    with pytest.raises(RuntimeError, match="handlers did not terminate"):
+        proxy.__exit__(None, None, None)
+    assert opener.requests == []
+    client.close()
+    monkeypatch.setattr(threading.Thread, "start", real_start)
+    for thread in captured:
+        real_start(thread)
+        thread.join(timeout=2)
+
+
+def test_builder_declares_single_gemini_secret_without_nous_volume() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert 'SECRET_NAME = "omo-hermes-builder-gemini"' in source
+    assert 'required = ("GEMINI_API_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")' in source
+    assert "NOUS_REFRESH_SECRET_NAME" not in source
+    assert "NOUS_AUTH_VOLUME_NAME" not in source
+    assert "nous_auth_volume" not in source
+    assert "volumes={" not in source
+
+
+def test_gemini_auth_preparation_exception_is_typed() -> None:
+    builder = load_builder()
+    assert builder.classify_builder_exception("hermes", RuntimeError("Gemini credential is missing")) == "gemini_auth_failed"
+    assert builder.classify_builder_exception("checkout", RuntimeError("anything")) == "builder_internal_failed"
 
 
 def test_builder_model_is_fixed_not_environment_selected() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
     assert 'model = DEFAULT_MODEL' in source
     assert 'environ.get("OMO_BUILDER_MODEL"' not in source
+    assert builder_model_from_source(source) == "gemini-2.5-flash"
 
 
-def test_builder_declares_separate_nous_secret() -> None:
-    source = SCRIPT.read_text(encoding="utf-8")
-    assert 'modal.Secret.from_name(NOUS_SECRET_NAME)' in source
-    assert 'NOUS_SECRET_NAME = "omo-hermes-builder-nous"' in source
+def builder_model_from_source(source: str) -> str:
+    match = __import__("re").search(r'^DEFAULT_MODEL = "([^"]+)"$', source, __import__("re").MULTILINE)
+    assert match is not None
+    return match.group(1)
 
 
 def test_hermes_failure_classifier_is_closed_and_never_returns_raw_text() -> None:
     builder = load_builder()
     sentinel = "SENTINEL_MUST_NOT_ESCAPE"
     cases = {
+        f"gemini_auth_failed {sentinel}": "gemini_auth_failed",
         f"401 unauthorized {sentinel}": "hermes_auth_failed",
-        f"model minimax-m2.7 not found {sentinel}": "hermes_model_failed",
+        f"model gemini-2.5-flash not found {sentinel}": "hermes_model_failed",
         f"approval required {sentinel}": "hermes_approval_failed",
         f"maximum turns reached {sentinel}": "hermes_turn_limit",
         f"permission denied {sentinel}": "hermes_permission_failed",
@@ -198,9 +554,25 @@ def test_hermes_failure_classifier_is_closed_and_never_returns_raw_text() -> Non
         assert reason == expected and sentinel not in reason
 
 
+def test_setpriv_launcher_starts_repeatedly_while_proxy_thread_is_active(tmp_path: Path) -> None:
+    builder = load_builder()
+    tmp_path.chmod(0o755)
+    opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
+    started = time.monotonic()
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener):
+        for _ in range(12):
+            returncode, _reason = builder.run_hermes_agent(
+                [sys.executable, "-c", "raise SystemExit(0)"],
+                tmp_path,
+                os.environ,
+                timeout_seconds=2,
+            )
+            assert returncode == 0
+    assert time.monotonic() - started < 10
+
+
 def test_hermes_runner_bounds_large_stderr_and_returns_only_classification(monkeypatch, tmp_path: Path) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "drop_hermes_privileges", lambda: None)
     marker = "approval required SENTINEL_MUST_NOT_ESCAPE"
     returncode, reason = builder.run_hermes_agent(
         [sys.executable, "-c", f"import sys;sys.stderr.write({marker!r}+'x'*1600000);raise SystemExit(1)"],
@@ -213,7 +585,6 @@ def test_hermes_runner_bounds_large_stderr_and_returns_only_classification(monke
 
 def test_hermes_runner_continuous_stderr_cannot_starve_timeout(monkeypatch, tmp_path: Path) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "drop_hermes_privileges", lambda: None)
     started = time.monotonic()
     returncode, reason = builder.run_hermes_agent(
         [sys.executable, "-c", "import os,sys; b=b'x'*8192\nwhile True: os.write(sys.stderr.fileno(),b)"],
@@ -227,13 +598,13 @@ def test_hermes_runner_continuous_stderr_cannot_starve_timeout(monkeypatch, tmp_
 
 def test_hermes_runner_kills_descendant_after_leader_exits(monkeypatch, tmp_path: Path) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "drop_hermes_privileges", lambda: None)
+    tmp_path.chmod(0o777)
     pid_path = tmp_path / "child.pid"
     child_code = "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)"
     parent_code = (
         "import pathlib,subprocess,sys;"
         f"p=subprocess.Popen([sys.executable,'-c',{child_code!r}]);"
-        f"pathlib.Path({str(pid_path)!r}).write_text(str(p.pid))"
+        f"pathlib.Path('child.pid').write_text(str(p.pid))"
     )
     returncode, _reason = builder.run_hermes_agent(
         [sys.executable, "-c", parent_code], tmp_path, os.environ,
@@ -248,13 +619,13 @@ def test_hermes_runner_kills_descendant_after_leader_exits(monkeypatch, tmp_path
 
 def test_hermes_runner_kills_term_ignoring_descendant_when_leader_exits_during_timeout_grace(monkeypatch, tmp_path: Path) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "drop_hermes_privileges", lambda: None)
+    tmp_path.chmod(0o777)
     pid_path = tmp_path / "timeout-child.pid"
     child_code = "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)"
     parent_code = (
         "import pathlib,subprocess,sys,time;"
         f"p=subprocess.Popen([sys.executable,'-c',{child_code!r}]);"
-        f"pathlib.Path({str(pid_path)!r}).write_text(str(p.pid));"
+        f"pathlib.Path('timeout-child.pid').write_text(str(p.pid));"
         "time.sleep(60)"
     )
     returncode, reason = builder.run_hermes_agent(
@@ -345,11 +716,10 @@ def test_untrusted_hermes_phase_has_no_terminal_or_github_release_authority() ->
     assert 'trusted_processor.process_row(row, repository, deploy=True' in source
     assert 'prepare_trusted_checkout(root, checkout, base_revision, slug, token)' in source
     assert source.index('trusted_processor.process_row(row, repository, deploy=True') < source.index('verified_completion(detail')
-    assert "preexec_fn=drop_hermes_privileges" in source
-    assert "os.setgroups([])" in source
-    assert "os.setgid(HERMES_GID)" in source
-    assert "os.setuid(HERMES_UID)" in source
-    assert "prctl(38, 1, 0, 0, 0)" in source
+    assert '"/usr/bin/setpriv", "--reuid", str(HERMES_UID)' in source
+    assert '"--clear-groups", "--no-new-privs", "--", *argv' in source
+    assert "preexec_fn=" not in source
+    assert '"util-linux"' in source
 
 
 def test_only_regular_bounded_json_profile_crosses_trust_boundary(tmp_path: Path) -> None:

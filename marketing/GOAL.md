@@ -79,9 +79,9 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Storefront cleanup: the separate catalog browser, homepage promo/link, projection data, stale 100-item inventory, and import tooling are removed; listing, dashboard, workflow, run, nav, library, host tooling, and MCP reads now converge on the single catalog without changing Worker auth or payment wiring.
 - Storefront visibility: every storefront render and direct-detail surface now uses a reversible 14-slug whitelist containing the existing four listings, nine education tools, and `skill-md-to-hosted-workflow`. The loader's local prerender exposes only its live $5/run CTA and honest fixture-only/no-provider limitations; public static activation still requires the coordinator-owned push.
 - SEO sitemap visibility: the prerender generator reads `OMO_VISIBLE_SLUGS` at build time, so `site/sitemap.xml` contains the 14 visible workflow slugs plus seven core pages; all 222 prerendered workflow directories remain on disk.
-- Universal workflow runtime release: PR #199 merged at `86361b0cfc67e5f6db805a2d90e7816b2121919a`; the reviewed builder routes bounded deterministic skills to a Worker-native `pure_data` executor, preserves existing `single_llm` and capability-backed Modal paths, and emits typed missing-capability blockers instead of arbitrary generated code. Cross-runtime parity passed 150 canonical digest vectors with zero mismatches, Python compiler/host 385 tests, Worker router 249 tests, pure-data Python 7 tests, pure-data JavaScript 9 tests, and generated contracts 3 tests. Harry approved the full controlled release sequence; the narrow builder/Worker pin-alignment PR, deployment and canary remain pending.
-- Next: (1) release the reviewed universal workflow runtime through focused PR and exact-merge deployment/canary; (2) coordinator pushes the local loader/catalog/listing plus corrective-fix commits and verifies the 14 production cards; (3) obtain Harry's explicit specific approval for the isolated Japanese Modal deploy and canary; (4) re-run an authenticated top-up + Woven checkout canary to confirm the live payment loop; (5) move Omo onto its own Stripe account; (6) rotate the live sk exposed in chat; (7) after Harry's explicit production approval, configure the reviewed live pilot-book slug, apply the additive pilot schema, set the magic-link secret, and deploy the Worker/static bridge; (8) run the 20 pilot canaries; (9) obtain Harry's explicit approval before any pilot email send.
-- Blockers: the public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); the exact active $0.99 PhonicsMaker book slug is not identified and the local magic-link release is not deployed; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
+- Universal workflow runtime release: PR #199 merged at `86361b0cfc67e5f6db805a2d90e7816b2121919a`; PR #200 aligned the Modal builder and production Worker selectors, both were deployed, and direct/same-origin route probes passed. The first real owner upload reached Modal as submission `sub_6384a14dda857e9a9a0429efb41dd53b` / dispatch `dispatch_ca31603bc8e000bc61ed4bc1b3e693e8` but failed in the `hermes` startup stage before compiler/release work because the dedicated Modal Nous invoke JWT was expired. The local repair now uses Gemini through a trusted-parent, localhost-only, per-run credential proxy: the permanent `GEMINI_API_KEY` remains only in the root Modal parent, the UID/GID 10001 Hermes child receives only a random local bearer and fixed loopback URL, and the boundary fixes `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` plus `gemini-2.5-flash`, rejects alternate paths/targets/redirects, bounds bodies/responses/time/requests/concurrency, uses `setpriv` instead of threaded pre-exec, buffers bounded responses before success, and fails closed on slowloris or uninterruptible outbound cleanup. The final independent OpenCode-boundary review PASS had no critical or important findings; the Gemini provider-only change now passes 348/348 host-skill tests, syntax/diff checks, a direct proxy sentinel, and three consecutive real UID 10001 Hermes-through-proxy runs with clean bounded shutdown. Final Gemini-specific independent review PASS found no critical or important findings; no push, deploy, production secret change, or Retry occurred.
+- Next: push the reviewed Gemini PR, verify CI, merge, provision the rollback-safe dedicated Modal secret plus a rotated build-worker token, deploy and smoke-test, then perform exactly one owner-scoped Retry and correlate the marketplace result.
+- Blockers: none before PR/merge/deployment; the public Retry itself still requires the existing authenticated owner session. The public static loader activation awaits the coordinator-owned push. Japanese Style Story Video's regenerated app separately awaits its exact live-change approval; Stripe LIVE runs on the shared PhonicsMaker Stripe account; a live sk was exposed in chat (rotation pending); the exact active $0.99 PhonicsMaker book slug is not identified and the local magic-link release is not deployed; existing signed-in account for a payment canary; the shared `omo-llm-runner` and Tier-1 runner; paid download fulfillment.
 
 ## Metrics (live)
 
@@ -92,6 +92,7 @@ rule break) live in /Users/yifan/marketplace/AGENTS.md and bind every run.
 - Refund/complaint rate: n/a
 
 ## Open proposals (awaiting Harry)
+
 
 ### PROPOSAL — social-x-identity-001 (awaiting Harry)
 
@@ -212,10 +213,8 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-First obtain approval for `loader-modal-redeploy-002` and finish the blocked
-direct loader canary. For builder breadth, implement the reusable semantic evidence adapters for the
-remaining schema-valid skills; the tabular domain orchestrator family and
-data-analysis endpoint routing are fixture-complete. Founder-desk holds remain
-the bounded search backend key, isolated safe-exec design, and image-generation
-provider approval. Separately, wait for Harry's explicit approval of
-`japanese-modal-deploy-001`; do not push from this profile.
+Wait for `opencode-go-balance-001`; do not run a recurring monitor or a blind
+Retry. After Harry restores usable balance, run one fresh bounded sentinel and
+record its actual result. The reviewed localhost credential boundary is locally
+ready, but push, merge, deployment, production secret mutation and marketplace
+Retry remain prohibited until a later explicit specific approval.
