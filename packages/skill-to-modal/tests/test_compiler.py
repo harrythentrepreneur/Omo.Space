@@ -42,7 +42,7 @@ SEMANTIC_INPUTS_PATH = SEMANTIC_REPLAY_PATH.with_name("semantic-adapter-inputs.j
 HARDENING_FIXTURE_PATH = SEMANTIC_REPLAY_PATH.with_name(
     "hardening-final-rerun.json"
 )
-PINNED_MEDIA_RUNTIME_VERSION = "8.1.2"
+PINNED_MEDIA_RUNTIME_VERSION = compiler.PLATFORM_CAPABILITY_DEPENDENCIES["ffmpeg_runtime"]["version"]
 
 
 def _has_pinned_media_runtime() -> bool:
@@ -1147,7 +1147,7 @@ def test_generated_video_binding_rejects_unpinned_media_runtime(
     not _has_pinned_media_runtime(),
     reason="the exact pinned FFmpeg/ffprobe runtime is required for the real media smoke",
 )
-def test_generated_video_binding_smoke_and_typed_domain_transitions(tmp_path: Path) -> None:
+def test_generated_video_binding_real_media_smoke(tmp_path: Path) -> None:
     profile = _video_contract_profile()
     files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
     output = tmp_path / "video-contract"
@@ -1209,6 +1209,27 @@ def test_generated_video_binding_smoke_and_typed_domain_transitions(tmp_path: Pa
     assert artifact["height"] == 160
     assert len(artifact["sha256"]) == 64
 
+
+def test_generated_video_binding_typed_domain_transitions(tmp_path: Path) -> None:
+    profile = _video_contract_profile()
+    files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
+    output = tmp_path / "video-domain-state-contract"
+    assert compiler.write_or_check(files, output, check=False) == 0
+    spec = importlib.util.spec_from_file_location(
+        "generated_video_domain_state_contract", output / "modal_app.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    artifact = {
+        "object_key": "runs/run-video-smoke/normalized.mp4",
+        "content_type": "video/mp4",
+        "codecs": {"video": "h264", "audio": "aac"},
+        "width": 90,
+        "height": 160,
+        "sha256": "a" * 64,
+    }
     now = [1_000.0]
     state = runtime.InMemoryDomainState(clock=lambda: now[0])
     queued = state.create("owner-a", run_id="run-video-smoke", ttl_seconds=60)
