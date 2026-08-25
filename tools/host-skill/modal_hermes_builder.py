@@ -32,6 +32,7 @@ MODAL_VERSION = "1.3.4"
 PYTEST_VERSION = "8.4.0"
 JSONSCHEMA_VERSION = "4.26.0"
 FASTAPI_VERSION = "0.109.0"
+NODE_MAJOR = "22"
 DEFAULT_MODEL = "gemini-2.5-flash"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 GEMINI_CHAT_COMPLETIONS_URL = GEMINI_BASE_URL + "/chat/completions"
@@ -72,9 +73,9 @@ REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 
 app = modal.App(APP_NAME)
 image = (
-    modal.Image.debian_slim(python_version="3.11")
+    modal.Image.from_registry(f"node:{NODE_MAJOR}-bookworm-slim", add_python="3.11")
     .env({"DEBIAN_FRONTEND": "noninteractive", "TZ": "UTC"})
-    .apt_install("ca-certificates", "curl", "gh", "git", "nodejs", "npm", "passwd", "util-linux")
+    .apt_install("ca-certificates", "curl", "gh", "git", "passwd", "util-linux")
     .run_commands(
         f"groupadd --gid {HERMES_GID} omo-hermes && "
         f"useradd --uid {HERMES_UID} --gid {HERMES_GID} --no-create-home --shell /usr/sbin/nologin omo-hermes"
@@ -818,10 +819,19 @@ def run_hermes_agent(
 def smoke() -> dict[str, Any]:
     started = time.monotonic()
     check = subprocess.run(["hermes", "--version"], text=True, capture_output=True, timeout=60, check=False)
+    node_check = subprocess.run(
+        [
+            "node", "--input-type=module", "--eval",
+            'import { DatabaseSync } from "node:sqlite"; new DatabaseSync(":memory:").close();',
+        ],
+        text=True, capture_output=True, timeout=60, check=False,
+    )
     return {
-        "ok": check.returncode == 0,
+        "ok": check.returncode == 0 and node_check.returncode == 0,
         "returncode": check.returncode,
         "hermes_version": HERMES_VERSION,
+        "node_major": NODE_MAJOR,
+        "node_sqlite": node_check.returncode == 0,
         "model": DEFAULT_MODEL,
         "provider": "gemini",
         "duration_ms": round((time.monotonic() - started) * 1000),

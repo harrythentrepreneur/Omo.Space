@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "modal_hermes_builder.py"
+SMOKE_SCRIPT = SCRIPT.with_name("modal_hermes_smoke.py")
 
 
 def load_builder():
@@ -34,6 +35,30 @@ def test_modal_image_includes_trusted_gate_dependencies() -> None:
     assert 'f"pytest=={PYTEST_VERSION}"' in source
     assert 'f"jsonschema=={JSONSCHEMA_VERSION}"' in source
     assert 'f"fastapi=={FASTAPI_VERSION}"' in source
+
+
+def test_modal_image_matches_worker_contract_node_runtime() -> None:
+    builder = load_builder()
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert builder.NODE_MAJOR == "22"
+    assert 'modal.Image.from_registry(f"node:{NODE_MAJOR}-bookworm-slim", add_python="3.11")' in source
+    assert '"nodejs"' not in source
+    assert '"npm"' not in source
+    assert 'import { DatabaseSync } from "node:sqlite"' in source
+    assert '"node_sqlite": node_check.returncode == 0' in source
+    assert '"node_major": NODE_MAJOR' in source
+    assert '"ok": check.returncode == 0 and node_check.returncode == 0' in source
+
+
+def test_credential_free_smoke_matches_worker_contract_node_runtime() -> None:
+    source = SMOKE_SCRIPT.read_text(encoding="utf-8")
+    assert 'NODE_MAJOR = "22"' in source
+    assert 'modal.Image.from_registry(f"node:{NODE_MAJOR}-bookworm-slim", add_python="3.11")' in source
+    assert '"nodejs"' not in source
+    assert '"npm"' not in source
+    assert 'import { DatabaseSync } from "node:sqlite"' in source
+    assert '"node_sqlite": node_check.returncode == 0' in source
+    assert '"ok": check.returncode == 0 and node_check.returncode == 0' in source
 
 
 def test_builder_and_worker_base_revision_pins_match() -> None:
