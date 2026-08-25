@@ -1121,6 +1121,12 @@ def test_generated_video_binding_rejects_unpinned_media_runtime(
     files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
     output = tmp_path / "video-contract-mismatch"
     assert compiler.write_or_check(files, output, check=False) == 0
+    # Mirror the generated Modal image: compiler.py bundles the reviewed
+    # renderer beside modal_app.py as /root/omo_video_renderer.py. The test
+    # must not rely on this repository's `tools` namespace winning import
+    # precedence over installed packages in the trusted builder image.
+    shutil.copyfile(ROOT / "tools" / "render" / "video.py", output / "omo_video_renderer.py")
+    monkeypatch.syspath_prepend(str(output))
     spec = importlib.util.spec_from_file_location(
         "generated_video_contract_mismatch", output / "modal_app.py"
     )
