@@ -1111,12 +1111,19 @@ def test_pure_data_generated_contract_documents_owner_scoped_polling() -> None:
     skill, profile = _pure_data_fixture()
     files = compiler.build_files(skill, profile)
     manifest = json.loads(files["manifest.json"])
+    readme = files["README.md"]
+    container = files["container.yaml"]
 
     assert manifest["endpoint"]["poll_path_template"] == "/v1/runs/{run_id}"
-    assert "  result_path: /v1/runs/{run_id}\n" in files["container.yaml"]
-    assert "  result_query: call_id,access_token\n" in files["container.yaml"]
-    assert "GET /v1/runs/{run_id}?call_id={call_id}&access_token={access_token}" in files["README.md"]
-    assert "GET /v1/runs/{call_id}" not in files["README.md"]
+    assert "  result_path: /v1/runs/{run_id}\n" in container
+    assert "  result_query: call_id,access_token\n" in container
+    assert "GET /v1/runs/{run_id}?call_id={call_id}&access_token={access_token}" in readme
+    assert "GET /v1/runs/{call_id}" not in readme
+    assert "deterministic provider-free job" in readme
+    assert "provider-backed job" not in readme
+    assert "named Modal secret" not in readme
+    assert "Blocked release: `503`" not in readme
+    assert "  not_ready_status: 503\n" not in container
 
 
 def test_pure_data_requires_exact_reviewed_source_hash() -> None:
