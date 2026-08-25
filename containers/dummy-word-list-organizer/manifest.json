@@ -1,0 +1,112 @@
+{
+  "artifacts": [],
+  "description": "Trim, deduplicate, and sort a bounded list of ASCII words without providers or external effects.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{run_id}"
+  },
+  "form": [
+    {
+      "field": "words",
+      "widget": "textarea"
+    },
+    {
+      "field": "remove_duplicates",
+      "widget": "checkbox"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "remove_duplicates": {
+        "default": true,
+        "type": "boolean"
+      },
+      "words": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "words"
+    ],
+    "type": "object"
+  },
+  "name": "dummy-word-list-organizer",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "final_count": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "original_count": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "sorted_words": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      }
+    },
+    "required": [
+      "status",
+      "original_count",
+      "final_count",
+      "sorted_words"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "reviewed_deterministic",
+    "report_path": "pricing-report.json"
+  },
+  "providers": [],
+  "pure_data": {
+    "program_digest": "sha256:40103f810402ebed176e4bb38e9d1c30bbe7bd4c27f515422f7007a35797d3fd",
+    "program_path": "runtime/pure-data-program.json",
+    "provenance": {
+      "compiler_version": "skill-to-modal/0.6.0",
+      "profile_version": "1.0.0",
+      "reviewed_source_sha256": "83e896077638d8f7796e648229bd361f3b517ab4199e45086a7ffcd1d95e045e"
+    }
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [],
+    "status": "ready"
+  },
+  "required_env_names": [],
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "dummy-word-list-organizer",
+  "source_sha256": "83e896077638d8f7796e648229bd361f3b517ab4199e45086a7ffcd1d95e045e",
+  "version": "1.0.0"
+}
