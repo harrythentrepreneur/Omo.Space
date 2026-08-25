@@ -1,0 +1,28 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "bounded deterministic CPU"
+  ],
+  "description": "Trim, deduplicate, and sort a bounded list of ASCII words without providers or external effects.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "dummy-word-list-organizer",
+  "parsed_workflow_steps": [],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "organize",
+      "operation": "pure_data.execute",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "dummy-word-list-organizer",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "83e896077638d8f7796e648229bd361f3b517ab4199e45086a7ffcd1d95e045e"
+  },
+  "unresolved": []
+}

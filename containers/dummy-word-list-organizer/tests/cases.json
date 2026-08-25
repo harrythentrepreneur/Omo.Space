@@ -1,0 +1,41 @@
+{
+  "happy_path": {
+    "input": {
+      "remove_duplicates": true,
+      "words": [
+        "banana",
+        " apple ",
+        "banana",
+        "pear"
+      ]
+    },
+    "output": {
+      "final_count": 3,
+      "original_count": 4,
+      "sorted_words": [
+        "apple",
+        "banana",
+        "pear"
+      ],
+      "status": "completed"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "empty",
+      "input": {
+        "words": []
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "control",
+      "input": {
+        "words": [
+          "bad\u0000word"
+        ]
+      },
+      "reason": "INVALID_VALUE"
+    }
+  ]
+}

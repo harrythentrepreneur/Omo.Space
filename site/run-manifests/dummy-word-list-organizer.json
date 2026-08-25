@@ -1,0 +1,157 @@
+{
+  "chargeable": true,
+  "container_slug": "dummy-word-list-organizer",
+  "examples": [
+    {
+      "caption": "Trim, deduplicate and sort",
+      "id": "word-list-organizer",
+      "input": {
+        "remove_duplicates": true,
+        "words": [
+          "banana",
+          " apple ",
+          "banana",
+          "pear"
+        ]
+      },
+      "output_preview": "Three sorted unique words with exact counts.",
+      "title": "Word List Organizer"
+    }
+  ],
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "remove_duplicates": {
+        "default": true,
+        "type": "boolean"
+      },
+      "words": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "words"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/dummy-word-list-organizer/schemas/input.json",
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "final_count": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "original_count": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "run_id": {
+        "type": "string"
+      },
+      "sorted_words": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "const": 0
+          },
+          "estimated_cost_usd": {
+            "const": 0
+          },
+          "llm_calls": {
+            "const": 0
+          },
+          "model": {
+            "const": "omo.pure-data/v1"
+          },
+          "prompt_tokens": {
+            "const": 0
+          },
+          "provider": {
+            "const": "worker-pure-data"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "dummy-word-list-organizer@1.0.0"
+      }
+    },
+    "required": [
+      "status",
+      "original_count",
+      "final_count",
+      "sorted_words",
+      "run_id",
+      "workflow_version",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/dummy-word-list-organizer/schemas/output.json",
+  "phases": [
+    {
+      "id": "validate",
+      "label": "Validating words"
+    },
+    {
+      "id": "transform",
+      "label": "Organizing list"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "dummy-word-list-organizer",
+  "ui": {
+    "fields": {
+      "remove_duplicates": {
+        "widget": "checkbox"
+      },
+      "words": {
+        "rows": 8,
+        "widget": "textarea"
+      }
+    },
+    "order": [
+      "words",
+      "remove_duplicates"
+    ]
+  }
+}
