@@ -211,6 +211,36 @@ def copy_reviewed_profile(source_checkout: Path, trusted_checkout: Path, slug: s
     return destination
 
 
+def pinned_reviewed_profile(checkout: Path, slug: str, source_sha256: str) -> Path | None:
+    """Return an exact immutable reviewed profile, or require fresh authoring."""
+    relative = Path("packages") / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile_path = checkout / relative
+    try:
+        profile_stat = profile_path.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise RuntimeError("pinned reviewed profile is unsafe") from error
+    if (
+        not stat.S_ISREG(profile_stat.st_mode)
+        or profile_path.is_symlink()
+        or profile_stat.st_size > MAX_PROFILE_BYTES
+    ):
+        raise RuntimeError("pinned reviewed profile is unsafe")
+    try:
+        profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(profile, dict):
+        return None
+    if (
+        str(profile.get("slug") or "") != slug
+        or str(profile.get("reviewed_source_sha256") or "") != source_sha256
+    ):
+        return None
+    return profile_path
+
+
 def chown_tree(path: Path, uid: int = HERMES_UID, gid: int = HERMES_GID) -> None:
     """Give the unprivileged authoring process only its disposable tree."""
     os.chown(path, uid, gid, follow_symlinks=False)
@@ -911,35 +941,39 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             if stat.S_IMODE(review_path.stat().st_mode) != 0o600 or hashlib.sha256(review_path.read_bytes()).hexdigest() != source_sha256:
                 raise RuntimeError("private source handoff failed")
 
-            stage = "hermes"
-            local_token = secrets.token_urlsafe(32)
-            with GeminiInferenceProxy(
-                str(os.environ["GEMINI_API_KEY"]), local_token
-            ) as inference_proxy:
-                env = hermes_environment(
-                    root,
-                    os.environ,
-                    proxy_base_url=inference_proxy.base_url,
-                    proxy_token=local_token,
-                )
-                # The parent retains permanent inference and release credentials
-                # as root. Hermes owns only disposable paths, a per-run loopback
-                # bearer, and cannot read the parent's /proc environment.
-                root.chmod(0o711)
-                chown_tree(checkout)
-                chown_tree(review_dir)
-                chown_tree(Path(env["HERMES_HOME"]))
-                model = DEFAULT_MODEL
-                prompt = builder_prompt(submission_id, slug, source_sha256, review_path, base_revision)
-                agent_returncode, hermes_reason = run_hermes_agent(
-                    [
-                        "hermes", "chat", "-q", prompt, "-Q",
-                        "--provider", "custom", "-m", model,
-                        "--toolsets", "file,skills",
-                    ],
-                    checkout,
-                    env,
-                )
+            model = "pinned-reviewed-profile"
+            agent_returncode = 0
+            hermes_reason = None
+            if pinned_reviewed_profile(checkout, slug, source_sha256) is None:
+                stage = "hermes"
+                local_token = secrets.token_urlsafe(32)
+                with GeminiInferenceProxy(
+                    str(os.environ["GEMINI_API_KEY"]), local_token
+                ) as inference_proxy:
+                    env = hermes_environment(
+                        root,
+                        os.environ,
+                        proxy_base_url=inference_proxy.base_url,
+                        proxy_token=local_token,
+                    )
+                    # The parent retains permanent inference and release credentials
+                    # as root. Hermes owns only disposable paths, a per-run loopback
+                    # bearer, and cannot read the parent's /proc environment.
+                    root.chmod(0o711)
+                    chown_tree(checkout)
+                    chown_tree(review_dir)
+                    chown_tree(Path(env["HERMES_HOME"]))
+                    model = DEFAULT_MODEL
+                    prompt = builder_prompt(submission_id, slug, source_sha256, review_path, base_revision)
+                    agent_returncode, hermes_reason = run_hermes_agent(
+                        [
+                            "hermes", "chat", "-q", prompt, "-Q",
+                            "--provider", "custom", "-m", model,
+                            "--toolsets", "file,skills",
+                        ],
+                        checkout,
+                        env,
+                    )
             if agent_returncode != 0:
                 repository.set_status(submission_id, "failed", "build_or_deploy_failed")
                 result = _safe_result(
