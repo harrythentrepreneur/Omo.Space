@@ -1099,7 +1099,9 @@ def reviewed_profile_artifact(
     source_sha256: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     canonical_path = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
-    profile = json.loads(canonical_path.read_text(encoding="utf-8"))
+    profile = promote_generated_candidate_for_release(
+        json.loads(canonical_path.read_text(encoding="utf-8"))
+    )
     effective_request = runtime_preference_for_reviewed_source(requested_runtime, source_sha256)
     if effective_request:
         profile["runtime_preference"] = effective_request
@@ -1107,6 +1109,22 @@ def reviewed_profile_artifact(
     profile_path = temp_dir / f"{slug}.reviewed-profile.json"
     profile_path.write_text(json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return profile_path, decision
+
+
+def promote_generated_candidate_for_release(profile: dict[str, Any]) -> dict[str, Any]:
+    promoted = json.loads(json.dumps(profile))
+    market = promoted.get("marketplace")
+    if not isinstance(market, dict):
+        return promoted
+    tags = market.get("tags")
+    if (
+        market.get("maker") == "Submitted skill"
+        and isinstance(tags, list)
+        and "generated-candidate" in tags
+    ):
+        market["catalog_managed"] = True
+        market["storefront_visible"] = True
+    return promoted
 
 
 def generated_runtime_metadata(slug: str, profile_path: Path, expected_source_sha256: str) -> dict[str, Any]:

@@ -4546,6 +4546,65 @@ window.OMO_CATALOG = [
     }
   }
   ,{
+    "category": "ops",
+    "cover": null,
+    "demoCap": "Bounded CPU-only deterministic transform; zero provider calls",
+    "desc": "Trim, deduplicate, and sort a bounded word list.",
+    "emoji": "\ud83d\udd24",
+    "exampleIn": "banana \u00b7 apple \u00b7 banana \u00b7 pear",
+    "exampleOut": [
+      "apple",
+      "banana",
+      "pear"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "words: 1\u201320 bounded strings",
+      "remove_duplicates: optional boolean"
+    ],
+    "maker": "Omo",
+    "makerName": "Omo Studio",
+    "name": "Word List Organizer",
+    "niche": "productivity",
+    "outputs": [
+      "sorted words",
+      "original and final counts"
+    ],
+    "priceMaintain": 0.0,
+    "priceOwn": 0.0,
+    "promise": "Clean and alphabetize a bounded word list.",
+    "runManifest": "run-manifests/dummy-word-list-organizer.json",
+    "runPrice": 0.1,
+    "slug": "dummy-word-list-organizer",
+    "tags": [
+      "deterministic",
+      "text",
+      "productivity"
+    ],
+    "upvotes": 0,
+    "version": "v1.0.0 \u00b7 2026-08-24",
+    "workflow": {
+      "steps": [
+        {
+          "label": "pure_data.execute",
+          "role": "organize",
+          "type": "pipeline"
+        },
+        {
+          "label": "Validating words",
+          "role": "validate",
+          "type": "pipeline"
+        },
+        {
+          "label": "Organizing list",
+          "role": "transform",
+          "type": "pipeline"
+        }
+      ]
+    }
+  }
+  ,{
     "category": "business",
     "cover": "covers/meta-ads-analyser.svg",
     "demoCap": "Hosted run: Turn pasted Meta Ads evidence into a source-grounded account diagnosis with measurement caveats, prioritized next steps, and draft-only changes",
@@ -7635,6 +7694,9 @@ window.OMO_CATALOG = [
 // Storefront visibility is intentionally separate from the full catalog so
 // every listing can be restored without changing or deleting catalog data.
 window.OMO_VISIBLE_SLUGS = [
+  // host-skill:visible:start
+  'dummy-word-list-organizer',
+  // host-skill:visible:end
   'japanese-style-story-video',
   'woven-relationship-book-maker',
   'customer-feedback-theme-finder',

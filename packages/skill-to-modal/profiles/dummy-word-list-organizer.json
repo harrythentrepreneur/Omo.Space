@@ -65,7 +65,8 @@
     "bounded words"
   ],
   "marketplace": {
-    "catalog_managed": false,
+    "catalog_managed": true,
+    "storefront_visible": true,
     "category": "ops",
     "cover": null,
     "demo_cap": "Bounded CPU-only deterministic transform; zero provider calls",

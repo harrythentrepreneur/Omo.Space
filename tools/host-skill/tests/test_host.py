@@ -206,6 +206,28 @@ def test_catalog_patch_is_idempotent() -> None:
     assert first.count(host.CATALOG_END) == 1
 
 
+def test_catalog_patch_publishes_explicitly_visible_reviewed_profile() -> None:
+    profile, manifest, pricing = pure_data_compiled_inputs()
+    profile["marketplace"]["catalog_managed"] = True
+    profile["marketplace"]["storefront_visible"] = True
+    hosted = host.build_hosted_profile(profile, manifest, pricing)
+    source = (
+        "window.OMO_CATALOG = [\n"
+        f"{host.CATALOG_START}\n{host.CATALOG_END}\n"
+        "];\n"
+        "window.OMO_VISIBLE_SLUGS = [\n  'legacy'\n];\n"
+    )
+
+    first = host.patch_catalog(source, [hosted])
+    second = host.patch_catalog(first, [hosted])
+
+    assert first == second
+    assert '"slug": "dummy-word-list-organizer"' in first
+    assert "'dummy-word-list-organizer'" in first.split(
+        "window.OMO_VISIBLE_SLUGS = [", 1
+    )[1]
+
+
 def test_catalog_patch_preserves_content_after_generated_marker() -> None:
     profile, manifest, pricing = compiled_inputs()
     profile["runtime_preference"] = "modal-hosted"

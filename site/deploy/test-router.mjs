@@ -556,6 +556,7 @@ const wovenRunManifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'run-m
 const wovenContainerInput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'woven-storybook-pipeline', 'schemas', 'input.json'), 'utf8'));
 const wovenContainerOutput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'woven-storybook-pipeline', 'schemas', 'output.json'), 'utf8'));
 const facebookListing = catalogSandbox.window.OMO_CATALOG.find((listing) => listing.slug === 'facebook-ads-copywriter');
+const dummyVisibleListing = catalogSandbox.window.OMO_VISIBLE_CATALOG.find((listing) => listing.slug === 'dummy-word-list-organizer');
 const facebookRunManifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'run-manifests', 'facebook-ads-copywriter.json'), 'utf8'));
 const facebookContainerInput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'schemas', 'input.json'), 'utf8'));
 const facebookContainerOutput = JSON.parse(fs.readFileSync(path.join(here, '..', '..', 'containers', 'facebook-ads-copywriter', 'schemas', 'output.json'), 'utf8'));
@@ -582,6 +583,7 @@ check('run manifest: Woven browser schemas stay aligned with generated container
 check('catalog: Woven listing and hosted manifest publish the same $0.40 run price', wovenListing.runPrice === 0.4 && wovenRunManifest.price_usd === 0.4 && wovenListing.runManifest === 'run-manifests/woven-relationship-book-maker.json');
 check('run manifest: Facebook Ads browser schemas stay aligned with its generated container', JSON.stringify(canonical(facebookRunManifest.input_schema)) === JSON.stringify(canonical(facebookContainerInput)) && JSON.stringify(canonical(facebookRunManifest.output_schema)) === JSON.stringify(canonical(facebookContainerOutput)));
 check('catalog: Facebook Ads listing and hosted manifest publish the modeled $0.10 price', facebookListing.runPrice === 0.1 && facebookRunManifest.price_usd === 0.1 && facebookListing.runManifest === 'run-manifests/facebook-ads-copywriter.json');
+check('catalog: promoted dummy workflow resolves through the browser-visible lookup', dummyVisibleListing && dummyVisibleListing.slug === 'dummy-word-list-organizer' && dummyVisibleListing.runManifest === 'run-manifests/dummy-word-list-organizer.json');
 check('catalog cards: per-run prices render to two decimal places', indexSource.includes("Number(p.runPrice || p.priceRun || 0).toFixed(2)"));
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
 check('run page: textarea array inputs accept one item per line and examples preserve lines', runPageSource.includes("component: 'ArrayTextField'") && runPageSource.includes("value = multilineArrayValue(control.value)") && runPageSource.includes("values[key].join('\\n')"));

@@ -41,6 +41,52 @@ def write_profile(tmp_path: Path, runtime_preference: str) -> Path:
     return profile_path
 
 
+def test_generated_candidate_is_promoted_only_at_trusted_release_boundary() -> None:
+    process = load_process_submissions()
+    profile = {
+        "marketplace": {
+            "catalog_managed": False,
+            "storefront_visible": False,
+            "maker": "Submitted skill",
+            "tags": ["skill-md", "generated-candidate"],
+        }
+    }
+
+    promoted = process.promote_generated_candidate_for_release(profile)
+
+    assert profile["marketplace"]["catalog_managed"] is False
+    assert promoted["marketplace"]["catalog_managed"] is True
+    assert promoted["marketplace"]["storefront_visible"] is True
+
+
+@pytest.mark.parametrize(
+    "marketplace",
+    [
+        {"maker": "Submitted skill", "tags": ["skill-md"]},
+        {"maker": "Omo", "tags": ["generated-candidate"]},
+        {"maker": "Submitted skill", "tags": "generated-candidate"},
+        {},
+    ],
+)
+def test_non_candidate_profiles_are_never_promoted(marketplace: dict) -> None:
+    process = load_process_submissions()
+    profile = {"marketplace": marketplace}
+
+    promoted = process.promote_generated_candidate_for_release(profile)
+
+    assert promoted["marketplace"].get("catalog_managed") is not True
+    assert promoted["marketplace"].get("storefront_visible") is not True
+
+
+def test_candidate_promotion_occurs_after_the_review_gate() -> None:
+    source = PROCESS_PATH.read_text(encoding="utf-8")
+    process_row = source.index("def process_row(")
+    gate = source.index('if state != "ready_for_build":', process_row)
+    release_profile = source.index("reviewed_profile_artifact(", gate)
+
+    assert gate < release_profile
+
+
 def test_modal_canary_missing_proxy_pair_is_typed_before_network(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     profile_path = write_profile(tmp_path, "modal-hosted")

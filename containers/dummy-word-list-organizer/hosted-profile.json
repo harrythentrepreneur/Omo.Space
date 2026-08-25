@@ -58,7 +58,7 @@
       ]
     }
   },
-  "catalog_managed": false,
+  "catalog_managed": true,
   "generator": "tools/host-skill/1.0.0",
   "run_manifest": {
     "chargeable": true,
@@ -457,5 +457,6 @@
     "run_price_usd": 0.1,
     "slug": "dummy-word-list-organizer",
     "system_prompt": "Execute the reviewed deterministic pure-data pipeline."
-  }
+  },
+  "storefront_visible": true
 }
