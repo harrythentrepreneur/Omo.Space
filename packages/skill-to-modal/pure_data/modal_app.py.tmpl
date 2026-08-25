@@ -69,8 +69,12 @@ def _owner(value: str) -> str:
     return value
 
 
-def _run_id(owner: str, token: str) -> str:
-    return "run-" + hashlib.sha256((WORKFLOW_VERSION + "\0" + _owner(owner) + "\0" + token).encode()).hexdigest()[:32]
+def _run_id(owner: str, token: str, call_id: str) -> str:
+    if not isinstance(call_id, str) or not 2 <= len(call_id) <= 200:
+        raise ValueError("CALL_ID_INVALID")
+    return "run-" + hashlib.sha256(
+        (WORKFLOW_VERSION + "\0" + _owner(owner) + "\0" + token + "\0" + call_id).encode()
+    ).hexdigest()[:32]
 
 
 runtime_image = (
@@ -108,14 +112,14 @@ def create_fastapi_app(spawn_runner: SpawnRunner | None = None, lookup_result: L
         except Exception as exc:
             raise HTTPException(status_code=422, detail="invalid_input_or_owner") from exc
         token = secrets.token_urlsafe(32)
-        run_id = _run_id(owner, token)
-        call_id = spawn({"input": body, "owner_id": owner, "run_id": run_id})
+        call_id = spawn({"input": body, "owner_id": owner})
+        run_id = _run_id(owner, token, call_id)
         return {"run_id": run_id, "call_id": call_id, "status": "accepted", "result_url": f"/v1/runs/{run_id}?call_id={call_id}&access_token={token}"}
 
     @web.get("/v1/runs/{run_id}")
     async def poll(run_id: str, call_id: str = Query(...), access_token: str = Query(...), x_omo_owner_id: str | None = Header(default=None, alias="X-Omo-Owner-Id")) -> Any:
         try:
-            if run_id != _run_id(_owner(x_omo_owner_id or ""), access_token):
+            if run_id != _run_id(_owner(x_omo_owner_id or ""), access_token, call_id):
                 raise ValueError("owner mismatch")
         except ValueError as exc:
             raise HTTPException(status_code=404, detail="run_not_found") from exc

@@ -1055,6 +1055,70 @@ def test_pure_data_compiles_canonical_program_with_exact_provenance_and_executes
     assert all(token not in source for token in ("eval(", "exec(", "subprocess", "modal.Secret", "urllib", "requests"))
 
 
+def test_pure_data_poll_binds_modal_call_to_owner_scoped_run(tmp_path: Path) -> None:
+    skill, profile = _pure_data_fixture()
+    files = compiler.build_files(skill, profile)
+    output = tmp_path / "pure-data-owner-scope"
+    assert compiler.write_or_check(files, output, check=False) == 0
+    spec = importlib.util.spec_from_file_location(
+        "generated_pure_data_owner_scope", output / "modal_app.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    looked_up: list[str] = []
+
+    def lookup(call_id: str) -> dict:
+        looked_up.append(call_id)
+        return profile["happy_path"]["output"]
+
+    web = runtime.create_fastapi_app(
+        spawn_runner=lambda _envelope: "fc-owned",
+        lookup_result=lookup,
+    )
+    submit = next(route for route in web.routes if route.path == "/v1/runs")
+    poll = next(route for route in web.routes if route.path == "/v1/runs/{run_id}")
+    accepted = asyncio.run(
+        submit.endpoint(profile["happy_path"]["input"], x_omo_owner_id="owner-1")
+    )
+    access_token = accepted["result_url"].split("access_token=", 1)[1]
+
+    with pytest.raises(Exception) as error:
+        asyncio.run(
+            poll.endpoint(
+                accepted["run_id"],
+                call_id="fc-other",
+                access_token=access_token,
+                x_omo_owner_id="owner-1",
+            )
+        )
+    assert getattr(error.value, "status_code", None) == 404
+    assert looked_up == []
+
+    assert asyncio.run(
+        poll.endpoint(
+            accepted["run_id"],
+            call_id="fc-owned",
+            access_token=access_token,
+            x_omo_owner_id="owner-1",
+        )
+    ) == profile["happy_path"]["output"]
+    assert looked_up == ["fc-owned"]
+
+
+def test_pure_data_generated_contract_documents_owner_scoped_polling() -> None:
+    skill, profile = _pure_data_fixture()
+    files = compiler.build_files(skill, profile)
+    manifest = json.loads(files["manifest.json"])
+
+    assert manifest["endpoint"]["poll_path_template"] == "/v1/runs/{run_id}"
+    assert "  result_path: /v1/runs/{run_id}\n" in files["container.yaml"]
+    assert "  result_query: call_id,access_token\n" in files["container.yaml"]
+    assert "GET /v1/runs/{run_id}?call_id={call_id}&access_token={access_token}" in files["README.md"]
+    assert "GET /v1/runs/{call_id}" not in files["README.md"]
+
+
 def test_pure_data_requires_exact_reviewed_source_hash() -> None:
     skill, profile = _pure_data_fixture()
     profile["reviewed_source_sha256"] = "0" * 64

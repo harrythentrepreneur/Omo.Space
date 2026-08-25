@@ -213,8 +213,12 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-Wait for `opencode-go-balance-001`; do not run a recurring monitor or a blind
-Retry. After Harry restores usable balance, run one fresh bounded sentinel and
-record its actual result. The reviewed localhost credential boundary is locally
-ready, but push, merge, deployment, production secret mutation and marketplace
-Retry remain prohibited until a later explicit specific approval.
+PR #211 is blocked and must not merge. Review found that the pure-data Modal
+candidate authenticated owner/run identity without binding the independently
+supplied Modal `call_id`, generated README/container polling contracts disagreed
+with the implementation, and pure-data catalog metadata incorrectly said media.
+The generator-level correction is locally green with failing-first regressions,
+406 trusted-gate tests, 351 host tests and 249 Worker tests. Next: independent
+review, then request Harry's explicit approval before remote push or production
+change. After merge, align exact builder/Worker selectors, dual-deploy and smoke,
+then regenerate the release through one guarded retry; never hand-edit PR #211.
