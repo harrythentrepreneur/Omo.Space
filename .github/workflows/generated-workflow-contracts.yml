@@ -30,7 +30,7 @@ jobs:
       - name: Python host/compiler/render contracts
         run: |
           PYTHON_BIN="$(command -v python)"
-          sudo env PYTHONPATH=. "$PYTHON_BIN" -m pytest -q tools/host-skill/tests tools/skill-to-modal/tests tools/render/tests
+          sudo env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. "$PYTHON_BIN" -m pytest -q tools/host-skill/tests tools/skill-to-modal/tests tools/render/tests
       - name: Worker and API contracts
         run: |
           node site/deploy/test-workers.mjs
