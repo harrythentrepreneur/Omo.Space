@@ -192,7 +192,7 @@ class BlockingOpener:
 
 def proxy_request(proxy, *, token: str, path: str = "/v1/chat/completions", body: dict | None = None, host: str = "attacker.invalid"):
     connection = http.client.HTTPConnection("127.0.0.1", proxy.port, timeout=3)
-    payload = json.dumps(body or {"model": "deepseek-v4-pro", "messages": []}).encode()
+    payload = json.dumps(body or {"model": "gemini-2.5-flash", "messages": []}).encode()
     connection.request(
         "POST", path, body=payload,
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Host": host},
@@ -206,10 +206,10 @@ def proxy_request(proxy, *, token: str, path: str = "/v1/chat/completions", body
 
 def test_hermes_environment_contains_only_ephemeral_proxy_credential(tmp_path: Path) -> None:
     builder = load_builder()
-    permanent = "opencode-permanent-key-sentinel"
+    permanent = "gemini-permanent-key-sentinel"
     local_token = "local-per-run-token"
     env = builder.hermes_environment(tmp_path, {
-        "OPENCODE_GO_API_KEY": permanent,
+        "GEMINI_API_KEY": permanent,
         "BUILD_WORKER_TOKEN": "worker-secret",
         "GH_TOKEN": "github-secret",
         "TELEGRAM_BOT_TOKEN": "remove-me",
@@ -219,7 +219,7 @@ def test_hermes_environment_contains_only_ephemeral_proxy_credential(tmp_path: P
     config_text = (home / "config.yaml").read_text()
     config = json.loads(config_text)
     assert config["model"] == {
-        "provider": "custom", "default": "deepseek-v4-pro",
+        "provider": "custom", "default": "gemini-2.5-flash",
         "base_url": "http://127.0.0.1:41823/v1", "api_key": local_token,
         "api_mode": "chat_completions",
     }
@@ -230,7 +230,7 @@ def test_hermes_environment_contains_only_ephemeral_proxy_credential(tmp_path: P
     serialized_env = json.dumps(env, sort_keys=True)
     assert permanent not in serialized_env
     assert permanent not in config_text
-    assert "OPENCODE_GO_API_KEY" not in env
+    assert "GEMINI_API_KEY" not in env
     assert "BUILD_WORKER_TOKEN" not in env
     assert "GH_TOKEN" not in env
     assert "TELEGRAM_BOT_TOKEN" not in env
@@ -240,7 +240,7 @@ def test_hermes_environment_contains_only_ephemeral_proxy_credential(tmp_path: P
 def test_proxy_rejects_invalid_local_bearer_without_upstream_request() -> None:
     builder = load_builder()
     opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
-    with builder.OpenCodeInferenceProxy("permanent-key", "valid-local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy("permanent-key", "valid-local-token", opener=opener) as proxy:
         status, _headers, body = proxy_request(proxy, token="wrong-token")
     assert status == 401
     assert opener.requests == []
@@ -250,11 +250,11 @@ def test_proxy_rejects_invalid_local_bearer_without_upstream_request() -> None:
 def test_proxy_fixes_upstream_path_host_model_and_strips_headers() -> None:
     builder = load_builder()
     opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
-    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
         rejected_path = proxy_request(proxy, token="local-token", path="/v1/models")
         rejected_target = proxy_request(
             proxy, token="local-token",
-            body={"model": "deepseek-v4-pro", "messages": [], "base_url": "https://attacker.invalid/v1"},
+            body={"model": "gemini-2.5-flash", "messages": [], "base_url": "https://attacker.invalid/v1"},
         )
         rejected_model = proxy_request(proxy, token="local-token", body={"model": "other", "messages": []})
         status, headers, body = proxy_request(proxy, token="local-token", host="attacker.invalid")
@@ -265,16 +265,16 @@ def test_proxy_fixes_upstream_path_host_model_and_strips_headers() -> None:
     assert "X-Upstream-Secret" not in headers
     assert len(opener.requests) == 1
     request, timeout = opener.requests[0]
-    assert request.full_url == "https://opencode.ai/zen/go/v1/chat/completions"
+    assert request.full_url == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
     assert request.get_header("Authorization") == "Bearer permanent-key"
     assert request.get_header("Host") is None
-    assert 0 < timeout <= builder.OPENCODE_PROXY_TOTAL_TIMEOUT_SECONDS
+    assert 0 < timeout <= builder.GEMINI_PROXY_TOTAL_TIMEOUT_SECONDS
 
 
 def test_proxy_enforces_request_budget() -> None:
     builder = load_builder()
     opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
-    with builder.OpenCodeInferenceProxy(
+    with builder.GeminiInferenceProxy(
         "permanent-key", "local-token", opener=opener, max_requests=1,
     ) as proxy:
         first = proxy_request(proxy, token="local-token")
@@ -289,14 +289,14 @@ def test_proxy_maps_raw_upstream_errors_without_leaking_key_or_body() -> None:
     permanent = "permanent-key-sentinel"
     raw_error = b'provider failure permanent-key-sentinel RAW_ERROR_SENTINEL'
     error = urllib.error.HTTPError(
-        builder.OPENCODE_GO_CHAT_COMPLETIONS_URL, 401, permanent, {}, io.BytesIO(raw_error)
+        builder.GEMINI_CHAT_COMPLETIONS_URL, 401, permanent, {}, io.BytesIO(raw_error)
     )
     opener = RecordingOpener(error)
-    with builder.OpenCodeInferenceProxy(permanent, "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy(permanent, "local-token", opener=opener) as proxy:
         status, headers, body = proxy_request(proxy, token="local-token")
     assert status == 502
     assert headers["Content-Type"] == "application/json"
-    assert json.loads(body)["error"]["code"] == "opencode_auth_failed"
+    assert json.loads(body)["error"]["code"] == "gemini_auth_failed"
     assert permanent.encode() not in body
     assert b"RAW_ERROR_SENTINEL" not in body
 
@@ -305,10 +305,10 @@ def test_proxy_rejects_success_body_that_reflects_permanent_key() -> None:
     builder = load_builder()
     permanent = "permanent-key-sentinel"
     opener = RecordingOpener(FakeResponse(b'{"debug":"permanent-key-sentinel"}'))
-    with builder.OpenCodeInferenceProxy(permanent, "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy(permanent, "local-token", opener=opener) as proxy:
         status, _headers, body = proxy_request(proxy, token="local-token")
     assert status == 502
-    assert json.loads(body)["error"]["code"] == "opencode_response_rejected"
+    assert json.loads(body)["error"]["code"] == "gemini_response_rejected"
     assert permanent.encode() not in body
 
 
@@ -316,10 +316,10 @@ def test_proxy_streams_bounded_success_response() -> None:
     builder = load_builder()
     payload = b"data: first\n\ndata: second\n\n"
     opener = RecordingOpener(FakeResponse(payload, content_type="text/event-stream"))
-    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
         status, headers, body = proxy_request(
             proxy, token="local-token",
-            body={"model": "deepseek-v4-pro", "messages": [], "stream": True},
+            body={"model": "gemini-2.5-flash", "messages": [], "stream": True},
         )
     assert status == 200 and body == payload
     assert headers["Content-Type"] == "text/event-stream"
@@ -329,33 +329,33 @@ def test_proxy_streams_bounded_success_response() -> None:
 
 def test_proxy_undeclared_response_overflow_is_typed_before_success(monkeypatch) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "OPENCODE_PROXY_MAX_RESPONSE_BYTES", 8)
+    monkeypatch.setattr(builder, "GEMINI_PROXY_MAX_RESPONSE_BYTES", 8)
     opener = RecordingOpener(FakeResponse(b"0123456789"))
-    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
         status, _headers, body = proxy_request(proxy, token="local-token")
     assert status == 502
-    assert json.loads(body)["error"]["code"] == "opencode_response_too_large"
+    assert json.loads(body)["error"]["code"] == "gemini_response_too_large"
 
 
 def test_proxy_total_deadline_stops_periodic_upstream(monkeypatch) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "OPENCODE_PROXY_TOTAL_TIMEOUT_SECONDS", 0.08)
+    monkeypatch.setattr(builder, "GEMINI_PROXY_TOTAL_TIMEOUT_SECONDS", 0.08)
     response = PeriodicResponse(b"")
     opener = RecordingOpener(response)
     started = time.monotonic()
-    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
         status, _headers, body = proxy_request(proxy, token="local-token")
     assert time.monotonic() - started < 1
     assert status == 504
-    assert json.loads(body)["error"]["code"] == "opencode_inference_timeout"
+    assert json.loads(body)["error"]["code"] == "gemini_inference_timeout"
     assert response.closed
 
 
 def test_proxy_inbound_deadline_is_cancelled_before_slow_valid_inference(monkeypatch) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "OPENCODE_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(builder, "GEMINI_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS", 0.05)
     opener = RecordingOpener(DelayedResponse(b'{"ok":true}', 0.12))
-    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
         status, _headers, body = proxy_request(proxy, token="local-token")
     assert status == 200
     assert body == b'{"ok":true}'
@@ -365,7 +365,7 @@ def test_proxy_exit_closes_blocked_upstream_and_waits_for_handler() -> None:
     builder = load_builder()
     response = BlockingResponse()
     opener = RecordingOpener(response)
-    proxy = builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener)
+    proxy = builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener)
     proxy.__enter__()
     result: list[object] = []
 
@@ -388,13 +388,13 @@ def test_proxy_exit_closes_blocked_upstream_and_waits_for_handler() -> None:
 def test_proxy_rejects_excessive_headers() -> None:
     builder = load_builder()
     opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
-    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
         connection = http.client.HTTPConnection("127.0.0.1", proxy.port, timeout=3)
-        payload = json.dumps({"model": "deepseek-v4-pro", "messages": []}).encode()
+        payload = json.dumps({"model": "gemini-2.5-flash", "messages": []}).encode()
         connection.request("POST", "/v1/chat/completions", body=payload, headers={
             "Authorization": "Bearer local-token",
             "Content-Type": "application/json",
-            "X-Padding": "x" * (builder.OPENCODE_PROXY_MAX_HEADER_BYTES + 1),
+            "X-Padding": "x" * (builder.GEMINI_PROXY_MAX_HEADER_BYTES + 1),
         })
         response = connection.getresponse()
         body = response.read()
@@ -406,9 +406,9 @@ def test_proxy_rejects_excessive_headers() -> None:
 
 def test_proxy_total_deadline_closes_slow_header_connection(monkeypatch) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "OPENCODE_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(builder, "GEMINI_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS", 0.2)
     opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
-    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
         client = socket.create_connection(("127.0.0.1", proxy.port), timeout=2)
         request = (
             b"POST /v1/chat/completions HTTP/1.1\r\n"
@@ -427,10 +427,32 @@ def test_proxy_total_deadline_closes_slow_header_connection(monkeypatch) -> None
     assert opener.requests == []
 
 
+def test_proxy_shutdown_allows_bounded_local_connection_drain() -> None:
+    builder = load_builder()
+    proxy = builder.GeminiInferenceProxy("permanent-key", "local-token")
+    proxy.__enter__()
+    left, right = socket.socketpair()
+    with proxy._active_lock:
+        proxy._active_connections.add(left)
+
+    def finish_connection() -> None:
+        time.sleep(2)
+        with proxy._active_lock:
+            proxy._active_connections.discard(left)
+
+    finisher = threading.Thread(target=finish_connection)
+    finisher.start()
+    started = time.monotonic()
+    proxy.__exit__(None, None, None)
+    finisher.join(timeout=2)
+    right.close()
+    assert 1.5 <= time.monotonic() - started < 5
+
+
 def test_proxy_shutdown_fails_closed_when_outbound_open_cannot_cancel() -> None:
     builder = load_builder()
     opener = BlockingOpener()
-    proxy = builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener)
+    proxy = builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener)
     proxy.__enter__()
 
     def request() -> None:
@@ -445,7 +467,7 @@ def test_proxy_shutdown_fails_closed_when_outbound_open_cannot_cancel() -> None:
     started = time.monotonic()
     with pytest.raises(RuntimeError, match="handlers did not terminate"):
         proxy.__exit__(None, None, None)
-    assert time.monotonic() - started < 2
+    assert time.monotonic() - started < 6
     opener.released.set()
     client.join(timeout=2)
 
@@ -453,7 +475,7 @@ def test_proxy_shutdown_fails_closed_when_outbound_open_cannot_cancel() -> None:
 def test_proxy_tracks_socket_before_handler_thread_starts(monkeypatch) -> None:
     builder = load_builder()
     opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
-    proxy = builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener)
+    proxy = builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener)
     proxy.__enter__()
     real_start = threading.Thread.start
     captured: list[threading.Thread] = []
@@ -468,7 +490,7 @@ def test_proxy_tracks_socket_before_handler_thread_starts(monkeypatch) -> None:
 
     monkeypatch.setattr(threading.Thread, "start", gated_start)
     client = socket.create_connection(("127.0.0.1", proxy.port), timeout=2)
-    payload = json.dumps({"model": "deepseek-v4-pro", "messages": []}).encode()
+    payload = json.dumps({"model": "gemini-2.5-flash", "messages": []}).encode()
     client.sendall(
         b"POST /v1/chat/completions HTTP/1.1\r\nHost: 127.0.0.1\r\n"
         b"Authorization: Bearer local-token\r\nContent-Type: application/json\r\n"
@@ -486,18 +508,19 @@ def test_proxy_tracks_socket_before_handler_thread_starts(monkeypatch) -> None:
         thread.join(timeout=2)
 
 
-def test_builder_declares_single_opencode_secret_without_nous_volume() -> None:
+def test_builder_declares_single_gemini_secret_without_nous_volume() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
-    assert 'required = ("OPENCODE_GO_API_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")' in source
+    assert 'SECRET_NAME = "omo-hermes-builder-gemini"' in source
+    assert 'required = ("GEMINI_API_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")' in source
     assert "NOUS_REFRESH_SECRET_NAME" not in source
     assert "NOUS_AUTH_VOLUME_NAME" not in source
     assert "nous_auth_volume" not in source
     assert "volumes={" not in source
 
 
-def test_opencode_auth_preparation_exception_is_typed() -> None:
+def test_gemini_auth_preparation_exception_is_typed() -> None:
     builder = load_builder()
-    assert builder.classify_builder_exception("hermes", RuntimeError("OpenCode Go credential is missing")) == "opencode_auth_failed"
+    assert builder.classify_builder_exception("hermes", RuntimeError("Gemini credential is missing")) == "gemini_auth_failed"
     assert builder.classify_builder_exception("checkout", RuntimeError("anything")) == "builder_internal_failed"
 
 
@@ -505,7 +528,7 @@ def test_builder_model_is_fixed_not_environment_selected() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
     assert 'model = DEFAULT_MODEL' in source
     assert 'environ.get("OMO_BUILDER_MODEL"' not in source
-    assert builder_model_from_source(source) == "deepseek-v4-pro"
+    assert builder_model_from_source(source) == "gemini-2.5-flash"
 
 
 def builder_model_from_source(source: str) -> str:
@@ -518,9 +541,9 @@ def test_hermes_failure_classifier_is_closed_and_never_returns_raw_text() -> Non
     builder = load_builder()
     sentinel = "SENTINEL_MUST_NOT_ESCAPE"
     cases = {
-        f"opencode_auth_failed {sentinel}": "opencode_auth_failed",
+        f"gemini_auth_failed {sentinel}": "gemini_auth_failed",
         f"401 unauthorized {sentinel}": "hermes_auth_failed",
-        f"model deepseek-v4-pro not found {sentinel}": "hermes_model_failed",
+        f"model gemini-2.5-flash not found {sentinel}": "hermes_model_failed",
         f"approval required {sentinel}": "hermes_approval_failed",
         f"maximum turns reached {sentinel}": "hermes_turn_limit",
         f"permission denied {sentinel}": "hermes_permission_failed",
@@ -536,7 +559,7 @@ def test_setpriv_launcher_starts_repeatedly_while_proxy_thread_is_active(tmp_pat
     tmp_path.chmod(0o755)
     opener = RecordingOpener(FakeResponse(b'{"ok":true}'))
     started = time.monotonic()
-    with builder.OpenCodeInferenceProxy("permanent-key", "local-token", opener=opener):
+    with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener):
         for _ in range(12):
             returncode, _reason = builder.run_hermes_agent(
                 [sys.executable, "-c", "raise SystemExit(0)"],

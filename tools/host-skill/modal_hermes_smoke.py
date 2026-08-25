@@ -5,7 +5,7 @@ import modal
 
 HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
-DEFAULT_MODEL = "deepseek-v4-pro"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 smoke_app = modal.App("omo-hermes-builder-smoke")
 image = (
@@ -27,7 +27,7 @@ def smoke() -> dict[str, object]:
         "ok": check.returncode == 0,
         "returncode": check.returncode,
         "hermes_version": HERMES_VERSION,
-        "provider": "opencode-go",
+        "provider": "gemini",
         "model": DEFAULT_MODEL,
         "duration_ms": round((time.monotonic() - started) * 1000),
     }

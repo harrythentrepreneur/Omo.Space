@@ -25,25 +25,27 @@ from typing import Any, Mapping
 import modal
 
 APP_NAME = "omo-hermes-builder"
-SECRET_NAME = "omo-hermes-builder"
+SECRET_NAME = "omo-hermes-builder-gemini"
 DISPATCH_STORE = "omo-hermes-builder-dispatches"
 HERMES_VERSION = "0.18.2"
 MODAL_VERSION = "1.3.4"
 PYTEST_VERSION = "8.4.0"
 JSONSCHEMA_VERSION = "4.26.0"
 FASTAPI_VERSION = "0.109.0"
-DEFAULT_MODEL = "deepseek-v4-pro"
-OPENCODE_GO_BASE_URL = "https://opencode.ai/zen/go/v1"
-OPENCODE_GO_CHAT_COMPLETIONS_URL = OPENCODE_GO_BASE_URL + "/chat/completions"
-OPENCODE_PROXY_MAX_REQUEST_BYTES = 4 * 1024 * 1024
-OPENCODE_PROXY_MAX_RESPONSE_BYTES = 32 * 1024 * 1024
-OPENCODE_PROXY_MAX_REQUESTS = 80
-OPENCODE_PROXY_UPSTREAM_TIMEOUT_SECONDS = 180
-OPENCODE_PROXY_TOTAL_TIMEOUT_SECONDS = 180
-OPENCODE_PROXY_INBOUND_TIMEOUT_SECONDS = 15
-OPENCODE_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS = 15
-OPENCODE_PROXY_MAX_HEADER_BYTES = 16 * 1024
-OPENCODE_PROXY_MAX_CONCURRENT_HANDLERS = 4
+DEFAULT_MODEL = "gemini-2.5-flash"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+GEMINI_CHAT_COMPLETIONS_URL = GEMINI_BASE_URL + "/chat/completions"
+GEMINI_PROXY_MAX_REQUEST_BYTES = 4 * 1024 * 1024
+GEMINI_PROXY_MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+GEMINI_PROXY_MAX_REQUESTS = 80
+GEMINI_PROXY_UPSTREAM_TIMEOUT_SECONDS = 180
+GEMINI_PROXY_TOTAL_TIMEOUT_SECONDS = 180
+GEMINI_PROXY_INBOUND_TIMEOUT_SECONDS = 15
+GEMINI_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS = 15
+GEMINI_PROXY_MAX_HEADER_BYTES = 16 * 1024
+GEMINI_PROXY_MAX_CONCURRENT_HANDLERS = 4
+GEMINI_PROXY_UPSTREAM_DRAIN_SECONDS = 5
+GEMINI_PROXY_CONNECTION_DRAIN_SECONDS = 5
 REPOSITORY_URL = "https://github.com/harrythentrepreneur/Omo.Space.git"
 ALLOWED_BASE_REVISION = "86361b0cfc67e5f6db805a2d90e7816b2121919a"
 MAX_SOURCE_BYTES = 200 * 1024
@@ -242,8 +244,8 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-class OpenCodeInferenceProxy:
-    """Loopback-only, per-run credential boundary for OpenCode Go inference."""
+class GeminiInferenceProxy:
+    """Loopback-only, per-run credential boundary for Gemini inference."""
 
     _FORBIDDEN_TARGET_FIELDS = {"base_url", "url", "host", "endpoint"}
 
@@ -253,15 +255,15 @@ class OpenCodeInferenceProxy:
         local_token: str,
         *,
         opener: Any = None,
-        max_requests: int = OPENCODE_PROXY_MAX_REQUESTS,
+        max_requests: int = GEMINI_PROXY_MAX_REQUESTS,
     ) -> None:
         self._api_key = str(api_key or "").strip()
         self._local_token = str(local_token or "").strip()
         if not self._api_key:
-            raise RuntimeError("OpenCode Go credential is missing")
+            raise RuntimeError("Gemini credential is missing")
         if not self._local_token:
             raise RuntimeError("local inference credential is missing")
-        if not 1 <= max_requests <= OPENCODE_PROXY_MAX_REQUESTS:
+        if not 1 <= max_requests <= GEMINI_PROXY_MAX_REQUESTS:
             raise ValueError("invalid inference request budget")
         self._remaining = max_requests
         self._budget_lock = threading.Lock()
@@ -271,6 +273,7 @@ class OpenCodeInferenceProxy:
         self._server: http.server.ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._active_lock = threading.Lock()
+        self._active_opens = 0
         self._active_upstreams: set[Any] = set()
         self._active_connections: set[Any] = set()
         self._stopping = False
@@ -299,7 +302,7 @@ class OpenCodeInferenceProxy:
         except (AttributeError, OSError):
             pass
 
-    def __enter__(self) -> "OpenCodeInferenceProxy":
+    def __enter__(self) -> "GeminiInferenceProxy":
         owner = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -308,9 +311,9 @@ class OpenCodeInferenceProxy:
 
             def setup(self) -> None:
                 super().setup()
-                self.connection.settimeout(OPENCODE_PROXY_INBOUND_TIMEOUT_SECONDS)
+                self.connection.settimeout(GEMINI_PROXY_INBOUND_TIMEOUT_SECONDS)
                 self._deadline_timer = threading.Timer(
-                    OPENCODE_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS,
+                    GEMINI_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS,
                     self._expire_connection,
                 )
                 self._deadline_timer.daemon = True
@@ -355,12 +358,12 @@ class OpenCodeInferenceProxy:
                 self.close_connection = True
 
             def do_POST(self) -> None:
-                deadline = time.monotonic() + OPENCODE_PROXY_TOTAL_TIMEOUT_SECONDS
+                deadline = time.monotonic() + GEMINI_PROXY_TOTAL_TIMEOUT_SECONDS
                 header_bytes = sum(
                     len(str(key).encode("utf-8")) + len(str(value).encode("utf-8")) + 4
                     for key, value in self.headers.items()
                 )
-                if header_bytes > OPENCODE_PROXY_MAX_HEADER_BYTES:
+                if header_bytes > GEMINI_PROXY_MAX_HEADER_BYTES:
                     self._json_error(431, "headers_too_large")
                     return
                 if self.path != "/v1/chat/completions":
@@ -378,7 +381,7 @@ class OpenCodeInferenceProxy:
                     length = int(self.headers.get("Content-Length", ""))
                 except ValueError:
                     length = -1
-                if length <= 0 or length > OPENCODE_PROXY_MAX_REQUEST_BYTES:
+                if length <= 0 or length > GEMINI_PROXY_MAX_REQUEST_BYTES:
                     self._json_error(413 if length > 0 else 400, "request_too_large" if length > 0 else "invalid_request")
                     return
                 if not owner._consume_budget():
@@ -408,7 +411,7 @@ class OpenCodeInferenceProxy:
                 # has its own larger end-to-end deadline below.
                 self._deadline_timer.cancel()
                 request = urllib.request.Request(
-                    OPENCODE_GO_CHAT_COMPLETIONS_URL,
+                    GEMINI_CHAT_COMPLETIONS_URL,
                     data=raw,
                     method="POST",
                     headers={
@@ -421,13 +424,24 @@ class OpenCodeInferenceProxy:
                 )
                 try:
                     remaining = max(0.1, deadline - time.monotonic())
-                    upstream = owner._opener.open(request, timeout=remaining)
+                    with owner._active_lock:
+                        stopping = owner._stopping
+                        if not stopping:
+                            owner._active_opens += 1
+                    if stopping:
+                        self._json_error(503, "proxy_stopping")
+                        return
+                    try:
+                        upstream = owner._opener.open(request, timeout=remaining)
+                    finally:
+                        with owner._active_lock:
+                            owner._active_opens -= 1
                 except urllib.error.HTTPError as error:
-                    code = "opencode_auth_failed" if error.code in {401, 403} else "opencode_inference_failed"
+                    code = "gemini_auth_failed" if error.code in {401, 403} else "gemini_inference_failed"
                     self._json_error(502, code)
                     return
                 except Exception:
-                    self._json_error(502, "opencode_inference_failed")
+                    self._json_error(502, "gemini_inference_failed")
                     return
                 with owner._active_lock:
                     if owner._stopping:
@@ -447,29 +461,29 @@ class OpenCodeInferenceProxy:
                         declared = int(upstream.headers.get("Content-Length") or 0)
                     except (TypeError, ValueError):
                         declared = 0
-                    if declared > OPENCODE_PROXY_MAX_RESPONSE_BYTES:
-                        self._json_error(502, "opencode_response_too_large")
+                    if declared > GEMINI_PROXY_MAX_RESPONSE_BYTES:
+                        self._json_error(502, "gemini_response_too_large")
                         return
                     buffered = bytearray()
                     while True:
                         remaining = deadline - time.monotonic()
                         if remaining <= 0:
-                            self._json_error(504, "opencode_inference_timeout")
+                            self._json_error(504, "gemini_inference_timeout")
                             return
                         owner._set_upstream_timeout(upstream, remaining)
                         try:
                             chunk = upstream.read(64 * 1024)
                         except (TimeoutError, socket.timeout, OSError):
-                            self._json_error(504, "opencode_inference_timeout")
+                            self._json_error(504, "gemini_inference_timeout")
                             return
                         if not chunk:
                             break
                         buffered.extend(chunk)
-                        if len(buffered) > OPENCODE_PROXY_MAX_RESPONSE_BYTES:
-                            self._json_error(502, "opencode_response_too_large")
+                        if len(buffered) > GEMINI_PROXY_MAX_RESPONSE_BYTES:
+                            self._json_error(502, "gemini_response_too_large")
                             return
                     if owner._api_key.encode("utf-8") in buffered:
-                        self._json_error(502, "opencode_response_rejected")
+                        self._json_error(502, "gemini_response_rejected")
                         return
                     self.send_response(int(getattr(upstream, "status", 200)))
                     self.send_header("Content-Type", content_type)
@@ -503,7 +517,7 @@ class OpenCodeInferenceProxy:
             allow_reuse_address = False
 
             def __init__(self, *args: Any, **kwargs: Any) -> None:
-                self._handler_slots = threading.BoundedSemaphore(OPENCODE_PROXY_MAX_CONCURRENT_HANDLERS)
+                self._handler_slots = threading.BoundedSemaphore(GEMINI_PROXY_MAX_CONCURRENT_HANDLERS)
                 super().__init__(*args, **kwargs)
 
             def process_request(self, request: Any, client_address: Any) -> None:
@@ -531,7 +545,7 @@ class OpenCodeInferenceProxy:
         self._server = Server(("127.0.0.1", 0), Handler)
         self._thread = threading.Thread(
             target=self._server.serve_forever,
-            name="opencode-inference-boundary",
+            name="gemini-inference-boundary",
             daemon=True,
         )
         self._thread.start()
@@ -565,16 +579,28 @@ class OpenCodeInferenceProxy:
             self._thread.join(timeout=5)
             if self._thread.is_alive():
                 raise RuntimeError("inference proxy cleanup failed")
-        cleanup_deadline = time.monotonic() + 1.0
-        while time.monotonic() < cleanup_deadline:
+        upstream_deadline = time.monotonic() + GEMINI_PROXY_UPSTREAM_DRAIN_SECONDS
+        while time.monotonic() < upstream_deadline:
             with self._active_lock:
-                if not self._active_upstreams and not self._active_connections:
+                if self._active_opens == 0 and not self._active_upstreams:
                     break
             time.sleep(0.01)
         cleanup_failed = False
         with self._active_lock:
-            if self._active_upstreams or self._active_connections:
+            if self._active_opens or self._active_upstreams:
                 cleanup_failed = True
+        if not cleanup_failed:
+            # Gemini's OpenAI-compatible client can finish its local socket a
+            # few seconds after the complete upstream response is delivered.
+            connection_deadline = time.monotonic() + GEMINI_PROXY_CONNECTION_DRAIN_SECONDS
+            while time.monotonic() < connection_deadline:
+                with self._active_lock:
+                    if not self._active_connections:
+                        break
+                time.sleep(0.01)
+            with self._active_lock:
+                if self._active_connections:
+                    cleanup_failed = True
         self._thread = None
         self._server = None
         self._api_key = ""
@@ -671,8 +697,8 @@ def classify_hermes_failure(raw: str) -> str:
     text = str(raw or "")[:MAX_HERMES_DIAGNOSTIC_BYTES].lower()
     if "hermes_process_timeout" in text:
         return "hermes_timeout"
-    if "opencode_auth_failed" in text:
-        return "opencode_auth_failed"
+    if "gemini_auth_failed" in text:
+        return "gemini_auth_failed"
     if any(value in text for value in ("401", "unauthorized", "invalid api key", "authentication failed")):
         return "hermes_auth_failed"
     if "model" in text and any(value in text for value in ("not found", "unknown", "unavailable", "unsupported")):
@@ -689,9 +715,9 @@ def classify_hermes_failure(raw: str) -> str:
 def classify_builder_exception(stage: str, error: Exception) -> str:
     text = str(error or "").lower()
     if stage == "hermes" and any(value in text for value in (
-        "opencode go credential", "local inference credential", "local inference endpoint",
+        "gemini credential", "local inference credential", "local inference endpoint",
     )):
-        return "opencode_auth_failed"
+        return "gemini_auth_failed"
     return "builder_internal_failed"
 
 
@@ -797,7 +823,7 @@ def smoke() -> dict[str, Any]:
         "returncode": check.returncode,
         "hermes_version": HERMES_VERSION,
         "model": DEFAULT_MODEL,
-        "provider": "opencode-go",
+        "provider": "gemini",
         "duration_ms": round((time.monotonic() - started) * 1000),
     }
 
@@ -817,7 +843,7 @@ def smoke() -> dict[str, Any]:
 @modal.concurrent(max_inputs=1)
 def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str) -> dict[str, Any]:
     validate_job_identity(submission_id, slug, source_sha256, dispatch_id, base_revision)
-    required = ("OPENCODE_GO_API_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
+    required = ("GEMINI_API_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
     if any(not os.environ.get(name) for name in required):
         raise RuntimeError("builder secret is incomplete")
 
@@ -877,8 +903,8 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
 
             stage = "hermes"
             local_token = secrets.token_urlsafe(32)
-            with OpenCodeInferenceProxy(
-                str(os.environ["OPENCODE_GO_API_KEY"]), local_token
+            with GeminiInferenceProxy(
+                str(os.environ["GEMINI_API_KEY"]), local_token
             ) as inference_proxy:
                 env = hermes_environment(
                     root,
