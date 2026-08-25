@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -41,6 +42,31 @@ SEMANTIC_INPUTS_PATH = SEMANTIC_REPLAY_PATH.with_name("semantic-adapter-inputs.j
 HARDENING_FIXTURE_PATH = SEMANTIC_REPLAY_PATH.with_name(
     "hardening-final-rerun.json"
 )
+PINNED_MEDIA_RUNTIME_VERSION = compiler.PLATFORM_CAPABILITY_DEPENDENCIES["ffmpeg_runtime"]["version"]
+
+
+def _has_pinned_media_runtime() -> bool:
+    """Run the real media smoke only against the reviewed binary release."""
+
+    for executable in ("ffmpeg", "ffprobe"):
+        if shutil.which(executable) is None:
+            return False
+        try:
+            result = subprocess.run(
+                [executable, "-version"],
+                check=True,
+                capture_output=True,
+                text=True,
+                shell=False,
+                timeout=20,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            return False
+        first_line = result.stdout.splitlines()[0] if result.stdout else ""
+        matched = re.match(rf"^{re.escape(executable)} version ([^ ]+)", first_line)
+        if not matched or matched.group(1) != PINNED_MEDIA_RUNTIME_VERSION:
+            return False
+    return True
 
 
 def test_parse_skill_requires_and_returns_frontmatter() -> None:
@@ -1088,11 +1114,40 @@ def test_plain_llm_contract_resolves_neither_video_nor_domain_state() -> None:
     assert blocker["missing_capability"] == "media.process:media.video.generative_vfx"
 
 
+def test_generated_video_binding_rejects_unpinned_media_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile = _video_contract_profile()
+    files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
+    output = tmp_path / "video-contract-mismatch"
+    assert compiler.write_or_check(files, output, check=False) == 0
+    spec = importlib.util.spec_from_file_location(
+        "generated_video_contract_mismatch", output / "modal_app.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    assert runtime.FFMPEG_RUNTIME_VERSION == PINNED_MEDIA_RUNTIME_VERSION
+
+    def fake_version(command, **_kwargs):
+        executable = str(command[0])
+        return subprocess.CompletedProcess(
+            command, 0, stdout=f"{executable} version 8.0.1-host\n", stderr=""
+        )
+
+    monkeypatch.setattr(runtime.subprocess, "run", fake_version)
+    error_type = runtime._video_tools()["error"]
+    with pytest.raises(error_type) as raised:
+        runtime.ffmpeg_runtime_version()
+    assert raised.value.code == "FFMPEG_VERSION_MISMATCH"
+    assert "8.0.1-host" in str(raised.value)
+
+
 @pytest.mark.skipif(
-    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
-    reason="FFmpeg/ffprobe are required for the generated media binding smoke",
+    not _has_pinned_media_runtime(),
+    reason="the exact pinned FFmpeg/ffprobe runtime is required for the real media smoke",
 )
-def test_generated_video_binding_smoke_and_typed_domain_transitions(tmp_path: Path) -> None:
+def test_generated_video_binding_real_media_smoke(tmp_path: Path) -> None:
     profile = _video_contract_profile()
     files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
     output = tmp_path / "video-contract"
@@ -1154,6 +1209,27 @@ def test_generated_video_binding_smoke_and_typed_domain_transitions(tmp_path: Pa
     assert artifact["height"] == 160
     assert len(artifact["sha256"]) == 64
 
+
+def test_generated_video_binding_typed_domain_transitions(tmp_path: Path) -> None:
+    profile = _video_contract_profile()
+    files = compiler.build_files(SKILL_PATH.read_text(encoding="utf-8"), profile)
+    output = tmp_path / "video-domain-state-contract"
+    assert compiler.write_or_check(files, output, check=False) == 0
+    spec = importlib.util.spec_from_file_location(
+        "generated_video_domain_state_contract", output / "modal_app.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+
+    artifact = {
+        "object_key": "runs/run-video-smoke/normalized.mp4",
+        "content_type": "video/mp4",
+        "codecs": {"video": "h264", "audio": "aac"},
+        "width": 90,
+        "height": 160,
+        "sha256": "a" * 64,
+    }
     now = [1_000.0]
     state = runtime.InMemoryDomainState(clock=lambda: now[0])
     queued = state.create("owner-a", run_id="run-video-smoke", ttl_seconds=60)
