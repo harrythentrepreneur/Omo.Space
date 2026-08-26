@@ -1,0 +1,42 @@
+name: trusted-release-merge
+
+on:
+  pull_request_review:
+    types: [submitted, dismissed]
+  workflow_run:
+    workflows: [generated-workflow-contracts]
+    types: [completed]
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  actions: read
+  checks: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: trusted-release-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: github.repository == 'harrythentrepreneur/Omo.Space'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted merge controller from main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+          path: controller
+      - name: Evaluate protected release PRs and merge exact approved heads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -f controller/tools/host-skill/release_merge_controller.py ]; then
+            echo "trusted merge controller is not on main yet; bootstrap no-op"
+            exit 0
+          fi
+          python3 controller/tools/host-skill/release_merge_controller.py \
+            --event "$GITHUB_EVENT_PATH"

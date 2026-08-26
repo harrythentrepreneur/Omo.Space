@@ -847,10 +847,39 @@ def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path:
     run_manifests.mkdir(parents=True)
     aliased = run_manifests / "education-workflow-pro.json"
     aliased.write_text("{}", encoding="utf-8")
+    receipts = tmp_path / "packages" / "skill-to-modal" / "profile-authoring-specs"
+    receipts.mkdir(parents=True)
+    receipt = receipts / f"{slug}.json"
+    spec = {"schema_version": "omo.profile-authoring-spec/v1", "family": "pure_data"}
+    receipt_bytes = process.HOST_MODULE.COMPILER.canonical_profile_authoring_spec_bytes(spec)
+    receipt.write_bytes(receipt_bytes)
+    profiles = tmp_path / "packages" / "skill-to-modal" / "profiles"
+    profiles.mkdir(parents=True)
+    (profiles / f"{slug}.json").write_text(json.dumps({
+        "slug": slug,
+        "authoring_spec_version": "omo.profile-authoring-spec/v1",
+        "authoring_spec_sha256": process.sha256_bytes(receipt_bytes),
+    }), encoding="utf-8")
 
-    assert "site/run-manifests/education-workflow-pro.json" in process.release_allowlisted_paths(
-        slug, root=tmp_path
-    )
+    allowlisted = process.release_allowlisted_paths(slug, root=tmp_path)
+    assert "site/run-manifests/education-workflow-pro.json" in allowlisted
+    assert f"packages/skill-to-modal/profile-authoring-specs/{slug}.json" in allowlisted
+
+    before = process.hash_release_artifacts(slug, root=tmp_path)
+    mutated = process.HOST_MODULE.COMPILER.canonical_profile_authoring_spec_bytes({
+        "schema_version": "omo.profile-authoring-spec/v1",
+        "family": "single_llm",
+    })
+    receipt.write_bytes(mutated)
+    with pytest.raises(RuntimeError, match="receipt evidence mismatch"):
+        process.hash_release_artifacts(slug, root=tmp_path)
+    (profiles / f"{slug}.json").write_text(json.dumps({
+        "slug": slug,
+        "authoring_spec_version": "omo.profile-authoring-spec/v1",
+        "authoring_spec_sha256": process.sha256_bytes(mutated),
+    }), encoding="utf-8")
+    after = process.hash_release_artifacts(slug, root=tmp_path)
+    assert before != after
 
 
 def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> None:
@@ -884,6 +913,57 @@ def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> 
     assert result["pr_number"] == 42
 
 
+def test_git_tree_artifact_listing_rejects_symlink_modes() -> None:
+    process = load_process_submissions()
+    regular = (
+        "100644 blob " + "a" * 40 + "\tcontainers/safe-skill/manifest.json\0"
+        "100755 blob " + "b" * 40 + "\tcontainers/safe-skill/run.sh\0"
+    )
+    assert process.parse_release_tree_paths(regular) == [
+        "containers/safe-skill/manifest.json",
+        "containers/safe-skill/run.sh",
+    ]
+    symlink = "120000 blob " + "c" * 40 + "\tcontainers/safe-skill/escape\0"
+    with pytest.raises(RuntimeError, match="mode"):
+        process.parse_release_tree_paths(symlink)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "100644 blob " + "a" * 40 + "\tcontainers/safe-skill/a\0\0",
+        "100644 blob " + "a" * 40 + "\tcontainers/safe-skill/a",
+        "100644 blob " + "a" * 40 + "\tcontainers//safe-skill/a\0",
+        "100644 blob " + "a" * 40 + "\tcontainers/./safe-skill/a\0",
+        "100644 blob " + "a" * 40 + "\tcontainers/safe-skill/a\u0085b\0",
+        "100644 blob " + "a" * 40 + "\tcontainers/safe-skill/a\ud800b\0",
+    ],
+)
+def test_git_tree_artifact_listing_rejects_noncanonical_framing_and_paths(raw: str) -> None:
+    process = load_process_submissions()
+    with pytest.raises(RuntimeError, match="tree"):
+        process.parse_release_tree_paths(raw)
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [
+        {"slug": "safe-skill", "authoring_spec_version": "unknown/v9"},
+        {"slug": "safe-skill", "authoring_spec_version": 9},
+        {"slug": "safe-skill", "authoring_spec_version": None},
+        {"slug": "safe-skill", "authoring_spec_sha256": "a" * 64},
+    ],
+)
+def test_release_evidence_rejects_unknown_or_unbound_authoring_markers(profile: dict) -> None:
+    process = load_process_submissions()
+    entries = {
+        "containers/safe-skill/manifest.json": b"{}",
+        "packages/skill-to-modal/profiles/safe-skill.json": json.dumps(profile).encode(),
+    }
+    with pytest.raises(RuntimeError, match="authoring"):
+        process.validate_release_artifact_entries("safe-skill", entries)
+
+
 def test_verify_merged_release_reads_hashes_from_merge_tree_not_current_tree() -> None:
     process = load_process_submissions()
     calls: list[list[str]] = []
@@ -899,18 +979,24 @@ def test_verify_merged_release_reads_hashes_from_merge_tree_not_current_tree() -
                 "statusCheckRollup": [{"name": "contracts", "conclusion": "SUCCESS"}],
             })
         if command[:2] == ["git", "ls-tree"]:
-            return "containers/facebook-ads-copywriter/manifest.json\0"
+            return (
+                "100644 blob " + "1" * 40 + "\tcontainers/facebook-ads-copywriter/manifest.json\0"
+                "100644 blob " + "2" * 40 + "\tpackages/skill-to-modal/profiles/facebook-ads-copywriter.json\0"
+            )
         if command[:2] == ["git", "show"]:
             spec = command[2]
             if spec.endswith(":containers/facebook-ads-copywriter/source/SKILL.md"):
                 return b"reviewed source"
             if spec.endswith(":containers/facebook-ads-copywriter/manifest.json"):
                 return b'{"slug":"facebook-ads-copywriter"}'
+            if spec.endswith(":packages/skill-to-modal/profiles/facebook-ads-copywriter.json"):
+                return b'{"slug":"facebook-ads-copywriter"}'
         return ""
 
     expected_source = process.sha256_bytes(b"reviewed source")
     expected_artifact = process.hash_release_artifact_entries({
         "containers/facebook-ads-copywriter/manifest.json": b'{"slug":"facebook-ads-copywriter"}',
+        "packages/skill-to-modal/profiles/facebook-ads-copywriter.json": b'{"slug":"facebook-ads-copywriter"}',
     })
     adapter = process.GitHubReleaseAdapter(command_runner=runner)
     release = {
