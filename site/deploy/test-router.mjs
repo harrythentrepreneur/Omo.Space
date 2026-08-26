@@ -629,7 +629,7 @@ check('creator upload: reviewed failed submissions expose the generalized gated-
   uploadSource.includes('Reviewed gated build needs another attempt') &&
   uploadSource.includes("submission.status === 'failed'") &&
   uploadSource.includes("isRetryableReviewedBuildFailure(submission)") &&
-  uploadSource.includes("var retryableFailureCodes = ['build_or_deploy_failed', 'canary_or_internal_failed']") &&
+  uploadSource.includes("var retryableFailureCodes = ['build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch']") &&
   uploadSource.includes("retryableFailureCodes.includes(submission.failure_code) && !submission.selected_runtime") &&
   !uploadSource.includes("submission.approval_reason === 'exact_source_slug_collision'") &&
   uploadSource.includes("fetch(apiBase() + '/api/submissions/' + encodeURIComponent(submission.id) + '/retry'") &&
@@ -1260,6 +1260,27 @@ check('submission retry: reviewed new submission is requeued without publishing 
   retryReviewedNewRecord.build_evidence === null &&
   !retryReviewedNewBody.submission.published_slug);
 
+const retryProfileIdentityRecord = {
+  ...retryCanaryRecord,
+  id: 'sub_retryprofileidentity00000000001',
+  status: 'failed',
+  failure_code: 'profile_identity_mismatch',
+  selected_runtime: null,
+  runtime_policy: null,
+};
+workerTest.mockSubmissions.set(`user_creator\u0000${retryProfileIdentityRecord.id}`, retryProfileIdentityRecord);
+const retryProfileIdentityResponse = await worker.fetch(
+  mkReq('POST', `/api/submissions/${retryProfileIdentityRecord.id}/retry`, {}, creatorHeaders), realEnv
+);
+const retryProfileIdentityBody = await retryProfileIdentityResponse.json();
+check('submission retry: trusted profile identity mismatch can re-enter the same reviewed gates',
+  retryProfileIdentityResponse.status === 200 &&
+  retryProfileIdentityBody.ok === true &&
+  retryProfileIdentityBody.retried === true &&
+  retryProfileIdentityBody.submission.status === 'queued' &&
+  retryProfileIdentityBody.submission.failure_code === null &&
+  retryProfileIdentityBody.submission.selected_runtime === null);
+
 const retryFailClosedRecords = [
   ['sub_retryhash00000000000000000001', 'failed', 'build_or_deploy_failed', 'g'.repeat(64), 'worker-native', 'reviewed_policy'],
   ['sub_retrystatus000000000000000001', 'needs_review', 'build_or_deploy_failed', reviewedWovenSourceSha, 'worker-native', 'reviewed_policy'],
@@ -1358,13 +1379,13 @@ const retryD1CanaryResponse = await worker.fetch(mkReq('POST', '/api/submissions
 const retryD1CanaryBody = await retryD1CanaryResponse.json();
 const retryD1WrongCode = await worker.fetch(mkReq('POST', '/api/submissions/sub_retryd1wrongcode000000000001/retry', {}, creatorHeaders), d1Env);
 const retryD1UpdateCalls = d1RetryCalls.filter((call) => call.text.includes('UPDATE submissions'));
-check('submission retry: D1 permits only reviewed rows with the two gated failure codes',
+check('submission retry: D1 permits only reviewed rows with the three gated failure codes',
   retryD1CanaryResponse.status === 200 &&
   retryD1CanaryBody.submission.status === 'queued' &&
   retryD1CanaryBody.submission.failure_code === null &&
   retryD1WrongCode.status === 409 &&
   retryD1UpdateCalls.length >= 2 &&
-  retryD1UpdateCalls.every((call) => call.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')")) &&
+  retryD1UpdateCalls.every((call) => call.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')")) &&
   retryD1UpdateCalls.every((call) => call.text.includes("selected_runtime IN ('worker-native', 'modal-hosted')")) &&
   retryD1UpdateCalls.every((call) => !call.text.includes('generated_source_hash_mismatch')) &&
   JSON.stringify(d1RetryCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
@@ -1393,7 +1414,7 @@ check('submission retry: Neon uses one atomic guarded UPDATE and ignores client 
   retryNeonCall &&
   retryNeonCall.text.includes('UPDATE submissions') &&
   retryNeonCall.text.includes("status = 'failed'") &&
-  retryNeonCall.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')") &&
+  retryNeonCall.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')") &&
   !retryNeonCall.text.includes('generated_source_hash_mismatch') &&
   retryNeonCall.text.includes("source_sha256 ~ '^[a-f0-9]{64}$'") &&
   retryNeonCall.text.includes("selected_runtime IN ('worker-native', 'modal-hosted')") &&
