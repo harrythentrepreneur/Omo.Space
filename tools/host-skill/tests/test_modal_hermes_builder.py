@@ -690,6 +690,8 @@ def test_prompt_contains_private_path_but_not_source_bytes(tmp_path: Path) -> No
     assert "readiness.can_submit" in prompt
     assert "readiness.blockers" in prompt
     assert "exactly the nonblank string fields `code` and `detail`" in prompt
+    assert "facebook-ads-copywriter.json" in prompt
+    assert "omit `skill_owned_resource`" in prompt
     assert "complete structural reference" in prompt
     assert "trusted parent processor runs every compiler" in prompt
 
@@ -732,6 +734,23 @@ def test_authored_profile_is_validated_before_trusted_release(tmp_path: Path) ->
 
     profile.write_text(json.dumps({
         "slug": "safe-skill", "name": name, "reviewed_source_sha256": source_sha256,
+        "execution_kind": "single_llm",
+        "skill_owned_resource": "deterministic_skill_loader_v1",
+        "readiness": {"can_submit": True, "blockers": []},
+    }), encoding="utf-8")
+    assert builder.authored_profile_failure(checkout, "safe-skill", name, source_sha256) == "reviewed_profile_missing_or_invalid"
+
+    profile.write_text(json.dumps({
+        "slug": "safe-skill", "name": name, "reviewed_source_sha256": source_sha256,
+        "execution_kind": [],
+        "skill_owned_resource": "deterministic_skill_loader_v1",
+        "readiness": {"can_submit": True, "blockers": []},
+    }), encoding="utf-8")
+    assert builder.authored_profile_failure(checkout, "safe-skill", name, source_sha256) == "reviewed_profile_missing_or_invalid"
+
+    profile.write_text(json.dumps({
+        "slug": "safe-skill", "name": name, "reviewed_source_sha256": source_sha256,
+        "execution_kind": "single_llm",
         "readiness": {"can_submit": True, "blockers": []},
     }), encoding="utf-8")
     assert builder.authored_profile_failure(checkout, "safe-skill", name, source_sha256) is None
@@ -818,6 +837,7 @@ def test_only_regular_bounded_json_profile_crosses_trust_boundary(tmp_path: Path
     profile.write_text(
         json.dumps({
             "slug": "safe-skill", "name": name, "reviewed_source_sha256": source_sha256,
+            "execution_kind": "single_llm",
             "readiness": {"can_submit": True, "blockers": []},
         }),
         encoding="utf-8",
