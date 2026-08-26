@@ -825,6 +825,25 @@ def test_safe_failure_stage_is_allowlisted() -> None:
     assert "stage" not in unsafe
 
 
+def test_trusted_release_exceptions_are_narrowed_to_safe_substages() -> None:
+    builder = load_builder()
+    source = SCRIPT.read_text(encoding="utf-8")
+    expected = {
+        "trusted_checkout_prepare": "prepare_trusted_checkout(",
+        "trusted_processor_import": "load_processor_module(",
+        "trusted_adapter_init": "trusted_processor.GitHubReleaseAdapter(",
+        "trusted_process_row": "trusted_processor.process_row(",
+    }
+    release_block = source[source.index('stage = "trusted_release"'):source.index('stage = "release_evidence"')]
+    assert release_block.index('stage = "trusted_checkout_prepare"') < release_block.index('token = str(os.environ["GH_TOKEN"])')
+    for stage, operation in expected.items():
+        result = builder._safe_result(
+            "failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage=stage
+        )
+        assert result["stage"] == stage
+        assert release_block.index(f'stage = "{stage}"') < release_block.index(operation)
+
+
 def test_processor_loader_resolves_siblings_and_restores_sys_path(tmp_path: Path) -> None:
     builder = load_builder()
     host_skill = tmp_path / "tools" / "host-skill"
