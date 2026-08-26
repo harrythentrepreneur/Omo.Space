@@ -33,6 +33,10 @@ jobs:
       - name: Evaluate protected release PRs and merge exact approved heads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          python3 controller/tools/host-skill/release_merge_controller.py
-          --event "$GITHUB_EVENT_PATH"
+        run: |
+          if [ ! -f controller/tools/host-skill/release_merge_controller.py ]; then
+            echo "trusted merge controller is not on main yet; bootstrap no-op"
+            exit 0
+          fi
+          python3 controller/tools/host-skill/release_merge_controller.py \
+            --event "$GITHUB_EVENT_PATH"

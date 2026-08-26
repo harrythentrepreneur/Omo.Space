@@ -260,5 +260,7 @@ def test_merge_workflow_loads_controller_only_from_main() -> None:
     assert "contents: write" in workflow and "pull-requests: write" in workflow
     assert "ref: main" in workflow and "persist-credentials: false" in workflow
     assert "path: controller" in workflow
+    assert "if [ ! -f controller/tools/host-skill/release_merge_controller.py ]; then" in workflow
+    assert "exit 0" in workflow
     assert "python3 controller/tools/host-skill/release_merge_controller.py" in workflow
     assert "github.event.pull_request.head.sha" not in workflow
