@@ -6326,6 +6326,23 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
         )
     if profile.get("name") != parsed["name"]:
         raise ValueError("profile name does not match SKILL.md frontmatter")
+    readiness_contract = profile.get("readiness")
+    readiness_blockers = (
+        readiness_contract.get("blockers") if isinstance(readiness_contract, dict) else None
+    )
+    if not (
+        isinstance(readiness_contract, dict)
+        and isinstance(readiness_contract.get("can_submit"), bool)
+        and isinstance(readiness_blockers, list)
+        and all(
+            isinstance(blocker, dict)
+            and set(blocker) == {"code", "detail"}
+            and isinstance(blocker["code"], str) and bool(blocker["code"].strip())
+            and isinstance(blocker["detail"], str) and bool(blocker["detail"].strip())
+            for blocker in readiness_blockers
+        )
+    ):
+        raise ValueError("profile readiness must contain typed can_submit and blockers")
     source_hash = sha256_text(skill_text)
     capabilities = resolve_capabilities(profile, source_hash)
     effective_profile = copy.deepcopy(profile)
