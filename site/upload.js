@@ -332,7 +332,7 @@
   }
 
   function isRetryableReviewedBuildFailure(submission) {
-    var retryableFailureCodes = ['build_or_deploy_failed', 'canary_or_internal_failed'];
+    var retryableFailureCodes = ['build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch'];
     var preRuntimeCanary = !!(submission &&
       retryableFailureCodes.includes(submission.failure_code) && !submission.selected_runtime && !submission.runtime_policy);
     var reviewedRuntimeFailure = !!(submission &&

@@ -5591,6 +5591,7 @@ const APPROVAL_REASON_EXACT_SOURCE_SLUG_COLLISION = 'exact_source_slug_collision
 const RETRYABLE_EXACT_MATCH_RELEASE_FAILURE_CODES = new Set([
   'build_or_deploy_failed',
   'canary_or_internal_failed',
+  'profile_identity_mismatch',
 ]);
 
 function approvalSafeRow(row) {
@@ -5710,10 +5711,10 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
        SET status = 'queued', ${transientAssignments}, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND user_id = $2
          AND status = 'failed'
-         AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
+         AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')
          AND source_sha256 ~ '^[a-f0-9]{64}$'
          AND (
-           (failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed') AND selected_runtime IS NULL
+           (failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch') AND selected_runtime IS NULL
              AND (runtime_policy IS NULL OR runtime_policy = ''))
            OR
            (selected_runtime IN ('worker-native', 'modal-hosted')
@@ -5731,10 +5732,10 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
     const updated = await env.BALANCE_DB.prepare(`UPDATE submissions
       SET status = 'queued', ${transientAssignments}, updated_at = ?
       WHERE id = ? AND user_id = ? AND status = 'failed'
-        AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed')
+        AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')
         AND length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^a-f0-9]*'
         AND (
-          (failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed') AND selected_runtime IS NULL
+          (failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch') AND selected_runtime IS NULL
             AND (runtime_policy IS NULL OR runtime_policy = ''))
           OR
           (selected_runtime IN ('worker-native', 'modal-hosted')
