@@ -58,6 +58,8 @@ DISPATCH_LEASE_SECONDS = 7200
 SAFE_FAILURE_STAGES = {
     "checkout", "processor_import", "claim", "source_validation",
     "private_handoff", "hermes", "trusted_release", "release_evidence",
+    "trusted_checkout_prepare", "trusted_processor_import",
+    "trusted_adapter_init", "trusted_process_row",
     "trusted_compile", "trusted_register", "trusted_check", "worker_contracts",
     "release_issue_lookup", "release_issue_create", "release_worktree",
     "release_push", "release_pr_lookup", "release_pr_create", "release_pr_view",
@@ -985,8 +987,10 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 # Hermes has exited. Only the trusted parent now receives
                 # Harry's token, and GitHub writes are server-derived by the
                 # fixed-repo/base/branch allowlisting release adapter.
+                stage = "trusted_checkout_prepare"
                 token = str(os.environ["GH_TOKEN"])
                 trusted_checkout = prepare_trusted_checkout(root, checkout, base_revision, slug, token)
+                stage = "trusted_processor_import"
                 trusted_processor = load_processor_module(
                     trusted_checkout / "tools" / "host-skill" / "process-submissions.py"
                 )
@@ -994,10 +998,12 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 def release_runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
                     return trusted_processor.run_capture(command, cwd=cwd or trusted_checkout, text=text)
 
+                stage = "trusted_adapter_init"
                 adapter = trusted_processor.GitHubReleaseAdapter(
                     command_runner=release_runner,
                     scratch_root=root / "release",
                 )
+                stage = "trusted_process_row"
                 processed = trusted_processor.process_row(row, repository, deploy=True, release_adapter=adapter)
                 if processed.get("status") != "ready_for_merge":
                     result = _safe_result(
