@@ -1,5 +1,6 @@
 {
-  "compiler": "skill-to-modal/0.1.0",
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
   "cost_drivers": [
     "One DeepSeek V4 Flash copywriting call with a 1,600-token output ceiling",
     "Modal CPU, request latency, and schema-invalid provider failures",
@@ -7,6 +8,7 @@
   ],
   "description": "Turn verified product facts into three Facebook ad variants with distinct angles, testing notes, and compliance-safe claims.",
   "detected_provider_needs": [],
+  "input_adapters": [],
   "name": "facebook-ads-copywriter",
   "parsed_workflow_steps": [
     {

@@ -762,6 +762,12 @@ async function handleGenericRun(request, env) {
       ? body.input : fields;
     const errors = validateSchemaValue(candidate, hosted.input_schema);
     if (errors.length) return json({ error: 'invalid_hosted_input', details: errors.slice(0, 8) }, 422, cors());
+    if (
+      isHostedWorker
+      && new TextEncoder().encode(stableStringify(candidate)).length > hosted.executor.max_input_bytes
+    ) {
+      return json({ error: 'hosted_worker_input_limit_exceeded' }, 422, cors());
+    }
     hostedInput = candidate;
   }
 
@@ -955,8 +961,9 @@ function validateSchemaValue(value, schema, path = '$') {
     value.forEach((item, index) => errors.push(...validateSchemaValue(item, schema.items || {}, `${path}[${index}]`)));
   } else if (type === 'string') {
     if (typeof value !== 'string') return [`${path} must be a string.`];
-    if (schema.minLength != null && value.length < schema.minLength) errors.push(`${path} is too short.`);
-    if (schema.maxLength != null && value.length > schema.maxLength) errors.push(`${path} is too long.`);
+    const stringLength = Array.from(value).length;
+    if (schema.minLength != null && stringLength < schema.minLength) errors.push(`${path} is too short.`);
+    if (schema.maxLength != null && stringLength > schema.maxLength) errors.push(`${path} is too long.`);
     if (schema.pattern && !(new RegExp(schema.pattern)).test(value)) errors.push(`${path} has an invalid format.`);
   } else if (type === 'integer' || type === 'number') {
     if (typeof value !== 'number' || !Number.isFinite(value) || (type === 'integer' && !Number.isInteger(value))) return [`${path} must be a ${type}.`];
@@ -968,7 +975,13 @@ function validateSchemaValue(value, schema, path = '$') {
   return errors;
 }
 
-function hostedWorkerPrompt(input) {
+function hostedWorkerPrompt(executor, input) {
+  if (typeof executor?.workflow_instructions === 'string' && executor.workflow_instructions.trim()) {
+    return stableStringify({
+      workflow_instructions: executor.workflow_instructions,
+      input,
+    });
+  }
   return `Input JSON:\n${JSON.stringify(input)}\n\nRun the reviewed workflow using only this JSON input. Return only the complete JSON object required by the output schema.`;
 }
 
@@ -1011,7 +1024,11 @@ async function dispatchHostedWorkerRun(env, hosted, context) {
   const {
     runRequest, runId, userId, hostedInput, costUsd, balanceAfterDebit, authMethod,
   } = context;
-  const llm = await callHostedWorkerProvider(env, hosted.executor, hostedWorkerPrompt(hostedInput));
+  const llm = await callHostedWorkerProvider(
+    env,
+    hosted.executor,
+    hostedWorkerPrompt(hosted.executor, hostedInput),
+  );
   if (llm.error) {
     return failHostedWorkerRun(env, hosted, runRequest.row, 'worker_native_provider_error', 502);
   }
@@ -1137,6 +1154,7 @@ async function hostedWorkerConfigError(env, hosted) {
   if (!String(executor.model || '').trim()) return 'hosted_worker_model_missing';
   if (!String(executor.system_prompt || '').trim()) return 'hosted_worker_system_prompt_missing';
   if (!Number.isInteger(executor.max_output_tokens) || executor.max_output_tokens < 1 || executor.max_output_tokens > 8000) return 'hosted_worker_max_output_tokens_unbounded';
+  if (!Number.isInteger(executor.max_input_bytes) || executor.max_input_bytes < 1 || executor.max_input_bytes > 65536) return 'hosted_worker_max_input_bytes_unbounded';
   if (!Number.isFinite(Number(executor.temperature)) || Number(executor.temperature) < 0 || Number(executor.temperature) > 1) return 'hosted_worker_temperature_unbounded';
   if (!Number.isInteger(executor.timeout_seconds) || executor.timeout_seconds < 1 || executor.timeout_seconds > 120) return 'hosted_worker_timeout_unbounded';
   if (!String(env[provider.api_key_env] || '').trim()) return 'hosted_worker_provider_key_missing';

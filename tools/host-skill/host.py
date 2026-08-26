@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import importlib
 import importlib.util
 import json
@@ -44,6 +45,8 @@ PURE_DATA_OPERATION = "pure_data.execute"
 WORKER_PROVIDERS = {"opencode-go"}
 WORKER_MAX_OUTPUT_TOKENS_MIN = 1
 WORKER_MAX_OUTPUT_TOKENS_MAX = 8000
+WORKER_MAX_INPUT_BYTES_MIN = 1
+WORKER_MAX_INPUT_BYTES_MAX = 64 * 1024
 WORKER_TEMPERATURE_MIN = 0
 WORKER_TEMPERATURE_MAX = 1
 WORKER_TIMEOUT_SECONDS_MIN = 1
@@ -343,12 +346,34 @@ def single_llm_worker_executor_errors(profile: dict[str, Any]) -> list[str]:
     system_prompt = prompts.get(prompt_name) if isinstance(prompts, dict) else ""
     if not isinstance(prompt_name, str) or not isinstance(system_prompt, str) or not system_prompt.strip():
         errors.append("system_prompt")
+    if profile.get("authoring_spec_version") == COMPILER.PROFILE_AUTHORING_SPEC_VERSION:
+        workflow_prompt_name = live.get("workflow_instructions")
+        workflow_instructions = (
+            prompts.get(workflow_prompt_name) if isinstance(prompts, dict) else ""
+        )
+        if system_prompt != COMPILER.AUTHORING_SINGLE_LLM_SYSTEM_PROMPT:
+            errors.append("compiler_owned_system_prompt")
+        if (
+            not isinstance(workflow_prompt_name, str)
+            or not isinstance(workflow_instructions, str)
+            or not workflow_instructions.strip()
+        ):
+            errors.append("workflow_instructions")
     if not str(profile.get("version") or "").strip():
         errors.append("workflow_version")
     try:
         require_bounded_int(live.get("max_tokens"), "live.max_tokens", WORKER_MAX_OUTPUT_TOKENS_MIN, WORKER_MAX_OUTPUT_TOKENS_MAX)
     except ValueError:
         errors.append("max_output_tokens")
+    try:
+        require_bounded_int(
+            live.get("max_input_bytes", WORKER_MAX_INPUT_BYTES_MAX),
+            "live.max_input_bytes",
+            WORKER_MAX_INPUT_BYTES_MIN,
+            WORKER_MAX_INPUT_BYTES_MAX,
+        )
+    except ValueError:
+        errors.append("max_input_bytes")
     try:
         require_bounded_number(live.get("temperature"), "live.temperature", WORKER_TEMPERATURE_MIN, WORKER_TEMPERATURE_MAX)
     except ValueError:
@@ -369,7 +394,7 @@ def build_single_llm_worker_executor(profile: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("workflow is not Worker-native compatible: " + "; ".join(errors))
     live = profile["live"]
     prompt_name = live["prompt"]
-    return {
+    executor = {
         "spec_version": SINGLE_LLM_WORKER_EXECUTOR_SPEC_VERSION,
         "execution_kind": SINGLE_LLM_EXECUTION_KIND,
         "operation": SINGLE_LLM_OPERATION,
@@ -380,6 +405,12 @@ def build_single_llm_worker_executor(profile: dict[str, Any]) -> dict[str, Any]:
         "max_output_tokens": require_bounded_int(
             live.get("max_tokens"), "live.max_tokens", WORKER_MAX_OUTPUT_TOKENS_MIN, WORKER_MAX_OUTPUT_TOKENS_MAX
         ),
+        "max_input_bytes": require_bounded_int(
+            live.get("max_input_bytes", WORKER_MAX_INPUT_BYTES_MAX),
+            "live.max_input_bytes",
+            WORKER_MAX_INPUT_BYTES_MIN,
+            WORKER_MAX_INPUT_BYTES_MAX,
+        ),
         "temperature": require_bounded_number(
             live.get("temperature"), "live.temperature", WORKER_TEMPERATURE_MIN, WORKER_TEMPERATURE_MAX
         ),
@@ -387,6 +418,15 @@ def build_single_llm_worker_executor(profile: dict[str, Any]) -> dict[str, Any]:
             live.get("timeout_seconds"), "live.timeout_seconds", WORKER_TIMEOUT_SECONDS_MIN, WORKER_TIMEOUT_SECONDS_MAX
         ),
     }
+    if profile.get("authoring_spec_version") == COMPILER.PROFILE_AUTHORING_SPEC_VERSION:
+        workflow_prompt_name = require_text(
+            live.get("workflow_instructions"), "live.workflow_instructions"
+        )
+        executor["workflow_instructions"] = require_text(
+            profile["prompts"].get(workflow_prompt_name),
+            f"prompts.{workflow_prompt_name}",
+        )
+    return executor
 
 
 def pure_data_worker_executor_errors(profile: dict[str, Any]) -> list[str]:
@@ -556,6 +596,47 @@ def pure_data_public_output_schema(profile: dict[str, Any]) -> dict[str, Any]:
     return domain
 
 
+def single_llm_public_output_schema(profile: dict[str, Any]) -> dict[str, Any]:
+    domain = copy.deepcopy(profile["output_schema"])
+    if domain.get("type") != "object" or domain.get("additionalProperties") is not False:
+        raise ValueError("single-LLM output schema must be a closed object")
+    properties = domain.get("properties")
+    required = domain.get("required")
+    live = profile.get("live")
+    if not isinstance(properties, dict) or not isinstance(required, list) or not isinstance(live, dict):
+        raise ValueError("single-LLM output schema is incomplete")
+    for reserved in ("run_id", "workflow_version", "usage"):
+        if reserved in properties:
+            raise ValueError(f"single-LLM domain output reserves transport field: {reserved}")
+    if "status" in properties and properties["status"] != {"const": "completed"}:
+        raise ValueError("single-LLM domain status must be the completed constant")
+    properties.update({
+        "status": {"const": "completed"},
+        "run_id": {"type": "string"},
+        "workflow_version": {"const": f"{profile['slug']}@{profile['version']}"},
+        "usage": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "provider": {"const": live["provider"]},
+                "model": {"const": live["default_model"]},
+                "llm_calls": {"const": 1},
+                "prompt_tokens": {"type": "integer", "minimum": 0},
+                "completion_tokens": {"type": "integer", "minimum": 0},
+                "estimated_cost_usd": {"type": "number", "minimum": 0},
+            },
+            "required": [
+                "provider", "model", "llm_calls", "prompt_tokens",
+                "completion_tokens", "estimated_cost_usd",
+            ],
+        },
+    })
+    for field in ("status", "run_id", "workflow_version", "usage"):
+        if field not in required:
+            required.append(field)
+    return domain
+
+
 def build_hosted_profile(
     profile: dict[str, Any], container_manifest: dict[str, Any], pricing: dict[str, Any]
 ) -> dict[str, Any]:
@@ -576,11 +657,31 @@ def build_hosted_profile(
     reviewed_source_sha256 = require_text(container_manifest.get("source_sha256"), "source_sha256")
     if not SHA256_RE.fullmatch(reviewed_source_sha256):
         raise ValueError("source_sha256 must be a lowercase SHA-256 digest")
+    authoring_spec_version = profile.get("authoring_spec_version")
     if (
-        profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND
+        authoring_spec_version is not None
+        and authoring_spec_version != COMPILER.PROFILE_AUTHORING_SPEC_VERSION
+    ):
+        raise ValueError("authoring spec version is unsupported")
+    if (
+        (
+            profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND
+            or authoring_spec_version == COMPILER.PROFILE_AUTHORING_SPEC_VERSION
+        )
         and profile.get("reviewed_source_sha256") != reviewed_source_sha256
     ):
-        raise ValueError("pure-data reviewed source does not match compiled source")
+        raise ValueError("reviewed source does not match compiled source")
+    if authoring_spec_version == COMPILER.PROFILE_AUTHORING_SPEC_VERSION:
+        expected_profile_sha256 = container_manifest.get("profile_sha256")
+        actual_profile_sha256 = hashlib.sha256(
+            COMPILER.canonical_json(profile).encode("utf-8")
+        ).hexdigest()
+        if (
+            not isinstance(expected_profile_sha256, str)
+            or not SHA256_RE.fullmatch(expected_profile_sha256)
+            or expected_profile_sha256 != actual_profile_sha256
+        ):
+            raise ValueError("reviewed profile digest does not match compiler manifest")
 
     placement = decide_runtime_placement(profile)
     deployment = market.get("deployment") or {}
@@ -728,6 +829,12 @@ def build_hosted_profile(
             run_manifest["output_schema"] = copy.deepcopy(runtime["output_schema"])
         else:
             runtime["model_output_schema"] = copy.deepcopy(profile["live"]["model_output_schema"])
+            if (
+                profile.get("execution_kind") == "single_llm"
+                and authoring_spec_version == COMPILER.PROFILE_AUTHORING_SPEC_VERSION
+            ):
+                runtime["output_schema"] = single_llm_public_output_schema(profile)
+                run_manifest["output_schema"] = copy.deepcopy(runtime["output_schema"])
     native_runtime_label = (
         "native-builder"
         if profile.get("execution_kind") == "skill_builder"

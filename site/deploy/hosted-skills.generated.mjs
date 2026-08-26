@@ -235,6 +235,7 @@ export const HOSTED_WORKER_SKILL_ROWS = [
       "container_slug": "facebook-ads-copywriter",
       "executor": {
         "execution_kind": "single_llm",
+        "max_input_bytes": 65536,
         "max_output_tokens": 1600,
         "model": "deepseek-v4-flash",
         "operation": "chat.completions.strict_json",
@@ -531,7 +532,9 @@ export const HOSTED_WORKER_SKILL_ROWS = [
                 "type": "number"
               },
               "llm_calls": {
-                "const": 1
+                "maximum": 2,
+                "minimum": 1,
+                "type": "integer"
               },
               "model": {
                 "minLength": 1,
