@@ -221,6 +221,23 @@ def test_authoring_identity_is_exact_and_sha_validated(identity: dict, code: str
     assert caught.value.code == code
 
 
+def test_authoring_receipt_bytes_are_canonical_and_bound_into_profile() -> None:
+    for spec, slug in (
+        (_pure_data_authoring_spec(), "fresh-word-organizer"),
+        (_single_llm_authoring_spec(), "fresh-word-writer"),
+    ):
+        reordered = {key: spec[key] for key in reversed(spec)}
+        identity = {"slug": slug, "name": "Fresh", "source_sha256": "a" * 64}
+
+        receipt = compiler.canonical_profile_authoring_spec_bytes(spec)
+        reordered_receipt = compiler.canonical_profile_authoring_spec_bytes(reordered)
+        profile = compiler.assemble_profile_authoring_spec(spec, identity)
+
+        assert receipt == reordered_receipt
+        assert receipt == compiler.canonical_json(json.loads(receipt)).encode("utf-8")
+        assert profile["authoring_spec_sha256"] == hashlib.sha256(receipt).hexdigest()
+
+
 def test_authoring_profile_bytes_are_canonical_and_input_order_independent() -> None:
     spec = _pure_data_authoring_spec()
     reordered = {key: spec[key] for key in reversed(spec)}

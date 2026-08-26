@@ -18,6 +18,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import unicodedata
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -70,6 +72,9 @@ EXPECTED_MODAL_WORKSPACE = "omo-space"
 GITHUB_RELEASE_REPO = "harrythentrepreneur/Omo.Space"
 GITHUB_RELEASE_BASE = "main"
 REQUIRED_RELEASE_CHECKS = ("contracts",)
+MAX_RELEASE_ARTIFACT_FILES = 10_000
+MAX_RELEASE_ARTIFACT_FILE_BYTES = 64 * 1024 * 1024
+MAX_RELEASE_ARTIFACT_TOTAL_BYTES = 128 * 1024 * 1024
 WORKER_REGISTRY_FILENAME = "hosted-skills.generated.mjs"
 WORKER_DEPLOY_COMMAND = ("npx", "wrangler@4.123.0", "deploy")
 LIVE_WORKER_BASE_URL = "https://cognition-demos.harrythentrepreneurr.workers.dev"
@@ -1177,15 +1182,145 @@ def hash_release_artifact_entries(entries: dict[str, bytes]) -> str:
     return digest.hexdigest()
 
 
+def parse_release_tree_paths(raw: str) -> list[str]:
+    if not isinstance(raw, str):
+        raise RuntimeError("verified merge artifact tree is invalid")
+    try:
+        encoded_size = len(raw.encode("utf-8"))
+    except UnicodeEncodeError:
+        raise RuntimeError("verified merge artifact tree path is invalid") from None
+    if encoded_size > MAX_RELEASE_ARTIFACT_TOTAL_BYTES:
+        raise RuntimeError("verified merge artifact tree is invalid")
+    if not raw.endswith("\0") or "\0\0" in raw:
+        raise RuntimeError("verified merge artifact tree framing is invalid")
+    paths: list[str] = []
+    pattern = re.compile(r"^(100644|100755) blob [0-9a-f]{40}\t([^\0\r\n]+)$")
+    for entry in raw[:-1].split("\0"):
+        match = pattern.fullmatch(entry)
+        if match is None:
+            raise RuntimeError("verified merge artifact tree mode is unsafe")
+        path = match.group(2)
+        if (
+            path.startswith("/")
+            or Path(path).as_posix() != path
+            or any(part in {"", ".", ".."} for part in path.split("/"))
+            or any(unicodedata.category(character).startswith("C") for character in path)
+        ):
+            raise RuntimeError("verified merge artifact tree path is invalid")
+        if path in paths or len(paths) >= MAX_RELEASE_ARTIFACT_FILES:
+            raise RuntimeError("verified merge artifact tree has duplicate paths")
+        paths.append(path)
+    if not paths:
+        raise RuntimeError("verified merge artifact tree is empty")
+    return paths
+
+
+def validate_release_artifact_entries(slug: str, entries: dict[str, bytes]) -> str:
+    if not SAFE_SLUG_RE.fullmatch(slug) or not 1 <= len(entries) <= MAX_RELEASE_ARTIFACT_FILES:
+        raise RuntimeError("release artifact evidence is invalid")
+    container_prefix = f"containers/{slug}/"
+    profile_path = f"packages/skill-to-modal/profiles/{slug}.json"
+    receipt_path = f"packages/skill-to-modal/profile-authoring-specs/{slug}.json"
+    total = 0
+    for path, content in entries.items():
+        if (
+            not isinstance(path, str)
+            or path.startswith("/")
+            or ".." in Path(path).parts
+            or not isinstance(content, bytes)
+            or len(content) > MAX_RELEASE_ARTIFACT_FILE_BYTES
+            or not (path.startswith(container_prefix) or path in {profile_path, receipt_path})
+        ):
+            raise RuntimeError("release artifact evidence is invalid")
+        total += len(content)
+    if total > MAX_RELEASE_ARTIFACT_TOTAL_BYTES or not any(
+        path.startswith(container_prefix) for path in entries
+    ):
+        raise RuntimeError("release artifact evidence is invalid")
+    profile_raw = entries.get(profile_path)
+    if not isinstance(profile_raw, bytes):
+        raise RuntimeError("release profile evidence is missing")
+    try:
+        profile = json.loads(
+            profile_raw.decode("utf-8"),
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        raise RuntimeError("release profile evidence is invalid") from None
+    if not isinstance(profile, dict) or profile.get("slug") != slug:
+        raise RuntimeError("release profile evidence is invalid")
+    has_authoring_version = "authoring_spec_version" in profile
+    authoring_version = profile.get("authoring_spec_version")
+    receipt_raw = entries.get(receipt_path)
+    if not has_authoring_version:
+        if receipt_raw is not None or "authoring_spec_sha256" in profile:
+            raise RuntimeError("legacy release has unbound authoring metadata")
+    elif authoring_version == HOST_MODULE.COMPILER.PROFILE_AUTHORING_SPEC_VERSION:
+        if not isinstance(receipt_raw, bytes):
+            raise RuntimeError("release authoring receipt evidence is missing")
+        try:
+            receipt = json.loads(
+                receipt_raw.decode("utf-8"),
+                parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
+            )
+            canonical = HOST_MODULE.COMPILER.canonical_profile_authoring_spec_bytes(receipt)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError):
+            raise RuntimeError("release authoring receipt evidence is invalid") from None
+        if (
+            not isinstance(receipt, dict)
+            or receipt_raw != canonical
+            or not SAFE_SHA256_RE.fullmatch(str(profile.get("authoring_spec_sha256") or ""))
+            or sha256_bytes(receipt_raw) != profile["authoring_spec_sha256"]
+        ):
+            raise RuntimeError("release authoring receipt evidence mismatch")
+    else:
+        raise RuntimeError("release authoring spec version is unsupported")
+    return hash_release_artifact_entries(entries)
+
+
+def _read_release_artifact(root: Path, relative: str) -> bytes:
+    root_resolved = root.resolve(strict=True)
+    path = root / relative
+    try:
+        if path.is_symlink() or not path.is_file() or not path.resolve(strict=True).is_relative_to(root_resolved):
+            raise OSError
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as handle:
+            before = os.fstat(handle.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_RELEASE_ARTIFACT_FILE_BYTES:
+                raise OSError
+            content = handle.read(MAX_RELEASE_ARTIFACT_FILE_BYTES + 1)
+            after = os.fstat(handle.fileno())
+    except OSError as error:
+        raise RuntimeError("release artifact path is unsafe") from error
+    if (
+        len(content) > MAX_RELEASE_ARTIFACT_FILE_BYTES
+        or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+        != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+    ):
+        raise RuntimeError("release artifact changed while reading")
+    return content
+
+
 def hash_release_artifacts(slug: str, root: Path = ROOT) -> str:
     container = root / "containers" / slug
-    if not container.is_dir():
+    if container.is_symlink() or not container.is_dir():
         raise RuntimeError("generated artifact directory is missing")
     entries: dict[str, bytes] = {}
-    for path in sorted(candidate for candidate in container.rglob("*") if candidate.is_file()):
+    for path in sorted(container.rglob("*")):
+        if path.is_symlink():
+            raise RuntimeError("release artifact path is unsafe")
+        if not path.is_file():
+            continue
         rel = path.relative_to(root).as_posix()
-        entries[rel] = path.read_bytes()
-    return hash_release_artifact_entries(entries)
+        entries[rel] = _read_release_artifact(root, rel)
+    for rel in (
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
+    ):
+        if (root / rel).exists() or (root / rel).is_symlink():
+            entries[rel] = _read_release_artifact(root, rel)
+    return validate_release_artifact_entries(slug, entries)
 
 
 def release_allowlisted_paths(slug: str, root: Path = ROOT) -> list[str]:
@@ -1204,6 +1339,7 @@ def release_allowlisted_paths(slug: str, root: Path = ROOT) -> list[str]:
     candidates = [
         f"containers/{slug}",
         f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
         *(f"site/run-manifests/{manifest_slug}.json" for manifest_slug in sorted(run_manifest_slugs)),
         "site/catalog.js",
         "site/deploy/hosted-skills.generated.mjs",
@@ -1552,12 +1688,15 @@ class GitHubReleaseAdapter:
         return raw
 
     def _tree_artifact_hash(self, commit: str, slug: str) -> str:
-        raw = self._run(["git", "ls-tree", "-r", "-z", "--name-only", commit, "--", f"containers/{slug}"])
-        paths = [path for path in str(raw).split("\0") if path]
+        profile_path = f"packages/skill-to-modal/profiles/{slug}.json"
+        receipt_path = f"packages/skill-to-modal/profile-authoring-specs/{slug}.json"
+        raw = self._run([
+            "git", "ls-tree", "-r", "-z", commit, "--",
+            f"containers/{slug}", profile_path, receipt_path,
+        ])
+        paths = parse_release_tree_paths(str(raw))
         entries = {path: self._tree_file(commit, path) for path in paths}
-        if not entries:
-            raise RuntimeError("verified merge artifact tree is empty")
-        return hash_release_artifact_entries(entries)
+        return validate_release_artifact_entries(slug, entries)
 
     def verify_merged_release(self, release_metadata: dict[str, Any]) -> dict[str, Any]:
         metadata = normalize_release_metadata(release_metadata)

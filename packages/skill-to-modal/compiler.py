@@ -428,6 +428,9 @@ def assemble_profile_authoring_spec(
     ]
     common = {
         "authoring_spec_version": PROFILE_AUTHORING_SPEC_VERSION,
+        "authoring_spec_sha256": hashlib.sha256(
+            canonical_profile_authoring_spec_bytes(authoring_spec)
+        ).hexdigest(),
         "slug": identity["slug"], "name": identity["name"], "version": "1.0.0",
         "reviewed_source_sha256": identity["source_sha256"], "apt_packages": [],
         "artifacts": [], "runtime_preference": "auto",
@@ -547,6 +550,16 @@ def assemble_profile_authoring_spec(
             }
         ],
     }
+
+
+def canonical_profile_authoring_spec_bytes(authoring_spec: dict[str, Any]) -> bytes:
+    """Return the exact compiler-canonical receipt bytes for an authored spec."""
+    normalized = copy.deepcopy(authoring_spec)
+    for field in ("input_schema", "output_schema"):
+        schema = normalized.get(field) if isinstance(normalized, dict) else None
+        if isinstance(schema, dict):
+            normalized[field] = _canonicalize_authored_schema(schema)
+    return canonical_json(normalized).encode("utf-8")
 
 
 def canonical_profile_authoring_bytes(
