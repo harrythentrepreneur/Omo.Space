@@ -681,6 +681,34 @@ def test_prompt_contains_private_path_but_not_source_bytes(tmp_path: Path) -> No
     assert "capability-backed Modal" in prompt
     assert "never generate arbitrary python or javascript" in prompt.lower()
     assert "c" * 40 in prompt
+    assert "packages/skill-to-modal/profiles/safe-skill.json" in prompt
+    assert "The build is incomplete unless that exact file exists" in prompt
+
+
+def test_authored_profile_is_validated_before_trusted_release(tmp_path: Path) -> None:
+    builder = load_builder()
+    checkout = tmp_path / "repo"
+    checkout.mkdir()
+    source_sha256 = "a" * 64
+
+    assert builder.authored_profile_failure(checkout, "safe-skill", source_sha256) == "reviewed_profile_missing_or_invalid"
+
+    profile = checkout / "packages" / "skill-to-modal" / "profiles" / "safe-skill.json"
+    profile.parent.mkdir(parents=True)
+    profile.write_text("not-json", encoding="utf-8")
+    assert builder.authored_profile_failure(checkout, "safe-skill", source_sha256) == "reviewed_profile_missing_or_invalid"
+
+    profile.write_text(json.dumps({"slug": "wrong", "reviewed_source_sha256": source_sha256}), encoding="utf-8")
+    assert builder.authored_profile_failure(checkout, "safe-skill", source_sha256) == "reviewed_profile_missing_or_invalid"
+
+    profile.write_text(json.dumps({"slug": "safe-skill", "reviewed_source_sha256": source_sha256}), encoding="utf-8")
+    assert builder.authored_profile_failure(checkout, "safe-skill", source_sha256) is None
+
+    source_text = SCRIPT.read_text(encoding="utf-8")
+    validation = source_text.index('stage = "hermes_profile_validation"')
+    trusted_release = source_text.index('stage = "trusted_release"')
+    assert validation < trusted_release
+    assert "hermes_profile_validation" in builder.SAFE_FAILURE_STAGES
 
 
 def test_private_review_handoff_is_inside_disposable_untrusted_checkout_only() -> None:
@@ -759,6 +787,10 @@ def test_only_regular_bounded_json_profile_crosses_trust_boundary(tmp_path: Path
     copied.write_text('{"old": true}', encoding="utf-8")
     copied_again = builder.copy_reviewed_profile(source, trusted, "safe-skill")
     assert copied_again.read_bytes() == profile.read_bytes()
+    for constant in ("NaN", "Infinity", "-Infinity"):
+        profile.write_text('{"runtime": {"limit": ' + constant + "}}", encoding="utf-8")
+        with pytest.raises(RuntimeError, match="reviewed profile is invalid"):
+            builder.copy_reviewed_profile(source, trusted, "safe-skill")
     copied.unlink()
     profile.unlink()
     profile.symlink_to(source / "outside.json")
@@ -788,6 +820,21 @@ def test_exact_pinned_reviewed_profile_is_reused_without_authoring(tmp_path: Pat
     assert builder.pinned_reviewed_profile(checkout, "safe-skill", source_sha256) == profile
     assert builder.pinned_reviewed_profile(checkout, "safe-skill", source_sha256.upper()) is None
     assert builder.pinned_reviewed_profile(checkout, "safe-skill", "b" * 64) is None
+    for constant in ("NaN", "Infinity", "-Infinity"):
+        profile.write_text(
+            '{"slug":"safe-skill","reviewed_source_sha256":"' + source_sha256 +
+            '","runtime":{"limit":' + constant + "}}",
+            encoding="utf-8",
+        )
+        assert builder.pinned_reviewed_profile(checkout, "safe-skill", source_sha256) is None
+    profile.write_text(
+        json.dumps({
+            "slug": "safe-skill",
+            "reviewed_source_sha256": source_sha256,
+            "execution_kind": "pure_data",
+        }),
+        encoding="utf-8",
+    )
     source = SCRIPT.read_text(encoding="utf-8")
     selector = "if pinned_reviewed_profile(checkout, slug, source_sha256) is None:"
     assert selector in source
