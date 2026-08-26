@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import http.client
+import hashlib
 import importlib.util
 import io
 import json
+import multiprocessing
 import os
 import socket
 import sys
@@ -67,7 +69,7 @@ def test_builder_and_worker_base_revision_pins_match() -> None:
     match = __import__("re").search(r'^OMO_BUILDER_BASE_REVISION = "([0-9a-f]{40})"$', wrangler, __import__("re").MULTILINE)
     assert match is not None
     assert match.group(1) == builder.ALLOWED_BASE_REVISION
-    assert builder.ALLOWED_BASE_REVISION == "802d86b4701ec0a4562db56c5f76808ff20bafde"
+    assert builder.ALLOWED_BASE_REVISION == "dbbfcbbc6acb305b883bb731c718604c276cfde5"
 
 
 def test_job_identity_is_exact_and_source_scoped() -> None:
@@ -294,6 +296,11 @@ def test_proxy_fixes_upstream_path_host_model_and_strips_headers() -> None:
     assert request.get_header("Authorization") == "Bearer permanent-key"
     assert request.get_header("Host") is None
     assert 0 < timeout <= builder.GEMINI_PROXY_TOTAL_TIMEOUT_SECONDS
+
+
+def test_proxy_dispatch_budget_is_capped_at_24_requests() -> None:
+    builder = load_builder()
+    assert builder.GEMINI_PROXY_MAX_REQUESTS == 24
 
 
 def test_proxy_enforces_request_budget() -> None:
@@ -696,6 +703,299 @@ def test_prompt_contains_private_path_but_not_source_bytes(tmp_path: Path) -> No
     assert "trusted parent processor runs every compiler" in prompt
 
 
+def test_authoring_spec_reader_accepts_only_bounded_regular_strict_json(tmp_path: Path) -> None:
+    builder = load_builder()
+    path = tmp_path / "authoring-spec.json"
+    expected = {"schema_version": "omo.profile-authoring-spec/v1", "family": "pure_data"}
+    path.write_text(json.dumps(expected), encoding="utf-8")
+    assert builder.read_authoring_spec(path) == expected
+
+    invalid_payloads = [
+        b"",
+        b"not-json",
+        b'{"value":NaN}',
+        b'{"family":"single_llm","family":"pure_data"}',
+        b"{" + b"x" * builder.MAX_AUTHORING_SPEC_BYTES + b"}",
+    ]
+    for payload in invalid_payloads:
+        path.unlink(missing_ok=True)
+        path.write_bytes(payload)
+        with pytest.raises(builder.ProfileAuthoringAttemptError, match="AUTHORING_JSON_INVALID"):
+            builder.read_authoring_spec(path)
+
+    path.unlink()
+    path.symlink_to(tmp_path / "missing.json")
+    with pytest.raises(builder.ProfileAuthoringAttemptError, match="AUTHORING_JSON_INVALID"):
+        builder.read_authoring_spec(path)
+
+
+def test_authoring_spec_reader_rejects_fifo_without_blocking(tmp_path: Path) -> None:
+    fifo = tmp_path / "authoring-spec.json"
+    os.mkfifo(fifo)
+    context = multiprocessing.get_context("fork")
+    queue = context.Queue()
+
+    def read_fifo() -> None:
+        builder = load_builder()
+        try:
+            builder.read_authoring_spec(fifo)
+        except builder.ProfileAuthoringAttemptError as error:
+            queue.put(error.code)
+        else:
+            queue.put("accepted")
+
+    process = context.Process(target=read_fifo)
+    process.start()
+    process.join(timeout=1)
+    try:
+        assert not process.is_alive(), "FIFO read blocked before regular-file validation"
+        assert queue.get(timeout=1) == "AUTHORING_JSON_INVALID"
+    finally:
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=1)
+
+
+def test_authoring_prompt_requests_only_bounded_spec_with_typed_diagnostics(tmp_path: Path) -> None:
+    builder = load_builder()
+    review_path = tmp_path / "SKILL.md"
+    authoring_path = tmp_path / "authoring-spec.json"
+
+    prompt = builder.authoring_prompt(
+        "sub_abcdefgh12345678",
+        "safe-skill",
+        'Safe Skill "quoted"',
+        "a" * 64,
+        review_path,
+        "c" * 40,
+        authoring_path,
+        attempt=2,
+        diagnostics=("AUTHORING_SCHEMA_INVALID",),
+    )
+
+    assert str(authoring_path) in prompt
+    assert "omo.profile-authoring-spec/v1" in prompt
+    assert "AUTHORING_SCHEMA_INVALID" in prompt
+    assert "attempt 2 of 3" in prompt.lower()
+    assert "complete runtime profile" not in prompt.lower()
+    assert "packages/skill-to-modal/profiles/safe-skill.json" not in prompt
+    assert "provider urls" in prompt.lower()
+    assert "credential" in prompt.lower()
+    assert "resource limits" in prompt.lower()
+    assert "deployment settings" in prompt.lower()
+
+
+def test_bounded_authoring_rejects_success_after_absolute_deadline() -> None:
+    builder = load_builder()
+    clock = iter([0.0, 0.0, 2.0])
+
+    with pytest.raises(builder.ProfileAuthoringExhausted, match="profile_authoring_exhausted"):
+        builder.run_bounded_profile_authoring(
+            lambda _attempt, _diagnostics, remaining: {"remaining": remaining},
+            lambda _spec: {"ok": True},
+            total_seconds=1.0,
+            monotonic=lambda: next(clock),
+        )
+
+
+def test_bounded_authoring_exhausts_before_subminimum_hermes_timeout() -> None:
+    builder = load_builder()
+    calls = []
+    clock = iter([0.0, 0.99])
+
+    with pytest.raises(builder.ProfileAuthoringExhausted, match="profile_authoring_exhausted"):
+        builder.run_bounded_profile_authoring(
+            lambda *args: calls.append(args),
+            lambda _spec: {"ok": True},
+            total_seconds=1.0,
+            monotonic=lambda: next(clock),
+        )
+    assert calls == []
+
+
+def test_bounded_authoring_stops_before_attempt_after_shared_deadline() -> None:
+    builder = load_builder()
+    author_calls: list[tuple[int, tuple[str, ...], float]] = []
+    clock = iter([100.0, 100.0, 1901.0])
+
+    def author_attempt(attempt: int, diagnostics: tuple[str, ...], remaining: float) -> dict:
+        author_calls.append((attempt, diagnostics, remaining))
+        return {"attempt": attempt}
+
+    def assemble_attempt(_spec: dict) -> dict:
+        raise builder.ProfileAuthoringAttemptError("AUTHORING_SCHEMA_INVALID")
+
+    with pytest.raises(builder.ProfileAuthoringExhausted, match="profile_authoring_exhausted"):
+        builder.run_bounded_profile_authoring(
+            author_attempt,
+            assemble_attempt,
+            total_seconds=1800,
+            monotonic=lambda: next(clock),
+        )
+
+    assert author_calls == [(1, (), 1800.0)]
+
+
+def test_bounded_authoring_repair_exhausts_after_three_typed_attempts_without_release() -> None:
+    builder = load_builder()
+    author_calls: list[tuple[int, tuple[str, ...]]] = []
+    release_calls: list[dict] = []
+
+    def author_attempt(attempt: int, diagnostics: tuple[str, ...], _remaining: float) -> dict:
+        author_calls.append((attempt, diagnostics))
+        return {"attempt": attempt}
+
+    def assemble_attempt(_spec: dict) -> dict:
+        raise builder.ProfileAuthoringAttemptError("AUTHORING_SCHEMA_INVALID")
+
+    with pytest.raises(builder.ProfileAuthoringExhausted, match="profile_authoring_exhausted"):
+        profile = builder.run_bounded_profile_authoring(author_attempt, assemble_attempt)
+        release_calls.append(profile)
+
+    assert author_calls == [
+        (1, ()),
+        (2, ("AUTHORING_SCHEMA_INVALID",)),
+        (3, ("AUTHORING_SCHEMA_INVALID", "AUTHORING_SCHEMA_INVALID")),
+    ]
+    assert release_calls == []
+
+
+def test_bounded_authoring_repairs_invalid_authored_file() -> None:
+    builder = load_builder()
+    calls: list[tuple[int, tuple[str, ...]]] = []
+
+    def author_attempt(attempt: int, diagnostics: tuple[str, ...], _remaining: float) -> dict:
+        calls.append((attempt, diagnostics))
+        if attempt == 1:
+            raise builder.ProfileAuthoringAttemptError("AUTHORING_JSON_INVALID")
+        return {"schema_version": "omo.profile-authoring-spec/v1"}
+
+    result = builder.run_bounded_profile_authoring(author_attempt, lambda spec: {"spec": spec})
+
+    assert result == {"spec": {"schema_version": "omo.profile-authoring-spec/v1"}}
+    assert calls == [(1, ()), (2, ("AUTHORING_JSON_INVALID",))]
+
+
+def test_trusted_authoring_lifecycle_repairs_spec_then_writes_compiler_profile(tmp_path: Path) -> None:
+    builder = load_builder()
+    checkout = tmp_path / "repo"
+    review_dir = checkout / ".omo-review"
+    review_dir.mkdir(parents=True)
+    review_path = review_dir / "SKILL.md"
+    review_path.write_text("# Safe Skill\n", encoding="utf-8")
+    (checkout / "packages" / "skill-to-modal" / "profiles").mkdir(parents=True)
+    calls: list[tuple[int, tuple[str, ...]]] = []
+
+    class FakeCompiler:
+        class ProfileAuthoringError(ValueError):
+            def __init__(self, code: str) -> None:
+                self.code = code
+                super().__init__(code)
+
+        @staticmethod
+        def canonical_profile_authoring_spec_bytes(spec: dict) -> bytes:
+            return (json.dumps(spec, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+        @staticmethod
+        def assemble_profile_authoring_spec(spec: dict, identity: dict) -> dict:
+            assert spec["schema_version"] == "omo.profile-authoring-spec/v1"
+            assert set(identity) == {"slug", "name", "source_sha256"}
+            return {
+                "slug": identity["slug"],
+                "name": identity["name"],
+                "reviewed_source_sha256": identity["source_sha256"],
+                "authoring_spec_version": spec["schema_version"],
+                "authoring_spec_sha256": hashlib.sha256(
+                    FakeCompiler.canonical_profile_authoring_spec_bytes(spec)
+                ).hexdigest(),
+                "runtime": {"family": spec["family"]},
+            }
+
+    def invoke_author(
+        attempt: int,
+        diagnostics: tuple[str, ...],
+        output_path: Path,
+        _remaining: float,
+    ) -> None:
+        calls.append((attempt, diagnostics))
+        if attempt == 1:
+            output_path.write_text("not-json", encoding="utf-8")
+        else:
+            output_path.write_text(json.dumps({
+                "schema_version": "omo.profile-authoring-spec/v1",
+                "family": "pure_data",
+            }), encoding="utf-8")
+
+    profile = builder.author_and_write_trusted_profile(
+        checkout=checkout,
+        slug="safe-skill",
+        name="Safe Skill",
+        source_sha256="a" * 64,
+        review_path=review_path,
+        compiler=FakeCompiler,
+        invoke_author=invoke_author,
+    )
+
+    profile_path = checkout / "packages" / "skill-to-modal" / "profiles" / "safe-skill.json"
+    receipt_path = (
+        checkout / "packages" / "skill-to-modal" / "profile-authoring-specs" / "safe-skill.json"
+    )
+    assert json.loads(profile_path.read_text(encoding="utf-8")) == profile
+    assert receipt_path.read_bytes() == FakeCompiler.canonical_profile_authoring_spec_bytes({
+        "schema_version": "omo.profile-authoring-spec/v1",
+        "family": "pure_data",
+    })
+    assert profile["reviewed_source_sha256"] == "a" * 64
+    assert calls == [(1, ()), (2, ("AUTHORING_JSON_INVALID",))]
+
+
+def test_trusted_profile_write_rejects_symlinked_parent_without_external_write(tmp_path: Path) -> None:
+    builder = load_builder()
+    checkout = tmp_path / "repo"
+    review_dir = checkout / ".omo-review"
+    review_dir.mkdir(parents=True)
+    review_path = review_dir / "SKILL.md"
+    review_path.write_text("# Safe Skill\n", encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (checkout / "packages").symlink_to(outside, target_is_directory=True)
+
+    class FakeCompiler:
+        @staticmethod
+        def canonical_profile_authoring_spec_bytes(spec: dict) -> bytes:
+            return (json.dumps(spec, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+        @staticmethod
+        def assemble_profile_authoring_spec(spec: dict, identity: dict) -> dict:
+            return {
+                **identity,
+                "authoring_spec_sha256": hashlib.sha256(
+                    FakeCompiler.canonical_profile_authoring_spec_bytes(spec)
+                ).hexdigest(),
+            }
+
+    def invoke_author(
+        _attempt: int,
+        _diagnostics: tuple[str, ...],
+        output_path: Path,
+        _remaining: float,
+    ) -> None:
+        output_path.write_text(json.dumps({"schema_version": "omo.profile-authoring-spec/v1"}), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="trusted profile path"):
+        builder.author_and_write_trusted_profile(
+            checkout=checkout,
+            slug="safe-skill",
+            name="Safe Skill",
+            source_sha256="a" * 64,
+            review_path=review_path,
+            compiler=FakeCompiler,
+            invoke_author=invoke_author,
+        )
+
+    assert list(outside.iterdir()) == []
+
+
 def test_authored_profile_is_validated_before_trusted_release(tmp_path: Path) -> None:
     builder = load_builder()
     checkout = tmp_path / "repo"
@@ -813,17 +1113,160 @@ def test_dispatch_is_serialized_and_builder_containers_are_single_use() -> None:
     assert source.index('"status": "accepted"') < source.index("build_submission.spawn(")
 
 
+def test_build_submission_loads_trusted_compiler_before_untrusted_authoring() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    build_body = source[source.index("def build_submission("):source.index("\n@app.function", source.index("def build_submission("))]
+
+    assert "trusted_compiler = load_compiler_module(" in build_body
+    assert build_body.index("trusted_compiler = load_compiler_module(") < build_body.index("chown_tree(checkout)")
+    assert "author_and_write_trusted_profile(" in build_body
+    assert "authoring_prompt(" in build_body
+    assert "attempt=attempt" in build_body
+    assert "diagnostics=diagnostics" in build_body
+    assert "builder_prompt(" not in build_body
+    assert build_body.index("author_and_write_trusted_profile(") < build_body.index("authored_profile_failure(")
+    assert build_body.index("authored_profile_failure(") < build_body.index("process_row(")
+
+
 def test_untrusted_hermes_phase_has_no_terminal_or_github_release_authority() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
     assert '"--toolsets", "file,skills"' in source
     assert '"--toolsets", "terminal,file,skills"' not in source
     assert 'trusted_processor.process_row(row, repository, deploy=True' in source
-    assert 'root, checkout, base_revision, slug, canonical_name, source_sha256, token' in source
+    prepare_call = source[source.index("trusted_checkout = prepare_trusted_checkout("):]
+    assert "trusted_compiler," in prepare_call[:500]
     assert source.index('trusted_processor.process_row(row, repository, deploy=True') < source.index('verified_completion(detail')
     assert '"/usr/bin/setpriv", "--reuid", str(HERMES_UID)' in source
     assert '"--clear-groups", "--no-new-privs", "--", *argv' in source
     assert "preexec_fn=" not in source
     assert '"util-linux"' in source
+
+
+def test_parent_directory_swap_cannot_redirect_profile_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    builder = load_builder()
+    source = tmp_path / "source"
+    trusted = tmp_path / "trusted"
+    slug = "safe-skill"
+    name = "Safe Skill"
+    source_sha256 = "a" * 64
+    profile = source / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile.parent.mkdir(parents=True)
+    valid = {
+        "slug": slug,
+        "name": name,
+        "reviewed_source_sha256": source_sha256,
+        "execution_kind": "pure_data",
+        "readiness": {"can_submit": True, "blockers": []},
+    }
+    profile.write_text(json.dumps(valid), encoding="utf-8")
+    outside_dir = tmp_path / "outside-profiles"
+    outside_dir.mkdir()
+    (outside_dir / profile.name).write_text(
+        json.dumps({**valid, "marker": "outside-crossed"}), encoding="utf-8"
+    )
+    original_dir = tmp_path / "original-profiles"
+    original_open = os.open
+    swapped = []
+
+    def swap_parent_then_open(path, flags, mode=0o777, *, dir_fd=None):
+        is_profile_open = Path(path) == profile or (path == profile.name and dir_fd is not None)
+        if is_profile_open and not swapped:
+            profile.parent.rename(original_dir)
+            profile.parent.symlink_to(outside_dir, target_is_directory=True)
+            swapped.append(True)
+        if dir_fd is None:
+            return original_open(path, flags, mode)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "open", swap_parent_then_open)
+    copied = builder.copy_reviewed_profile(source, trusted, slug, name, source_sha256)
+    assert swapped == [True]
+    assert "marker" not in json.loads(copied.read_text(encoding="utf-8"))
+
+
+def test_profile_swap_to_symlink_cannot_cross_trust_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    builder = load_builder()
+    source = tmp_path / "source"
+    trusted = tmp_path / "trusted"
+    slug = "safe-skill"
+    name = "Safe Skill"
+    source_sha256 = "a" * 64
+    profile = source / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile.parent.mkdir(parents=True)
+    valid = {
+        "slug": slug,
+        "name": name,
+        "reviewed_source_sha256": source_sha256,
+        "execution_kind": "pure_data",
+        "readiness": {"can_submit": True, "blockers": []},
+    }
+    profile.write_text(json.dumps(valid), encoding="utf-8")
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps({**valid, "marker": "outside-followed"}), encoding="utf-8")
+    original_read_bytes = Path.read_bytes
+    swaps = []
+
+    def swap_then_read(path: Path) -> bytes:
+        if path == profile and not path.is_symlink():
+            swaps.append(path)
+            path.unlink()
+            path.symlink_to(outside)
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", swap_then_read)
+    copied = builder.copy_reviewed_profile(source, trusted, slug, name, source_sha256)
+    assert swaps == []
+    assert "marker" not in json.loads(copied.read_text(encoding="utf-8"))
+
+
+def test_authored_receipt_crosses_trust_boundary_with_profile_digest(tmp_path: Path) -> None:
+    builder = load_builder()
+    source = tmp_path / "source"
+    trusted = tmp_path / "trusted"
+    slug = "safe-skill"
+    name = "Safe Skill"
+    source_sha256 = "a" * 64
+    spec = {"schema_version": "omo.profile-authoring-spec/v1", "family": "pure_data"}
+
+    class FakeCompiler:
+        PROFILE_AUTHORING_SPEC_VERSION = "omo.profile-authoring-spec/v1"
+
+        @staticmethod
+        def canonical_profile_authoring_spec_bytes(value: dict) -> bytes:
+            return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+    receipt_bytes = FakeCompiler.canonical_profile_authoring_spec_bytes(spec)
+    profile = source / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    profile.parent.mkdir(parents=True)
+    profile.write_text(json.dumps({
+        "slug": slug,
+        "name": name,
+        "reviewed_source_sha256": source_sha256,
+        "execution_kind": "pure_data",
+        "readiness": {"can_submit": True, "blockers": []},
+        "authoring_spec_version": FakeCompiler.PROFILE_AUTHORING_SPEC_VERSION,
+        "authoring_spec_sha256": hashlib.sha256(receipt_bytes).hexdigest(),
+    }), encoding="utf-8")
+    receipt = source / "packages" / "skill-to-modal" / "profile-authoring-specs" / f"{slug}.json"
+    receipt.parent.mkdir(parents=True)
+    receipt.write_bytes(receipt_bytes)
+
+    copied = builder.copy_reviewed_profile(
+        source, trusted, slug, name, source_sha256, compiler=FakeCompiler
+    )
+    copied_receipt = trusted / "packages" / "skill-to-modal" / "profile-authoring-specs" / f"{slug}.json"
+    assert copied.read_bytes() == profile.read_bytes()
+    assert copied_receipt.read_bytes() == receipt_bytes
+
+    receipt.write_text('{"schema_version":"mutated"}\n', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="authoring receipt"):
+        builder.copy_reviewed_profile(
+            source, trusted, slug, name, source_sha256, compiler=FakeCompiler
+        )
 
 
 def test_only_regular_bounded_json_profile_crosses_trust_boundary(tmp_path: Path) -> None:
