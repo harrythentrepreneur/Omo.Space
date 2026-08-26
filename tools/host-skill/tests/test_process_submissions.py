@@ -834,6 +834,19 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
     assert not any("/tmp/" in command and "SKILL.md" in command for command in flattened)
 
 
+def test_release_allowlist_preserves_authoring_ir_as_immutable_receipt(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    slug = "fresh-workflow"
+    (tmp_path / "containers" / slug).mkdir(parents=True)
+    ir = tmp_path / "packages/skill-to-modal/workflow-irs" / f"{slug}.json"
+    ir.parent.mkdir(parents=True)
+    ir.write_text('{"schema_version":"omo.workflow-ir/pure-data-v1"}\n')
+
+    assert f"packages/skill-to-modal/workflow-irs/{slug}.json" in process.release_allowlisted_paths(
+        slug, root=tmp_path,
+    )
+
+
 def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path: Path) -> None:
     process = load_process_submissions()
     slug = "education-workflow"
@@ -928,6 +941,66 @@ def test_verify_merged_release_reads_hashes_from_merge_tree_not_current_tree() -
     assert verified["verified_merge_sha"] == "d" * 40
     assert ["git", "fetch", "origin", "main"] in calls
     assert ["git", "merge-base", "--is-ancestor", "d" * 40, "origin/main"] in calls
+
+
+def test_release_adapter_merge_requires_protection_and_exact_separate_review() -> None:
+    process = load_process_submissions()
+    calls = []
+    views = [
+        {
+            "number": 42, "state": "OPEN", "baseRefName": "main", "headRefOid": "a" * 40,
+            "author": {"login": "harrythentrepreneur"}, "reviewDecision": "APPROVED",
+            "mergeCommit": None,
+            "statusCheckRollup": [{"name": "contracts", "conclusion": "SUCCESS"}],
+        },
+        {
+            "number": 42, "state": "MERGED", "baseRefName": "main", "headRefOid": "a" * 40,
+            "author": {"login": "harrythentrepreneur"}, "reviewDecision": "APPROVED",
+            "mergeCommit": {"oid": "d" * 40},
+            "statusCheckRollup": [{"name": "contracts", "conclusion": "SUCCESS"}],
+        },
+    ]
+
+    def runner(command, cwd=None, text=True):
+        calls.append(command)
+        if command[:2] == ["gh", "api"] and command[-1].endswith("/protection"):
+            return json.dumps({
+                "required_status_checks": {"strict": True, "contexts": ["contracts"]},
+                "required_pull_request_reviews": {
+                    "required_approving_review_count": 1, "dismiss_stale_reviews": True,
+                },
+            })
+        if command[:2] == ["gh", "api"] and command[-1].endswith("/reviews"):
+            return json.dumps([{
+                "id": 1, "state": "APPROVED", "commit_id": "a" * 40,
+                "author_association": "MEMBER", "user": {"login": "reviewer", "type": "User"},
+            }])
+        if command[:4] == ["gh", "pr", "view", "--repo"]:
+            return json.dumps(views.pop(0))
+        if command[:4] == ["gh", "pr", "merge", "--repo"]:
+            return ""
+        if command[:2] == ["git", "fetch"] or command[:2] == ["git", "cat-file"] or command[:2] == ["git", "merge-base"]:
+            return ""
+        if command[:2] == ["git", "ls-tree"]:
+            return "containers/facebook-ads-copywriter/manifest.json\0"
+        if command[:2] == ["git", "show"]:
+            if command[2].endswith(":containers/facebook-ads-copywriter/source/SKILL.md"):
+                return b"reviewed source"
+            return b'{"slug":"facebook-ads-copywriter"}'
+        raise AssertionError(command)
+
+    source_hash = process.sha256_bytes(b"reviewed source")
+    artifact_hash = process.hash_release_artifact_entries({
+        "containers/facebook-ads-copywriter/manifest.json": b'{"slug":"facebook-ads-copywriter"}',
+    })
+    merged = process.GitHubReleaseAdapter(command_runner=runner).merge_after_required_checks({
+        "release_phase": "pr_open", "branch": "omo-release/sub_reviewed00000000001-facebook-ads-copywriter",
+        "pr_number": 42, "head_sha": "a" * 40,
+        "source_sha256": source_hash, "artifact_hash": artifact_hash,
+    })
+    assert merged["merge_sha"] == "d" * 40
+    merge = next(command for command in calls if command[:4] == ["gh", "pr", "merge", "--repo"])
+    assert merge[-2:] == ["--match-head-commit", "a" * 40]
 
 
 def test_verify_merged_release_fails_when_required_check_is_not_success() -> None:

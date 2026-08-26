@@ -1204,6 +1204,7 @@ def release_allowlisted_paths(slug: str, root: Path = ROOT) -> list[str]:
     candidates = [
         f"containers/{slug}",
         f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/workflow-irs/{slug}.json",
         *(f"site/run-manifests/{manifest_slug}.json" for manifest_slug in sorted(run_manifest_slugs)),
         "site/catalog.js",
         "site/deploy/hosted-skills.generated.mjs",
@@ -1510,7 +1511,7 @@ class GitHubReleaseAdapter:
             "gh", "pr", "view",
             "--repo", self.repo,
             str(pr_number),
-            "--json", "number,url,state,baseRefName,headRefOid,mergeCommit,statusCheckRollup",
+            "--json", "number,url,state,baseRefName,headRefOid,mergeCommit,statusCheckRollup,author,reviewDecision",
         ])
         if not isinstance(value, dict):
             raise RuntimeError("invalid release PR metadata")
@@ -1525,12 +1526,54 @@ class GitHubReleaseAdapter:
             if not isinstance(check, dict):
                 continue
             name = str(check.get("name") or check.get("context") or "").strip()
-            conclusion = str(check.get("conclusion") or check.get("status") or "").upper()
-            if name and conclusion in {"SUCCESS", "COMPLETED"}:
+            conclusion = str(check.get("conclusion") or "").upper()
+            if name and conclusion == "SUCCESS":
                 successful.add(name)
         missing = [name for name in self.required_checks if name not in successful]
         if missing:
             raise RuntimeError("required_checks_not_successful")
+
+    def _assert_protected_separate_review(self, pr_number: int, pr: dict[str, Any]) -> None:
+        protection = self._json([
+            "gh", "api", f"repos/{self.repo}/branches/{self.base}/protection",
+        ])
+        checks = protection.get("required_status_checks") if isinstance(protection, dict) else None
+        policy = protection.get("required_pull_request_reviews") if isinstance(protection, dict) else None
+        contexts = checks.get("contexts") if isinstance(checks, dict) else None
+        count = policy.get("required_approving_review_count") if isinstance(policy, dict) else None
+        if (
+            not isinstance(checks, dict) or checks.get("strict") is not True
+            or not isinstance(contexts, list) or not set(self.required_checks).issubset(set(contexts))
+            or not isinstance(policy, dict) or type(count) is not int or count < 1
+            or policy.get("dismiss_stale_reviews") is not True
+        ):
+            raise RuntimeError("branch_protection_inadequate")
+        author = pr.get("author")
+        author_login = str(author.get("login") if isinstance(author, dict) else "")
+        head_sha = str(pr.get("headRefOid") or "").lower()
+        if pr.get("reviewDecision") != "APPROVED" or not author_login or not SAFE_GIT_SHA_RE.fullmatch(head_sha):
+            raise RuntimeError("separate_review_required")
+        reviews = self._json([
+            "gh", "api", f"repos/{self.repo}/pulls/{pr_number}/reviews",
+        ])
+        if not isinstance(reviews, list) or len(reviews) > 1000:
+            raise RuntimeError("separate_review_required")
+        latest: dict[str, dict[str, Any]] = {}
+        for review in reviews:
+            user = review.get("user") if isinstance(review, dict) else None
+            login = str(user.get("login") if isinstance(user, dict) else "")
+            if login and (login not in latest or int(review.get("id") or 0) > int(latest[login].get("id") or 0)):
+                latest[login] = review
+        approved = any(
+            login != author_login
+            and isinstance(review.get("user"), dict) and review["user"].get("type") == "User"
+            and review.get("author_association") in {"OWNER", "MEMBER", "COLLABORATOR"}
+            and review.get("state") == "APPROVED"
+            and str(review.get("commit_id") or "").lower() == head_sha
+            for login, review in latest.items()
+        )
+        if not approved:
+            raise RuntimeError("exact_head_separate_review_required")
 
     def merge_after_required_checks(self, release_metadata: dict[str, Any]) -> dict[str, Any]:
         metadata = normalize_release_metadata(release_metadata)
@@ -1541,8 +1584,12 @@ class GitHubReleaseAdapter:
         if pr.get("baseRefName") != self.base or str(pr.get("headRefOid") or "").lower() != metadata.get("head_sha"):
             raise RuntimeError("release PR identity mismatch")
         self._assert_required_checks_success(pr)
+        self._assert_protected_separate_review(pr_number, pr)
         if pr.get("state") != "MERGED":
-            self._run(["gh", "pr", "merge", "--repo", self.repo, str(pr_number), "--merge"])
+            self._run([
+                "gh", "pr", "merge", "--repo", self.repo, str(pr_number), "--merge",
+                "--match-head-commit", str(metadata["head_sha"]),
+            ])
         return self.verify_merged_release(metadata)
 
     def _tree_file(self, commit: str, path: str) -> bytes:

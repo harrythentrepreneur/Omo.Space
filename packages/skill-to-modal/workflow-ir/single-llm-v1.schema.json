@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omo.space/schemas/workflow-ir/single-llm-v1.json",
+  "title": "Omo single-LLM workflow IR v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "description", "promise", "category", "input_schema",
+    "model_output_schema", "form", "happy_path", "negative_cases", "prompt"
+  ],
+  "properties": {
+    "schema_version": {"const": "omo.workflow-ir/single-llm-v1"},
+    "description": {"type": "string", "minLength": 8, "maxLength": 600},
+    "promise": {"type": "string", "minLength": 8, "maxLength": 180},
+    "category": {"enum": ["content", "education", "marketing", "ops", "productivity"]},
+    "input_schema": {"type": "object"},
+    "model_output_schema": {"type": "object"},
+    "prompt": {"type": "string", "minLength": 80, "maxLength": 8000},
+    "form": {
+      "type": "array", "minItems": 1, "maxItems": 20,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["field", "widget"],
+        "properties": {
+          "field": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+          "widget": {"enum": ["checkbox", "number", "select", "text", "textarea"]}
+        }
+      }
+    },
+    "happy_path": {
+      "type": "object", "additionalProperties": false, "required": ["input", "output"],
+      "properties": {"input": {}, "output": {}}
+    },
+    "negative_cases": {
+      "type": "array", "minItems": 1, "maxItems": 12,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "input", "reason"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 64},
+          "input": {},
+          "reason": {"type": "string", "minLength": 3, "maxLength": 120}
+        }
+      }
+    }
+  }
+}

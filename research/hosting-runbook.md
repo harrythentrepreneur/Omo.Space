@@ -132,7 +132,9 @@ turn arbitrary uploaded Markdown into executable code.
 deployment:
 
 1. Parse a SKILL.md as untrusted Markdown; never execute it.
-2. Infer its reviewed profile by the frontmatter `name`.
+2. For a new supported upload, validate a small workflow-specific IR and
+   deterministically materialize the trusted profile. Existing reviewed profiles
+   remain valid inputs.
 3. Deterministically generate schemas, prompt assets, `modal_app.py`, fixtures,
    contract tests, manifests, capability analysis, and pricing evidence.
 4. Run the pipeline tests and the generated container contract tests offline.
@@ -143,10 +145,11 @@ deployment:
    Worker registry and canary Omo billing.
 
 “Any SKILL.md” means every skill can enter this analysis and review process. It
-does not mean arbitrary Markdown is executed. The automatic ready path is a
-bounded, schema-validated `single_llm` call. Media, browser, private-data,
-native-code, or multi-provider skills must declare blockers and return
-`503 WORKFLOW_NOT_READY` before spawn or spend until their assets are reviewed.
+does not mean arbitrary Markdown is executed. New automatic authoring is limited
+to machine-validated `pure_data` and `single_llm` IRs. The compiler, not the
+model, owns identity, source binding, runtime/provider/resources, readiness,
+pricing and release policy. Media, browser, private-data, native-code or other
+unsupported capabilities produce exact typed blockers before spawn or spend.
 
 ## New reviewed skill in under 15 minutes of agent time
 

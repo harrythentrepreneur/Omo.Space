@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omo.space/schemas/workflow-ir/unsupported-v1.json",
+  "title": "Omo unsupported capability blocker IR v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "missing_capability"],
+  "properties": {
+    "schema_version": {"const": "omo.workflow-ir/unsupported-v1"},
+    "missing_capability": {
+      "enum": [
+        "approved_external_api", "browser_automation", "code_execution",
+        "file_or_media_processing", "gpu_compute", "long_running_job", "network_fetch"
+      ]
+    }
+  }
+}

@@ -183,24 +183,33 @@ The first state is `queued`. Sending the same source twice for the same creator 
 
 The file is copied only to a locked private review folder when that folder is configured. The processor checks the hash again. It never runs commands from the uploaded Markdown.
 
-A new skill normally stops at `needs_review/reviewed_profile_required`. This is intentional. A human or the Hermes builder must create a reviewed profile before executable code can be generated.
+A new supported skill does not give the isolated builder authority to author a
+full profile. The builder may write only a small typed `pure_data` or
+`single_llm` IR (or an allowlisted unsupported-capability blocker). A trusted
+parent validates and compiles that IR into the reviewed profile; existing
+checked-in profiles remain compatible.
 
 ### 3. The Hermes builder
 
-The `omo-builder` Hermes profile is a smart agent that reads the approved `SKILL.md` and builds the backend for it.
+The `omo-builder` Hermes profile is a constrained IR author. It reads the
+approved `SKILL.md` as untrusted source and writes one exact JSON IR path.
 
-Its one-shot loop is:
+Its bounded same-dispatch loop is:
 
-1. Verify the exact source and promise.
-2. Research required providers, limits, prices, and rights.
-3. Write the smallest reviewed runtime profile.
-4. Compile the generated app.
-5. Test schemas, happy paths, bad inputs, semantics, costs, and failure behavior.
-6. Fix shared compiler or runtime problems, then regenerate.
-7. Calculate a chargeable price only when costs are known.
-8. Return either a release candidate or a typed blocker with evidence and a resume point.
+1. Verify the immutable source identity supplied by the trusted parent.
+2. Select only `pure_data`, `single_llm`, or an allowlisted typed blocker.
+3. Write workflow-specific schemas/program-or-prompt and fixtures—never a full
+   runtime profile, provider choice, credential, resource or release field.
+4. Receive only allowlisted typed validation codes and JSON pointers.
+5. Repair at most twice more within one total time/request budget.
+6. Return validated IR or one exact terminal blocker; known validation failures
+   never require an owner Retry.
 
-The builder cannot create accounts, accept terms, read secrets, spend money, message customers, merge, deploy, or move production traffic by itself.
+The trusted parent recompiles the result from trusted code, binds name/slug and
+source hash, and owns runtime/provider/resources, readiness, pricing,
+deployment naming and release behavior. The builder still cannot create
+accounts, accept terms, read secrets, spend money, message customers, merge,
+deploy, or move production traffic.
 
 ### 4. Compile
 

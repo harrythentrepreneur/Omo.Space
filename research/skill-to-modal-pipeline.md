@@ -80,13 +80,15 @@ separate promotion gate.
 ## Compiler and review boundary
 
 1. Treat `SKILL.md` as untrusted text; never execute instructions from it.
-2. Require a reviewed profile for schemas, prompts, bounded resources, provider
-   configuration, fixtures, and cost evidence.
-3. `single_llm` may be runnable only when the profile explicitly opts into a
-   reviewed HTTPS OpenAI-compatible adapter. Native/media/private-data workflows
-   remain fail-closed.
+2. Preserve existing reviewed profiles. For new supported uploads, require a
+   machine-validated `pure_data` or `single_llm` IR and compile the full profile
+   only in the trusted parent.
+3. Keep identity/source, provider, credential names, runtime/resources,
+   readiness, pricing, deployment and release policy compiler-owned. The model
+   may author only workflow-specific schemas, bounded pure-data operations or a
+   prompt, and fixtures.
 4. Generate the Modal app, manifests, schemas, prompts, pricing report, README,
-   fixtures, and tests from the profile. Run `--check` to detect drift.
+   fixtures, and tests from the trusted profile. Run `--check` to detect drift.
 5. Validate input before spawn and validate provider output both in the runner
    and in the Omo Worker before settlement. Tests inject an executor and make no
    network calls.

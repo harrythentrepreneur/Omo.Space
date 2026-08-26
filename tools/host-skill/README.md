@@ -12,11 +12,21 @@ python3 tools/host-skill/host.py packages/facebook-ads-copywriter/SKILL.md --reg
 python3 tools/host-skill/host.py packages/facebook-ads-copywriter/SKILL.md --register --check
 ```
 
-The SKILL.md is parsed as untrusted text and is never executed. A reviewed
-profile at `packages/skill-to-modal/profiles/<slug>.json` is mandatory. Only
-reviewed `single_llm` profiles can become runnable automatically; every other
-execution kind stays fail-closed until its artifacts and capabilities are
-materialized and reviewed.
+The SKILL.md is parsed as untrusted text and is never executed. Existing
+reviewed profiles at `packages/skill-to-modal/profiles/<slug>.json` remain
+supported byte-for-byte. For a new supported `pure_data` or `single_llm`
+submission, the isolated author writes only a small versioned IR under
+`packages/skill-to-modal/workflow-irs/`. A trusted parent validates that IR
+against the authoritative machine schema and deterministically owns identity,
+source binding, provider/runtime/resources, readiness, pricing, deployment and
+release policy when it materializes the full profile. Unsupported code,
+media/browser/private-data/provider selection and arbitrary capabilities stop
+with a typed blocker; they are never turned into executable resources.
+
+Validation repair stays inside one builder dispatch: at most three authoring
+attempts share one 1,800-second and 24-proxy-request budget. Only fixed error
+codes and JSON pointers are returned to the isolated author. Source and identity
+remain immutable, and exhaustion is a terminal non-Retry blocker.
 
 During reviewed release preparation, the profile can set `runtime_preference`
 to `auto`, `worker-native`, or `modal-hosted`. Hermes records the recommended,
@@ -122,8 +132,21 @@ uses an immutable `actions/checkout` revision, disables persisted credentials,
 loads the validator from trusted `main`, and checks out the eligible target
 only through the validator's SHA output. It has no secrets, artifacts,
 provider adapters, deployment command, write permission or manual dispatch.
-This is an inert controller foundation; it records eligibility but does not
-deploy or finalize a release.
+This trigger remains an inert controller foundation; it records eligibility but
+does not deploy or finalize a release.
+
+### Protected autonomous release-PR merge
+
+`.github/workflows/trusted-release-merge.yml` loads only the controller from
+trusted `main`. Review submission, successful contract completion, and a bounded
+five-minute reconciliation schedule are candidate hints, never authority. The
+controller re-reads the fixed repository and verifies a server-derived release
+branch, fixed owner author, strict current branch protection, green `contracts`,
+and a distinct trusted human approval on the exact head commit. It merges with
+`--match-head-commit`; a main push then activates the existing exact-merge
+finalizer. Stale/dismissed/same-author reviews, forks, moving heads, missing
+checks and weak protection all remain blocked. The release commit preserves the
+small authoring IR beside the compiler-owned profile as an immutable receipt.
 
 ### Staging deployment foundation
 

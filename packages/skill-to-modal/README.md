@@ -2,9 +2,13 @@
 
 This package is the small, deterministic compiler used to turn a reviewed
 `SKILL.md` into a Modal candidate bundle. It treats the skill as untrusted
-source material: Markdown is parsed, never executed, and a checked-in profile
-must supply the schemas, bounded steps, capability decisions, test fixtures,
-and pricing evidence.
+source material: Markdown is parsed and never executed. Existing checked-in
+profiles continue to supply reviewed contracts. New supported creator uploads
+first produce only a `pure_data` or `single_llm` workflow IR validated by the
+machine schemas in `workflow-ir/`; `workflow_ir.py` deterministically compiles
+that IR into the full trusted profile. The IR cannot select identity, source
+hash, provider, credentials, runtime, resources, readiness, pricing, deployment
+or release policy.
 
 ```bash
 python3 packages/skill-to-modal/compiler.py \
@@ -19,9 +23,13 @@ fail-closed `POST /v1/runs` endpoint; they are never silently mocked in the
 deployed runtime. Offline tests may inject a mock executor to exercise the
 complete request/result contract without keys, network access, or spend.
 
-The current allowlist admits only `single_llm` candidates with a reviewed
-OpenAI-compatible operation. The two practice skills are intentionally marked
-`complex_external` and `not_ready`.
+The automatic authoring allowlist admits two deterministic families:
+`pure_data` uses only the reviewed bounded standard-library operation registry;
+`single_llm` uses the compiler-pinned OpenAI-compatible adapter and model policy.
+Both families receive compiler-owned runtime, resource, readiness, pricing and
+release fields. Existing reviewed profiles—including complex fail-closed
+profiles—remain compatible. Every other new capability is represented as a
+typed unsupported blocker rather than a partially runnable profile.
 
 ## Reusable generator capabilities
 
