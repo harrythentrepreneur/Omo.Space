@@ -126,6 +126,15 @@ def test_hosted_profile_is_deterministic_and_schema_driven() -> None:
     assert first["run_manifest"]["price_usd"] == pricing["display_price_usd"] == 0.1
 
 
+def test_host_registration_rejects_wrong_source_for_marked_single_llm_profile() -> None:
+    profile, manifest, pricing = compiled_inputs()
+    profile["authoring_spec_version"] = "omo.profile-authoring-spec/v1"
+    profile["reviewed_source_sha256"] = "0" * 64
+
+    with pytest.raises(ValueError, match="reviewed source does not match compiled source"):
+        host.build_hosted_profile(profile, manifest, pricing)
+
+
 def test_host_registration_preserves_compiler_materialized_adapter_and_artifact_schemas() -> None:
     skill = ROOT / "containers" / "woven-storybook-pipeline" / "source" / "SKILL.md"
     profile_path = (
@@ -376,6 +385,7 @@ def test_lightweight_single_llm_defaults_to_worker_native() -> None:
         "system_prompt": profile["prompts"]["run.txt"],
         "workflow_version": profile["version"],
         "max_output_tokens": 1600,
+        "max_input_bytes": 64 * 1024,
         "temperature": 0.55,
         "timeout_seconds": 120,
     }

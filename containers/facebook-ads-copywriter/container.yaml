@@ -4,7 +4,7 @@ slug: facebook-ads-copywriter
 version: "0.1.0"
 status: ready
 generated:
-  compiler: skill-to-modal/0.1.0
+  compiler: skill-to-modal/0.6.0
   hand_edit_allowed: false
 source:
   kind: vendored-skill-md
@@ -20,7 +20,7 @@ image:
 resources:
   cpu: 1.0
   memory_mb: 512
-  timeout_seconds: 180
+  timeout_seconds: 270
   min_containers: 0
   max_containers: 4
 endpoint:
@@ -48,6 +48,7 @@ steps:
 input_schema: schemas/input.json
 output_schema: schemas/output.json
 frontend_manifest: manifest.json
+capability_manifest: capability-manifest.json
 pricing_report: pricing-report.json
 tests:
   contract: tests/test_contract.py

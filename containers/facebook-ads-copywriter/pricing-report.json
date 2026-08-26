@@ -25,6 +25,7 @@
   ],
   "floor_usd": 0.1,
   "markup": 5.0,
+  "measured_evidence": [],
   "notes": [
     "The modeled provider cost remains below the marketplace minimum, so the buyer quote is $0.10."
   ],
