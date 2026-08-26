@@ -125,6 +125,23 @@ def test_generation_is_byte_deterministic() -> None:
     assert json.loads(first["manifest.json"])["readiness"]["can_submit"] is True
 
 
+def test_missing_profile_readiness_fails_with_typed_contract_error() -> None:
+    skill = SKILL_PATH.read_text(encoding="utf-8")
+    profile = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    profile.pop("readiness")
+
+    with pytest.raises(ValueError, match="profile readiness must contain typed can_submit and blockers"):
+        compiler.build_files(skill, profile)
+
+    profile["readiness"] = {"can_submit": False, "blockers": [{}]}
+    with pytest.raises(ValueError, match="profile readiness must contain typed can_submit and blockers"):
+        compiler.build_files(skill, profile)
+
+    profile["readiness"] = {"can_submit": False, "blockers": [{"code": 7, "detail": "blocked"}]}
+    with pytest.raises(ValueError, match="profile readiness must contain typed can_submit and blockers"):
+        compiler.build_files(skill, profile)
+
+
 def test_generator_materializes_whatsapp_zip_and_book_pdf_contracts() -> None:
     skill_path = ROOT / "containers" / "woven-storybook-pipeline" / "source" / "SKILL.md"
     profile_path = (
