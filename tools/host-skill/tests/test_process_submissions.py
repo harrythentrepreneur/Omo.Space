@@ -1105,6 +1105,9 @@ def test_verify_merged_release_accepts_only_reproducible_registry_repair_head() 
     assert verified["head_sha"] == repaired_head
     assert verified["verified_merge_sha"] == merge_sha
     assert ["git", "merge-base", "--is-ancestor", recorded_head, repaired_head] in calls
+    fetch_main = ["git", "fetch", "origin", "main"]
+    read_merge_tree = ["git", "ls-tree", "-r", "-z", merge_sha, "--", "containers"]
+    assert calls.index(fetch_main) < calls.index(read_merge_tree)
 
 
 def test_reconciled_release_head_rejects_mismatched_pr_identity() -> None:
