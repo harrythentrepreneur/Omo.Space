@@ -1671,6 +1671,176 @@ export const HOSTED_WORKER_SKILL_ROWS = [
     }
   ],
   [
+    "release-tag-sorter-canary",
+    {
+      "artifact": null,
+      "container_slug": "release-tag-sorter-canary",
+      "executor": {
+        "execution_kind": "pure_data",
+        "operation": "pure_data.execute",
+        "program": {
+          "limits": {
+            "max_input_bytes": 8192,
+            "max_list_items": 20,
+            "max_output_bytes": 8192,
+            "max_steps": 16,
+            "max_text_bytes": 80
+          },
+          "result": "result",
+          "spec_version": "omo.pure-data/v1",
+          "steps": [
+            {
+              "id": "tags",
+              "op": "input.get",
+              "path": "/tags"
+            },
+            {
+              "id": "clean",
+              "input": "tags",
+              "op": "text_list.normalize_ascii",
+              "reject_control_characters": true,
+              "reject_empty": true,
+              "trim_ascii_whitespace": true
+            },
+            {
+              "id": "sorted",
+              "input": "clean",
+              "key": "ascii_case_insensitive",
+              "op": "text_list.sort_ascii",
+              "tie_break": "ascii_bytes"
+            },
+            {
+              "fields": {
+                "sorted_tags": {
+                  "ref": "sorted"
+                },
+                "status": {
+                  "const": "completed"
+                }
+              },
+              "id": "result",
+              "op": "result.object"
+            }
+          ]
+        },
+        "program_digest": "sha256:9131a206359d1c04a24d66eaeee1c6d6824d43e9746dba65a62a6e9fb0d6404e",
+        "spec_version": "omo.worker-pure-data/v1",
+        "workflow_version": "1.0.0"
+      },
+      "input_adapters": [],
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "tags": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "tags"
+        ],
+        "type": "object"
+      },
+      "kind": "worker-native",
+      "model_output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "sorted_tags": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "status": {
+            "const": "completed"
+          }
+        },
+        "required": [
+          "sorted_tags",
+          "status"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "sorted_tags": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "status": {
+            "const": "completed"
+          },
+          "usage": {
+            "additionalProperties": false,
+            "properties": {
+              "completion_tokens": {
+                "const": 0
+              },
+              "estimated_cost_usd": {
+                "const": 0
+              },
+              "llm_calls": {
+                "const": 0
+              },
+              "model": {
+                "const": "omo.pure-data/v1"
+              },
+              "prompt_tokens": {
+                "const": 0
+              },
+              "provider": {
+                "const": "worker-pure-data"
+              }
+            },
+            "required": [
+              "provider",
+              "model",
+              "llm_calls",
+              "prompt_tokens",
+              "completion_tokens",
+              "estimated_cost_usd"
+            ],
+            "type": "object"
+          },
+          "workflow_version": {
+            "const": "release-tag-sorter-canary@1.0.0"
+          }
+        },
+        "required": [
+          "sorted_tags",
+          "status",
+          "run_id",
+          "workflow_version",
+          "usage"
+        ],
+        "type": "object"
+      },
+      "reviewed_source_sha256": "05e3f9edd5b7a57a68ea32ba703975c6793721a62c17904cab63152f375d0a57",
+      "run_price_cents": 10,
+      "slug": "release-tag-sorter-canary"
+    }
+  ],
+  [
     "ugc-scriptwriter",
     {
       "artifact": null,
@@ -5537,6 +5707,15 @@ export const HOSTED_SERVER_CATALOG_ROWS = [
     "deepseek-v4-flash",
     1200,
     "Explain the selected reviewed phonics pattern for the requested audience and dialect. Provide exactly the requested number of genuine examples plus a clear exceptions or variation note. Return only JSON."
+  ],
+  [
+    "release-tag-sorter-canary",
+    "Release Tag Sorter Canary",
+    0.0,
+    0.1,
+    "pure-data",
+    0,
+    "Execute the reviewed deterministic pure-data pipeline."
   ],
   [
     "skill-md-to-hosted-workflow",

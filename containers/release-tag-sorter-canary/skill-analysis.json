@@ -1,0 +1,28 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "bounded deterministic CPU"
+  ],
+  "description": "Clean and deterministically sort a bounded list of software release tags.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "Release Tag Sorter Canary",
+  "parsed_workflow_steps": [],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "execute",
+      "operation": "pure_data.execute",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "release-tag-sorter-canary",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "05e3f9edd5b7a57a68ea32ba703975c6793721a62c17904cab63152f375d0a57"
+  },
+  "unresolved": []
+}

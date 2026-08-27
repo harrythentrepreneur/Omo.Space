@@ -1,0 +1,30 @@
+{
+  "happy_path": {
+    "input": {
+      "tags": [
+        " v2.0.0 ",
+        "V1.0.0",
+        "beta_1"
+      ]
+    },
+    "output": {
+      "sorted_tags": [
+        "beta_1",
+        "V1.0.0",
+        "v2.0.0"
+      ],
+      "status": "completed"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "empty",
+      "input": {
+        "tags": [
+          " "
+        ]
+      },
+      "reason": "INVALID_VALUE"
+    }
+  ]
+}

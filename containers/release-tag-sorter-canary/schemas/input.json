@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "tags": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "tags"
+  ],
+  "type": "object"
+}

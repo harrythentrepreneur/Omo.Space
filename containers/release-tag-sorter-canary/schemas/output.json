@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "sorted_tags": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "type": "array"
+    },
+    "status": {
+      "const": "completed"
+    }
+  },
+  "required": [
+    "sorted_tags",
+    "status"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,128 @@
+{
+  "chargeable": true,
+  "container_slug": "release-tag-sorter-canary",
+  "examples": [
+    {
+      "caption": "Complete input",
+      "id": "reviewed-example",
+      "input": {
+        "tags": [
+          " v2.0.0 ",
+          "V1.0.0",
+          "beta_1"
+        ]
+      },
+      "output_preview": "A schema-validated hosted result.",
+      "title": "Reviewed example"
+    }
+  ],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "tags": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "tags"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/release-tag-sorter-canary/schemas/input.json",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "run_id": {
+        "type": "string"
+      },
+      "sorted_tags": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "const": 0
+          },
+          "estimated_cost_usd": {
+            "const": 0
+          },
+          "llm_calls": {
+            "const": 0
+          },
+          "model": {
+            "const": "omo.pure-data/v1"
+          },
+          "prompt_tokens": {
+            "const": 0
+          },
+          "provider": {
+            "const": "worker-pure-data"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "release-tag-sorter-canary@1.0.0"
+      }
+    },
+    "required": [
+      "sorted_tags",
+      "status",
+      "run_id",
+      "workflow_version",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/release-tag-sorter-canary/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Running the workflow"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "release-tag-sorter-canary",
+  "ui": {
+    "fields": {
+      "tags": {
+        "widget": "textarea"
+      }
+    },
+    "order": [
+      "tags"
+    ]
+  }
+}
