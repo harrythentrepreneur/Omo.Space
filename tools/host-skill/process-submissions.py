@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import importlib.util
 import json
 import os
@@ -1657,7 +1658,7 @@ class GitHubReleaseAdapter:
             "gh", "pr", "view",
             "--repo", self.repo,
             str(pr_number),
-            "--json", "number,url,state,baseRefName,headRefOid,mergeCommit,statusCheckRollup",
+            "--json", "number,url,state,baseRefName,headRefName,headRefOid,mergeCommit,statusCheckRollup",
         ])
         if not isinstance(value, dict):
             raise RuntimeError("invalid release PR metadata")
@@ -1709,6 +1710,61 @@ class GitHubReleaseAdapter:
         entries = {path: self._tree_file(commit, path) for path in paths}
         return validate_release_artifact_entries(slug, entries)
 
+    def _reconciled_release_head(
+        self, metadata: dict[str, Any], pr: dict[str, Any], merge_sha: str
+    ) -> str:
+        recorded_head = str(metadata.get("head_sha") or "").lower()
+        current_head = str(pr.get("headRefOid") or "").lower()
+        if current_head == recorded_head:
+            return current_head
+        pr_number = int(metadata.get("pr_number") or 0)
+        expected_pr_url = f"https://github.com/{self.repo}/pull/{pr_number}"
+        if (
+            int(pr.get("number") or 0) != pr_number
+            or str(metadata.get("pr_url") or "") != expected_pr_url
+            or str(pr.get("url") or "") != expected_pr_url
+            or str(pr.get("headRefName") or "") != str(metadata.get("branch") or "")
+        ):
+            raise RuntimeError("release head SHA mismatch")
+        if not SAFE_GIT_SHA_RE.fullmatch(recorded_head) or not SAFE_GIT_SHA_RE.fullmatch(current_head):
+            raise RuntimeError("release head SHA mismatch")
+        try:
+            self._run(["git", "fetch", "origin", f"pull/{pr_number}/head"])
+            fetched_head = str(self._run(["git", "rev-parse", "FETCH_HEAD"])).strip().lower()
+            if fetched_head != current_head:
+                raise ValueError("fetched PR head mismatch")
+            self._run(["git", "cat-file", "-e", f"{recorded_head}^{{commit}}"])
+            self._run(["git", "cat-file", "-e", f"{current_head}^{{commit}}"])
+            self._run(["git", "merge-base", "--is-ancestor", recorded_head, current_head])
+            changed_raw = self._run([
+                "git", "diff", "--name-only", "-z", recorded_head, current_head, "--",
+            ])
+        except (subprocess.CalledProcessError, KeyError, ValueError):
+            raise RuntimeError("release head SHA mismatch") from None
+        changed = [path for path in str(changed_raw).split("\0") if path]
+        if changed != ["site/deploy/hosted-skills.generated.mjs"]:
+            raise RuntimeError("release head SHA mismatch")
+
+        hosted_tree = self._run(["git", "ls-tree", "-r", "-z", merge_sha, "--", "containers"])
+        hosted_paths = [
+            path for path in parse_release_tree_paths(str(hosted_tree))
+            if path.endswith("/hosted-profile.json")
+        ]
+        profiles: list[dict[str, Any]] = []
+        try:
+            for path in hosted_paths:
+                value = json.loads(self._tree_file(merge_sha, path))
+                if not isinstance(value, dict):
+                    raise ValueError("invalid hosted profile")
+                profiles.append(value)
+            expected = HOST_MODULE.render_registry(profiles).encode("utf-8")
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+            raise RuntimeError("release head SHA mismatch") from None
+        actual = self._tree_file(merge_sha, "site/deploy/hosted-skills.generated.mjs")
+        if not profiles or not hmac.compare_digest(actual, expected):
+            raise RuntimeError("release head SHA mismatch")
+        return current_head
+
     def verify_merged_release(self, release_metadata: dict[str, Any]) -> dict[str, Any]:
         metadata = normalize_release_metadata(release_metadata)
         pr_number = int(metadata.get("pr_number") or 0)
@@ -1719,12 +1775,11 @@ class GitHubReleaseAdapter:
         pr = self._pr_view(pr_number)
         if pr.get("state") != "MERGED" or pr.get("baseRefName") != self.base:
             raise RuntimeError("verified_merge_required")
-        if str(pr.get("headRefOid") or "").lower() != metadata.get("head_sha"):
-            raise RuntimeError("release head SHA mismatch")
         merge = pr.get("mergeCommit")
         merge_sha = str(merge.get("oid") if isinstance(merge, dict) else "").strip().lower()
         if not SAFE_GIT_SHA_RE.fullmatch(merge_sha):
             raise RuntimeError("verified_merge_required")
+        reconciled_head = self._reconciled_release_head(metadata, pr, merge_sha)
         self._run(["git", "fetch", "origin", self.base])
         self._run(["git", "cat-file", "-e", f"{merge_sha}^{{commit}}"])
         self._run(["git", "merge-base", "--is-ancestor", merge_sha, f"origin/{self.base}"])
@@ -1736,6 +1791,7 @@ class GitHubReleaseAdapter:
         return normalize_release_metadata({
             **metadata,
             "release_phase": "merged_verified",
+            "head_sha": reconciled_head,
             "merge_sha": merge_sha,
             "verified_merge_sha": merge_sha,
             "source_sha256": source_sha256,
