@@ -1975,6 +1975,11 @@ def test_release_worktree_commit_uses_scoped_git_identity(monkeypatch, tmp_path:
         "copy_allowlisted_release_paths",
         lambda _slug, _destination: ["site/deploy/worker.js"],
     )
+    monkeypatch.setattr(
+        process.HOST_MODULE,
+        "refresh_cumulative_registration",
+        lambda _root: [],
+    )
     adapter = process.GitHubReleaseAdapter(
         command_runner=runner,
         scratch_root=tmp_path / "release-scratch",

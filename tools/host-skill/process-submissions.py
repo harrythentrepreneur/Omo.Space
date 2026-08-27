@@ -1602,6 +1602,11 @@ class GitHubReleaseAdapter:
         copied = copy_allowlisted_release_paths(slug, worktree)
         if not copied:
             raise RuntimeError("release allowlist matched no files")
+        HOST_MODULE.refresh_cumulative_registration(worktree)
+        copied = sorted(set(copied) | {
+            "site/catalog.js",
+            "site/deploy/hosted-skills.generated.mjs",
+        })
         self._run(["git", "add", *copied], cwd=worktree)
         self._run(
             [
