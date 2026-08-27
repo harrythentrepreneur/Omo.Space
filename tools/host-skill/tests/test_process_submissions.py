@@ -1035,6 +1035,146 @@ def test_verify_merged_release_reads_hashes_from_merge_tree_not_current_tree() -
     assert ["git", "merge-base", "--is-ancestor", "d" * 40, "origin/main"] in calls
 
 
+def test_verify_merged_release_accepts_only_reproducible_registry_repair_head() -> None:
+    process = load_process_submissions()
+    recorded_head = "a" * 40
+    repaired_head = "b" * 40
+    merge_sha = "d" * 40
+    hosted_path = "containers/dummy-word-list-organizer/hosted-profile.json"
+    hosted = (process.ROOT / hosted_path).read_bytes()
+    expected_registry = process.HOST_MODULE.render_registry([json.loads(hosted)])
+    source = b"reviewed source"
+    manifest = b'{"slug":"facebook-ads-copywriter"}'
+    profile = b'{"slug":"facebook-ads-copywriter"}'
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        calls.append(command)
+        if command[:4] == ["gh", "pr", "view", "--repo"]:
+            return json.dumps({
+                "number": 42,
+                "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42",
+                "state": "MERGED",
+                "baseRefName": "main",
+                "headRefName": "omo-release/sub_verifytree000000000001-facebook-ads-copywriter",
+                "headRefOid": repaired_head,
+                "mergeCommit": {"oid": merge_sha},
+                "statusCheckRollup": [{"name": "contracts", "conclusion": "SUCCESS"}],
+            })
+        if command[:2] == ["git", "diff"]:
+            return "site/deploy/hosted-skills.generated.mjs\0"
+        if command[:3] == ["git", "rev-parse", "FETCH_HEAD"]:
+            return repaired_head
+        if command[:2] == ["git", "ls-tree"]:
+            if command[-1] == "containers":
+                return f"100644 blob {'3' * 40}\t{hosted_path}\0"
+            return (
+                "100644 blob " + "1" * 40 + "\tcontainers/facebook-ads-copywriter/manifest.json\0"
+                "100644 blob " + "2" * 40 + "\tpackages/skill-to-modal/profiles/facebook-ads-copywriter.json\0"
+            )
+        if command[:2] == ["git", "show"]:
+            spec = command[2]
+            if spec.endswith(":containers/facebook-ads-copywriter/source/SKILL.md"):
+                return source
+            if spec.endswith(":containers/facebook-ads-copywriter/manifest.json"):
+                return manifest
+            if spec.endswith(":packages/skill-to-modal/profiles/facebook-ads-copywriter.json"):
+                return profile
+            if spec.endswith(f":{hosted_path}"):
+                return hosted
+            if spec.endswith(":site/deploy/hosted-skills.generated.mjs"):
+                return expected_registry.encode()
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner)
+    release = {
+        "release_phase": "pr_open",
+        "branch": "omo-release/sub_verifytree000000000001-facebook-ads-copywriter",
+        "pr_number": 42,
+        "pr_url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42",
+        "head_sha": recorded_head,
+        "source_sha256": process.sha256_bytes(source),
+        "artifact_hash": process.hash_release_artifact_entries({
+            "containers/facebook-ads-copywriter/manifest.json": manifest,
+            "packages/skill-to-modal/profiles/facebook-ads-copywriter.json": profile,
+        }),
+    }
+
+    verified = adapter.verify_merged_release(release)
+
+    assert verified["head_sha"] == repaired_head
+    assert verified["verified_merge_sha"] == merge_sha
+    assert ["git", "merge-base", "--is-ancestor", recorded_head, repaired_head] in calls
+
+
+def test_reconciled_release_head_rejects_mismatched_pr_identity() -> None:
+    process = load_process_submissions()
+    recorded_head = "a" * 40
+    repaired_head = "b" * 40
+    merge_sha = "d" * 40
+    hosted_path = "containers/dummy-word-list-organizer/hosted-profile.json"
+    hosted = (process.ROOT / hosted_path).read_bytes()
+    expected_registry = process.HOST_MODULE.render_registry([json.loads(hosted)]).encode()
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        if command[:2] == ["git", "diff"]:
+            return "site/deploy/hosted-skills.generated.mjs\0"
+        if command[:3] == ["git", "rev-parse", "FETCH_HEAD"]:
+            return repaired_head
+        if command[:2] == ["git", "ls-tree"]:
+            return f"100644 blob {'3' * 40}\t{hosted_path}\0"
+        if command[:2] == ["git", "show"]:
+            if command[2].endswith(f":{hosted_path}"):
+                return hosted
+            if command[2].endswith(":site/deploy/hosted-skills.generated.mjs"):
+                return expected_registry
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner)
+    metadata = {
+        "pr_number": 42,
+        "pr_url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42",
+        "branch": "omo-release/sub_verifytree000000000001-facebook-ads-copywriter",
+        "head_sha": recorded_head,
+    }
+    mismatched_pr = {
+        "number": 999,
+        "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/999",
+        "headRefName": "omo-release/unrelated",
+        "headRefOid": repaired_head,
+    }
+
+    with pytest.raises(RuntimeError, match="release head SHA mismatch"):
+        adapter._reconciled_release_head(metadata, mismatched_pr, merge_sha)
+
+
+def test_verify_merged_release_rejects_nonregistry_repair_head() -> None:
+    process = load_process_submissions()
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        if command[:4] == ["gh", "pr", "view", "--repo"]:
+            return json.dumps({
+                "state": "MERGED", "baseRefName": "main", "headRefOid": "b" * 40,
+                "mergeCommit": {"oid": "d" * 40},
+                "statusCheckRollup": [{"name": "contracts", "conclusion": "SUCCESS"}],
+            })
+        if command[:2] == ["git", "diff"]:
+            return "tools/host-skill/process-submissions.py\0"
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner)
+    release = {
+        "release_phase": "pr_open",
+        "branch": "omo-release/sub_verifytree000000000001-facebook-ads-copywriter",
+        "pr_number": 42,
+        "head_sha": "a" * 40,
+        "source_sha256": "e" * 64,
+        "artifact_hash": "f" * 64,
+    }
+    with pytest.raises(RuntimeError, match="release head SHA mismatch"):
+        adapter.verify_merged_release(release)
+
+
 def test_verify_merged_release_fails_when_required_check_is_not_success() -> None:
     process = load_process_submissions()
 
