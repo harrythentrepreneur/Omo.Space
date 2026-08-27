@@ -1,0 +1,35 @@
+{
+  "allowlist": [
+    "pure_data",
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:801388a9182c00b112f2c1ace41822b446d08e6e52547fb5ba3596c3ddbed2a6",
+  "decision": "approved",
+  "execution_kind": "pure_data",
+  "generated": {
+    "dependencies": [],
+    "files": [],
+    "honest_limits": [],
+    "packages": [],
+    "policy": [],
+    "resources": {},
+    "runtime_steps": [],
+    "tests": [],
+    "tool_bindings": []
+  },
+  "needs": [],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [],
+  "skill_owned_resources": [],
+  "slug": "release-tag-sorter-canary",
+  "source_sha256": "05e3f9edd5b7a57a68ea32ba703975c6793721a62c17904cab63152f375d0a57",
+  "workflow_blockers": []
+}

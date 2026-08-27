@@ -1,0 +1,91 @@
+{
+  "artifacts": [],
+  "description": "Clean and deterministically sort a bounded list of software release tags.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{run_id}"
+  },
+  "form": [
+    {
+      "field": "tags",
+      "widget": "textarea"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "tags": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "tags"
+    ],
+    "type": "object"
+  },
+  "name": "Release Tag Sorter Canary",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "sorted_tags": {
+        "items": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      }
+    },
+    "required": [
+      "sorted_tags",
+      "status"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "reviewed_deterministic",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "a1265d7e81502be2a021eb8d0521808c57a072e63a40be4f5b33791f5d874c90",
+  "providers": [],
+  "pure_data": {
+    "program_digest": "sha256:9131a206359d1c04a24d66eaeee1c6d6824d43e9746dba65a62a6e9fb0d6404e",
+    "program_path": "runtime/pure-data-program.json",
+    "provenance": {
+      "compiler_version": "skill-to-modal/0.6.0",
+      "profile_version": "1.0.0",
+      "reviewed_source_sha256": "05e3f9edd5b7a57a68ea32ba703975c6793721a62c17904cab63152f375d0a57"
+    }
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [],
+    "status": "ready"
+  },
+  "required_env_names": [],
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "release-tag-sorter-canary",
+  "source_sha256": "05e3f9edd5b7a57a68ea32ba703975c6793721a62c17904cab63152f375d0a57",
+  "version": "1.0.0"
+}
