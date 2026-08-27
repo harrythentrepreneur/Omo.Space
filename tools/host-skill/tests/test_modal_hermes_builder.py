@@ -760,6 +760,10 @@ def test_authoring_prompt_requests_only_bounded_spec_with_typed_diagnostics(tmp_
     builder = load_builder()
     review_path = tmp_path / "SKILL.md"
     authoring_path = tmp_path / "authoring-spec.json"
+    compiler = builder.load_compiler_module(
+        SCRIPT.parents[2] / "packages" / "skill-to-modal" / "compiler.py"
+    )
+    contract = builder.compiler_validated_authoring_contract(compiler)
 
     prompt = builder.authoring_prompt(
         "sub_abcdefgh12345678",
@@ -771,6 +775,8 @@ def test_authoring_prompt_requests_only_bounded_spec_with_typed_diagnostics(tmp_
         authoring_path,
         attempt=2,
         diagnostics=("AUTHORING_SCHEMA_INVALID",),
+        contract=contract,
+        compiler=compiler,
     )
 
     assert str(authoring_path) in prompt
@@ -783,6 +789,74 @@ def test_authoring_prompt_requests_only_bounded_spec_with_typed_diagnostics(tmp_
     assert "credential" in prompt.lower()
     assert "resource limits" in prompt.lower()
     assert "deployment settings" in prompt.lower()
+
+
+def test_authoring_prompt_embeds_compiler_validated_family_contracts(tmp_path: Path) -> None:
+    builder = load_builder()
+    compiler = builder.load_compiler_module(
+        SCRIPT.parents[2] / "packages" / "skill-to-modal" / "compiler.py"
+    )
+
+    contract = builder.compiler_validated_authoring_contract(compiler)
+    parsed = json.loads(contract)
+
+    assert parsed["schema_version"] == "omo.profile-authoring-contract/v1"
+    assert set(parsed["examples"]) == {"pure_data", "single_llm"}
+    for family, example in parsed["examples"].items():
+        profile = compiler.assemble_profile_authoring_spec(
+            example,
+            {
+                "slug": f"contract-{family.replace('_', '-')}",
+                "name": f"Contract {family}",
+                "source_sha256": "a" * 64,
+            },
+        )
+        assert profile["execution_kind"] == family
+        assert profile["readiness"] == {"can_submit": True, "blockers": []}
+
+    prompt = builder.authoring_prompt(
+        "sub_abcdefgh12345678",
+        "safe-skill",
+        "Safe Skill",
+        "a" * 64,
+        tmp_path / "SKILL.md",
+        "c" * 40,
+        tmp_path / "authoring-spec.json",
+        attempt=1,
+        diagnostics=(),
+        contract=contract,
+        compiler=compiler,
+    )
+    assert contract in prompt
+    assert "Top-level keys must match the selected family example exactly" in prompt
+
+
+def test_authoring_prompt_rejects_duplicate_or_tampered_contract(tmp_path: Path) -> None:
+    builder = load_builder()
+    compiler = builder.load_compiler_module(
+        SCRIPT.parents[2] / "packages" / "skill-to-modal" / "compiler.py"
+    )
+    contract = builder.compiler_validated_authoring_contract(compiler)
+    duplicate = contract[:-1] + ',"schema_version":"omo.profile-authoring-contract/v1"}'
+    tampered_value = json.loads(contract)
+    tampered_value["examples"]["pure_data"]["model"] = "attacker-model"
+    tampered = json.dumps(tampered_value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+    for candidate in (duplicate, tampered):
+        with pytest.raises(ValueError, match="invalid compiler authoring contract"):
+            builder.authoring_prompt(
+                "sub_abcdefgh12345678",
+                "safe-skill",
+                "Safe Skill",
+                "a" * 64,
+                tmp_path / "SKILL.md",
+                "c" * 40,
+                tmp_path / "authoring-spec.json",
+                attempt=1,
+                diagnostics=(),
+                contract=candidate,
+                compiler=compiler,
+            )
 
 
 def test_bounded_authoring_rejects_success_after_absolute_deadline() -> None:
@@ -1118,11 +1192,20 @@ def test_build_submission_loads_trusted_compiler_before_untrusted_authoring() ->
     build_body = source[source.index("def build_submission("):source.index("\n@app.function", source.index("def build_submission("))]
 
     assert "trusted_compiler = load_compiler_module(" in build_body
+    assert "authoring_contract = compiler_validated_authoring_contract(trusted_compiler)" in build_body
+    assert build_body.index("trusted_compiler = load_compiler_module(") < build_body.index(
+        "authoring_contract = compiler_validated_authoring_contract(trusted_compiler)"
+    )
+    assert build_body.index(
+        "authoring_contract = compiler_validated_authoring_contract(trusted_compiler)"
+    ) < build_body.index("chown_tree(checkout)")
     assert build_body.index("trusted_compiler = load_compiler_module(") < build_body.index("chown_tree(checkout)")
     assert "author_and_write_trusted_profile(" in build_body
     assert "authoring_prompt(" in build_body
     assert "attempt=attempt" in build_body
     assert "diagnostics=diagnostics" in build_body
+    assert "contract=authoring_contract" in build_body
+    assert "compiler=trusted_compiler" in build_body
     assert "builder_prompt(" not in build_body
     assert build_body.index("author_and_write_trusted_profile(") < build_body.index("authored_profile_failure(")
     assert build_body.index("authored_profile_failure(") < build_body.index("process_row(")
