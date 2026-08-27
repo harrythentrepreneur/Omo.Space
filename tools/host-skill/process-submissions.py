@@ -1779,10 +1779,10 @@ class GitHubReleaseAdapter:
         merge_sha = str(merge.get("oid") if isinstance(merge, dict) else "").strip().lower()
         if not SAFE_GIT_SHA_RE.fullmatch(merge_sha):
             raise RuntimeError("verified_merge_required")
-        reconciled_head = self._reconciled_release_head(metadata, pr, merge_sha)
         self._run(["git", "fetch", "origin", self.base])
         self._run(["git", "cat-file", "-e", f"{merge_sha}^{{commit}}"])
         self._run(["git", "merge-base", "--is-ancestor", merge_sha, f"origin/{self.base}"])
+        reconciled_head = self._reconciled_release_head(metadata, pr, merge_sha)
         source = self._tree_file(merge_sha, f"containers/{slug}/source/SKILL.md")
         source_sha256 = sha256_bytes(source)
         artifact_hash = self._tree_artifact_hash(merge_sha, slug)
