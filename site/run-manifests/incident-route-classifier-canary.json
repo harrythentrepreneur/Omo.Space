@@ -1,0 +1,137 @@
+{
+  "chargeable": true,
+  "container_slug": "incident-route-classifier-canary",
+  "examples": [
+    {
+      "caption": "Complete input",
+      "id": "reviewed-example",
+      "input": {
+        "customer_impacting": true,
+        "summary": "Several customers cannot open the dashboard because API requests time out."
+      },
+      "output_preview": "A schema-validated hosted result.",
+      "title": "Reviewed example"
+    }
+  ],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "customer_impacting": {
+        "type": "boolean"
+      },
+      "summary": {
+        "maxLength": 800,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "customer_impacting",
+      "summary"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/incident-route-classifier-canary/schemas/input.json",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "rationale": {
+        "maxLength": 240,
+        "minLength": 10,
+        "type": "string"
+      },
+      "route": {
+        "enum": [
+          "billing",
+          "reliability",
+          "security",
+          "support"
+        ],
+        "maxLength": 11,
+        "type": "string"
+      },
+      "run_id": {
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "const": "deepseek-v4-flash"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "opencode-go"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "incident-route-classifier-canary@1.0.0"
+      }
+    },
+    "required": [
+      "rationale",
+      "route",
+      "status",
+      "run_id",
+      "workflow_version",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/incident-route-classifier-canary/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Running the workflow"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "incident-route-classifier-canary",
+  "ui": {
+    "fields": {
+      "customer_impacting": {
+        "widget": "text"
+      },
+      "summary": {
+        "widget": "text"
+      }
+    },
+    "order": [
+      "customer_impacting",
+      "summary"
+    ]
+  }
+}

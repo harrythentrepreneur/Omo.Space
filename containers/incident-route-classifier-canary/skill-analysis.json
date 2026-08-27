@@ -1,0 +1,34 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.6.0",
+  "cost_drivers": [
+    "up to two bounded schema-validated DeepSeek V4 Flash calls"
+  ],
+  "description": "Classify a bounded incident summary into one of four operational routes.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "Incident Route Classifier Canary",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "system.txt",
+      "provider": "opencode-go",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "incident-route-classifier-canary",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "2f9625e2f74501a41806258bcb835116eb0bec4e49529b250d1d6c5d3b2f70bb"
+  },
+  "unresolved": []
+}

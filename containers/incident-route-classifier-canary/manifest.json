@@ -1,0 +1,89 @@
+{
+  "artifacts": [],
+  "description": "Classify a bounded incident summary into one of four operational routes.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "customer_impacting",
+      "widget": "text"
+    },
+    {
+      "field": "summary",
+      "widget": "text"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "customer_impacting": {
+        "type": "boolean"
+      },
+      "summary": {
+        "maxLength": 800,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "customer_impacting",
+      "summary"
+    ],
+    "type": "object"
+  },
+  "name": "Incident Route Classifier Canary",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "rationale": {
+        "maxLength": 240,
+        "minLength": 10,
+        "type": "string"
+      },
+      "route": {
+        "enum": [
+          "billing",
+          "reliability",
+          "security",
+          "support"
+        ],
+        "maxLength": 11,
+        "type": "string"
+      }
+    },
+    "required": [
+      "rationale",
+      "route"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "cost_model",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "473b2838d748944c75a10116e0d28e61a7d59b483d95c5a6764c75df2104225f",
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "LLM_API_KEY",
+      "LLM_BASE_URL",
+      "LLM_MODEL"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "incident-route-classifier-canary",
+  "source_sha256": "2f9625e2f74501a41806258bcb835116eb0bec4e49529b250d1d6c5d3b2f70bb",
+  "version": "1.0.0"
+}

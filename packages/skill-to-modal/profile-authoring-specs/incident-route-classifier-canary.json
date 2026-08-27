@@ -1,0 +1,93 @@
+{
+  "family": "single_llm",
+  "happy_path": {
+    "input": {
+      "customer_impacting": true,
+      "summary": "Several customers cannot open the dashboard because API requests time out."
+    },
+    "output": {
+      "rationale": "Customers are experiencing dashboard unavailability due to API request timeouts, indicating a reliability issue.",
+      "route": "reliability"
+    }
+  },
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "customer_impacting": {
+        "type": "boolean"
+      },
+      "summary": {
+        "maxLength": 800,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "customer_impacting",
+      "summary"
+    ],
+    "type": "object"
+  },
+  "marketplace": {
+    "category": "ops",
+    "description": "Classify a bounded incident summary into one of four operational routes.",
+    "emoji": "🚨",
+    "inputs": [
+      "summary: 10 to 800 Unicode code points string",
+      "customer_impacting: boolean"
+    ],
+    "niche": "incident-management",
+    "outputs": [
+      "route: one of 'security', 'reliability', 'billing', 'support'",
+      "rationale: 10 to 240 Unicode code points sentence"
+    ],
+    "promise": "Classify an incident summary into an operational route with a concise rationale.",
+    "tags": [
+      "incident",
+      "classification",
+      "ops",
+      "llm"
+    ],
+    "title": "Incident Route Classifier Canary"
+  },
+  "negative_cases": [
+    {
+      "id": "short_summary",
+      "input": {
+        "customer_impacting": false,
+        "summary": "short"
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ],
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "rationale": {
+        "maxLength": 240,
+        "minLength": 10,
+        "type": "string"
+      },
+      "route": {
+        "enum": [
+          "billing",
+          "reliability",
+          "security",
+          "support"
+        ],
+        "maxLength": 11,
+        "type": "string"
+      }
+    },
+    "required": [
+      "rationale",
+      "route"
+    ],
+    "type": "object"
+  },
+  "prompt": "Classify the following incident summary into one of the following four operational routes: 'security' (suspected credential exposure, unauthorized access, data exfiltration, malware, or deliberate abuse), 'reliability' (outage, severe degradation, crash loop, unavailable dependency, timeout, or data-processing failure without evidence of abuse), 'billing' (incorrect charge, payment, invoice, subscription, credit, or refund behavior without evidence of compromise), or 'support' (user guidance, configuration confusion, or ordinary product assistance that does not fit the other routes). If more than one route appears plausible, prefer 'security', then 'reliability', then 'billing', then 'support'. Provide a concise rationale (10 to 240 Unicode code points) grounded only in the summary and customer_impacting flag. The input summary is: {summary}. Is the customer impacting? {customer_impacting}. Return only JSON matching the output schema.",
+  "requested_capabilities": [
+    "bounded_single_llm"
+  ],
+  "schema_version": "omo.profile-authoring-spec/v1"
+}
