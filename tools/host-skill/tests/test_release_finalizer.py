@@ -13,10 +13,24 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tools" / "host-skill" / "release_finalizer.py"
+COMPILER_PATH = ROOT / "packages" / "skill-to-modal" / "compiler.py"
+AUTHORING_RECEIPT_PATH = (
+    ROOT / "packages" / "skill-to-modal" / "profile-authoring-specs"
+    / "release-tag-sorter-canary.json"
+)
 
 
 def load_finalizer():
     spec = importlib.util.spec_from_file_location("release_finalizer_test", MODULE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_compiler():
+    spec = importlib.util.spec_from_file_location("release_finalizer_compiler_test", COMPILER_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -34,6 +48,26 @@ def artifact_hash(entries: dict[str, bytes]) -> str:
     return digest.hexdigest()
 
 
+def authored_receipt(value: dict[str, Any]) -> bytes:
+    return (json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True) + "\n").encode()
+
+
+def valid_authoring_receipt() -> bytes:
+    return AUTHORING_RECEIPT_PATH.read_bytes()
+
+
+def assembled_profile(receipt: bytes) -> dict[str, Any]:
+    compiler = load_compiler()
+    return compiler.assemble_profile_authoring_spec(
+        json.loads(receipt),
+        {
+            "slug": "demo",
+            "name": "Demo",
+            "source_sha256": hashlib.sha256(SOURCE).hexdigest(),
+        },
+    )
+
+
 TARGET = "a" * 40
 HEAD = "b" * 40
 MERGE = "c" * 40
@@ -42,6 +76,7 @@ SOURCE = b"# Demo\n"
 ENTRIES = {
     "containers/demo/manifest.json": b'{"slug":"demo"}',
     "containers/demo/source/SKILL.md": SOURCE,
+    "packages/skill-to-modal/profiles/demo.json": b'{"slug":"demo"}',
 }
 
 
@@ -82,7 +117,10 @@ class Mainline:
 
     def list_tree(self, sha, prefix):
         self.calls.append(("list_tree", sha, prefix))
-        return {key: value for key, value in self.entries.items() if key.startswith(prefix + "/")}
+        return {
+            key: value for key, value in self.entries.items()
+            if key == prefix or key.startswith(prefix + "/")
+        }
 
     def checkout_detached(self, sha):
         self.calls.append(("checkout", sha))
@@ -268,6 +306,12 @@ class Adapter:
 
 def components(runtime="worker-native", receipts=None):
     mod = load_finalizer()
+    setattr(mod, "TRUSTED_LEGACY_PROFILE_DIGESTS", {
+        "demo": (
+            hashlib.sha256(SOURCE).hexdigest(),
+            hashlib.sha256(ENTRIES["packages/skill-to-modal/profiles/demo.json"]).hexdigest(),
+        ),
+    })
     return mod, Mainline(mod, receipts), Store(mod, runtime), Adapter("modal"), Adapter("cloudflare"), Adapter("vercel")
 
 
@@ -287,6 +331,125 @@ def test_worker_native_success_skips_modal_and_completes_exact_order():
         "R1": {"status": "passed"}, "R2": {"status": "passed"},
         "R3": {"status": "passed"}, "R4": {"status": "excluded_premium"},
     }
+
+
+def test_authored_release_hash_includes_profile_and_authoring_receipt():
+    mod, mainline, store, modal, cloudflare, vercel = components()
+    receipt = valid_authoring_receipt()
+    mainline.entries.update({
+        "packages/skill-to-modal/profiles/demo.json": json.dumps(assembled_profile(receipt)).encode(),
+        "packages/skill-to-modal/profile-authoring-specs/demo.json": receipt,
+    })
+    store.claim_value = replace(
+        store.claim_value,
+        artifact_hash=artifact_hash(mainline.entries),
+    )
+
+    result = mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert result["status"] == "deployed"
+    assert ("read_blob", TARGET, "packages/skill-to-modal/profiles/demo.json") in mainline.calls
+    assert (
+        "list_tree",
+        TARGET,
+        "packages/skill-to-modal/profile-authoring-specs/demo.json",
+    ) in mainline.calls
+
+
+def test_trusted_legacy_profile_pins_match_reviewed_tree():
+    mod = load_finalizer()
+    for slug, (source_digest, profile_digest) in mod.TRUSTED_LEGACY_PROFILE_DIGESTS.items():
+        source = ROOT / "containers" / slug / "source" / "SKILL.md"
+        profile = ROOT / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == source_digest
+        assert hashlib.sha256(profile.read_bytes()).hexdigest() == profile_digest
+
+
+def test_authoring_receipt_canonicalization_matches_trusted_compiler():
+    mod = load_finalizer()
+    compiler = load_compiler()
+    value = {
+        "schema_version": "omo.profile-authoring-spec/v1",
+        "family": "pure_data",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "zeta": {"type": "string", "enum": ["z", "a"]},
+                "alpha": {"type": "string"},
+            },
+            "required": ["zeta", "alpha"],
+            "additionalProperties": False,
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+            "additionalProperties": False,
+        },
+    }
+    compiler_bytes = compiler.canonical_profile_authoring_spec_bytes(value)
+
+    assert mod._canonical_authoring_receipt(compiler_bytes) == compiler_bytes
+
+
+@pytest.mark.parametrize("case", [
+    "legacy_receipt",
+    "unsupported_version",
+    "receipt_digest",
+    "receipt_missing_schema_version",
+    "receipt_unsupported_schema_version",
+    "malformed_schema_properties",
+    "malformed_schema_items",
+    "malformed_schema_required",
+    "malformed_schema_enum",
+    "profile_semantic_mismatch",
+    "legacy_downgrade",
+])
+def test_authoring_evidence_must_match_producer_contract(case):
+    mod, mainline, store, modal, cloudflare, vercel = components()
+    valid_receipt = valid_authoring_receipt()
+    receipt_value = json.loads(valid_receipt)
+    if case == "receipt_missing_schema_version":
+        receipt_value.pop("schema_version")
+    elif case == "receipt_unsupported_schema_version":
+        receipt_value["schema_version"] = "unknown/v9"
+    elif case == "malformed_schema_properties":
+        receipt_value["input_schema"]["properties"] = []
+    elif case == "malformed_schema_items":
+        receipt_value["input_schema"]["properties"]["tags"]["items"] = []
+    elif case == "malformed_schema_required":
+        receipt_value["input_schema"]["required"] = {}
+    elif case == "malformed_schema_enum":
+        receipt_value["input_schema"]["properties"]["tags"]["items"]["enum"] = {}
+    receipt = authored_receipt(receipt_value)
+    if case in {"legacy_receipt", "legacy_downgrade"}:
+        profile: dict[str, Any] = {"slug": "demo"}
+    else:
+        profile = assembled_profile(valid_receipt)
+        profile["authoring_spec_sha256"] = hashlib.sha256(receipt).hexdigest()
+    if case == "unsupported_version":
+        profile["authoring_spec_version"] = "unknown/v9"
+    elif case == "receipt_digest":
+        profile["authoring_spec_sha256"] = "0" * 64
+    elif case == "profile_semantic_mismatch":
+        profile["execution_kind"] = "single_llm"
+        profile["capabilities"] = ["attacker-selected-capability"]
+    elif case == "legacy_downgrade":
+        profile["execution_kind"] = "single_llm"
+        profile["capabilities"] = ["attacker-selected-capability"]
+    mainline.entries["packages/skill-to-modal/profiles/demo.json"] = json.dumps(profile).encode()
+    if case != "legacy_downgrade":
+        mainline.entries["packages/skill-to-modal/profile-authoring-specs/demo.json"] = receipt
+    hashed_entries = dict(mainline.entries)
+    if case == "legacy_receipt":
+        hashed_entries.pop("packages/skill-to-modal/profile-authoring-specs/demo.json")
+    store.claim_value = replace(store.claim_value, artifact_hash=artifact_hash(hashed_entries))
+
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert caught.value.code == "internal_finalizer_failed"
+    assert modal.events == cloudflare.events == vercel.events == []
 
 
 def test_explicit_production_targets_accept_only_production_receipts():
@@ -618,6 +781,12 @@ def fake_scenario():
 
 def test_fake_only_cli_runs_scenario_and_emits_sorted_json(tmp_path, capsys):
     mod = load_finalizer()
+    setattr(mod, "TRUSTED_LEGACY_PROFILE_DIGESTS", {
+        "demo": (
+            hashlib.sha256(SOURCE).hexdigest(),
+            hashlib.sha256(ENTRIES["packages/skill-to-modal/profiles/demo.json"]).hexdigest(),
+        ),
+    })
     scenario_path = tmp_path / "scenario.json"
     scenario_path.write_text(json.dumps(fake_scenario()), encoding="utf-8")
 
