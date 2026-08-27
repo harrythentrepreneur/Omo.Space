@@ -348,10 +348,12 @@ def test_authored_release_hash_includes_profile_and_authoring_receipt():
     result = mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
 
     assert result["status"] == "deployed"
-    assert ("read_blob", TARGET, "packages/skill-to-modal/profiles/demo.json") in mainline.calls
+    assert ("read_blob", MERGE, "packages/skill-to-modal/profiles/demo.json") in mainline.calls
+    assert ("read_blob", MERGE, "containers/demo/source/SKILL.md") in mainline.calls
+    assert ("list_tree", MERGE, "containers/demo") in mainline.calls
     assert (
         "list_tree",
-        TARGET,
+        MERGE,
         "packages/skill-to-modal/profile-authoring-specs/demo.json",
     ) in mainline.calls
 

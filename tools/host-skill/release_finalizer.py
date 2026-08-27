@@ -221,9 +221,9 @@ def _verify_provenance(
     profile_path = f"packages/skill-to-modal/profiles/{claim.slug}.json"
     receipt_path = f"packages/skill-to-modal/profile-authoring-specs/{claim.slug}.json"
     try:
-        source = mainline.read_blob(target_sha, source_path)
-        entries = mainline.list_tree(target_sha, f"containers/{claim.slug}")
-        profile_raw = mainline.read_blob(target_sha, profile_path)
+        source = mainline.read_blob(claim.merge_sha, source_path)
+        entries = mainline.list_tree(claim.merge_sha, f"containers/{claim.slug}")
+        profile_raw = mainline.read_blob(claim.merge_sha, profile_path)
     except (KeyError, OSError) as error:
         raise FinalizerError("artifact_tree_missing") from error
     try:
@@ -233,7 +233,7 @@ def _verify_provenance(
     if not isinstance(profile, dict) or profile.get("slug") != claim.slug:
         raise FinalizerError("artifact_hash_mismatch")
     entries[profile_path] = profile_raw
-    receipt_entries = mainline.list_tree(target_sha, receipt_path)
+    receipt_entries = mainline.list_tree(claim.merge_sha, receipt_path)
     if set(receipt_entries) not in (set(), {receipt_path}):
         raise FinalizerError("artifact_hash_mismatch")
     has_version = "authoring_spec_version" in profile
