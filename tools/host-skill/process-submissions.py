@@ -1122,10 +1122,16 @@ def promote_generated_candidate_for_release(profile: dict[str, Any]) -> dict[str
     if not isinstance(market, dict):
         return promoted
     tags = market.get("tags")
+    authored_candidate = (
+        promoted.get("authoring_spec_version")
+        == HOST_MODULE.COMPILER.PROFILE_AUTHORING_SPEC_VERSION
+        and isinstance(promoted.get("authoring_spec_sha256"), str)
+        and SAFE_SHA256_RE.fullmatch(promoted["authoring_spec_sha256"]) is not None
+    )
+    tagged_candidate = isinstance(tags, list) and "generated-candidate" in tags
     if (
         market.get("maker") == "Submitted skill"
-        and isinstance(tags, list)
-        and "generated-candidate" in tags
+        and (tagged_candidate or authored_candidate)
     ):
         market["catalog_managed"] = True
         market["storefront_visible"] = True
@@ -1596,6 +1602,11 @@ class GitHubReleaseAdapter:
         copied = copy_allowlisted_release_paths(slug, worktree)
         if not copied:
             raise RuntimeError("release allowlist matched no files")
+        HOST_MODULE.refresh_cumulative_registration(worktree)
+        copied = sorted(set(copied) | {
+            "site/catalog.js",
+            "site/deploy/hosted-skills.generated.mjs",
+        })
         self._run(["git", "add", *copied], cwd=worktree)
         self._run(
             [

@@ -878,12 +878,25 @@ def build_hosted_profile(
     }
 
 
-def discover_hosted_profiles(current: dict[str, Any]) -> list[dict[str, Any]]:
+def discover_hosted_profiles(
+    current: dict[str, Any] | None = None,
+    root: Path = ROOT,
+    current_container_slug: str | None = None,
+) -> list[dict[str, Any]]:
     by_slug: dict[str, dict[str, Any]] = {}
-    for path in sorted(CONTAINER_ROOT.glob("*/hosted-profile.json")):
+    for path in sorted((root / "containers").glob("*/hosted-profile.json")):
+        if current_container_slug is not None and path.parent.name == current_container_slug:
+            continue
         value = read_json(path)
-        by_slug[value["runtime"]["slug"]] = value
-    by_slug[current["runtime"]["slug"]] = current
+        runtime_slug = value["runtime"]["slug"]
+        if runtime_slug in by_slug:
+            raise ValueError("duplicate generated runtime slug")
+        by_slug[runtime_slug] = value
+    if current is not None:
+        runtime_slug = current["runtime"]["slug"]
+        if runtime_slug in by_slug:
+            raise ValueError("duplicate generated runtime slug")
+        by_slug[runtime_slug] = current
     return [by_slug[slug] for slug in sorted(by_slug)]
 
 
@@ -995,8 +1008,10 @@ def patch_catalog(source: str, profiles: list[dict[str, Any]]) -> str:
     return patched.rstrip() + "\n"
 
 
-def write_or_check(path: Path, content: str, check: bool, drift: list[str]) -> None:
-    relative = path.relative_to(ROOT).as_posix()
+def write_or_check(
+    path: Path, content: str, check: bool, drift: list[str], root: Path = ROOT
+) -> None:
+    relative = path.relative_to(root).as_posix()
     if check:
         if not path.is_file() or path.read_text(encoding="utf-8") != content:
             drift.append(relative)
@@ -1005,13 +1020,51 @@ def write_or_check(path: Path, content: str, check: bool, drift: list[str]) -> N
     path.write_text(content, encoding="utf-8")
 
 
+def refresh_cumulative_registration(root: Path, check: bool = False) -> list[str]:
+    """Regenerate cumulative registry/catalog from one current-main worktree."""
+    root = root.resolve(strict=True)
+    profiles = discover_hosted_profiles(root=root)
+    if not profiles:
+        raise ValueError("release worktree has no hosted profiles")
+    catalog_path = root / "site" / "catalog.js"
+    registry_path = root / "site" / "deploy" / "hosted-skills.generated.mjs"
+    catalog_output = patch_catalog(catalog_path.read_text(encoding="utf-8"), profiles)
+    drift: list[str] = []
+    write_or_check(registry_path, render_registry(profiles), check, drift, root=root)
+    write_or_check(catalog_path, catalog_output, check, drift, root=root)
+    return drift
+
+
 def register(
     profile: dict[str, Any], out: Path, check: bool
 ) -> tuple[dict[str, Any], list[str]]:
+    profile_slug = profile.get("slug") if isinstance(profile, dict) else None
+    if not isinstance(profile_slug, str) or not SLUG_RE.fullmatch(profile_slug):
+        raise ValueError("reviewed profile slug is invalid")
+    expected_out = CONTAINER_ROOT / profile_slug
+    if CONTAINER_ROOT.is_symlink() or expected_out.is_symlink() or out.is_symlink():
+        raise ValueError("container output is not canonical")
+    try:
+        resolved_root = ROOT.resolve(strict=True)
+        resolved_container_root = CONTAINER_ROOT.resolve(strict=True)
+        resolved_expected_out = expected_out.resolve(strict=True)
+        resolved_out = out.resolve(strict=True)
+    except OSError:
+        raise ValueError("container output is not canonical") from None
+    if (
+        resolved_container_root != resolved_root / "containers"
+        or resolved_expected_out != resolved_container_root / profile_slug
+        or out.absolute() != expected_out.absolute()
+        or resolved_out != resolved_expected_out
+    ):
+        raise ValueError("container output is not canonical")
     manifest = read_json(out / "manifest.json")
     pricing = read_json(out / "pricing-report.json")
     hosted = build_hosted_profile(profile, manifest, pricing)
-    profiles = discover_hosted_profiles(hosted)
+    profiles = discover_hosted_profiles(
+        hosted,
+        current_container_slug=profile_slug,
+    )
     catalog_source = CATALOG_PATH.read_text(encoding="utf-8")
     catalog_output = patch_catalog(catalog_source, profiles)
     drift: list[str] = []
@@ -1044,7 +1097,7 @@ def main() -> int:
     parsed = COMPILER.parse_skill(skill_text)
     slug = parsed["slug"]
     profile_path = (args.profile or PROFILE_ROOT / f"{slug}.json").resolve()
-    out = (args.out or CONTAINER_ROOT / slug).resolve()
+    out = (args.out or CONTAINER_ROOT / slug).absolute()
     profile = read_json(profile_path)
 
     compiler_command = [

@@ -59,6 +59,25 @@ def test_generated_candidate_is_promoted_only_at_trusted_release_boundary() -> N
     assert promoted["marketplace"]["storefront_visible"] is True
 
 
+def test_authored_candidate_is_promoted_only_at_trusted_release_boundary() -> None:
+    process = load_process_submissions()
+    profile = {
+        "authoring_spec_version": "omo.profile-authoring-spec/v1",
+        "authoring_spec_sha256": "a" * 64,
+        "marketplace": {
+            "catalog_managed": False,
+            "maker": "Submitted skill",
+            "tags": ["release", "sorting"],
+        },
+    }
+
+    promoted = process.promote_generated_candidate_for_release(profile)
+
+    assert profile["marketplace"]["catalog_managed"] is False
+    assert promoted["marketplace"]["catalog_managed"] is True
+    assert promoted["marketplace"]["storefront_visible"] is True
+
+
 @pytest.mark.parametrize(
     "marketplace",
     [
@@ -1955,6 +1974,11 @@ def test_release_worktree_commit_uses_scoped_git_identity(monkeypatch, tmp_path:
         process,
         "copy_allowlisted_release_paths",
         lambda _slug, _destination: ["site/deploy/worker.js"],
+    )
+    monkeypatch.setattr(
+        process.HOST_MODULE,
+        "refresh_cumulative_registration",
+        lambda _root: [],
     )
     adapter = process.GitHubReleaseAdapter(
         command_runner=runner,

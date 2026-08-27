@@ -22,6 +22,112 @@ def load_host():
     return module
 
 
+def test_release_worktree_refresh_preserves_cumulative_registry_and_visibility(
+    tmp_path: Path,
+) -> None:
+    host = load_host()
+    slugs = ["dummy-word-list-organizer", "release-tag-sorter-canary"]
+    for slug in slugs:
+        destination = tmp_path / "containers" / slug / "hosted-profile.json"
+        destination.parent.mkdir(parents=True)
+        destination.write_bytes(
+            (ROOT / "containers" / slug / "hosted-profile.json").read_bytes()
+        )
+    catalog = tmp_path / "site" / "catalog.js"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text(
+        "window.OMO_CATALOG = [\n"
+        "  // host-skill:generated:start\n"
+        "  // host-skill:generated:end\n"
+        "];\n"
+        "window.OMO_VISIBLE_SLUGS = [\n"
+        "  // host-skill:visible:start\n"
+        "  // host-skill:visible:end\n"
+        "];\n",
+        encoding="utf-8",
+    )
+
+    assert host.refresh_cumulative_registration(tmp_path) == []
+
+    registry = (tmp_path / "site" / "deploy" / "hosted-skills.generated.mjs").read_text()
+    generated_catalog = catalog.read_text()
+    for slug in slugs:
+        assert registry.count(f'"{slug}"') >= 2
+        assert f'"slug": "{slug}"' in generated_catalog
+        assert f"'{slug}'" in generated_catalog
+    assert host.refresh_cumulative_registration(tmp_path, check=True) == []
+
+
+def test_release_worktree_refresh_rejects_duplicate_runtime_slugs(tmp_path: Path) -> None:
+    host = load_host()
+    profile = (
+        ROOT / "containers" / "release-tag-sorter-canary" / "hosted-profile.json"
+    ).read_bytes()
+    for container_slug in ("first-container", "second-container"):
+        destination = tmp_path / "containers" / container_slug / "hosted-profile.json"
+        destination.parent.mkdir(parents=True)
+        destination.write_bytes(profile)
+    catalog = tmp_path / "site" / "catalog.js"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text(
+        "window.OMO_CATALOG = [\n"
+        "  // host-skill:generated:start\n"
+        "  // host-skill:generated:end\n"
+        "];\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="duplicate generated runtime slug"):
+        host.refresh_cumulative_registration(tmp_path)
+
+    current = json.loads(profile)
+    (tmp_path / "containers" / "second-container" / "hosted-profile.json").unlink()
+    with pytest.raises(ValueError, match="duplicate generated runtime slug"):
+        host.discover_hosted_profiles(current, root=tmp_path)
+
+
+def test_register_rejects_noncanonical_caller_selected_output(tmp_path: Path) -> None:
+    host = load_host()
+    out = tmp_path / "foreign-container"
+    out.mkdir()
+
+    with pytest.raises(ValueError, match="container output is not canonical"):
+        host.register({"slug": "release-tag-sorter-canary"}, out, False)
+
+
+def test_register_rejects_canonical_container_symlink_redirection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    host = load_host()
+    root = tmp_path / "root"
+    containers = root / "containers"
+    containers.mkdir(parents=True)
+    foreign = tmp_path / "foreign"
+    foreign.mkdir()
+    (containers / "reviewed-slug").symlink_to(foreign, target_is_directory=True)
+    monkeypatch.setattr(host, "ROOT", root)
+    monkeypatch.setattr(host, "CONTAINER_ROOT", containers)
+
+    with pytest.raises(ValueError, match="container output is not canonical"):
+        host.register({"slug": "reviewed-slug"}, foreign, False)
+
+
+def test_register_rejects_symlink_alias_to_canonical_container(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    host = load_host()
+    root = tmp_path / "root"
+    canonical = root / "containers" / "reviewed-slug"
+    canonical.mkdir(parents=True)
+    alias = tmp_path / "canonical-alias"
+    alias.symlink_to(canonical, target_is_directory=True)
+    monkeypatch.setattr(host, "ROOT", root)
+    monkeypatch.setattr(host, "CONTAINER_ROOT", root / "containers")
+
+    with pytest.raises(ValueError, match="container output is not canonical"):
+        host.register({"slug": "reviewed-slug"}, alias, False)
+
+
 def test_compiler_gate_excludes_only_tests_without_their_prerequisites(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
