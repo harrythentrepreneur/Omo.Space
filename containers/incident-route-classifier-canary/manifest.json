@@ -71,7 +71,7 @@
     "quote_status": "cost_model",
     "report_path": "pricing-report.json"
   },
-  "profile_sha256": "473b2838d748944c75a10116e0d28e61a7d59b483d95c5a6764c75df2104225f",
+  "profile_sha256": "231f954865701721cdc01193efe69457c24e5918017ae8057f462041b998916d",
   "readiness": {
     "blockers": [],
     "can_submit": true,
