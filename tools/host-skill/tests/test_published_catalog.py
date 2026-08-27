@@ -30,6 +30,10 @@ def test_promoted_dummy_word_list_workflow_is_catalogued_and_visible():
     assert_catalogued_and_visible("dummy-word-list-organizer")
 
 
+def test_promoted_release_tag_sorter_is_catalogued_and_visible():
+    assert_catalogued_and_visible("release-tag-sorter-canary")
+
+
 def test_promoted_dummy_publication_is_canonical_and_reproducible():
     profile = json.loads(PROFILE.read_text(encoding="utf-8"))
     hosted = json.loads(HOSTED_PROFILE.read_text(encoding="utf-8"))

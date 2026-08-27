@@ -59,6 +59,25 @@ def test_generated_candidate_is_promoted_only_at_trusted_release_boundary() -> N
     assert promoted["marketplace"]["storefront_visible"] is True
 
 
+def test_authored_candidate_is_promoted_only_at_trusted_release_boundary() -> None:
+    process = load_process_submissions()
+    profile = {
+        "authoring_spec_version": "omo.profile-authoring-spec/v1",
+        "authoring_spec_sha256": "a" * 64,
+        "marketplace": {
+            "catalog_managed": False,
+            "maker": "Submitted skill",
+            "tags": ["release", "sorting"],
+        },
+    }
+
+    promoted = process.promote_generated_candidate_for_release(profile)
+
+    assert profile["marketplace"]["catalog_managed"] is False
+    assert promoted["marketplace"]["catalog_managed"] is True
+    assert promoted["marketplace"]["storefront_visible"] is True
+
+
 @pytest.mark.parametrize(
     "marketplace",
     [

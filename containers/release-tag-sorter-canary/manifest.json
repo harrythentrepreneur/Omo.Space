@@ -66,7 +66,7 @@
     "quote_status": "reviewed_deterministic",
     "report_path": "pricing-report.json"
   },
-  "profile_sha256": "a1265d7e81502be2a021eb8d0521808c57a072e63a40be4f5b33791f5d874c90",
+  "profile_sha256": "0c0da7c62cdf7f1481805635bc7315b8471c67ed9600c5661a6147a001500a42",
   "providers": [],
   "pure_data": {
     "program_digest": "sha256:9131a206359d1c04a24d66eaeee1c6d6824d43e9746dba65a62a6e9fb0d6404e",

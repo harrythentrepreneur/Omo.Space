@@ -4741,6 +4741,58 @@ window.OMO_CATALOG = [
     }
   }
   ,{
+    "category": "ops",
+    "cover": null,
+    "demoCap": "Run reviewed example",
+    "desc": "Clean and sort a bounded list of software release tags.",
+    "emoji": "\ud83c\udff7\ufe0f",
+    "exampleIn": "{\n  \"tags\": [\n    \" v2.0.0 \",\n    \"V1.0.0\",\n    \"beta_1\"\n  ]\n}",
+    "exampleOut": [
+      "cleaned sorted release tags"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "tags: 1 to 20 bounded strings"
+    ],
+    "maker": "Submitted skill",
+    "makerName": "Submitted skill",
+    "name": "Release Tag Sorter Canary",
+    "niche": "software-release",
+    "outputs": [
+      "cleaned sorted release tags"
+    ],
+    "priceMaintain": 0.0,
+    "priceOwn": 0.0,
+    "promise": "Return a deterministic sorted list of release tags.",
+    "runManifest": "run-manifests/release-tag-sorter-canary.json",
+    "runPrice": 0.1,
+    "slug": "release-tag-sorter-canary",
+    "tags": [
+      "release",
+      "tag",
+      "deterministic",
+      "text",
+      "sorting"
+    ],
+    "upvotes": 0,
+    "version": "1.0.0",
+    "workflow": {
+      "steps": [
+        {
+          "label": "pure_data.execute",
+          "role": "execute",
+          "type": "pipeline"
+        },
+        {
+          "label": "Running the workflow",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  }
+  ,{
     "category": "content",
     "cover": "covers/meta-ads-analyser.svg",
     "demoCap": "Hosted run: Turn a product brief, hook, and verified proof points into a natural creator-ready UGC ad script with delivery notes and safe visual pairing",
@@ -7696,6 +7748,7 @@ window.OMO_CATALOG = [
 window.OMO_VISIBLE_SLUGS = [
   // host-skill:visible:start
   'dummy-word-list-organizer',
+  'release-tag-sorter-canary',
   // host-skill:visible:end
   'japanese-style-story-video',
   'woven-relationship-book-maker',
