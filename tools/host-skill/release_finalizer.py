@@ -8,9 +8,11 @@ adapter selection.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import hashlib
 import json
 import re
+import sys
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
@@ -21,6 +23,20 @@ SAFE_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SAFE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 EXPECTED_WORKFLOW = "generated-workflow-contracts"
 CHECKED_AT = "2026-08-21T00:00:00Z"
+TRUSTED_LEGACY_PROFILE_DIGESTS = {
+    "customer-feedback-theme-finder": (
+        "3503deb0509f31462dba7fd771cfa11f7cfade7c325a9d7b53df0d8e7e5f7e27",
+        "420d677442da97dab97798c56d328a3ff662e3d15ea884079f6250ece83ba83d",
+    ),
+    "dummy-word-list-organizer": (
+        "83e896077638d8f7796e648229bd361f3b517ab4199e45086a7ffcd1d95e045e",
+        "f2f42fb7fa7aa2de87723be58dec1995354981bea7f4db87b017cb3318dc6d54",
+    ),
+    "label-normalizer-canary": (
+        "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a",
+        "24e38f0a24aebf265345e75de5b44c42dc8fdc7fbea5d3938a579e0e10f853e5",
+    ),
+}
 
 
 class FinalizerError(RuntimeError):
@@ -112,6 +128,51 @@ def hash_release_artifact_entries(entries: dict[str, bytes]) -> str:
     return digest.hexdigest()
 
 
+def _strict_json_bytes(raw: bytes) -> Any:
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("duplicate key")
+            value[key] = item
+        return value
+
+    return json.loads(
+        raw.decode("utf-8"),
+        object_pairs_hook=object_pairs,
+        parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
+    )
+
+
+_COMPILER = None
+
+
+def _trusted_compiler():
+    global _COMPILER
+    if _COMPILER is not None:
+        return _COMPILER
+    path = Path(__file__).resolve().parents[2] / "packages" / "skill-to-modal" / "compiler.py"
+    spec = importlib.util.spec_from_file_location("omo_release_finalizer_compiler", path)
+    if spec is None or spec.loader is None:
+        raise FinalizerError("artifact_hash_mismatch")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception as error:
+        sys.modules.pop(spec.name, None)
+        raise FinalizerError("artifact_hash_mismatch") from error
+    _COMPILER = module
+    return module
+
+
+def _canonical_authoring_receipt(raw: bytes) -> bytes:
+    value = _strict_json_bytes(raw)
+    if not isinstance(value, dict):
+        raise ValueError("receipt is not an object")
+    return _trusted_compiler().canonical_profile_authoring_spec_bytes(value)
+
+
 def _validate_green(receipt: GreenMain) -> None:
     if (
         receipt.workflow != EXPECTED_WORKFLOW
@@ -157,11 +218,73 @@ def _verify_provenance(
         raise FinalizerError("release_merge_not_ancestor")
 
     source_path = f"containers/{claim.slug}/source/SKILL.md"
+    profile_path = f"packages/skill-to-modal/profiles/{claim.slug}.json"
+    receipt_path = f"packages/skill-to-modal/profile-authoring-specs/{claim.slug}.json"
     try:
         source = mainline.read_blob(target_sha, source_path)
         entries = mainline.list_tree(target_sha, f"containers/{claim.slug}")
+        profile_raw = mainline.read_blob(target_sha, profile_path)
     except (KeyError, OSError) as error:
         raise FinalizerError("artifact_tree_missing") from error
+    try:
+        profile = _strict_json_bytes(profile_raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, UnicodeEncodeError, ValueError):
+        raise FinalizerError("artifact_hash_mismatch") from None
+    if not isinstance(profile, dict) or profile.get("slug") != claim.slug:
+        raise FinalizerError("artifact_hash_mismatch")
+    entries[profile_path] = profile_raw
+    receipt_entries = mainline.list_tree(target_sha, receipt_path)
+    if set(receipt_entries) not in (set(), {receipt_path}):
+        raise FinalizerError("artifact_hash_mismatch")
+    has_version = "authoring_spec_version" in profile
+    has_digest = "authoring_spec_sha256" in profile
+    if not has_version:
+        if has_digest or receipt_entries:
+            raise FinalizerError("artifact_hash_mismatch")
+        legacy = TRUSTED_LEGACY_PROFILE_DIGESTS.get(claim.slug)
+        if legacy != (
+            claim.source_sha256,
+            hashlib.sha256(profile_raw).hexdigest(),
+        ):
+            raise FinalizerError("artifact_hash_mismatch")
+    else:
+        compiler = _trusted_compiler()
+        digest = profile.get("authoring_spec_sha256")
+        if (
+            profile.get("authoring_spec_version") != compiler.PROFILE_AUTHORING_SPEC_VERSION
+            or not isinstance(digest, str)
+            or not SAFE_SHA256_RE.fullmatch(digest)
+            or set(receipt_entries) != {receipt_path}
+            or profile.get("reviewed_source_sha256") != claim.source_sha256
+        ):
+            raise FinalizerError("artifact_hash_mismatch")
+        receipt_raw = receipt_entries[receipt_path]
+        try:
+            receipt = _strict_json_bytes(receipt_raw)
+            if not isinstance(receipt, dict) or _canonical_authoring_receipt(receipt_raw) != receipt_raw:
+                raise ValueError("noncanonical receipt")
+            assembled = compiler.assemble_profile_authoring_spec(
+                receipt,
+                {
+                    "slug": claim.slug,
+                    "name": profile.get("name"),
+                    "source_sha256": claim.source_sha256,
+                },
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError, UnicodeEncodeError, ValueError):
+            raise FinalizerError("artifact_hash_mismatch") from None
+        except Exception:
+            raise FinalizerError("artifact_hash_mismatch") from None
+        if (
+            profile != assembled
+            or
+            hashlib.sha256(receipt_raw).hexdigest() != digest
+            or assembled.get("authoring_spec_version") != profile.get("authoring_spec_version")
+            or assembled.get("authoring_spec_sha256") != digest
+            or assembled.get("reviewed_source_sha256") != claim.source_sha256
+        ):
+            raise FinalizerError("artifact_hash_mismatch")
+        entries[receipt_path] = receipt_raw
     if hashlib.sha256(source).hexdigest() != claim.source_sha256:
         raise FinalizerError("source_hash_mismatch")
     if not entries or hash_release_artifact_entries(entries) != claim.artifact_hash:
