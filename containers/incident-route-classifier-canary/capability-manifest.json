@@ -1,0 +1,38 @@
+{
+  "allowlist": [
+    "pure_data",
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:4578d2486649d59cf64b824c96f722ac63b514734a2fbaea00b3b68a63cf2228",
+  "decision": "approved",
+  "execution_kind": "single_llm",
+  "generated": {
+    "dependencies": [],
+    "files": [],
+    "honest_limits": [],
+    "packages": [],
+    "policy": [],
+    "resources": {},
+    "runtime_steps": [],
+    "tests": [],
+    "tool_bindings": []
+  },
+  "needs": [],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [
+    "opencode-go-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [],
+  "skill_owned_resources": [],
+  "slug": "incident-route-classifier-canary",
+  "source_sha256": "2f9625e2f74501a41806258bcb835116eb0bec4e49529b250d1d6c5d3b2f70bb",
+  "workflow_blockers": []
+}

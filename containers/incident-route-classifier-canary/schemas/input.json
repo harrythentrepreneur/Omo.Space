@@ -1,0 +1,18 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "customer_impacting": {
+      "type": "boolean"
+    },
+    "summary": {
+      "maxLength": 800,
+      "minLength": 10,
+      "type": "string"
+    }
+  },
+  "required": [
+    "customer_impacting",
+    "summary"
+  ],
+  "type": "object"
+}

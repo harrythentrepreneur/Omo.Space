@@ -1,0 +1,22 @@
+{
+  "happy_path": {
+    "input": {
+      "customer_impacting": true,
+      "summary": "Several customers cannot open the dashboard because API requests time out."
+    },
+    "output": {
+      "rationale": "Customers are experiencing dashboard unavailability due to API request timeouts, indicating a reliability issue.",
+      "route": "reliability"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "short_summary",
+      "input": {
+        "customer_impacting": false,
+        "summary": "short"
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ]
+}
