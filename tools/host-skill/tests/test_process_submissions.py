@@ -989,6 +989,8 @@ def test_verify_merged_release_reads_hashes_from_merge_tree_not_current_tree() -
 
     def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
         calls.append(command)
+        if command[:3] == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false"
         if command[:4] == ["gh", "pr", "view", "--repo"]:
             return json.dumps({
                 "state": "MERGED",
@@ -1065,6 +1067,8 @@ def test_verify_merged_release_accepts_only_reproducible_registry_repair_head() 
             return "site/deploy/hosted-skills.generated.mjs\0"
         if command[:3] == ["git", "rev-parse", "FETCH_HEAD"]:
             return repaired_head
+        if command[:3] == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "true"
         if command[:2] == ["git", "ls-tree"]:
             if command[-1] == "containers":
                 return f"100644 blob {'3' * 40}\t{hosted_path}\0"
@@ -1105,9 +1109,13 @@ def test_verify_merged_release_accepts_only_reproducible_registry_repair_head() 
     assert verified["head_sha"] == repaired_head
     assert verified["verified_merge_sha"] == merge_sha
     assert ["git", "merge-base", "--is-ancestor", recorded_head, repaired_head] in calls
-    fetch_main = ["git", "fetch", "origin", "main"]
+    detect_shallow = ["git", "rev-parse", "--is-shallow-repository"]
+    fetch_main = ["git", "fetch", "--unshallow", "origin", "main"]
+    read_merge_commit = ["git", "cat-file", "-e", f"{merge_sha}^{{commit}}"]
     read_merge_tree = ["git", "ls-tree", "-r", "-z", merge_sha, "--", "containers"]
-    assert calls.index(fetch_main) < calls.index(read_merge_tree)
+    assert calls.index(detect_shallow) < calls.index(fetch_main)
+    assert calls.index(fetch_main) < calls.index(read_merge_commit)
+    assert calls.index(read_merge_commit) < calls.index(read_merge_tree)
 
 
 def test_reconciled_release_head_rejects_mismatched_pr_identity() -> None:
@@ -1155,6 +1163,8 @@ def test_verify_merged_release_rejects_nonregistry_repair_head() -> None:
     process = load_process_submissions()
 
     def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        if command[:3] == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false"
         if command[:4] == ["gh", "pr", "view", "--repo"]:
             return json.dumps({
                 "state": "MERGED", "baseRefName": "main", "headRefOid": "b" * 40,
