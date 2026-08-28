@@ -438,7 +438,7 @@ const sandbox = {
         name: text.includes('WITH updated AS') && text.includes("failure_code = 'slug_collision'")
           ? 'omo-submission-approve-v1'
           : text.includes('UPDATE submissions') && text.includes('failure_code IN') && text.includes("status = 'queued'")
-            ? 'omo-submission-retry-v2'
+            ? 'omo-submission-retry-v3'
             : text.includes("SELECT id,slug,source_sha256,selected_runtime") && text.includes('WHERE id = $1')
               ? 'omo-internal-submission-detail-v1'
               : text.includes('WITH candidate AS') && text.includes('build_claimed_at')
@@ -471,7 +471,7 @@ const sandbox = {
         connectionString,
       };
       neonSqlCalls.push(entry);
-      if (entry.name === 'omo-submission-approve-v1' || entry.name === 'omo-submission-retry-v2') {
+      if (entry.name === 'omo-submission-approve-v1' || entry.name === 'omo-submission-retry-v3') {
         return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-internal-submission-detail-v1') {
@@ -1427,6 +1427,8 @@ check('submission retry: D1 permits only reviewed rows with the three gated fail
   retryD1WrongCode.status === 409 &&
   retryD1UpdateCalls.length >= 2 &&
   retryD1UpdateCalls.every((call) => call.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')")) &&
+  retryD1UpdateCalls.every((call) => call.text.includes("(? = '' OR slug = ?)")) &&
+  retryD1UpdateCalls.every((call) => call.values[3] === '' && call.values[4] === '') &&
   retryD1UpdateCalls.every((call) => call.text.includes("selected_runtime IN ('worker-native', 'modal-hosted')")) &&
   retryD1UpdateCalls.every((call) => !call.text.includes('generated_source_hash_mismatch')) &&
   JSON.stringify(d1RetryCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
@@ -1447,7 +1449,7 @@ const retryNeonResponse = await worker.fetch(mkReq('POST', `/api/submissions/${r
   source_sha256: 'f'.repeat(64), selected_runtime: 'worker-native', decision: 'retry-anyway',
 }, creatorHeaders), { ...realEnv, NEON_DATABASE_URL: 'postgres://approval-user:secret@db.invalid/omo' });
 const retryNeonBody = await retryNeonResponse.json();
-const retryNeonCall = neonSqlCalls.find((call) => call.name === 'omo-submission-retry-v2');
+const retryNeonCall = neonSqlCalls.find((call) => call.name === 'omo-submission-retry-v3');
 neonApprovalRow = null;
 check('submission retry: Neon uses one atomic guarded UPDATE and ignores client hash/runtime/decision',
   retryNeonResponse.status === 200 &&
@@ -1455,6 +1457,7 @@ check('submission retry: Neon uses one atomic guarded UPDATE and ignores client 
   retryNeonCall &&
   retryNeonCall.text.includes('UPDATE submissions') &&
   retryNeonCall.text.includes("status = 'failed'") &&
+  retryNeonCall.text.includes("($3 = '' OR slug = $3)") &&
   retryNeonCall.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')") &&
   !retryNeonCall.text.includes('generated_source_hash_mismatch') &&
   retryNeonCall.text.includes("source_sha256 ~ '^[a-f0-9]{64}$'") &&
@@ -1462,7 +1465,7 @@ check('submission retry: Neon uses one atomic guarded UPDATE and ignores client 
   retryNeonCall.text.includes("SET status = 'queued'") &&
   retryNeonCall.values[0] === retryRecord.id &&
   retryNeonCall.values[1] === 'user_creator' &&
-  retryNeonCall.values.length === 2 &&
+  retryNeonCall.values[2] === '' && retryNeonCall.values.length === 3 &&
   JSON.stringify(neonSqlCalls).includes('retry-anyway') === false &&
   JSON.stringify(neonSqlCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
 
@@ -2527,6 +2530,8 @@ const productionCanaryEnv = {
   LABEL_NORMALIZER_CANARY_MODAL_URL: 'https://issue141-canary.modal.invalid',
   HOSTED_MODAL_PROXY_TOKEN_ID: 'production-modal-id',
   HOSTED_MODAL_PROXY_TOKEN_SECRET: 'production-modal-secret',
+  LLM_API_KEY: 'test-only-provider-key',
+  LLM_BASE_URL: 'https://opencode.ai/zen/go/v1',
 };
 const builderCanaryProvision = await worker.fetch(
   mkReq('POST', '/api/internal/finalizations/canary-identity', {}, internalHeaders), productionCanaryEnv
@@ -2558,6 +2563,26 @@ for (const [key, value] of savedApiKeys) workerTest.mockApiKeys.set(key, value);
 const productionCanaryScopedReject = await worker.fetch(mkReq('POST', '/api/run', {
   slug: 'facebook-ads-copywriter', fields: { product_name: 'Nope' },
 }, { 'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-scope-reject' }), productionCanaryEnv);
+const productionCanaryReleaseTagAuth = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'release-tag-sorter-canary', input: {},
+}, { 'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-release-tag-auth' }), productionCanaryEnv);
+const productionCanaryIncidentAuth = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'incident-route-classifier-canary', input: {},
+}, { 'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-incident-auth' }), productionCanaryEnv);
+workerTest.mockRunRequests.set('production-canary-unrelated-status', {
+  run_id: 'run_productioncanaryunrelated',
+  user_id: 'user_prod_label_normalizer_canary_v1',
+  slug: 'facebook-ads-copywriter',
+  state: 'refunded',
+  cost_cents: 10,
+  http_status: 418,
+  response_json: JSON.stringify({ error: 'must_not_be_visible' }),
+});
+const productionCanaryUnrelatedStatus = await worker.fetch(mkReq(
+  'GET', '/api/run/run_productioncanaryunrelated', null,
+  { 'X-API-Key': productionCanaryKey },
+), productionCanaryEnv);
+workerTest.mockRunRequests.delete('production-canary-unrelated-status');
 const productionCanarySubmissionReject = await worker.fetch(mkReq('POST', '/api/submit', {
   name: 'Sample workflow', content: submissionContent, visibility: 'public', runtime_preference: 'worker-native',
 }, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv);
@@ -2584,6 +2609,23 @@ const productionCanaryForeignRetry = await worker.fetch(mkReq(
   'POST', `/api/submissions/${submitAdded.id}/retry`, {},
   { 'X-API-Key': productionCanaryKey },
 ), productionCanaryEnv);
+const productionCanaryUnrelatedRetryRecord = {
+  ...retryRecord,
+  id: 'sub_productioncanaryunrelatedretry',
+  user_id: 'user_prod_label_normalizer_canary_v1',
+  userId: 'user_prod_label_normalizer_canary_v1',
+  slug: 'facebook-ads-copywriter',
+  status: 'failed',
+  failure_code: 'build_or_deploy_failed',
+  selected_runtime: null,
+  runtime_policy: null,
+};
+workerTest.mockSubmissions.set(productionCanaryUnrelatedRetryRecord.id, productionCanaryUnrelatedRetryRecord);
+const productionCanaryUnrelatedRetry = await worker.fetch(mkReq(
+  'POST', `/api/submissions/${productionCanaryUnrelatedRetryRecord.id}/retry`, {},
+  { 'X-API-Key': productionCanaryKey },
+), productionCanaryEnv);
+workerTest.mockSubmissions.delete(productionCanaryUnrelatedRetryRecord.id);
 const productionCanaryOwner = await workerTest.userIdForApiKey(productionCanaryEnv, productionCanaryKey);
 const hashOnlyCanaryResolver = /async function userIdForHashedApiKey[\s\S]*?(?=async function ensureProductionCanaryIdentity)/.exec(workerSrc)?.[0] || '';
 check('production canary auth: hashed submission fallback stays narrow and fixed secret is scope-gated',
@@ -2594,12 +2636,31 @@ check('production canary auth: hashed submission fallback stays narrow and fixed
   directProductionCanaryAuth.userId === 'user_prod_label_normalizer_canary_v1' &&
   directProductionCanaryAuth.method === 'production_canary' &&
   unscopedProductionCanaryAuth.ok === false);
+check('production canary identity: release tag run scope reaches schema validation',
+  productionCanaryReleaseTagAuth.status === 422);
+check('production canary identity: incident run scope reaches schema validation',
+  productionCanaryIncidentAuth.status === 422);
+check('production canary identity: unrelated run scope remains blocked',
+  productionCanaryScopedReject.status === 403);
+check('production canary identity: unrelated owned run status remains hidden',
+  productionCanaryUnrelatedStatus.status === 404);
+check('production canary identity: unrelated owned submission retry remains hidden and unmodified',
+  productionCanaryUnrelatedRetry.status === 404 && productionCanaryUnrelatedRetryRecord.status === 'failed');
+const scopedRetrySource = /async function retryReviewedGatedBuildFailure[\s\S]*?(?=async function listSubmissions)/.exec(workerSrc)?.[0] || '';
+check('production canary identity: D1 and Neon retry fallback reads preserve exact slug hiding',
+  scopedRetrySource.includes("getSubmissionApprovalState(env, userId, submissionId, exactSlug)") &&
+  scopedRetrySource.includes("omo-submission-approval-state-by-slug-v1") &&
+  scopedRetrySource.includes("WHERE id = $1 AND user_id = $2 AND slug = $3") &&
+  scopedRetrySource.includes("WHERE id = ? AND user_id = ? AND slug = ?") &&
+  scopedRetrySource.includes("row.slug === exactSlug"));
 check('production canary identity: finalizer-only one-time finite principal uses normal API-key auth and exact slug scope',
   builderCanaryProvision.status === 401 && wrongEnvironmentCanaryProvision.status === 503 &&
   canaryProvision.status === 200 && canaryProvisionBody.created === true &&
   canaryProvisionBody.user_id === 'user_prod_label_normalizer_canary_v1' &&
   canaryProvisionReplay.status === 200 && canaryProvisionReplayBody.created === false &&
   productionCanaryScopedReject.status === 403 &&
+  productionCanaryReleaseTagAuth.status === 422 &&
+  productionCanaryIncidentAuth.status === 422 &&
   productionCanarySubmissionReject.status === 403 &&
   productionCanarySubmissionAccept.status === 202 &&
   productionCanarySubmissionAcceptBody.slug === 'label-normalizer-canary' &&
