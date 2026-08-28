@@ -1,0 +1,32 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.7.0",
+  "cost_drivers": [
+    "up to two bounded schema-validated Gemini 2.5 Flash calls"
+  ],
+  "description": "Classify a bounded customer support ticket into low, medium, or high priority with a concise reason.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "Gemini Ticket Priority Canary",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "GEMINI_API_KEY"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "system.txt",
+      "provider": "gemini",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "gemini-ticket-priority-canary",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "baf80fbe9b7bd0882ea8ce467307598aeae92e8224778ec159795f8360fd2ff9"
+  },
+  "unresolved": []
+}

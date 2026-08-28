@@ -1,0 +1,86 @@
+{
+  "artifacts": [],
+  "description": "Classify a bounded customer support ticket into low, medium, or high priority with a concise reason.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "customer_blocked",
+      "widget": "text"
+    },
+    {
+      "field": "ticket",
+      "widget": "text"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "customer_blocked": {
+        "type": "boolean"
+      },
+      "ticket": {
+        "maxLength": 800,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "customer_blocked",
+      "ticket"
+    ],
+    "type": "object"
+  },
+  "name": "Gemini Ticket Priority Canary",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "priority": {
+        "enum": [
+          "high",
+          "low",
+          "medium"
+        ],
+        "maxLength": 6,
+        "type": "string"
+      },
+      "reason": {
+        "maxLength": 240,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "priority",
+      "reason"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "cost_model",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "103fc17eba05bb63da25f0a10aecab166183806b8c51137fc5d60a7e77ec57bd",
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "GEMINI_API_KEY"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "gemini-ticket-priority-canary",
+  "source_sha256": "baf80fbe9b7bd0882ea8ce467307598aeae92e8224778ec159795f8360fd2ff9",
+  "version": "1.0.0"
+}

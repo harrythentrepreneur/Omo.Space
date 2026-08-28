@@ -1,0 +1,91 @@
+{
+  "family": "single_llm",
+  "happy_path": {
+    "input": {
+      "customer_blocked": true,
+      "ticket": "My account is locked and I cannot log in."
+    },
+    "output": {
+      "priority": "high",
+      "reason": "Customer is blocked from accessing their account, indicating a critical issue."
+    }
+  },
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "customer_blocked": {
+        "type": "boolean"
+      },
+      "ticket": {
+        "maxLength": 800,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "customer_blocked",
+      "ticket"
+    ],
+    "type": "object"
+  },
+  "marketplace": {
+    "category": "ops",
+    "description": "Classify a bounded customer support ticket into low, medium, or high priority with a concise reason.",
+    "emoji": "🎫",
+    "inputs": [
+      "ticket: a plain-text support ticket between 10 and 800 characters",
+      "customer_blocked: a boolean indicating whether the customer cannot continue their work"
+    ],
+    "niche": "support",
+    "outputs": [
+      "priority: one of low, medium, or high",
+      "reason: a concise sentence between 10 and 240 characters"
+    ],
+    "promise": "Return a JSON object with priority and a concise reason.",
+    "tags": [
+      "support",
+      "classification",
+      "bounded"
+    ],
+    "title": "Gemini Ticket Priority Canary"
+  },
+  "negative_cases": [
+    {
+      "id": "empty_ticket",
+      "input": {
+        "customer_blocked": false,
+        "ticket": "short"
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ],
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "priority": {
+        "enum": [
+          "high",
+          "low",
+          "medium"
+        ],
+        "maxLength": 6,
+        "type": "string"
+      },
+      "reason": {
+        "maxLength": 240,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "priority",
+      "reason"
+    ],
+    "type": "object"
+  },
+  "prompt": "Classify the provided customer support ticket into 'low', 'medium', or 'high' priority. Provide a concise reason for the classification. \n\nRules:\n- Use 'high' when the customer is blocked, data or account access appears at risk, or the issue affects payment for an active service.\n- Use 'medium' for material degradation or repeated failure when the customer can still continue with a workaround.\n- Use 'low' for informational questions, cosmetic issues, or non-blocking requests.\n- The output must be a JSON object with 'priority' (one of low, medium, high) and 'reason' (a concise sentence between 10 and 240 characters).",
+  "requested_capabilities": [
+    "bounded_single_llm"
+  ],
+  "schema_version": "omo.profile-authoring-spec/v2"
+}
