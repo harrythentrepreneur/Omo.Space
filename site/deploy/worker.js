@@ -155,6 +155,11 @@ Return EXACTLY this JSON shape: {"title":"SEO-aware title","bullets":["benefit 1
 HARD RULES: bullets is a flat array of STRINGS; never invent claims; output ONLY the JSON object.`;
 
 const DEMELLO_SLUG = 'japanese-style-story-video';
+const PRODUCTION_CANARY_RUN_SLUGS = new Set([
+  'label-normalizer-canary',
+  'release-tag-sorter-canary',
+  'incident-route-classifier-canary',
+]);
 const DEMELLO_STYLE = 'sumi-e-awake-v3';
 const DEMELLO_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--omo-demello-awake-245304c8f988-api.modal.run';
 const DEMELLO_DEFAULT_RELEASE_HASH = 'sha256:245304c8f98839bf6ac570c3c09224fe839041dbc793f3fb7f7afb3eb475259e';
@@ -728,11 +733,12 @@ async function handleGenericRun(request, env) {
   let userId = '';
   let authMethod = 'demo';
   if (real) {
-    const auth = await authenticateAccount(request, env, true, slug === 'label-normalizer-canary');
+    const productionCanaryRun = PRODUCTION_CANARY_RUN_SLUGS.has(slug);
+    const auth = await authenticateAccount(request, env, true, productionCanaryRun);
     if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
     userId = auth.userId;
     authMethod = auth.method;
-    if (userId === 'user_prod_label_normalizer_canary_v1' && slug !== 'label-normalizer-canary') {
+    if (userId === 'user_prod_label_normalizer_canary_v1' && !productionCanaryRun) {
       return json({ error: 'production_canary_scope_violation' }, 403, cors());
     }
   } else {
@@ -1643,10 +1649,13 @@ async function dispatchDemelloRun(env, context) {
 async function handleRunStatus(request, env, _url, params) {
   const row = await getRunRequestById(env, params.runId);
   const auth = await authenticateAccount(
-    request, env, true, Boolean(row && row.slug === 'label-normalizer-canary')
+    request, env, true, Boolean(row && PRODUCTION_CANARY_RUN_SLUGS.has(row.slug))
   );
   if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
   if (!row || row.user_id !== auth.userId) return json({ error: 'run_not_found' }, 404, cors());
+  if (auth.userId === 'user_prod_label_normalizer_canary_v1' && !PRODUCTION_CANARY_RUN_SLUGS.has(row.slug)) {
+    return json({ error: 'run_not_found' }, 404, cors());
+  }
   const hosted = row.slug === DEMELLO_SLUG && String(env.DEMELLO_LEGACY_EXECUTOR || '') === '1'
     ? null : HOSTED_MODAL_SKILLS.get(row.slug);
   if (hosted) {
@@ -2249,7 +2258,8 @@ async function handleSubmissionRetry(request, env, _url, params) {
     }
   }
   if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
-  const retried = await retryReviewedGatedBuildFailure(env, auth.userId, params.submissionId);
+  const requiredSlug = auth.method === 'production_canary' ? 'label-normalizer-canary' : '';
+  const retried = await retryReviewedGatedBuildFailure(env, auth.userId, params.submissionId, requiredSlug);
   if (retried.status === 'not_found') return json({ ok: false, error: 'submission_not_found' }, 404, cors(request, env));
   if (retried.status === 'not_retryable') {
     return json({ ok: false, error: 'submission_not_retryable' }, 409, cors(request, env));
@@ -5713,8 +5723,10 @@ async function approveExactMatchSlugCollision(env, userId, submissionId) {
   return foundOwnerRecord ? { status: 'not_approvable' } : { status: 'not_found' };
 }
 
-async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
+async function retryReviewedGatedBuildFailure(env, userId, submissionId, requiredSlug = '') {
   const retryableFailureCodes = [...RETRYABLE_EXACT_MATCH_RELEASE_FAILURE_CODES];
+  const exactSlug = requiredSlug ? safeSlug(requiredSlug) : '';
+  if (requiredSlug && !exactSlug) return { status: 'not_found' };
   const now = new Date().toISOString();
   const transientAssignments = `failure_code = NULL, workflow_version = NULL, published_slug = NULL,
     deployed_at = NULL, build_evidence = NULL, release_phase = NULL, release_issue_url = NULL,
@@ -5724,10 +5736,10 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
   const returnedColumns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence';
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
-      'omo-submission-retry-v2',
+      'omo-submission-retry-v3',
       `UPDATE submissions
        SET status = 'queued', ${transientAssignments}, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND user_id = $2
+       WHERE id = $1 AND user_id = $2 AND ($3 = '' OR slug = $3)
          AND status = 'failed'
          AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')
          AND source_sha256 ~ '^[a-f0-9]{64}$'
@@ -5739,17 +5751,17 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
              AND runtime_policy IS NOT NULL AND runtime_policy <> '')
          )
        RETURNING ${returnedColumns}`,
-      [submissionId, userId]
+      [submissionId, userId, exactSlug]
     ));
     const row = approvalSafeRow(result.rows[0]);
     if (row) return { status: 'retried', row };
-    return (await getSubmissionApprovalState(env, userId, submissionId))
-      ? { status: 'not_retryable' } : { status: 'not_found' };
+    const existing = await getSubmissionApprovalState(env, userId, submissionId, exactSlug);
+    return existing ? { status: 'not_retryable' } : { status: 'not_found' };
   }
   if (databaseKind(env) === 'd1') {
     const updated = await env.BALANCE_DB.prepare(`UPDATE submissions
       SET status = 'queued', ${transientAssignments}, updated_at = ?
-      WHERE id = ? AND user_id = ? AND status = 'failed'
+      WHERE id = ? AND user_id = ? AND (? = '' OR slug = ?) AND status = 'failed'
         AND failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')
         AND length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^a-f0-9]*'
         AND (
@@ -5759,15 +5771,16 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
           (selected_runtime IN ('worker-native', 'modal-hosted')
             AND runtime_policy IS NOT NULL AND runtime_policy <> '')
         )`)
-      .bind(now, submissionId, userId).run();
+      .bind(now, submissionId, userId, exactSlug, exactSlug).run();
     if (updated.meta && updated.meta.changes) {
       return { status: 'retried', row: await getSubmissionForOwner(env, userId, submissionId) };
     }
-    return (await getSubmissionApprovalState(env, userId, submissionId))
-      ? { status: 'not_retryable' } : { status: 'not_found' };
+    const existing = await getSubmissionApprovalState(env, userId, submissionId, exactSlug);
+    return existing ? { status: 'not_retryable' } : { status: 'not_found' };
   }
   for (const record of mockSubmissions.values()) {
     if (record.id !== submissionId || (record.userId !== userId && record.user_id !== userId)) continue;
+    if (exactSlug && record.slug !== exactSlug) return { status: 'not_found' };
     const preRuntimeCanary = retryableFailureCodes.includes(record.failure_code) &&
       !record.selected_runtime && !record.runtime_policy;
     const reviewedRuntimeFailure = !!safeRuntime(record.selected_runtime) && !!safeRuntimePolicy(record.runtime_policy);
@@ -5786,20 +5799,31 @@ async function retryReviewedGatedBuildFailure(env, userId, submissionId) {
   return { status: 'not_found' };
 }
 
-async function getSubmissionApprovalState(env, userId, submissionId) {
+async function getSubmissionApprovalState(env, userId, submissionId, requiredSlug = '') {
+  const exactSlug = requiredSlug ? safeSlug(requiredSlug) : '';
+  if (requiredSlug && !exactSlug) return null;
   const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence,promotion_evidence';
   if (databaseKind(env) === 'neon') {
-    const result = await getNeonPool(env).query(prepared(
-      'omo-submission-approval-state-v1',
-      `SELECT ${columns} FROM submissions WHERE id = $1 AND user_id = $2`,
-      [submissionId, userId]
-    ));
+    const result = exactSlug
+      ? await getNeonPool(env).query(prepared(
+        'omo-submission-approval-state-by-slug-v1',
+        `SELECT ${columns} FROM submissions WHERE id = $1 AND user_id = $2 AND slug = $3`,
+        [submissionId, userId, exactSlug]
+      ))
+      : await getNeonPool(env).query(prepared(
+        'omo-submission-approval-state-v1',
+        `SELECT ${columns} FROM submissions WHERE id = $1 AND user_id = $2`,
+        [submissionId, userId]
+      ));
     return result.rows[0] || null;
   }
   if (databaseKind(env) === 'd1') {
-    return env.BALANCE_DB.prepare(`SELECT ${columns} FROM submissions WHERE id = ? AND user_id = ?`).bind(submissionId, userId).first();
+    return exactSlug
+      ? env.BALANCE_DB.prepare(`SELECT ${columns} FROM submissions WHERE id = ? AND user_id = ? AND slug = ?`).bind(submissionId, userId, exactSlug).first()
+      : env.BALANCE_DB.prepare(`SELECT ${columns} FROM submissions WHERE id = ? AND user_id = ?`).bind(submissionId, userId).first();
   }
-  return getSubmissionForOwner(env, userId, submissionId);
+  const row = await getSubmissionForOwner(env, userId, submissionId);
+  return row && (!exactSlug || row.slug === exactSlug) ? row : null;
 }
 
 async function listSubmissions(env, userId, limit) {
