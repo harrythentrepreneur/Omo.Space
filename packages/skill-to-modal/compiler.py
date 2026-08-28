@@ -23,10 +23,12 @@ from pathlib import Path
 from typing import Any
 
 
-COMPILER_VERSION = "skill-to-modal/0.6.0"
+LEGACY_COMPILER_VERSION = "skill-to-modal/0.6.0"
+COMPILER_VERSION = "skill-to-modal/0.7.0"
 CAPABILITY_RESOLVER_VERSION = "1.0.0"
 CAPABILITY_REGISTRY_VERSION = "1.4.0"
 COST_MODEL_PATH = Path(__file__).resolve().parents[2] / "site" / "deploy" / "cost-model.mjs"
+COST_MODEL_V2_PATH = Path(__file__).resolve().parents[2] / "site" / "deploy" / "cost-model-v2.mjs"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SKILL_OWNED_TEMPLATE_ROOT = Path(__file__).resolve().parent / "skill_owned_resources"
 PURE_DATA_TEMPLATE_ROOT = Path(__file__).resolve().parent / "pure_data"
@@ -49,7 +51,26 @@ def _load_pure_data_runtime() -> Any:
 PURE_DATA_RUNTIME = _load_pure_data_runtime()
 
 
-PROFILE_AUTHORING_SPEC_VERSION = "omo.profile-authoring-spec/v1"
+LEGACY_PROFILE_AUTHORING_SPEC_VERSION = "omo.profile-authoring-spec/v1"
+PROFILE_AUTHORING_SPEC_VERSION = "omo.profile-authoring-spec/v2"
+SUPPORTED_PROFILE_AUTHORING_SPEC_VERSIONS = frozenset({
+    LEGACY_PROFILE_AUTHORING_SPEC_VERSION,
+    PROFILE_AUTHORING_SPEC_VERSION,
+})
+
+
+def is_supported_profile_authoring_spec_version(value: object) -> bool:
+    return isinstance(value, str) and value in SUPPORTED_PROFILE_AUTHORING_SPEC_VERSIONS
+
+
+def compiler_version_for_profile(profile: dict[str, Any]) -> str:
+    return (
+        LEGACY_COMPILER_VERSION
+        if profile.get("authoring_spec_version") == LEGACY_PROFILE_AUTHORING_SPEC_VERSION
+        else COMPILER_VERSION
+    )
+
+
 AUTHORING_SPEC_MAX_BYTES = 65_536
 AUTHORING_SCHEMA_MAX_DEPTH = 8
 AUTHORING_SCHEMA_MAX_PROPERTIES = 32
@@ -399,7 +420,8 @@ def assemble_profile_authoring_spec(
         r"[0-9a-f]{64}", identity["source_sha256"]
     ):
         raise ProfileAuthoringError("AUTHORING_SOURCE_SHA_INVALID")
-    if authoring_spec.get("schema_version") != PROFILE_AUTHORING_SPEC_VERSION:
+    authoring_version = authoring_spec.get("schema_version")
+    if not is_supported_profile_authoring_spec_version(authoring_version):
         raise ProfileAuthoringError("AUTHORING_VERSION_UNSUPPORTED")
     if authoring_spec.get("family") not in {"pure_data", "single_llm"}:
         raise ProfileAuthoringError("AUTHORING_FAMILY_UNSUPPORTED")
@@ -427,7 +449,7 @@ def assemble_profile_authoring_spec(
         for field, schema in input_schema["properties"].items()
     ]
     common = {
-        "authoring_spec_version": PROFILE_AUTHORING_SPEC_VERSION,
+        "authoring_spec_version": authoring_version,
         "authoring_spec_sha256": hashlib.sha256(
             canonical_profile_authoring_spec_bytes(authoring_spec)
         ).hexdigest(),
@@ -458,22 +480,36 @@ def assemble_profile_authoring_spec(
             + AUTHORING_LIVE_MAX_INPUT_BYTES
             + AUTHORING_LLM_PROMPT_OVERHEAD_BYTES
         )
+        gemini_runtime = authoring_version == PROFILE_AUTHORING_SPEC_VERSION
+        provider = "gemini" if gemini_runtime else "opencode-go"
+        model = "gemini-2.5-flash" if gemini_runtime else "deepseek-v4-flash"
+        capability = "gemini-chat-completions" if gemini_runtime else "opencode-go-chat-completions"
+        required_env_names = ["GEMINI_API_KEY"] if gemini_runtime else ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"]
+        live_provider = {
+            "provider": provider,
+            "default_model": model,
+            "default_base_url": (
+                "https://generativelanguage.googleapis.com/v1beta/openai"
+                if gemini_runtime else "https://opencode.ai/zen/go/v1"
+            ),
+            "api_key_env": "GEMINI_API_KEY" if gemini_runtime else "LLM_API_KEY",
+            "base_url_env": "GEMINI_BASE_URL" if gemini_runtime else "LLM_BASE_URL",
+            "model_env": "GEMINI_MODEL" if gemini_runtime else "LLM_MODEL",
+            "modal_secret_name": "omo-skill-providers-gemini" if gemini_runtime else "omo-skill-providers",
+        }
         return {
             **common,
             "execution_kind": "single_llm",
-            "capabilities": ["opencode-go-chat-completions", "schema-validated-json-output"],
-            "required_env_names": ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"],
+            "capabilities": [capability, "schema-validated-json-output"],
+            "required_env_names": required_env_names,
             "resources": {"cpu": 1.0, "memory_mb": 512, "timeout_seconds": 180, "max_containers": 4},
-            "cost_drivers": ["up to two bounded schema-validated DeepSeek V4 Flash calls"],
+            "cost_drivers": [f"up to two bounded schema-validated {'Gemini 2.5 Flash' if gemini_runtime else 'DeepSeek V4 Flash'} calls"],
             "prompts": {
                 "system.txt": AUTHORING_SINGLE_LLM_SYSTEM_PROMPT,
                 "workflow.txt": prompt,
             },
             "live": {
-                "provider": "opencode-go", "default_model": "deepseek-v4-flash",
-                "default_base_url": "https://opencode.ai/zen/go/v1", "api_key_env": "LLM_API_KEY",
-                "base_url_env": "LLM_BASE_URL", "model_env": "LLM_MODEL",
-                "modal_secret_name": "omo-skill-providers", "prompt": "system.txt",
+                **live_provider, "prompt": "system.txt",
                 "workflow_instructions": "workflow.txt",
                 "model_output_schema": copy.deepcopy(output_schema),
                 "max_tokens": 1200, "max_input_bytes": AUTHORING_LIVE_MAX_INPUT_BYTES,
@@ -483,7 +519,7 @@ def assemble_profile_authoring_spec(
                 "chargeable": True, "default_tier": "standard", "quote_status": "cost_model",
                 "unpriced_costs": [], "estimates": [{
                     "tier": "standard", "workflow": {"steps": [{
-                        "type": "llm", "role": "generate", "model": "deepseek-v4-flash",
+                        "type": "llm", "role": "generate", "model": model,
                         "estimated_input_tokens": pricing_input_tokens, "max_output_tokens": 1200,
                         "qty": 2,
                     }]},
@@ -491,7 +527,7 @@ def assemble_profile_authoring_spec(
             },
             "steps": [{
                 "id": "generate", "type": "llm", "operation": "chat.completions.strict_json",
-                "provider": "opencode-go", "prompt": "system.txt", "readiness": "ready",
+                "provider": provider, "prompt": "system.txt", "readiness": "ready",
             }],
         }
     try:
@@ -1471,7 +1507,7 @@ def _render_skill_owned_template(profile: dict[str, Any], filename: str) -> str:
         .get("default_endpoint", "")
     ).rstrip("/")
     replacements = {
-        "__COMPILER_VERSION__": COMPILER_VERSION,
+        "__COMPILER_VERSION__": compiler_version_for_profile(profile),
         "__WORKFLOW_VERSION__": f"{profile['slug']}@{profile['version']}",
         "__PROFILE_VERSION__": str(profile["version"]),
         "__PUBLIC_BASE_URL__": endpoint,
@@ -2097,11 +2133,11 @@ def _selected_capability_names(profile: dict[str, Any]) -> set[str]:
     return matched - incomplete
 
 
-def load_cost_model() -> tuple[
+def load_cost_model(path: Path = COST_MODEL_PATH) -> tuple[
     dict[str, dict[str, Decimal]], dict[str, Decimal], Decimal, Decimal, str
 ]:
     """Read the authoritative repository model instead of maintaining a fork."""
-    text = COST_MODEL_PATH.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8")
     llm_block = text.split("export const LLM_RATES = {", 1)[1].split("};", 1)[0]
     api_block = text.split("export const API_STEP_COSTS = {", 1)[1].split("};", 1)[0]
     llm_rates = {
@@ -2129,6 +2165,8 @@ def load_cost_model() -> tuple[
 
 
 LLM_RATES, API_STEP_COSTS, MARKUP, PRICE_FLOOR, COST_MODEL_SHA256 = load_cost_model()
+V2_LLM_RATES, V2_API_STEP_COSTS, V2_MARKUP, V2_PRICE_FLOOR, V2_COST_MODEL_SHA256 = load_cost_model(COST_MODEL_V2_PATH)
+ALL_LLM_RATES = {**LLM_RATES, **V2_LLM_RATES}
 
 
 def slugify(value: str) -> str:
@@ -2215,7 +2253,12 @@ def money(value: Decimal) -> float:
     return float(value.quantize(Decimal("0.00001"), rounding=ROUND_HALF_UP))
 
 
-def workflow_cost(workflow: dict[str, Any]) -> tuple[Decimal, list[dict[str, Any]]]:
+def workflow_cost(
+    workflow: dict[str, Any],
+    *,
+    llm_rates: dict[str, dict[str, Decimal]] = LLM_RATES,
+    api_step_costs: dict[str, Decimal] = API_STEP_COSTS,
+) -> tuple[Decimal, list[dict[str, Any]]]:
     total = Decimal("0")
     detail: list[dict[str, Any]] = []
     for step in workflow.get("steps", []):
@@ -2225,19 +2268,19 @@ def workflow_cost(workflow: dict[str, Any]) -> tuple[Decimal, list[dict[str, Any
             raise ValueError("pricing step qty must be positive")
         if kind == "llm":
             model = step.get("model", "deepseek-v4-flash")
-            if model not in LLM_RATES:
+            if model not in llm_rates:
                 raise ValueError(f"unknown pricing model: {model}")
             input_tokens = Decimal(str(step.get("estimated_input_tokens", 0)))
             output_tokens = Decimal(str(step.get("max_output_tokens", 500)))
-            rates = LLM_RATES[model]
+            rates = llm_rates[model]
             unit = input_tokens / Decimal(1_000_000) * rates["input"]
             unit += output_tokens / Decimal(1_000_000) * rates["output"]
             label = f"llm({step.get('role', 'call')})"
         elif kind == "api":
             code = step.get("api")
-            if code not in API_STEP_COSTS:
+            if code not in api_step_costs:
                 raise ValueError(f"unknown API cost code: {code}")
-            unit = API_STEP_COSTS[code]
+            unit = api_step_costs[code]
             label = f"api({code})"
         else:
             raise ValueError(f"unknown pricing step type: {kind}")
@@ -2249,13 +2292,22 @@ def workflow_cost(workflow: dict[str, Any]) -> tuple[Decimal, list[dict[str, Any
 
 def price_report(profile: dict[str, Any]) -> dict[str, Any]:
     pricing = profile["pricing"]
+    v2 = profile.get("authoring_spec_version") == PROFILE_AUTHORING_SPEC_VERSION
+    llm_rates = V2_LLM_RATES if v2 else LLM_RATES
+    api_step_costs = V2_API_STEP_COSTS if v2 else API_STEP_COSTS
+    markup = V2_MARKUP if v2 else MARKUP
+    floor = V2_PRICE_FLOOR if v2 else PRICE_FLOOR
+    cost_model_sha256 = V2_COST_MODEL_SHA256 if v2 else COST_MODEL_SHA256
+    source_model = "site/deploy/cost-model-v2.mjs" if v2 else "site/deploy/cost-model.mjs"
     estimates: list[dict[str, Any]] = []
     for estimate in pricing["estimates"]:
-        modeled, detail = workflow_cost(estimate["workflow"])
+        modeled, detail = workflow_cost(
+            estimate["workflow"], llm_rates=llm_rates, api_step_costs=api_step_costs
+        )
         guard = Decimal(str(estimate.get("guard_cost_usd", "0")))
         guarded = max(modeled, guard)
-        modeled_margin = max(modeled * MARKUP, PRICE_FLOOR)
-        guarded_margin = max(guarded * MARKUP, PRICE_FLOOR)
+        modeled_margin = max(modeled * markup, floor)
+        guarded_margin = max(guarded * markup, floor)
         cost_model_price = modeled_margin.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         guarded_price = guarded_margin.quantize(Decimal("0.01"), rounding=ROUND_CEILING)
         estimates.append(
@@ -2276,11 +2328,11 @@ def price_report(profile: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("pricing.default_tier must name an estimate tier")
     return {
         "schema_version": "cognition.pricing/v1",
-        "source_model": "site/deploy/cost-model.mjs",
+        "source_model": source_model,
         "rate_snapshot": "repository-2026-08",
-        "cost_model_sha256": COST_MODEL_SHA256,
-        "markup": float(MARKUP),
-        "floor_usd": float(PRICE_FLOOR),
+        "cost_model_sha256": cost_model_sha256,
+        "markup": float(markup),
+        "floor_usd": float(floor),
         "quote_status": pricing["quote_status"],
         "chargeable": bool(pricing.get("chargeable", False)),
         "default_tier": default_tier,
@@ -2295,9 +2347,9 @@ def price_report(profile: dict[str, Any]) -> dict[str, Any]:
 def live_model_rates(live: dict[str, Any]) -> dict[str, Decimal]:
     """Return live metering rates from the canonical repository cost model."""
     model = str(live.get("default_model") or "").strip()
-    if model not in LLM_RATES:
+    if model not in ALL_LLM_RATES:
         raise ValueError(f"unknown live model in cost model: {model or '<missing>'}")
-    return LLM_RATES[model]
+    return ALL_LLM_RATES[model]
 
 
 def _schema_type_is(schema: Any, expected: str) -> bool:
@@ -2847,6 +2899,7 @@ def runtime_timeout_seconds(profile: dict[str, Any]) -> int:
 
 
 def modal_app_template(profile: dict[str, Any]) -> str:
+    compiler_version = compiler_version_for_profile(profile)
     if profile.get("execution_kind") == "pure_data":
         return pure_data_template(profile, "modal_app.py.tmpl")
     if skill_owned_resource_template(profile) is not None:
@@ -6135,7 +6188,7 @@ def _provider_completion(
     )
     return f'''"""Generated Modal contract runtime for {title}.
 
-Generated by {COMPILER_VERSION}; change the profile/compiler, not this file.
+Generated by {compiler_version}; change the profile/compiler, not this file.
 Complex or unapproved capabilities fail closed. Tests inject a pure mock
 executor and never make provider calls.
 """
@@ -6636,6 +6689,7 @@ def yaml_quote(value: str) -> str:
 
 
 def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
+    compiler_version = compiler_version_for_profile(profile)
     blockers = profile["readiness"]["blockers"]
     steps = profile["steps"]
     ready = bool(profile["readiness"]["can_submit"])
@@ -6652,7 +6706,7 @@ def container_yaml(profile: dict[str, Any], source_hash: str) -> str:
         f"version: {yaml_quote(profile['version'])}",
         f"status: {'ready' if ready else 'not-ready'}",
         "generated:",
-        f"  compiler: {COMPILER_VERSION}",
+        f"  compiler: {compiler_version}",
         "  hand_edit_allowed: false",
         "source:",
         "  kind: vendored-skill-md",
@@ -6891,9 +6945,10 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
     ):
         raise ValueError("profile readiness must contain typed can_submit and blockers")
     source_hash = sha256_text(skill_text)
+    compiler_version = compiler_version_for_profile(profile)
     authoring_spec_version = profile.get("authoring_spec_version")
     if authoring_spec_version is not None:
-        if authoring_spec_version != PROFILE_AUTHORING_SPEC_VERSION:
+        if not is_supported_profile_authoring_spec_version(authoring_spec_version):
             raise ValueError("profile authoring spec version is unsupported")
         if profile.get("reviewed_source_sha256") != source_hash:
             raise ValueError("profile reviewed source SHA-256 does not match SKILL.md")
@@ -6940,7 +6995,7 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
         pricing["chargeable"] = False
     analysis = {
         "schema_version": "cognition.skill-analysis/v1",
-        "compiler": COMPILER_VERSION,
+        "compiler": compiler_version,
         "name": parsed["name"],
         "slug": parsed["slug"],
         "description": parsed["description"],
@@ -7008,7 +7063,7 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
             "program_digest": pure_data_digest,
             "program_path": "runtime/pure-data-program.json",
             "provenance": {
-                "compiler_version": COMPILER_VERSION,
+                "compiler_version": compiler_version,
                 "profile_version": str(effective_profile["version"]),
                 "reviewed_source_sha256": source_hash,
             },

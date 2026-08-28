@@ -251,7 +251,7 @@ def _verify_provenance(
         compiler = _trusted_compiler()
         digest = profile.get("authoring_spec_sha256")
         if (
-            profile.get("authoring_spec_version") != compiler.PROFILE_AUTHORING_SPEC_VERSION
+            not compiler.is_supported_profile_authoring_spec_version(profile.get("authoring_spec_version"))
             or not isinstance(digest, str)
             or not SAFE_SHA256_RE.fullmatch(digest)
             or set(receipt_entries) != {receipt_path}

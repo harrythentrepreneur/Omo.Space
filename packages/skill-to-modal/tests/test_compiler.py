@@ -10,6 +10,7 @@ import json
 import re
 import shutil
 import subprocess
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -278,7 +279,7 @@ def test_authoring_profile_bytes_ignore_nested_schema_set_order() -> None:
 @pytest.mark.parametrize(
     ("field", "value", "code"),
     [
-        ("schema_version", "omo.profile-authoring-spec/v2", "AUTHORING_VERSION_UNSUPPORTED"),
+        ("schema_version", "omo.profile-authoring-spec/v3", "AUTHORING_VERSION_UNSUPPORTED"),
         ("family", "arbitrary_python", "AUTHORING_FAMILY_UNSUPPORTED"),
     ],
 )
@@ -454,21 +455,23 @@ def test_pure_data_authoring_requires_exact_allowlisted_negative_reason(reason: 
 
 def test_trusted_authoring_assembler_builds_fixed_single_llm_profile() -> None:
     authored = _single_llm_authoring_spec()
+    authored["schema_version"] = "omo.profile-authoring-spec/v2"
     profile = compiler.assemble_profile_authoring_spec(
         authored,
         {"slug": "fresh-word-writer", "name": "Fresh Word Writer", "source_sha256": "b" * 64},
     )
     assert profile["execution_kind"] == "single_llm"
-    assert profile["authoring_spec_version"] == "omo.profile-authoring-spec/v1"
-    assert profile["capabilities"] == ["opencode-go-chat-completions", "schema-validated-json-output"]
-    assert profile["required_env_names"] == ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"]
+    assert profile["authoring_spec_version"] == "omo.profile-authoring-spec/v2"
+    assert profile["capabilities"] == ["gemini-chat-completions", "schema-validated-json-output"]
+    assert profile["required_env_names"] == ["GEMINI_API_KEY"]
     assert profile["resources"] == {"cpu": 1.0, "memory_mb": 512, "timeout_seconds": 180, "max_containers": 4}
     assert profile["runtime_preference"] == "auto"
     assert profile["live"] == {
-        "provider": "opencode-go", "default_model": "deepseek-v4-flash",
-        "default_base_url": "https://opencode.ai/zen/go/v1", "api_key_env": "LLM_API_KEY",
-        "base_url_env": "LLM_BASE_URL", "model_env": "LLM_MODEL",
-        "modal_secret_name": "omo-skill-providers", "prompt": "system.txt",
+        "provider": "gemini", "default_model": "gemini-2.5-flash",
+        "default_base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "api_key_env": "GEMINI_API_KEY", "base_url_env": "GEMINI_BASE_URL",
+        "model_env": "GEMINI_MODEL", "modal_secret_name": "omo-skill-providers-gemini",
+        "prompt": "system.txt",
         "workflow_instructions": "workflow.txt",
         "model_output_schema": profile["output_schema"], "max_tokens": 1200,
         "max_input_bytes": compiler.AUTHORING_LIVE_MAX_INPUT_BYTES,
@@ -491,22 +494,48 @@ def test_trusted_authoring_assembler_builds_fixed_single_llm_profile() -> None:
     assert pricing_input_tokens >= priced_envelope
     assert profile["steps"] == [{
         "id": "generate", "type": "llm", "operation": "chat.completions.strict_json",
-        "provider": "opencode-go", "prompt": "system.txt", "readiness": "ready",
+        "provider": "gemini", "prompt": "system.txt", "readiness": "ready",
     }]
 
 
-def test_authored_single_llm_pricing_covers_initial_and_corrective_provider_calls() -> None:
+def test_v1_single_llm_authoring_remains_legacy_opencode_for_receipt_verification() -> None:
+    authored = _single_llm_authoring_spec()
     profile = compiler.assemble_profile_authoring_spec(
-        _single_llm_authoring_spec(),
+        authored,
+        {"slug": "legacy-word-writer", "name": "Legacy Word Writer", "source_sha256": "c" * 64},
+    )
+
+    assert profile["authoring_spec_version"] == "omo.profile-authoring-spec/v1"
+    assert profile["capabilities"] == ["opencode-go-chat-completions", "schema-validated-json-output"]
+    assert profile["live"]["provider"] == "opencode-go"
+    assert profile["live"]["default_model"] == "deepseek-v4-flash"
+    assert profile["steps"][0]["provider"] == "opencode-go"
+    assert compiler.compiler_version_for_profile(profile) == "skill-to-modal/0.6.0"
+    legacy_pricing = compiler.price_report(profile)
+    assert legacy_pricing["source_model"] == "site/deploy/cost-model.mjs"
+    assert legacy_pricing["cost_model_sha256"] == compiler.COST_MODEL_SHA256
+
+
+def test_authored_single_llm_pricing_covers_initial_and_corrective_provider_calls() -> None:
+    authored = _single_llm_authoring_spec()
+    authored["schema_version"] = "omo.profile-authoring-spec/v2"
+    profile = compiler.assemble_profile_authoring_spec(
+        authored,
         {"slug": "fresh", "name": "Fresh", "source_sha256": "a" * 64},
     )
 
     pricing_step = profile["pricing"]["estimates"][0]["workflow"]["steps"][0]
     assert pricing_step["qty"] == 2
     assert profile["cost_drivers"] == [
-        "up to two bounded schema-validated DeepSeek V4 Flash calls"
+        "up to two bounded schema-validated Gemini 2.5 Flash calls"
     ]
     report = compiler.price_report(profile)
+    assert compiler.compiler_version_for_profile(profile) == "skill-to-modal/0.7.0"
+    assert report["source_model"] == "site/deploy/cost-model-v2.mjs"
+    assert report["cost_model_sha256"] == compiler.V2_COST_MODEL_SHA256
+    assert compiler.V2_LLM_RATES["gemini-2.5-flash"] == {
+        "input": Decimal("0.30"), "output": Decimal("2.50"),
+    }
     llm_detail = report["estimates"][0]["detail"][0]
     assert llm_detail["qty"] == 2
 

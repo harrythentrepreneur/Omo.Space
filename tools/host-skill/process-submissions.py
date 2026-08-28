@@ -1124,8 +1124,9 @@ def promote_generated_candidate_for_release(profile: dict[str, Any]) -> dict[str
         return promoted
     tags = market.get("tags")
     authored_candidate = (
-        promoted.get("authoring_spec_version")
-        == HOST_MODULE.COMPILER.PROFILE_AUTHORING_SPEC_VERSION
+        HOST_MODULE.COMPILER.is_supported_profile_authoring_spec_version(
+            promoted.get("authoring_spec_version")
+        )
         and isinstance(promoted.get("authoring_spec_sha256"), str)
         and SAFE_SHA256_RE.fullmatch(promoted["authoring_spec_sha256"]) is not None
     )
@@ -1262,7 +1263,7 @@ def validate_release_artifact_entries(slug: str, entries: dict[str, bytes]) -> s
     if not has_authoring_version:
         if receipt_raw is not None or "authoring_spec_sha256" in profile:
             raise RuntimeError("legacy release has unbound authoring metadata")
-    elif authoring_version == HOST_MODULE.COMPILER.PROFILE_AUTHORING_SPEC_VERSION:
+    elif HOST_MODULE.COMPILER.is_supported_profile_authoring_spec_version(authoring_version):
         if not isinstance(receipt_raw, bytes):
             raise RuntimeError("release authoring receipt evidence is missing")
         try:

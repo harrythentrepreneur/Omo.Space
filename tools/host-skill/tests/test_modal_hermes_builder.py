@@ -780,7 +780,7 @@ def test_authoring_prompt_requests_only_bounded_spec_with_typed_diagnostics(tmp_
     )
 
     assert str(authoring_path) in prompt
-    assert "omo.profile-authoring-spec/v1" in prompt
+    assert "omo.profile-authoring-spec/v2" in prompt
     assert "AUTHORING_SCHEMA_INVALID" in prompt
     assert "attempt 2 of 3" in prompt.lower()
     assert "complete runtime profile" not in prompt.lower()
@@ -802,6 +802,9 @@ def test_authoring_prompt_embeds_compiler_validated_family_contracts(tmp_path: P
 
     assert parsed["schema_version"] == "omo.profile-authoring-contract/v1"
     assert set(parsed["examples"]) == {"pure_data", "single_llm"}
+    assert {example["schema_version"] for example in parsed["examples"].values()} == {
+        compiler.PROFILE_AUTHORING_SPEC_VERSION
+    }
     for family, example in parsed["examples"].items():
         profile = compiler.assemble_profile_authoring_spec(
             example,
@@ -813,6 +816,9 @@ def test_authoring_prompt_embeds_compiler_validated_family_contracts(tmp_path: P
         )
         assert profile["execution_kind"] == family
         assert profile["readiness"] == {"can_submit": True, "blockers": []}
+        if family == "single_llm":
+            assert profile["live"]["provider"] == "gemini"
+            assert profile["live"]["default_model"] == "gemini-2.5-flash"
 
     prompt = builder.authoring_prompt(
         "sub_abcdefgh12345678",
@@ -1317,6 +1323,10 @@ def test_authored_receipt_crosses_trust_boundary_with_profile_digest(tmp_path: P
 
     class FakeCompiler:
         PROFILE_AUTHORING_SPEC_VERSION = "omo.profile-authoring-spec/v1"
+
+        @staticmethod
+        def is_supported_profile_authoring_spec_version(value: object) -> bool:
+            return value == FakeCompiler.PROFILE_AUTHORING_SPEC_VERSION
 
         @staticmethod
         def canonical_profile_authoring_spec_bytes(value: dict) -> bytes:
