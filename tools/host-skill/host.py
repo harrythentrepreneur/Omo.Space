@@ -42,7 +42,7 @@ SINGLE_LLM_OPERATION = "chat.completions.strict_json"
 PURE_DATA_WORKER_EXECUTOR_SPEC_VERSION = "omo.worker-pure-data/v1"
 PURE_DATA_EXECUTION_KIND = "pure_data"
 PURE_DATA_OPERATION = "pure_data.execute"
-WORKER_PROVIDERS = {"opencode-go"}
+WORKER_PROVIDERS = {"opencode-go", "gemini"}
 WORKER_MAX_OUTPUT_TOKENS_MIN = 1
 WORKER_MAX_OUTPUT_TOKENS_MAX = 8000
 WORKER_MAX_INPUT_BYTES_MIN = 1
@@ -53,6 +53,7 @@ WORKER_TIMEOUT_SECONDS_MIN = 1
 WORKER_TIMEOUT_SECONDS_MAX = 120
 WORKER_SAFE_CAPABILITIES = {
     "opencode-go-chat-completions",
+    "gemini-chat-completions",
     "schema-validated-json-output",
 }
 
@@ -346,7 +347,7 @@ def single_llm_worker_executor_errors(profile: dict[str, Any]) -> list[str]:
     system_prompt = prompts.get(prompt_name) if isinstance(prompts, dict) else ""
     if not isinstance(prompt_name, str) or not isinstance(system_prompt, str) or not system_prompt.strip():
         errors.append("system_prompt")
-    if profile.get("authoring_spec_version") == COMPILER.PROFILE_AUTHORING_SPEC_VERSION:
+    if COMPILER.is_supported_profile_authoring_spec_version(profile.get("authoring_spec_version")):
         workflow_prompt_name = live.get("workflow_instructions")
         workflow_instructions = (
             prompts.get(workflow_prompt_name) if isinstance(prompts, dict) else ""
@@ -418,7 +419,7 @@ def build_single_llm_worker_executor(profile: dict[str, Any]) -> dict[str, Any]:
             live.get("timeout_seconds"), "live.timeout_seconds", WORKER_TIMEOUT_SECONDS_MIN, WORKER_TIMEOUT_SECONDS_MAX
         ),
     }
-    if profile.get("authoring_spec_version") == COMPILER.PROFILE_AUTHORING_SPEC_VERSION:
+    if COMPILER.is_supported_profile_authoring_spec_version(profile.get("authoring_spec_version")):
         workflow_prompt_name = require_text(
             live.get("workflow_instructions"), "live.workflow_instructions"
         )
@@ -660,18 +661,18 @@ def build_hosted_profile(
     authoring_spec_version = profile.get("authoring_spec_version")
     if (
         authoring_spec_version is not None
-        and authoring_spec_version != COMPILER.PROFILE_AUTHORING_SPEC_VERSION
+        and not COMPILER.is_supported_profile_authoring_spec_version(authoring_spec_version)
     ):
         raise ValueError("authoring spec version is unsupported")
     if (
         (
             profile.get("execution_kind") == PURE_DATA_EXECUTION_KIND
-            or authoring_spec_version == COMPILER.PROFILE_AUTHORING_SPEC_VERSION
+            or COMPILER.is_supported_profile_authoring_spec_version(authoring_spec_version)
         )
         and profile.get("reviewed_source_sha256") != reviewed_source_sha256
     ):
         raise ValueError("reviewed source does not match compiled source")
-    if authoring_spec_version == COMPILER.PROFILE_AUTHORING_SPEC_VERSION:
+    if COMPILER.is_supported_profile_authoring_spec_version(authoring_spec_version):
         expected_profile_sha256 = container_manifest.get("profile_sha256")
         actual_profile_sha256 = hashlib.sha256(
             COMPILER.canonical_json(profile).encode("utf-8")
@@ -831,7 +832,7 @@ def build_hosted_profile(
             runtime["model_output_schema"] = copy.deepcopy(profile["live"]["model_output_schema"])
             if (
                 profile.get("execution_kind") == "single_llm"
-                and authoring_spec_version == COMPILER.PROFILE_AUTHORING_SPEC_VERSION
+                and COMPILER.is_supported_profile_authoring_spec_version(authoring_spec_version)
             ):
                 runtime["output_schema"] = single_llm_public_output_schema(profile)
                 run_manifest["output_schema"] = copy.deepcopy(runtime["output_schema"])

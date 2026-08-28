@@ -178,7 +178,7 @@ const HOSTED_WORKER_LLM_OPERATION = 'chat.completions.strict_json';
 const HOSTED_WORKER_PURE_DATA_SPEC_VERSION = 'omo.worker-pure-data/v1';
 const HOSTED_WORKER_PURE_DATA_EXECUTION_KIND = 'pure_data';
 const HOSTED_WORKER_PURE_DATA_OPERATION = 'pure_data.execute';
-const HOSTED_WORKER_PROVIDERS = new Set(['opencode-go']);
+const HOSTED_WORKER_PROVIDERS = new Set(['opencode-go', 'gemini']);
 const HOSTED_WORKER_PROVIDER_DESCRIPTORS = new Map([
   ['opencode-go', {
     api_key_env: 'LLM_API_KEY',
@@ -186,6 +186,13 @@ const HOSTED_WORKER_PROVIDER_DESCRIPTORS = new Map([
     default_base_url: 'https://opencode.ai/zen/go/v1',
     origin: 'https://opencode.ai',
     path: '/zen/go/v1',
+  }],
+  ['gemini', {
+    api_key_env: 'GEMINI_API_KEY',
+    base_url_env: 'GEMINI_BASE_URL',
+    default_base_url: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    origin: 'https://generativelanguage.googleapis.com',
+    path: '/v1beta/openai',
   }],
 ]);
 const HOSTED_WORKER_MAX_RESPONSE_BYTES = 256 * 1024;
@@ -1183,6 +1190,8 @@ async function callHostedWorkerProvider(env, executor, userPrompt) {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        'User-Agent': 'Omo-Hosted-Worker/1.0',
+        Accept: 'application/json',
       },
       body: JSON.stringify({
         model: executor.model,
