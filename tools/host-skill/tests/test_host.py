@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -606,6 +607,47 @@ def test_pricing_verifier_checks_the_requested_compiled_report(tmp_path: Path) -
 
     pricing["estimates"][0]["modeled_cost_usd"] = 999.0
     report_path.write_text(json.dumps(pricing), encoding="utf-8")
+    assert subprocess.run(command, cwd=ROOT, check=False).returncode != 0
+
+
+def test_pricing_verifier_uses_report_bound_v2_cost_model(tmp_path: Path) -> None:
+    profile_path = tmp_path / "profile.json"
+    report_path = tmp_path / "pricing-report.json"
+    model_path = ROOT / "site" / "deploy" / "cost-model-v2.mjs"
+    profile_path.write_text(json.dumps({
+        "pricing": {"estimates": [{
+            "tier": "standard",
+            "workflow": {"steps": [{
+                "type": "llm",
+                "model": "gemini-2.5-flash",
+                "estimated_input_tokens": 600,
+                "max_output_tokens": 1200,
+            }]},
+        }]},
+    }), encoding="utf-8")
+    report = {
+        "source_model": "site/deploy/cost-model-v2.mjs",
+        "cost_model_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
+        "estimates": [{
+            "tier": "standard",
+            "modeled_cost_usd": 0.00318,
+            "cost_model_run_price_usd": 0.1,
+        }],
+    }
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    command = [
+        "node",
+        str(ROOT / "packages" / "skill-to-modal" / "verify-pricing.mjs"),
+        "gemini-pricing-test",
+        "--profile",
+        str(profile_path),
+        "--report",
+        str(report_path),
+    ]
+    assert subprocess.run(command, cwd=ROOT, check=False).returncode == 0
+
+    report["source_model"] = "site/deploy/unreviewed-cost-model.mjs"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
     assert subprocess.run(command, cwd=ROOT, check=False).returncode != 0
 
 
