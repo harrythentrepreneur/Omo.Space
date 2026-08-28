@@ -805,6 +805,19 @@ def test_authoring_prompt_embeds_compiler_validated_family_contracts(tmp_path: P
     assert {example["schema_version"] for example in parsed["examples"].values()} == {
         compiler.PROFILE_AUTHORING_SPEC_VERSION
     }
+    single_llm = parsed["examples"]["single_llm"]
+    enum_strings = [
+        schema
+        for schema in single_llm["output_schema"]["properties"].values()
+        if isinstance(schema, dict) and isinstance(schema.get("enum"), list)
+    ]
+    assert enum_strings
+    assert all(
+        schema.get("type") == "string"
+        and isinstance(schema.get("maxLength"), int)
+        and schema["maxLength"] > 0
+        for schema in enum_strings
+    )
     for family, example in parsed["examples"].items():
         profile = compiler.assemble_profile_authoring_spec(
             example,
@@ -835,6 +848,8 @@ def test_authoring_prompt_embeds_compiler_validated_family_contracts(tmp_path: P
     )
     assert contract in prompt
     assert "Top-level keys must match the selected family example exactly" in prompt
+    assert "including enum strings" in prompt
+    assert "must define `maxLength`" in prompt
 
 
 def test_authoring_prompt_rejects_duplicate_or_tampered_contract(tmp_path: Path) -> None:
