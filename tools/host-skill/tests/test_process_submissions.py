@@ -1009,6 +1009,8 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
             return "https://github.com/harrythentrepreneur/Omo.Space/pull/42\n"
         if command[:4] == ["gh", "pr", "view", "--repo"]:
             return json.dumps({"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40})
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false\n"
         if command[:3] == ["git", "rev-parse", "HEAD"]:
             return "a" * 40 + "\n"
         if command[:3] == ["git", "diff", "--name-only"]:
@@ -1035,6 +1037,7 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
     assert result["pr_url"] == "https://github.com/harrythentrepreneur/Omo.Space/pull/42"
     flattened = [" ".join(command) for command, _cwd in commands]
     assert all("harrythentrepreneur/Omo.Space" in command or command.startswith("git ") for command in flattened)
+    assert "git fetch origin refs/heads/main:refs/remotes/origin/main" in flattened
     assert any(command.startswith("git worktree add --detach") and command.endswith("origin/main") for command in flattened)
     assert any(command == "git switch -C omo-release/sub_adapter000000000000000001-facebook-ads-copywriter" for command in flattened)
     assert any(command == "git push -u origin omo-release/sub_adapter000000000000000001-facebook-ads-copywriter" for command in flattened)
@@ -1056,6 +1059,8 @@ def test_github_release_adapter_fast_forwards_existing_server_branch(tmp_path: P
             return f"{remote_head}\trefs/heads/{branch}\n"
         if command[:3] == ["git", "rev-parse", f"refs/remotes/origin/{branch}"]:
             return remote_head + "\n"
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false\n"
         if command[:3] == ["git", "rev-parse", "HEAD"]:
             return "a" * 40 + "\n"
         if command[:3] == ["git", "diff", "--name-only"]:
@@ -1087,6 +1092,79 @@ def test_github_release_adapter_fast_forwards_existing_server_branch(tmp_path: P
     )
     assert any(command == f"git push -u origin {branch}" for command in flattened)
     assert not any("--force" in command or " -f " in f" {command} " for command in flattened)
+
+
+def test_release_base_fetch_unshallows_builder_checkout_for_merge_base(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    remote = tmp_path / "origin.git"
+    seed = tmp_path / "seed"
+    checkout = tmp_path / "builder-checkout"
+    subprocess.run(["git", "init", "--bare", "--initial-branch=main", str(remote)], check=True, capture_output=True)
+    seed.mkdir()
+    subprocess.run(["git", "init", "--initial-branch=main"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=seed, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=seed, check=True)
+    (seed / "base.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "branch", "release"], cwd=seed, check=True)
+    (seed / "main.txt").write_text("main\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-m", "main advance"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "switch", "release"], cwd=seed, check=True, capture_output=True)
+    (seed / "release.txt").write_text("release\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-m", "release advance"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "tag", "main"], cwd=seed, check=True)
+    subprocess.run(["git", "remote", "add", "origin", f"file://{remote}"], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "push", "origin", "refs/heads/main", "refs/heads/release", "refs/tags/main"],
+        cwd=seed,
+        check=True,
+        capture_output=True,
+    )
+
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+    subprocess.run(["git", "remote", "add", "origin", f"file://{remote}"], cwd=checkout, check=True)
+    subprocess.run(["git", "fetch", "--depth", "1", "origin", "main"], cwd=checkout, check=True, capture_output=True)
+    subprocess.run(["git", "checkout", "-q", "--detach", "FETCH_HEAD"], cwd=checkout, check=True)
+    assert subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"], cwd=checkout, check=True, capture_output=True, text=True
+    ).stdout.strip() == "true"
+
+    adapter = process.GitHubReleaseAdapter()
+    adapter._fetch_base_ref(checkout)
+    subprocess.run(
+        ["git", "fetch", "origin", "release:refs/remotes/origin/release"],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+    )
+
+    assert subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"], cwd=checkout, check=True, capture_output=True, text=True
+    ).stdout.strip() == "false"
+    branch_sha = subprocess.run(
+        ["git", "ls-remote", "origin", "refs/heads/main"],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split("\t", 1)[0]
+    resolved_base = subprocess.run(
+        ["git", "rev-parse", "refs/remotes/origin/main"],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert resolved_base == branch_sha
+    subprocess.run(
+        ["git", "merge-base", "origin/main", "refs/remotes/origin/release"],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+    )
 
 
 def test_release_branch_diff_disables_rename_detection(tmp_path: Path) -> None:
@@ -1122,6 +1200,8 @@ def test_release_branch_refresh_rejects_non_allowlisted_diff(monkeypatch, tmp_pa
     def runner(command, cwd=None, text=True):
         if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
             return ""
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false"
         if command[:3] == ["git", "rev-parse", "HEAD"]:
             return "a" * 40
         if command[:3] == ["git", "diff", "--name-only"]:
@@ -1201,6 +1281,8 @@ def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> 
             return json.dumps([{"number": 31, "url": "https://github.com/harrythentrepreneur/Omo.Space/issues/31"}])
         if command[:4] == ["gh", "pr", "list", "--repo"]:
             return json.dumps([{"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40}])
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false\n"
         if command[:3] == ["git", "rev-parse", "HEAD"]:
             return "a" * 40 + "\n"
         return ""
@@ -2408,6 +2490,8 @@ def test_release_worktree_commit_uses_scoped_git_identity(monkeypatch, tmp_path:
 
     def runner(command, cwd=None, text=True):
         commands.append(list(command))
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false"
         if command[:2] == ["git", "rev-parse"]:
             return "a" * 40
         return ""
