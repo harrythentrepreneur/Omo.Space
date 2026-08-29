@@ -2,11 +2,11 @@
   "happy_path": {
     "input": {
       "customer_blocked": true,
-      "ticket": "My website is completely down and I can't access it at all. All my customers are seeing an error page."
+      "ticket": "My account is locked and I can't log in. I need to access my data urgently."
     },
     "output": {
-      "label": "high",
-      "reason": "Customer's website is completely down and they are blocked, indicating a critical service interruption."
+      "priority": "high",
+      "reason": "Customer is blocked from accessing their account and data, requiring urgent attention."
     }
   },
   "negative_cases": [
@@ -15,6 +15,14 @@
       "input": {
         "customer_blocked": false,
         "ticket": ""
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "short_ticket",
+      "input": {
+        "customer_blocked": false,
+        "ticket": "too short"
       },
       "reason": "INVALID_INPUT"
     }

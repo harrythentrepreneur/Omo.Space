@@ -7,7 +7,7 @@
   ],
   "approved": [],
   "blockers": [],
-  "contract_digest": "sha256:dd5c9a0ec874952d608be8cccd4432c64b62523c0492bdc706315e0420913663",
+  "contract_digest": "sha256:593a83d3938d5743e33c1b8dd2262b18276c031867c6d090c18c708fba5f2558",
   "decision": "approved",
   "execution_kind": "single_llm",
   "generated": {

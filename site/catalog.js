@@ -4609,33 +4609,36 @@ window.OMO_CATALOG = [
     "cover": null,
     "demoCap": "Run reviewed example",
     "desc": "Classify a bounded customer support ticket into low, medium, or high priority with a concise reason.",
-    "emoji": "\ud83c\udfab",
-    "exampleIn": "{\n  \"customer_blocked\": true,\n  \"ticket\": \"My website is completely down and I can't access it at all. All my customers are seeing an error page.\"\n}",
+    "emoji": "\ud83c\udf9f\ufe0f",
+    "exampleIn": "{\n  \"customer_blocked\": true,\n  \"ticket\": \"My account is locked and I can't log in. I need to access my data urgently.\"\n}",
     "exampleOut": [
-      "priority label and concise reason"
+      "priority: low/medium/high",
+      "reason: concise (10-240 chars)"
     ],
     "free": false,
     "icon": null,
     "inputs": [
-      "ticket: a plain-text support ticket (10-800 chars)",
+      "ticket: plain-text (10-800 chars)",
       "customer_blocked: boolean"
     ],
     "maker": "Submitted skill",
     "makerName": "Submitted skill",
     "name": "Gemini Ticket Priority Canary",
-    "niche": "ticket classification",
+    "niche": "customer support",
     "outputs": [
-      "priority label and concise reason"
+      "priority: low/medium/high",
+      "reason: concise (10-240 chars)"
     ],
     "priceMaintain": 0.0,
     "priceOwn": 0.0,
-    "promise": "Return a deterministic priority label and concise reason for a customer support ticket.",
+    "promise": "Classify a customer support ticket into a priority level with a concise reason, respecting content bounds.",
     "runManifest": "run-manifests/gemini-ticket-priority-canary.json",
     "runPrice": 0.1,
     "slug": "gemini-ticket-priority-canary",
     "tags": [
+      "support",
       "classification",
-      "customer support",
+      "ticket",
       "bounded"
     ],
     "upvotes": 0,

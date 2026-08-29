@@ -45,7 +45,7 @@ LIVE_TEMPERATURE = 0.2
 LIVE_TIMEOUT_SECONDS = 120
 LIVE_INPUT_RATE_PER_MILLION = 0.3
 LIVE_OUTPUT_RATE_PER_MILLION = 2.5
-LIVE_MODEL_OUTPUT_SCHEMA = {'additionalProperties': False, 'properties': {'label': {'enum': ['high', 'low', 'medium'], 'maxLength': 6, 'minLength': 3, 'type': 'string'}, 'reason': {'maxLength': 240, 'minLength': 10, 'type': 'string'}}, 'required': ['label', 'reason'], 'type': 'object'}
+LIVE_MODEL_OUTPUT_SCHEMA = {'additionalProperties': False, 'properties': {'priority': {'enum': ['high', 'low', 'medium'], 'maxLength': 6, 'type': 'string'}, 'reason': {'maxLength': 240, 'minLength': 10, 'type': 'string'}}, 'required': ['priority', 'reason'], 'type': 'object'}
 SEMANTIC_NORMALIZERS = {}
 SEMANTIC_EVIDENCE_SPEC = {'kind': 'schema_only', 'version': 1}
 

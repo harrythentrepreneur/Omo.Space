@@ -7,7 +7,7 @@
       "id": "reviewed-example",
       "input": {
         "customer_blocked": true,
-        "ticket": "My website is completely down and I can't access it at all. All my customers are seeing an error page."
+        "ticket": "My account is locked and I can't log in. I need to access my data urgently."
       },
       "output_preview": "A schema-validated hosted result.",
       "title": "Reviewed example"
@@ -35,14 +35,13 @@
   "output_schema": {
     "additionalProperties": false,
     "properties": {
-      "label": {
+      "priority": {
         "enum": [
           "high",
           "low",
           "medium"
         ],
         "maxLength": 6,
-        "minLength": 3,
         "type": "string"
       },
       "reason": {
@@ -96,7 +95,7 @@
       }
     },
     "required": [
-      "label",
+      "priority",
       "reason",
       "status",
       "run_id",
