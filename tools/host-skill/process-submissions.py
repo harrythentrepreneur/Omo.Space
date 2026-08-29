@@ -89,6 +89,7 @@ SAFE_FAILURE_STAGES = {
     "worker_contracts",
     "release_issue_lookup",
     "release_issue_create",
+    "release_branch_lookup",
     "release_worktree",
     "release_push",
     "release_pr_lookup",
@@ -1716,12 +1717,47 @@ class GitHubReleaseAdapter:
             raise RuntimeError("invalid release PR metadata")
         return {"number": int(viewed["number"]), "url": str(viewed["url"]), "headRefOid": str(viewed.get("headRefOid") or "")}
 
+    def _existing_remote_branch_head(self, branch: str) -> str | None:
+        try:
+            raw = self.command_runner(
+                ["git", "ls-remote", "--exit-code", "--heads", "origin", branch],
+                cwd=ROOT,
+                text=True,
+            )
+        except subprocess.CalledProcessError as error:
+            if error.returncode == 2:
+                return None
+            raise StagedCalledProcessError("release_branch_lookup", error) from None
+        line = str(raw or "").strip()
+        if not line:
+            return None
+        parts = line.split("\t")
+        if len(parts) != 2 or parts[1] != f"refs/heads/{branch}" or not SAFE_GIT_SHA_RE.fullmatch(parts[0]):
+            raise RuntimeError("invalid release branch lookup")
+        return parts[0]
+
+    def _changed_release_paths(self, worktree: Path, base_ref: str) -> set[str]:
+        changed_raw = self._run(
+            ["git", "diff", "--name-only", "--no-renames", "-z", f"{base_ref}...HEAD"],
+            cwd=worktree,
+        )
+        return {path for path in str(changed_raw or "").split("\0") if path}
+
     def _prepare_worktree(self, branch: str, slug: str) -> tuple[Path, str]:
         scratch_parent = self.scratch_root or Path(tempfile.mkdtemp(prefix="omo-release-parent-"))
         scratch_parent.mkdir(parents=True, exist_ok=True)
         worktree = Path(tempfile.mkdtemp(prefix="omo-release-worktree-", dir=scratch_parent))
         self._run(["git", "fetch", "origin", self.base])
-        self._run(["git", "worktree", "add", "--detach", str(worktree), f"origin/{self.base}"])
+        remote_head = self._existing_remote_branch_head(branch)
+        start_revision = f"origin/{self.base}"
+        if remote_head:
+            remote_ref = f"refs/remotes/origin/{branch}"
+            self._run(["git", "fetch", "origin", f"{branch}:{remote_ref}"])
+            resolved_remote = str(self._run(["git", "rev-parse", remote_ref])).strip().lower()
+            if resolved_remote != remote_head:
+                raise RuntimeError("release branch head changed during refresh")
+            start_revision = remote_ref
+        self._run(["git", "worktree", "add", "--detach", str(worktree), start_revision])
         self._run(["git", "switch", "-C", branch], cwd=worktree)
         copied = copy_allowlisted_release_paths(slug, worktree)
         if not copied:
@@ -1748,6 +1784,15 @@ class GitHubReleaseAdapter:
         head_sha = str(self._run(["git", "rev-parse", "HEAD"], cwd=worktree)).strip().lower()
         if not SAFE_GIT_SHA_RE.fullmatch(head_sha):
             raise RuntimeError("invalid release head SHA")
+        changed = self._changed_release_paths(worktree, f"origin/{self.base}")
+        allowed = set(release_allowlisted_paths(slug)) | {
+            "site/catalog.js",
+            "site/deploy/hosted-skills.generated.mjs",
+        }
+        def is_allowlisted(path: str) -> bool:
+            return any(path == candidate or path.startswith(candidate.rstrip("/") + "/") for candidate in allowed)
+        if any(not is_allowlisted(path) for path in changed):
+            raise RuntimeError("release branch contains non-allowlisted changes")
         return worktree, head_sha
 
     def prepare_release(self, release_request: dict[str, Any]) -> dict[str, Any]:

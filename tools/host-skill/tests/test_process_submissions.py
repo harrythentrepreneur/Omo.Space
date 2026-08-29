@@ -908,6 +908,25 @@ def test_github_release_adapter_preserves_safe_stage_for_command_failure() -> No
     assert "should-not-escape" not in str(caught.value)
 
 
+def test_existing_release_branch_lookup_preserves_safe_stage_for_transport_failure() -> None:
+    process = load_process_submissions()
+
+    def fail(command, cwd=None, text=True):
+        raise subprocess.CalledProcessError(128, command, stderr="credential=should-not-escape")
+
+    adapter = process.GitHubReleaseAdapter(command_runner=fail)
+    with pytest.raises(process.StagedCalledProcessError) as caught:
+        adapter._existing_remote_branch_head(
+            "omo-release/sub_stagefailure000000000001-facebook-ads-copywriter"
+        )
+
+    assert caught.value.stage == "release_branch_lookup"
+    assert caught.value.output is None
+    assert caught.value.stderr is None
+    assert caught.value.__cause__ is None
+    assert "should-not-escape" not in str(caught.value)
+
+
 def test_github_release_adapter_uses_generic_stage_for_unknown_command() -> None:
     process = load_process_submissions()
 
@@ -978,6 +997,8 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
 
     def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
         commands.append((tuple(command), cwd))
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            return ""
         if command[:4] == ["gh", "issue", "list", "--repo"]:
             return "[]"
         if command[:4] == ["gh", "issue", "create", "--repo"]:
@@ -990,6 +1011,8 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
             return json.dumps({"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40})
         if command[:3] == ["git", "rev-parse", "HEAD"]:
             return "a" * 40 + "\n"
+        if command[:3] == ["git", "diff", "--name-only"]:
+            return "containers/facebook-ads-copywriter/manifest.json\0"
         return ""
 
     adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
@@ -1019,6 +1042,104 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
     assert add_commands
     assert not any(command == "git add ." for command in add_commands)
     assert not any("/tmp/" in command and "SKILL.md" in command for command in flattened)
+
+
+def test_github_release_adapter_fast_forwards_existing_server_branch(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[tuple[tuple[str, ...], Path | None]] = []
+    branch = "omo-release/sub_adapter000000000000000001-facebook-ads-copywriter"
+    remote_head = "d" * 40
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        commands.append((tuple(command), cwd))
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            return f"{remote_head}\trefs/heads/{branch}\n"
+        if command[:3] == ["git", "rev-parse", f"refs/remotes/origin/{branch}"]:
+            return remote_head + "\n"
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return "a" * 40 + "\n"
+        if command[:3] == ["git", "diff", "--name-only"]:
+            return "containers/facebook-ads-copywriter/manifest.json\0"
+        if command[:4] == ["gh", "issue", "list", "--repo"]:
+            return json.dumps([{"number": 31, "url": "https://github.com/harrythentrepreneur/Omo.Space/issues/31"}])
+        if command[:4] == ["gh", "pr", "list", "--repo"]:
+            return json.dumps([{"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40}])
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
+    result = adapter.prepare_release({
+        "submission_id": "sub_adapter000000000000000001",
+        "slug": "facebook-ads-copywriter",
+        "published_slug": "facebook-ads-copywriter",
+        "workflow_version": "facebook-ads-copywriter@1.0.0",
+        "selected_runtime": "worker-native",
+        "source_sha256": "b" * 64,
+        "artifact_hash": "c" * 64,
+    })
+
+    flattened = [" ".join(command) for command, _cwd in commands]
+    assert result["branch"] == branch
+    assert any(command == f"git fetch origin {branch}:refs/remotes/origin/{branch}" for command in flattened)
+    assert any(
+        command.startswith("git worktree add --detach")
+        and command.endswith(f"refs/remotes/origin/{branch}")
+        for command in flattened
+    )
+    assert any(command == f"git push -u origin {branch}" for command in flattened)
+    assert not any("--force" in command or " -f " in f" {command} " for command in flattened)
+
+
+def test_release_branch_diff_disables_rename_detection(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    repo = tmp_path / "rename-repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "--initial-branch=main"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+    forbidden = repo / "forbidden" / "secret.py"
+    forbidden.parent.mkdir()
+    forbidden.write_text("sensitive = True\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=repo, check=True, capture_output=True)
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    allowed = repo / "containers" / "slug" / "stolen.py"
+    allowed.parent.mkdir(parents=True)
+    forbidden.rename(allowed)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "rename"], cwd=repo, check=True, capture_output=True)
+
+    adapter = process.GitHubReleaseAdapter()
+    changed = adapter._changed_release_paths(repo, base)
+
+    assert changed == {"forbidden/secret.py", "containers/slug/stolen.py"}
+
+
+def test_release_branch_refresh_rejects_non_allowlisted_diff(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+
+    def runner(command, cwd=None, text=True):
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            return ""
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return "a" * 40
+        if command[:3] == ["git", "diff", "--name-only"]:
+            return "tools/host-skill/process-submissions.py\0"
+        return ""
+
+    monkeypatch.setattr(
+        process,
+        "copy_allowlisted_release_paths",
+        lambda _slug, _destination: ["site/deploy/worker.js"],
+    )
+    monkeypatch.setattr(process.HOST_MODULE, "refresh_cumulative_registration", lambda _root: [])
+    adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
+    with pytest.raises(RuntimeError, match="non-allowlisted"):
+        adapter._prepare_worktree(
+            "omo-release/sub_test00000000000000000000000000000000-slug",
+            "slug",
+        )
 
 
 def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path: Path) -> None:
