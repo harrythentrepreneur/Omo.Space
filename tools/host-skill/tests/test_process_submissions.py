@@ -106,6 +106,174 @@ def test_candidate_promotion_occurs_after_the_review_gate() -> None:
     assert gate < release_profile
 
 
+def test_reviewed_profile_artifact_persists_exact_promoted_compiler_input(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    root = tmp_path / "checkout"
+    canonical = root / "packages" / "skill-to-modal" / "profiles" / "fresh-candidate.json"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text(json.dumps({
+        "slug": "fresh-candidate",
+        "authoring_spec_version": "omo.profile-authoring-spec/v2",
+        "authoring_spec_sha256": "a" * 64,
+        "runtime_preference": "worker-native",
+        "marketplace": {
+            "maker": "Submitted skill",
+            "tags": ["release"],
+            "catalog_managed": False,
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(process, "ROOT", root)
+    monkeypatch.setattr(
+        process.HOST_MODULE,
+        "decide_runtime_placement",
+        lambda profile: {"effective": profile["runtime_preference"]},
+    )
+
+    private_dir = tmp_path / "private"
+    private_dir.mkdir()
+    reviewed, decision = process.reviewed_profile_artifact(
+        "fresh-candidate", "worker-native", private_dir
+    )
+    assert decision == {"effective": "worker-native"}
+    original = canonical.read_bytes()
+    with process.persisted_reviewed_profile_artifact("fresh-candidate", reviewed):
+        assert reviewed.read_bytes() == canonical.read_bytes()
+        persisted = json.loads(canonical.read_text(encoding="utf-8"))
+        assert persisted["marketplace"]["catalog_managed"] is True
+        assert persisted["marketplace"]["storefront_visible"] is True
+    assert canonical.read_bytes() == original
+
+
+def test_reviewed_profile_transaction_restores_after_persist_failure(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    root = tmp_path / "checkout"
+    canonical = root / "packages" / "skill-to-modal" / "profiles" / "fresh-candidate.json"
+    canonical.parent.mkdir(parents=True)
+    original = b'{"slug":"fresh-candidate","state":"original"}\n'
+    canonical.write_bytes(original)
+    reviewed = tmp_path / "reviewed.json"
+    reviewed.write_text('{"slug":"fresh-candidate"}\n', encoding="utf-8")
+    monkeypatch.setattr(process, "ROOT", root)
+
+    def partial_then_fail(_slug, _profile_path):
+        canonical.write_bytes(b"PARTIAL")
+        raise RuntimeError("persistence failed")
+
+    monkeypatch.setattr(process, "persist_reviewed_profile_artifact", partial_then_fail)
+    with pytest.raises(RuntimeError, match="persistence failed"):
+        with process.persisted_reviewed_profile_artifact("fresh-candidate", reviewed):
+            raise AssertionError("transaction body must not run")
+    assert canonical.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "release_stage",
+    ["trusted_compile", "metadata_hash", "adapter_copy", "repository_metadata"],
+)
+def test_reviewed_profile_transaction_restores_after_release_stage_failure(
+    monkeypatch, tmp_path: Path, release_stage: str
+) -> None:
+    process = load_process_submissions()
+    root = tmp_path / "checkout"
+    canonical = root / "packages" / "skill-to-modal" / "profiles" / "fresh-candidate.json"
+    canonical.parent.mkdir(parents=True)
+    original = b'{"slug":"fresh-candidate","state":"original"}\n'
+    canonical.write_bytes(original)
+    reviewed = tmp_path / "reviewed.json"
+    reviewed.write_text('{"slug":"fresh-candidate","state":"promoted"}\n', encoding="utf-8")
+    monkeypatch.setattr(process, "ROOT", root)
+
+    with pytest.raises(RuntimeError, match=release_stage):
+        with process.persisted_reviewed_profile_artifact("fresh-candidate", reviewed):
+            assert canonical.read_bytes() != original
+            raise RuntimeError(release_stage)
+    assert canonical.read_bytes() == original
+
+
+def test_reviewed_profile_persistence_rejects_traversal_slug(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    profiles = tmp_path / "checkout" / "packages" / "skill-to-modal" / "profiles"
+    profiles.mkdir(parents=True)
+    reviewed = tmp_path / "reviewed.json"
+    reviewed.write_text('{"slug":"../../escape"}\n', encoding="utf-8")
+    monkeypatch.setattr(process, "ROOT", tmp_path / "checkout")
+
+    with pytest.raises(ValueError, match="invalid reviewed release profile slug"):
+        process.persist_reviewed_profile_artifact("../../escape", reviewed)
+    assert not (tmp_path / "checkout" / "packages" / "escape.json").exists()
+
+
+def test_reviewed_profile_descriptor_rejects_symlink_swap_race(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    root = tmp_path / "checkout"
+    canonical = root / "packages" / "skill-to-modal" / "profiles" / "fresh-candidate.json"
+    canonical.parent.mkdir(parents=True)
+    original = b'{"slug":"fresh-candidate","state":"original"}\n'
+    canonical.write_bytes(original)
+    reviewed = tmp_path / "reviewed.json"
+    reviewed.write_text('{"slug":"fresh-candidate","state":"reviewed"}\n', encoding="utf-8")
+    attacker = tmp_path / "attacker.json"
+    attacker.write_text('{"slug":"fresh-candidate","state":"attacker"}\n', encoding="utf-8")
+    real_open = process.os.open
+    swapped = False
+
+    def swap_before_open(path, flags, *args, **kwargs):
+        nonlocal swapped
+        if Path(path) == reviewed and not swapped:
+            swapped = True
+            reviewed.unlink()
+            reviewed.symlink_to(attacker)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(process, "ROOT", root)
+    monkeypatch.setattr(process.os, "open", swap_before_open)
+    with pytest.raises(RuntimeError, match="reviewed release profile input is invalid"):
+        process.persist_reviewed_profile_artifact("fresh-candidate", reviewed)
+    assert swapped is True
+    assert canonical.read_bytes() == original
+
+
+def test_v2_release_profile_must_equal_receipt_plus_allowlisted_promotion() -> None:
+    process = load_process_submissions()
+    builder_path = PROCESS_PATH.parent / "modal_hermes_builder.py"
+    spec = importlib.util.spec_from_file_location("release_profile_builder_test", builder_path)
+    assert spec is not None and spec.loader is not None
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    compiler = process.HOST_MODULE.COMPILER
+    receipt = json.loads(builder.compiler_validated_authoring_contract(compiler))["examples"]["single_llm"]
+    source_sha256 = "b" * 64
+    profile = compiler.assemble_profile_authoring_spec(
+        receipt,
+        {"slug": "fresh-v2", "name": "Fresh V2", "source_sha256": source_sha256},
+    )
+    profile = process.promote_generated_candidate_for_release(profile)
+    profile["runtime_preference"] = "worker-native"
+    receipt_bytes = compiler.canonical_profile_authoring_spec_bytes(receipt)
+    entries = {
+        "containers/fresh-v2/manifest.json": b"{}",
+        "packages/skill-to-modal/profiles/fresh-v2.json": (
+            json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+        ).encode(),
+        "packages/skill-to-modal/profile-authoring-specs/fresh-v2.json": receipt_bytes,
+    }
+
+    process.validate_release_artifact_entries("fresh-v2", entries)
+    canonical_profile = entries["packages/skill-to-modal/profiles/fresh-v2.json"]
+    entries["packages/skill-to-modal/profiles/fresh-v2.json"] = (
+        b'{"slug":"fresh-v2",' + canonical_profile[1:]
+    )
+    with pytest.raises(RuntimeError, match="release profile evidence is invalid"):
+        process.validate_release_artifact_entries("fresh-v2", entries)
+    entries["packages/skill-to-modal/profiles/fresh-v2.json"] = canonical_profile
+    profile["prompts"]["workflow.txt"] = "mutated after trusted assembly"
+    entries["packages/skill-to-modal/profiles/fresh-v2.json"] = (
+        json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    ).encode()
+    with pytest.raises(RuntimeError, match="release authoring receipt evidence mismatch"):
+        process.validate_release_artifact_entries("fresh-v2", entries)
+
+
 def test_modal_canary_missing_proxy_pair_is_typed_before_network(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     profile_path = write_profile(tmp_path, "modal-hosted")

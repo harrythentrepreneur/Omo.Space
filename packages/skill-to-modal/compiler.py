@@ -7095,7 +7095,9 @@ def build_files(skill_text: str, profile: dict[str, Any]) -> dict[str, str | byt
             encoding="utf-8"
         )
     for name, prompt in effective_profile["prompts"].items():
-        files[f"prompts/{name}"] = prompt.strip() + "\n"
+        files[f"prompts/{name}"] = "\n".join(
+            line.rstrip() for line in prompt.strip().splitlines()
+        ) + "\n"
     if "whatsapp_zip_adapter" in _selected_capability_names(effective_profile):
         files["prompts/whatsapp_zip.txt"] = WHATSAPP_ZIP_PROMPT.strip() + "\n"
     if "tabular_analysis_orchestrator" in _selected_capability_names(effective_profile):

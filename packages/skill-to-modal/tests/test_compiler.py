@@ -638,6 +638,8 @@ def test_assembled_authoring_profiles_build_complete_runtime_bundles(
         spec_factory(),
         {"slug": slug, "name": name, "source_sha256": compiler.sha256_text(skill)},
     )
+    if family == "single_llm":
+        profile["prompts"]["workflow.txt"] = "First reviewed line.  \nSecond reviewed line.\t\n"
 
     first = compiler.build_files(skill, profile)
     second = compiler.build_files(skill, profile)
@@ -648,6 +650,8 @@ def test_assembled_authoring_profiles_build_complete_runtime_bundles(
     assert manifest["slug"] == slug
     assert manifest["readiness"] == {"status": "ready", "can_submit": True, "blockers": [], "required_env_names": profile["required_env_names"]}
     assert ("runtime/pure-data-program.json" in first) is (family == "pure_data")
+    if family == "single_llm":
+        assert first["prompts/workflow.txt"] == "First reviewed line.\nSecond reviewed line.\n"
 
 
 @pytest.mark.parametrize(
