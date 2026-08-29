@@ -994,10 +994,15 @@ def test_process_row_with_deploy_prepares_git_release_without_production_side_ef
 def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_path: Path) -> None:
     process = load_process_submissions()
     commands: list[tuple[tuple[str, ...], Path | None]] = []
+    pushed = {"value": False}
 
     def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
         commands.append((tuple(command), cwd))
         if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            branch = "omo-release/sub_adapter000000000000000001-facebook-ads-copywriter"
+            return f"{'a' * 40}\trefs/heads/{branch}\n" if pushed["value"] else ""
+        if command[:3] == ["git", "push", "-u"]:
+            pushed["value"] = True
             return ""
         if command[:4] == ["gh", "issue", "list", "--repo"]:
             return "[]"
@@ -1052,11 +1057,16 @@ def test_github_release_adapter_fast_forwards_existing_server_branch(tmp_path: P
     commands: list[tuple[tuple[str, ...], Path | None]] = []
     branch = "omo-release/sub_adapter000000000000000001-facebook-ads-copywriter"
     remote_head = "d" * 40
+    pushed = {"value": False}
 
     def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
         commands.append((tuple(command), cwd))
         if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
-            return f"{remote_head}\trefs/heads/{branch}\n"
+            head = "a" * 40 if pushed["value"] else remote_head
+            return f"{head}\trefs/heads/{branch}\n"
+        if command[:3] == ["git", "push", "-u"]:
+            pushed["value"] = True
+            return ""
         if command[:3] == ["git", "rev-parse", f"refs/remotes/origin/{branch}"]:
             return remote_head + "\n"
         if command == ["git", "rev-parse", "--is-shallow-repository"]:
@@ -1092,6 +1102,50 @@ def test_github_release_adapter_fast_forwards_existing_server_branch(tmp_path: P
     )
     assert any(command == f"git push -u origin {branch}" for command in flattened)
     assert not any("--force" in command or " -f " in f" {command} " for command in flattened)
+
+
+def test_prepare_release_records_verified_pushed_head_when_pr_listing_is_stale(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    branch = "omo-release/sub_stalehead000000000000000001-facebook-ads-copywriter"
+    generated_head = "a" * 40
+    stale_pr_head = "d" * 40
+
+    def runner(command, cwd=None, text=True):
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            return f"{generated_head}\trefs/heads/{branch}\n"
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
+    monkeypatch.setattr(
+        adapter,
+        "_issue_for_submission",
+        lambda _submission_id, _slug: {
+            "number": 31,
+            "url": "https://github.com/harrythentrepreneur/Omo.Space/issues/31",
+        },
+    )
+    monkeypatch.setattr(adapter, "_prepare_worktree", lambda _branch, _slug: (tmp_path, generated_head))
+    monkeypatch.setattr(
+        adapter,
+        "_pr_for_branch",
+        lambda _branch, _issue, _request: {
+            "number": 42,
+            "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42",
+            "headRefOid": stale_pr_head,
+        },
+    )
+
+    result = adapter.prepare_release({
+        "submission_id": "sub_stalehead000000000000000001",
+        "slug": "facebook-ads-copywriter",
+        "published_slug": "facebook-ads-copywriter",
+        "workflow_version": "facebook-ads-copywriter@1.0.0",
+        "selected_runtime": "worker-native",
+        "source_sha256": "b" * 64,
+        "artifact_hash": "c" * 64,
+    })
+
+    assert result["head_sha"] == generated_head
 
 
 def test_release_base_fetch_unshallows_builder_checkout_for_merge_base(tmp_path: Path) -> None:
@@ -1273,8 +1327,15 @@ def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path:
 def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> None:
     process = load_process_submissions()
     create_commands: list[list[str]] = []
+    pushed = {"value": False}
 
     def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            branch = "omo-release/sub_reuse0000000000000000001-facebook-ads-copywriter"
+            return f"{'a' * 40}\trefs/heads/{branch}\n" if pushed["value"] else ""
+        if command[:3] == ["git", "push", "-u"]:
+            pushed["value"] = True
+            return ""
         if command[:4] in (["gh", "issue", "create", "--repo"], ["gh", "pr", "create", "--repo"]):
             create_commands.append(command)
         if command[:4] == ["gh", "issue", "list", "--repo"]:

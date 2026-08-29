@@ -1823,6 +1823,9 @@ class GitHubReleaseAdapter:
         issue = self._issue_for_submission(submission_id, slug)
         _worktree, head_sha = self._prepare_worktree(branch, slug)
         self._run(["git", "push", "-u", "origin", branch], cwd=_worktree)
+        verified_head = self._existing_remote_branch_head(branch)
+        if verified_head != head_sha:
+            raise RuntimeError("release branch push verification failed")
         pr = self._pr_for_branch(branch, int(issue["number"]), request)
         return normalize_release_metadata({
             "release_phase": "pr_open",
@@ -1830,7 +1833,7 @@ class GitHubReleaseAdapter:
             "pr_url": pr["url"],
             "pr_number": pr["number"],
             "branch": branch,
-            "head_sha": pr.get("headRefOid") or head_sha,
+            "head_sha": verified_head,
             "source_sha256": source_sha256,
             "artifact_hash": artifact_hash,
         })
