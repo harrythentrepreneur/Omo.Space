@@ -974,6 +974,77 @@ def hermes_environment(
     return result
 
 
+def validate_explicit_output_contract(source: str, spec: Mapping[str, Any]) -> None:
+    visible: list[str] = []
+    fence: tuple[str, int] | None = None
+    for line in source.splitlines():
+        if fence is not None:
+            marker, minimum_length = fence
+            if re.fullmatch(rf" {{0,3}}{re.escape(marker)}{{{minimum_length},}}[ \t]*", line):
+                fence = None
+            visible.append("")
+            continue
+        fence_match = re.match(r"^ {0,3}(`{3,}|~{3,})(?:[^\r\n]*)$", line)
+        if fence_match:
+            opener = fence_match.group(1)
+            fence = (opener[0], len(opener))
+            visible.append("")
+            continue
+        visible.append(line)
+
+    heading_indexes = [
+        index for index, line in enumerate(visible)
+        if re.fullmatch(r" {0,3}##[ \t]+[^#].*", line)
+    ]
+    output_indexes = [
+        index for index in heading_indexes
+        if re.fullmatch(r" {0,3}##[ \t]+Output[ \t]*", visible[index])
+    ]
+    sections: list[list[str]] = []
+    for start in output_indexes:
+        end = next((index for index in heading_indexes if index > start), len(visible))
+        sections.append(visible[start + 1:end])
+
+    exact_marker = "Return a JSON object with exactly:"
+    marker_locations = [
+        (section_index, line_index)
+        for section_index, section in enumerate(sections)
+        for line_index, line in enumerate(section)
+        if re.fullmatch(rf" {{0,3}}{re.escape(exact_marker)}[ \t]*", line)
+    ]
+    if not marker_locations:
+        return
+    if len(sections) != 1 or len(marker_locations) != 1:
+        raise ProfileAuthoringAttemptError("AUTHORING_SCHEMA_INVALID")
+
+    _, marker_index = marker_locations[0]
+    fields: list[str] = []
+    for line in sections[0][marker_index + 1:]:
+        if not line.strip():
+            continue
+        field_match = re.fullmatch(
+            r" {0,3}-[ \t]+`([A-Za-z_][A-Za-z0-9_]{0,63})`[ \t]*:[ \t]*\S.*",
+            line,
+        )
+        if field_match is None:
+            raise ProfileAuthoringAttemptError("AUTHORING_SCHEMA_INVALID")
+        fields.append(field_match.group(1))
+    if not fields or len(fields) != len(set(fields)):
+        raise ProfileAuthoringAttemptError("AUTHORING_SCHEMA_INVALID")
+    output_schema = spec.get("output_schema")
+    properties = output_schema.get("properties") if isinstance(output_schema, Mapping) else None
+    required = output_schema.get("required") if isinstance(output_schema, Mapping) else None
+    if (
+        not isinstance(properties, Mapping)
+        or not isinstance(required, list)
+        or any(not isinstance(value, str) for value in required)
+        or set(properties) != set(fields)
+        or set(required) != set(fields)
+        or len(required) != len(set(required))
+    ):
+        raise ProfileAuthoringAttemptError("AUTHORING_SCHEMA_INVALID")
+
+
 def author_and_write_trusted_profile(
     *,
     checkout: Path,
@@ -989,6 +1060,11 @@ def author_and_write_trusted_profile(
     if review_root != (checkout_root / ".omo-review") or not review_path.is_file():
         raise RuntimeError("invalid private authoring handoff")
 
+    try:
+        reviewed_source = review_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise RuntimeError("invalid private authoring source") from error
+
     authoring_path = review_root / "authoring-spec.json"
     receipt_bytes: bytes | None = None
 
@@ -1002,6 +1078,7 @@ def author_and_write_trusted_profile(
     def assemble_attempt(spec: dict[str, Any]) -> dict[str, Any]:
         nonlocal receipt_bytes
         try:
+            validate_explicit_output_contract(reviewed_source, spec)
             profile = compiler.assemble_profile_authoring_spec(
                 spec,
                 {
