@@ -1,0 +1,33 @@
+{
+  "chargeable": true,
+  "cost_model_sha256": "109fb464121be8d7001b86c4525c5d7da90a9f886cd7ae022b8cf6ed0e4a4558",
+  "default_tier": "standard",
+  "display_price_usd": 0.1,
+  "estimates": [
+    {
+      "cost_model_run_price_usd": 0.1,
+      "detail": [
+        {
+          "cost_usd": 0.01708,
+          "qty": 2,
+          "step": "llm(generate)"
+        }
+      ],
+      "guard_cost_usd": 0.0,
+      "guarded_price_floor_usd": 0.1,
+      "modeled_cost_usd": 0.01708,
+      "notes": [],
+      "pricing_cost_usd": 0.01708,
+      "tier": "standard"
+    }
+  ],
+  "floor_usd": 0.1,
+  "markup": 5.0,
+  "measured_evidence": [],
+  "notes": [],
+  "quote_status": "cost_model",
+  "rate_snapshot": "repository-2026-08",
+  "schema_version": "cognition.pricing/v1",
+  "source_model": "site/deploy/cost-model-v2.mjs",
+  "unpriced_costs": []
+}

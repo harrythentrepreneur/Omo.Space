@@ -1,0 +1,136 @@
+{
+  "chargeable": true,
+  "container_slug": "gemini-ticket-priority-canary",
+  "examples": [
+    {
+      "caption": "Complete input",
+      "id": "reviewed-example",
+      "input": {
+        "customer_blocked": true,
+        "ticket": "My account is locked and I can't log in. I need to access my data urgently."
+      },
+      "output_preview": "A schema-validated hosted result.",
+      "title": "Reviewed example"
+    }
+  ],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "customer_blocked": {
+        "type": "boolean"
+      },
+      "ticket": {
+        "maxLength": 800,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "customer_blocked",
+      "ticket"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/gemini-ticket-priority-canary/schemas/input.json",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "priority": {
+        "enum": [
+          "high",
+          "low",
+          "medium"
+        ],
+        "maxLength": 6,
+        "type": "string"
+      },
+      "reason": {
+        "maxLength": 240,
+        "minLength": 10,
+        "type": "string"
+      },
+      "run_id": {
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "const": "gemini-2.5-flash"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "gemini"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "gemini-ticket-priority-canary@1.0.0"
+      }
+    },
+    "required": [
+      "priority",
+      "reason",
+      "status",
+      "run_id",
+      "workflow_version",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/gemini-ticket-priority-canary/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Running the workflow"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "gemini-ticket-priority-canary",
+  "ui": {
+    "fields": {
+      "customer_blocked": {
+        "widget": "text"
+      },
+      "ticket": {
+        "widget": "text"
+      }
+    },
+    "order": [
+      "customer_blocked",
+      "ticket"
+    ]
+  }
+}

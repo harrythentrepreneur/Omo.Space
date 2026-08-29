@@ -1,0 +1,18 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "customer_blocked": {
+      "type": "boolean"
+    },
+    "ticket": {
+      "maxLength": 800,
+      "minLength": 10,
+      "type": "string"
+    }
+  },
+  "required": [
+    "customer_blocked",
+    "ticket"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,30 @@
+{
+  "happy_path": {
+    "input": {
+      "customer_blocked": true,
+      "ticket": "My account is locked and I can't log in. I need to access my data urgently."
+    },
+    "output": {
+      "priority": "high",
+      "reason": "Customer is blocked from accessing their account and data, requiring urgent attention."
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "empty_ticket",
+      "input": {
+        "customer_blocked": false,
+        "ticket": ""
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "short_ticket",
+      "input": {
+        "customer_blocked": false,
+        "ticket": "too short"
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ]
+}

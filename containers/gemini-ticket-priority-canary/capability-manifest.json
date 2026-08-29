@@ -1,0 +1,38 @@
+{
+  "allowlist": [
+    "pure_data",
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:593a83d3938d5743e33c1b8dd2262b18276c031867c6d090c18c708fba5f2558",
+  "decision": "approved",
+  "execution_kind": "single_llm",
+  "generated": {
+    "dependencies": [],
+    "files": [],
+    "honest_limits": [],
+    "packages": [],
+    "policy": [],
+    "resources": {},
+    "runtime_steps": [],
+    "tests": [],
+    "tool_bindings": []
+  },
+  "needs": [],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [
+    "gemini-chat-completions",
+    "schema-validated-json-output"
+  ],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [],
+  "skill_owned_resources": [],
+  "slug": "gemini-ticket-priority-canary",
+  "source_sha256": "baf80fbe9b7bd0882ea8ce467307598aeae92e8224778ec159795f8360fd2ff9",
+  "workflow_blockers": []
+}
