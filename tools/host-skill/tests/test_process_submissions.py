@@ -106,6 +106,174 @@ def test_candidate_promotion_occurs_after_the_review_gate() -> None:
     assert gate < release_profile
 
 
+def test_reviewed_profile_artifact_persists_exact_promoted_compiler_input(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    root = tmp_path / "checkout"
+    canonical = root / "packages" / "skill-to-modal" / "profiles" / "fresh-candidate.json"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text(json.dumps({
+        "slug": "fresh-candidate",
+        "authoring_spec_version": "omo.profile-authoring-spec/v2",
+        "authoring_spec_sha256": "a" * 64,
+        "runtime_preference": "worker-native",
+        "marketplace": {
+            "maker": "Submitted skill",
+            "tags": ["release"],
+            "catalog_managed": False,
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(process, "ROOT", root)
+    monkeypatch.setattr(
+        process.HOST_MODULE,
+        "decide_runtime_placement",
+        lambda profile: {"effective": profile["runtime_preference"]},
+    )
+
+    private_dir = tmp_path / "private"
+    private_dir.mkdir()
+    reviewed, decision = process.reviewed_profile_artifact(
+        "fresh-candidate", "worker-native", private_dir
+    )
+    assert decision == {"effective": "worker-native"}
+    original = canonical.read_bytes()
+    with process.persisted_reviewed_profile_artifact("fresh-candidate", reviewed):
+        assert reviewed.read_bytes() == canonical.read_bytes()
+        persisted = json.loads(canonical.read_text(encoding="utf-8"))
+        assert persisted["marketplace"]["catalog_managed"] is True
+        assert persisted["marketplace"]["storefront_visible"] is True
+    assert canonical.read_bytes() == original
+
+
+def test_reviewed_profile_transaction_restores_after_persist_failure(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    root = tmp_path / "checkout"
+    canonical = root / "packages" / "skill-to-modal" / "profiles" / "fresh-candidate.json"
+    canonical.parent.mkdir(parents=True)
+    original = b'{"slug":"fresh-candidate","state":"original"}\n'
+    canonical.write_bytes(original)
+    reviewed = tmp_path / "reviewed.json"
+    reviewed.write_text('{"slug":"fresh-candidate"}\n', encoding="utf-8")
+    monkeypatch.setattr(process, "ROOT", root)
+
+    def partial_then_fail(_slug, _profile_path):
+        canonical.write_bytes(b"PARTIAL")
+        raise RuntimeError("persistence failed")
+
+    monkeypatch.setattr(process, "persist_reviewed_profile_artifact", partial_then_fail)
+    with pytest.raises(RuntimeError, match="persistence failed"):
+        with process.persisted_reviewed_profile_artifact("fresh-candidate", reviewed):
+            raise AssertionError("transaction body must not run")
+    assert canonical.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "release_stage",
+    ["trusted_compile", "metadata_hash", "adapter_copy", "repository_metadata"],
+)
+def test_reviewed_profile_transaction_restores_after_release_stage_failure(
+    monkeypatch, tmp_path: Path, release_stage: str
+) -> None:
+    process = load_process_submissions()
+    root = tmp_path / "checkout"
+    canonical = root / "packages" / "skill-to-modal" / "profiles" / "fresh-candidate.json"
+    canonical.parent.mkdir(parents=True)
+    original = b'{"slug":"fresh-candidate","state":"original"}\n'
+    canonical.write_bytes(original)
+    reviewed = tmp_path / "reviewed.json"
+    reviewed.write_text('{"slug":"fresh-candidate","state":"promoted"}\n', encoding="utf-8")
+    monkeypatch.setattr(process, "ROOT", root)
+
+    with pytest.raises(RuntimeError, match=release_stage):
+        with process.persisted_reviewed_profile_artifact("fresh-candidate", reviewed):
+            assert canonical.read_bytes() != original
+            raise RuntimeError(release_stage)
+    assert canonical.read_bytes() == original
+
+
+def test_reviewed_profile_persistence_rejects_traversal_slug(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    profiles = tmp_path / "checkout" / "packages" / "skill-to-modal" / "profiles"
+    profiles.mkdir(parents=True)
+    reviewed = tmp_path / "reviewed.json"
+    reviewed.write_text('{"slug":"../../escape"}\n', encoding="utf-8")
+    monkeypatch.setattr(process, "ROOT", tmp_path / "checkout")
+
+    with pytest.raises(ValueError, match="invalid reviewed release profile slug"):
+        process.persist_reviewed_profile_artifact("../../escape", reviewed)
+    assert not (tmp_path / "checkout" / "packages" / "escape.json").exists()
+
+
+def test_reviewed_profile_descriptor_rejects_symlink_swap_race(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    root = tmp_path / "checkout"
+    canonical = root / "packages" / "skill-to-modal" / "profiles" / "fresh-candidate.json"
+    canonical.parent.mkdir(parents=True)
+    original = b'{"slug":"fresh-candidate","state":"original"}\n'
+    canonical.write_bytes(original)
+    reviewed = tmp_path / "reviewed.json"
+    reviewed.write_text('{"slug":"fresh-candidate","state":"reviewed"}\n', encoding="utf-8")
+    attacker = tmp_path / "attacker.json"
+    attacker.write_text('{"slug":"fresh-candidate","state":"attacker"}\n', encoding="utf-8")
+    real_open = process.os.open
+    swapped = False
+
+    def swap_before_open(path, flags, *args, **kwargs):
+        nonlocal swapped
+        if Path(path) == reviewed and not swapped:
+            swapped = True
+            reviewed.unlink()
+            reviewed.symlink_to(attacker)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(process, "ROOT", root)
+    monkeypatch.setattr(process.os, "open", swap_before_open)
+    with pytest.raises(RuntimeError, match="reviewed release profile input is invalid"):
+        process.persist_reviewed_profile_artifact("fresh-candidate", reviewed)
+    assert swapped is True
+    assert canonical.read_bytes() == original
+
+
+def test_v2_release_profile_must_equal_receipt_plus_allowlisted_promotion() -> None:
+    process = load_process_submissions()
+    builder_path = PROCESS_PATH.parent / "modal_hermes_builder.py"
+    spec = importlib.util.spec_from_file_location("release_profile_builder_test", builder_path)
+    assert spec is not None and spec.loader is not None
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    compiler = process.HOST_MODULE.COMPILER
+    receipt = json.loads(builder.compiler_validated_authoring_contract(compiler))["examples"]["single_llm"]
+    source_sha256 = "b" * 64
+    profile = compiler.assemble_profile_authoring_spec(
+        receipt,
+        {"slug": "fresh-v2", "name": "Fresh V2", "source_sha256": source_sha256},
+    )
+    profile = process.promote_generated_candidate_for_release(profile)
+    profile["runtime_preference"] = "worker-native"
+    receipt_bytes = compiler.canonical_profile_authoring_spec_bytes(receipt)
+    entries = {
+        "containers/fresh-v2/manifest.json": b"{}",
+        "packages/skill-to-modal/profiles/fresh-v2.json": (
+            json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+        ).encode(),
+        "packages/skill-to-modal/profile-authoring-specs/fresh-v2.json": receipt_bytes,
+    }
+
+    process.validate_release_artifact_entries("fresh-v2", entries)
+    canonical_profile = entries["packages/skill-to-modal/profiles/fresh-v2.json"]
+    entries["packages/skill-to-modal/profiles/fresh-v2.json"] = (
+        b'{"slug":"fresh-v2",' + canonical_profile[1:]
+    )
+    with pytest.raises(RuntimeError, match="release profile evidence is invalid"):
+        process.validate_release_artifact_entries("fresh-v2", entries)
+    entries["packages/skill-to-modal/profiles/fresh-v2.json"] = canonical_profile
+    profile["prompts"]["workflow.txt"] = "mutated after trusted assembly"
+    entries["packages/skill-to-modal/profiles/fresh-v2.json"] = (
+        json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    ).encode()
+    with pytest.raises(RuntimeError, match="release authoring receipt evidence mismatch"):
+        process.validate_release_artifact_entries("fresh-v2", entries)
+
+
 def test_modal_canary_missing_proxy_pair_is_typed_before_network(monkeypatch, tmp_path: Path) -> None:
     process = load_process_submissions()
     profile_path = write_profile(tmp_path, "modal-hosted")
@@ -740,6 +908,25 @@ def test_github_release_adapter_preserves_safe_stage_for_command_failure() -> No
     assert "should-not-escape" not in str(caught.value)
 
 
+def test_existing_release_branch_lookup_preserves_safe_stage_for_transport_failure() -> None:
+    process = load_process_submissions()
+
+    def fail(command, cwd=None, text=True):
+        raise subprocess.CalledProcessError(128, command, stderr="credential=should-not-escape")
+
+    adapter = process.GitHubReleaseAdapter(command_runner=fail)
+    with pytest.raises(process.StagedCalledProcessError) as caught:
+        adapter._existing_remote_branch_head(
+            "omo-release/sub_stagefailure000000000001-facebook-ads-copywriter"
+        )
+
+    assert caught.value.stage == "release_branch_lookup"
+    assert caught.value.output is None
+    assert caught.value.stderr is None
+    assert caught.value.__cause__ is None
+    assert "should-not-escape" not in str(caught.value)
+
+
 def test_github_release_adapter_uses_generic_stage_for_unknown_command() -> None:
     process = load_process_submissions()
 
@@ -807,9 +994,16 @@ def test_process_row_with_deploy_prepares_git_release_without_production_side_ef
 def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_path: Path) -> None:
     process = load_process_submissions()
     commands: list[tuple[tuple[str, ...], Path | None]] = []
+    pushed = {"value": False}
 
     def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
         commands.append((tuple(command), cwd))
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            branch = "omo-release/sub_adapter000000000000000001-facebook-ads-copywriter"
+            return f"{'a' * 40}\trefs/heads/{branch}\n" if pushed["value"] else ""
+        if command[:3] == ["git", "push", "-u"]:
+            pushed["value"] = True
+            return ""
         if command[:4] == ["gh", "issue", "list", "--repo"]:
             return "[]"
         if command[:4] == ["gh", "issue", "create", "--repo"]:
@@ -820,8 +1014,12 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
             return "https://github.com/harrythentrepreneur/Omo.Space/pull/42\n"
         if command[:4] == ["gh", "pr", "view", "--repo"]:
             return json.dumps({"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40})
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false\n"
         if command[:3] == ["git", "rev-parse", "HEAD"]:
             return "a" * 40 + "\n"
+        if command[:3] == ["git", "diff", "--name-only"]:
+            return "containers/facebook-ads-copywriter/manifest.json\0"
         return ""
 
     adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
@@ -844,6 +1042,7 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
     assert result["pr_url"] == "https://github.com/harrythentrepreneur/Omo.Space/pull/42"
     flattened = [" ".join(command) for command, _cwd in commands]
     assert all("harrythentrepreneur/Omo.Space" in command or command.startswith("git ") for command in flattened)
+    assert "git fetch origin refs/heads/main:refs/remotes/origin/main" in flattened
     assert any(command.startswith("git worktree add --detach") and command.endswith("origin/main") for command in flattened)
     assert any(command == "git switch -C omo-release/sub_adapter000000000000000001-facebook-ads-copywriter" for command in flattened)
     assert any(command == "git push -u origin omo-release/sub_adapter000000000000000001-facebook-ads-copywriter" for command in flattened)
@@ -851,6 +1050,230 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
     assert add_commands
     assert not any(command == "git add ." for command in add_commands)
     assert not any("/tmp/" in command and "SKILL.md" in command for command in flattened)
+
+
+def test_github_release_adapter_fast_forwards_existing_server_branch(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    commands: list[tuple[tuple[str, ...], Path | None]] = []
+    branch = "omo-release/sub_adapter000000000000000001-facebook-ads-copywriter"
+    remote_head = "d" * 40
+    pushed = {"value": False}
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        commands.append((tuple(command), cwd))
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            head = "a" * 40 if pushed["value"] else remote_head
+            return f"{head}\trefs/heads/{branch}\n"
+        if command[:3] == ["git", "push", "-u"]:
+            pushed["value"] = True
+            return ""
+        if command[:3] == ["git", "rev-parse", f"refs/remotes/origin/{branch}"]:
+            return remote_head + "\n"
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false\n"
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return "a" * 40 + "\n"
+        if command[:3] == ["git", "diff", "--name-only"]:
+            return "containers/facebook-ads-copywriter/manifest.json\0"
+        if command[:4] == ["gh", "issue", "list", "--repo"]:
+            return json.dumps([{"number": 31, "url": "https://github.com/harrythentrepreneur/Omo.Space/issues/31"}])
+        if command[:4] == ["gh", "pr", "list", "--repo"]:
+            return json.dumps([{"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40}])
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
+    result = adapter.prepare_release({
+        "submission_id": "sub_adapter000000000000000001",
+        "slug": "facebook-ads-copywriter",
+        "published_slug": "facebook-ads-copywriter",
+        "workflow_version": "facebook-ads-copywriter@1.0.0",
+        "selected_runtime": "worker-native",
+        "source_sha256": "b" * 64,
+        "artifact_hash": "c" * 64,
+    })
+
+    flattened = [" ".join(command) for command, _cwd in commands]
+    assert result["branch"] == branch
+    assert any(command == f"git fetch origin {branch}:refs/remotes/origin/{branch}" for command in flattened)
+    assert any(
+        command.startswith("git worktree add --detach")
+        and command.endswith(f"refs/remotes/origin/{branch}")
+        for command in flattened
+    )
+    assert any(command == f"git push -u origin {branch}" for command in flattened)
+    assert not any("--force" in command or " -f " in f" {command} " for command in flattened)
+
+
+def test_prepare_release_records_verified_pushed_head_when_pr_listing_is_stale(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+    branch = "omo-release/sub_stalehead000000000000000001-facebook-ads-copywriter"
+    generated_head = "a" * 40
+    stale_pr_head = "d" * 40
+
+    def runner(command, cwd=None, text=True):
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            return f"{generated_head}\trefs/heads/{branch}\n"
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
+    monkeypatch.setattr(
+        adapter,
+        "_issue_for_submission",
+        lambda _submission_id, _slug: {
+            "number": 31,
+            "url": "https://github.com/harrythentrepreneur/Omo.Space/issues/31",
+        },
+    )
+    monkeypatch.setattr(adapter, "_prepare_worktree", lambda _branch, _slug: (tmp_path, generated_head))
+    monkeypatch.setattr(
+        adapter,
+        "_pr_for_branch",
+        lambda _branch, _issue, _request: {
+            "number": 42,
+            "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42",
+            "headRefOid": stale_pr_head,
+        },
+    )
+
+    result = adapter.prepare_release({
+        "submission_id": "sub_stalehead000000000000000001",
+        "slug": "facebook-ads-copywriter",
+        "published_slug": "facebook-ads-copywriter",
+        "workflow_version": "facebook-ads-copywriter@1.0.0",
+        "selected_runtime": "worker-native",
+        "source_sha256": "b" * 64,
+        "artifact_hash": "c" * 64,
+    })
+
+    assert result["head_sha"] == generated_head
+
+
+def test_release_base_fetch_unshallows_builder_checkout_for_merge_base(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    remote = tmp_path / "origin.git"
+    seed = tmp_path / "seed"
+    checkout = tmp_path / "builder-checkout"
+    subprocess.run(["git", "init", "--bare", "--initial-branch=main", str(remote)], check=True, capture_output=True)
+    seed.mkdir()
+    subprocess.run(["git", "init", "--initial-branch=main"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=seed, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=seed, check=True)
+    (seed / "base.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "branch", "release"], cwd=seed, check=True)
+    (seed / "main.txt").write_text("main\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-m", "main advance"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "switch", "release"], cwd=seed, check=True, capture_output=True)
+    (seed / "release.txt").write_text("release\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-m", "release advance"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "tag", "main"], cwd=seed, check=True)
+    subprocess.run(["git", "remote", "add", "origin", f"file://{remote}"], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "push", "origin", "refs/heads/main", "refs/heads/release", "refs/tags/main"],
+        cwd=seed,
+        check=True,
+        capture_output=True,
+    )
+
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+    subprocess.run(["git", "remote", "add", "origin", f"file://{remote}"], cwd=checkout, check=True)
+    subprocess.run(["git", "fetch", "--depth", "1", "origin", "main"], cwd=checkout, check=True, capture_output=True)
+    subprocess.run(["git", "checkout", "-q", "--detach", "FETCH_HEAD"], cwd=checkout, check=True)
+    assert subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"], cwd=checkout, check=True, capture_output=True, text=True
+    ).stdout.strip() == "true"
+
+    adapter = process.GitHubReleaseAdapter()
+    adapter._fetch_base_ref(checkout)
+    subprocess.run(
+        ["git", "fetch", "origin", "release:refs/remotes/origin/release"],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+    )
+
+    assert subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"], cwd=checkout, check=True, capture_output=True, text=True
+    ).stdout.strip() == "false"
+    branch_sha = subprocess.run(
+        ["git", "ls-remote", "origin", "refs/heads/main"],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split("\t", 1)[0]
+    resolved_base = subprocess.run(
+        ["git", "rev-parse", "refs/remotes/origin/main"],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert resolved_base == branch_sha
+    subprocess.run(
+        ["git", "merge-base", "origin/main", "refs/remotes/origin/release"],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+    )
+
+
+def test_release_branch_diff_disables_rename_detection(tmp_path: Path) -> None:
+    process = load_process_submissions()
+    repo = tmp_path / "rename-repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "--initial-branch=main"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+    forbidden = repo / "forbidden" / "secret.py"
+    forbidden.parent.mkdir()
+    forbidden.write_text("sensitive = True\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=repo, check=True, capture_output=True)
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    allowed = repo / "containers" / "slug" / "stolen.py"
+    allowed.parent.mkdir(parents=True)
+    forbidden.rename(allowed)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "rename"], cwd=repo, check=True, capture_output=True)
+
+    adapter = process.GitHubReleaseAdapter()
+    changed = adapter._changed_release_paths(repo, base)
+
+    assert changed == {"forbidden/secret.py", "containers/slug/stolen.py"}
+
+
+def test_release_branch_refresh_rejects_non_allowlisted_diff(monkeypatch, tmp_path: Path) -> None:
+    process = load_process_submissions()
+
+    def runner(command, cwd=None, text=True):
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            return ""
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false"
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return "a" * 40
+        if command[:3] == ["git", "diff", "--name-only"]:
+            return "tools/host-skill/process-submissions.py\0"
+        return ""
+
+    monkeypatch.setattr(
+        process,
+        "copy_allowlisted_release_paths",
+        lambda _slug, _destination: ["site/deploy/worker.js"],
+    )
+    monkeypatch.setattr(process.HOST_MODULE, "refresh_cumulative_registration", lambda _root: [])
+    adapter = process.GitHubReleaseAdapter(command_runner=runner, scratch_root=tmp_path)
+    with pytest.raises(RuntimeError, match="non-allowlisted"):
+        adapter._prepare_worktree(
+            "omo-release/sub_test00000000000000000000000000000000-slug",
+            "slug",
+        )
 
 
 def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path: Path) -> None:
@@ -904,14 +1327,23 @@ def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path:
 def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> None:
     process = load_process_submissions()
     create_commands: list[list[str]] = []
+    pushed = {"value": False}
 
     def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        if command[:4] == ["git", "ls-remote", "--exit-code", "--heads"]:
+            branch = "omo-release/sub_reuse0000000000000000001-facebook-ads-copywriter"
+            return f"{'a' * 40}\trefs/heads/{branch}\n" if pushed["value"] else ""
+        if command[:3] == ["git", "push", "-u"]:
+            pushed["value"] = True
+            return ""
         if command[:4] in (["gh", "issue", "create", "--repo"], ["gh", "pr", "create", "--repo"]):
             create_commands.append(command)
         if command[:4] == ["gh", "issue", "list", "--repo"]:
             return json.dumps([{"number": 31, "url": "https://github.com/harrythentrepreneur/Omo.Space/issues/31"}])
         if command[:4] == ["gh", "pr", "list", "--repo"]:
             return json.dumps([{"number": 42, "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42", "headRefOid": "a" * 40}])
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false\n"
         if command[:3] == ["git", "rev-parse", "HEAD"]:
             return "a" * 40 + "\n"
         return ""
@@ -2119,6 +2551,8 @@ def test_release_worktree_commit_uses_scoped_git_identity(monkeypatch, tmp_path:
 
     def runner(command, cwd=None, text=True):
         commands.append(list(command))
+        if command == ["git", "rev-parse", "--is-shallow-repository"]:
+            return "false"
         if command[:2] == ["git", "rev-parse"]:
             return "a" * 40
         return ""

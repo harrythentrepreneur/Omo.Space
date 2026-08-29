@@ -12,6 +12,7 @@ commit and the final Omo billing canary remain explicit agent actions; use
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import hmac
 import importlib.util
@@ -76,6 +77,7 @@ REQUIRED_RELEASE_CHECKS = ("contracts",)
 MAX_RELEASE_ARTIFACT_FILES = 10_000
 MAX_RELEASE_ARTIFACT_FILE_BYTES = 64 * 1024 * 1024
 MAX_RELEASE_ARTIFACT_TOTAL_BYTES = 128 * 1024 * 1024
+MAX_REVIEWED_PROFILE_BYTES = 256 * 1024
 WORKER_REGISTRY_FILENAME = "hosted-skills.generated.mjs"
 WORKER_DEPLOY_COMMAND = ("npx", "wrangler@4.123.0", "deploy")
 LIVE_WORKER_BASE_URL = "https://cognition-demos.harrythentrepreneurr.workers.dev"
@@ -87,6 +89,7 @@ SAFE_FAILURE_STAGES = {
     "worker_contracts",
     "release_issue_lookup",
     "release_issue_create",
+    "release_branch_lookup",
     "release_worktree",
     "release_push",
     "release_pr_lookup",
@@ -1112,9 +1115,109 @@ def reviewed_profile_artifact(
     if effective_request:
         profile["runtime_preference"] = effective_request
     decision = HOST_MODULE.decide_runtime_placement(profile)
+    serialized = json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     profile_path = temp_dir / f"{slug}.reviewed-profile.json"
-    profile_path.write_text(json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    profile_path.write_text(serialized, encoding="utf-8")
     return profile_path, decision
+
+
+def _strict_json_object(raw: str) -> Any:
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("duplicate JSON key")
+            value[key] = item
+        return value
+
+    return json.loads(
+        raw,
+        object_pairs_hook=reject_duplicates,
+        parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
+    )
+
+
+def _atomic_profile_write(path: Path, content: bytes, mode: int) -> None:
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    temporary_path = Path(temporary)
+    try:
+        os.fchmod(descriptor, mode)
+        handle = os.fdopen(descriptor, "wb")
+        descriptor = -1
+        with handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+
+def _read_reviewed_profile_bytes(path: Path) -> bytes:
+    descriptor = -1
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        handle = os.fdopen(descriptor, "rb")
+        descriptor = -1
+        with handle:
+            before = os.fstat(handle.fileno())
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_size <= 0
+                or before.st_size > MAX_REVIEWED_PROFILE_BYTES
+            ):
+                raise OSError
+            content = handle.read(MAX_REVIEWED_PROFILE_BYTES + 1)
+            after = os.fstat(handle.fileno())
+    except OSError:
+        raise RuntimeError("reviewed release profile input is invalid") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if (
+        len(content) > MAX_REVIEWED_PROFILE_BYTES
+        or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+        != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+    ):
+        raise RuntimeError("reviewed release profile input is invalid")
+    return content
+
+
+def persist_reviewed_profile_artifact(slug: str, profile_path: Path) -> None:
+    if not SAFE_SLUG_RE.fullmatch(slug):
+        raise ValueError("invalid reviewed release profile slug")
+    profiles_dir = (ROOT / "packages" / "skill-to-modal" / "profiles").resolve(strict=True)
+    canonical_path = profiles_dir / f"{slug}.json"
+    if canonical_path.parent != profiles_dir or canonical_path.is_symlink() or not canonical_path.is_file():
+        raise RuntimeError("reviewed release profile path is unsafe")
+    try:
+        profile = _strict_json_object(_read_reviewed_profile_bytes(profile_path).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RuntimeError):
+        raise RuntimeError("reviewed release profile input is invalid") from None
+    if not isinstance(profile, dict) or profile.get("slug") != slug:
+        raise RuntimeError("reviewed release profile identity mismatch")
+    serialized = (json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
+    _atomic_profile_write(canonical_path, serialized, stat.S_IMODE(canonical_path.stat().st_mode))
+
+
+@contextlib.contextmanager
+def persisted_reviewed_profile_artifact(slug: str, profile_path: Path):
+    if not SAFE_SLUG_RE.fullmatch(slug):
+        raise ValueError("invalid reviewed release profile slug")
+    profiles_dir = (ROOT / "packages" / "skill-to-modal" / "profiles").resolve(strict=True)
+    canonical_path = profiles_dir / f"{slug}.json"
+    if canonical_path.parent != profiles_dir or canonical_path.is_symlink() or not canonical_path.is_file():
+        raise RuntimeError("reviewed release profile path is unsafe")
+    original = canonical_path.read_bytes()
+    original_mode = stat.S_IMODE(canonical_path.stat().st_mode)
+    try:
+        persist_reviewed_profile_artifact(slug, profile_path)
+        yield
+    finally:
+        _atomic_profile_write(canonical_path, original, original_mode)
 
 
 def promote_generated_candidate_for_release(profile: dict[str, Any]) -> dict[str, Any]:
@@ -1249,10 +1352,7 @@ def validate_release_artifact_entries(slug: str, entries: dict[str, bytes]) -> s
     if not isinstance(profile_raw, bytes):
         raise RuntimeError("release profile evidence is missing")
     try:
-        profile = json.loads(
-            profile_raw.decode("utf-8"),
-            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
-        )
+        profile = _strict_json_object(profile_raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
         raise RuntimeError("release profile evidence is invalid") from None
     if not isinstance(profile, dict) or profile.get("slug") != slug:
@@ -1281,6 +1381,29 @@ def validate_release_artifact_entries(slug: str, entries: dict[str, bytes]) -> s
             or sha256_bytes(receipt_raw) != profile["authoring_spec_sha256"]
         ):
             raise RuntimeError("release authoring receipt evidence mismatch")
+        if authoring_version == "omo.profile-authoring-spec/v2":
+            canonical_profile = (
+                json.dumps(profile, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+            ).encode()
+            if profile_raw != canonical_profile:
+                raise RuntimeError("release authoring receipt evidence mismatch")
+            try:
+                expected_profile = HOST_MODULE.COMPILER.assemble_profile_authoring_spec(
+                    receipt,
+                    {
+                        "slug": profile["slug"],
+                        "name": profile["name"],
+                        "source_sha256": profile["reviewed_source_sha256"],
+                    },
+                )
+            except (KeyError, TypeError, ValueError, HOST_MODULE.COMPILER.ProfileAuthoringError):
+                raise RuntimeError("release authoring receipt evidence mismatch") from None
+            expected_profile = promote_generated_candidate_for_release(expected_profile)
+            runtime_preference = profile.get("runtime_preference")
+            if runtime_preference in SAFE_RUNTIMES:
+                expected_profile["runtime_preference"] = runtime_preference
+            if profile != expected_profile:
+                raise RuntimeError("release authoring receipt evidence mismatch")
     else:
         raise RuntimeError("release authoring spec version is unsupported")
     return hash_release_artifact_entries(entries)
@@ -1594,12 +1717,61 @@ class GitHubReleaseAdapter:
             raise RuntimeError("invalid release PR metadata")
         return {"number": int(viewed["number"]), "url": str(viewed["url"]), "headRefOid": str(viewed.get("headRefOid") or "")}
 
+    def _existing_remote_branch_head(self, branch: str) -> str | None:
+        try:
+            raw = self.command_runner(
+                ["git", "ls-remote", "--exit-code", "--heads", "origin", branch],
+                cwd=ROOT,
+                text=True,
+            )
+        except subprocess.CalledProcessError as error:
+            if error.returncode == 2:
+                return None
+            raise StagedCalledProcessError("release_branch_lookup", error) from None
+        line = str(raw or "").strip()
+        if not line:
+            return None
+        parts = line.split("\t")
+        if len(parts) != 2 or parts[1] != f"refs/heads/{branch}" or not SAFE_GIT_SHA_RE.fullmatch(parts[0]):
+            raise RuntimeError("invalid release branch lookup")
+        return parts[0]
+
+    def _changed_release_paths(self, worktree: Path, base_ref: str) -> set[str]:
+        changed_raw = self._run(
+            ["git", "diff", "--name-only", "--no-renames", "-z", f"{base_ref}...HEAD"],
+            cwd=worktree,
+        )
+        return {path for path in str(changed_raw or "").split("\0") if path}
+
+    def _fetch_base_ref(self, repository: Path) -> None:
+        shallow = str(
+            self._run(["git", "rev-parse", "--is-shallow-repository"], cwd=repository)
+        ).strip()
+        if shallow not in {"true", "false"}:
+            raise RuntimeError("invalid repository shallow state")
+        command = ["git", "fetch"]
+        if shallow == "true":
+            command.append("--unshallow")
+        command.extend(
+            ["origin", f"refs/heads/{self.base}:refs/remotes/origin/{self.base}"]
+        )
+        self._run(command, cwd=repository)
+
     def _prepare_worktree(self, branch: str, slug: str) -> tuple[Path, str]:
         scratch_parent = self.scratch_root or Path(tempfile.mkdtemp(prefix="omo-release-parent-"))
         scratch_parent.mkdir(parents=True, exist_ok=True)
         worktree = Path(tempfile.mkdtemp(prefix="omo-release-worktree-", dir=scratch_parent))
-        self._run(["git", "fetch", "origin", self.base])
-        self._run(["git", "worktree", "add", "--detach", str(worktree), f"origin/{self.base}"])
+        self._fetch_base_ref(ROOT)
+        remote_head = self._existing_remote_branch_head(branch)
+        start_revision = f"origin/{self.base}"
+        if remote_head:
+            remote_ref = f"refs/remotes/origin/{branch}"
+            self._run(["git", "fetch", "origin", f"{branch}:{remote_ref}"])
+            resolved_remote = str(self._run(["git", "rev-parse", remote_ref])).strip().lower()
+            if resolved_remote != remote_head:
+                raise RuntimeError("release branch head changed during refresh")
+            start_revision = remote_ref
+        self._run(["git", "worktree", "add", "--detach", str(worktree), start_revision])
         self._run(["git", "switch", "-C", branch], cwd=worktree)
         copied = copy_allowlisted_release_paths(slug, worktree)
         if not copied:
@@ -1626,6 +1798,15 @@ class GitHubReleaseAdapter:
         head_sha = str(self._run(["git", "rev-parse", "HEAD"], cwd=worktree)).strip().lower()
         if not SAFE_GIT_SHA_RE.fullmatch(head_sha):
             raise RuntimeError("invalid release head SHA")
+        changed = self._changed_release_paths(worktree, f"origin/{self.base}")
+        allowed = set(release_allowlisted_paths(slug)) | {
+            "site/catalog.js",
+            "site/deploy/hosted-skills.generated.mjs",
+        }
+        def is_allowlisted(path: str) -> bool:
+            return any(path == candidate or path.startswith(candidate.rstrip("/") + "/") for candidate in allowed)
+        if any(not is_allowlisted(path) for path in changed):
+            raise RuntimeError("release branch contains non-allowlisted changes")
         return worktree, head_sha
 
     def prepare_release(self, release_request: dict[str, Any]) -> dict[str, Any]:
@@ -1642,6 +1823,9 @@ class GitHubReleaseAdapter:
         issue = self._issue_for_submission(submission_id, slug)
         _worktree, head_sha = self._prepare_worktree(branch, slug)
         self._run(["git", "push", "-u", "origin", branch], cwd=_worktree)
+        verified_head = self._existing_remote_branch_head(branch)
+        if verified_head != head_sha:
+            raise RuntimeError("release branch push verification failed")
         pr = self._pr_for_branch(branch, int(issue["number"]), request)
         return normalize_release_metadata({
             "release_phase": "pr_open",
@@ -1649,7 +1833,7 @@ class GitHubReleaseAdapter:
             "pr_url": pr["url"],
             "pr_number": pr["number"],
             "branch": branch,
-            "head_sha": pr.get("headRefOid") or head_sha,
+            "head_sha": verified_head,
             "source_sha256": source_sha256,
             "artifact_hash": artifact_hash,
         })
@@ -2193,44 +2377,45 @@ def process_row(row: dict[str, Any], repository: SubmissionRepository, deploy: b
                 Path(temp_dir),
                 source_sha256=validated.source_sha256,
             )
-            run_checked_at_stage(
-                host_command(skill_path, validated.slug, profile_path=profile_path),
-                ROOT,
-                "trusted_compile",
-            )
-            metadata = generated_runtime_metadata(validated.slug, profile_path, validated.source_sha256)
-            decision = metadata["decision"]
-            repository.set_runtime_decision(submission_id, decision)
-            if deploy:
-                prepare_reviewed_release(skill_path, validated.slug, profile_path, decision["effective"])
-                release_request = {
-                    "submission_id": submission_id,
-                    "slug": validated.slug,
-                    "published_slug": metadata["published_slug"],
-                    "workflow_version": metadata["workflow_version"],
-                    "selected_runtime": decision["effective"],
-                    "source_sha256": validated.source_sha256,
-                    "artifact_hash": hash_release_artifacts(validated.slug),
-                    "branch": release_branch_for_submission(submission_id, validated.slug),
-                }
-                adapter = release_adapter or GitHubReleaseAdapter()
-                release_metadata = normalize_release_metadata(adapter.prepare_release(release_request))
-                repository.set_deployment_metadata(
-                    submission_id,
-                    "ready_for_deploy",
-                    metadata["published_slug"],
-                    metadata["workflow_version"],
-                    metadata["build_evidence"],
+            with persisted_reviewed_profile_artifact(validated.slug, profile_path):
+                run_checked_at_stage(
+                    host_command(skill_path, validated.slug, profile_path=profile_path),
+                    ROOT,
+                    "trusted_compile",
                 )
-                repository.set_release_metadata(submission_id, release_metadata)
-            else:
-                repository.set_deployment_metadata(
-                    submission_id,
-                    "ready_for_deploy",
-                    metadata["published_slug"],
-                    metadata["workflow_version"],
-                    metadata["build_evidence"],
-                )
+                metadata = generated_runtime_metadata(validated.slug, profile_path, validated.source_sha256)
+                decision = metadata["decision"]
+                repository.set_runtime_decision(submission_id, decision)
+                if deploy:
+                    prepare_reviewed_release(skill_path, validated.slug, profile_path, decision["effective"])
+                    release_request = {
+                        "submission_id": submission_id,
+                        "slug": validated.slug,
+                        "published_slug": metadata["published_slug"],
+                        "workflow_version": metadata["workflow_version"],
+                        "selected_runtime": decision["effective"],
+                        "source_sha256": validated.source_sha256,
+                        "artifact_hash": hash_release_artifacts(validated.slug),
+                        "branch": release_branch_for_submission(submission_id, validated.slug),
+                    }
+                    adapter = release_adapter or GitHubReleaseAdapter()
+                    release_metadata = normalize_release_metadata(adapter.prepare_release(release_request))
+                    repository.set_deployment_metadata(
+                        submission_id,
+                        "ready_for_deploy",
+                        metadata["published_slug"],
+                        metadata["workflow_version"],
+                        metadata["build_evidence"],
+                    )
+                    repository.set_release_metadata(submission_id, release_metadata)
+                else:
+                    repository.set_deployment_metadata(
+                        submission_id,
+                        "ready_for_deploy",
+                        metadata["published_slug"],
+                        metadata["workflow_version"],
+                        metadata["build_evidence"],
+                    )
     except StagedCalledProcessError as error:
         repository.set_status(submission_id, "failed", "build_or_deploy_failed")
         return {

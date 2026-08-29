@@ -69,7 +69,7 @@ def test_builder_and_worker_base_revision_pins_match() -> None:
     match = __import__("re").search(r'^OMO_BUILDER_BASE_REVISION = "([0-9a-f]{40})"$', wrangler, __import__("re").MULTILINE)
     assert match is not None
     assert match.group(1) == builder.ALLOWED_BASE_REVISION
-    assert builder.ALLOWED_BASE_REVISION == "e3aaa08045add579ef22b0de82be47a4b9ce130e"
+    assert builder.ALLOWED_BASE_REVISION == "dfc59565bbdab144796b54ddb715ba2cdf4ef5b0"
 
 
 def test_job_identity_is_exact_and_source_scoped() -> None:
@@ -969,6 +969,148 @@ def test_bounded_authoring_repairs_invalid_authored_file() -> None:
 
     assert result == {"spec": {"schema_version": "omo.profile-authoring-spec/v1"}}
     assert calls == [(1, ()), (2, ("AUTHORING_JSON_INVALID",))]
+
+
+def test_explicit_output_contract_requires_exact_authored_schema_fields() -> None:
+    builder = load_builder()
+    source = """## Output
+
+Return a JSON object with exactly:
+
+- `priority`: one of `low`, `medium`, or `high`.
+- `reason`: a concise sentence.
+"""
+    matching = {
+        "output_schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"priority": {"type": "string"}, "reason": {"type": "string"}},
+            "required": ["priority", "reason"],
+        }
+    }
+    drifting = {
+        "output_schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"label": {"type": "string"}, "reason": {"type": "string"}},
+            "required": ["label", "reason"],
+        }
+    }
+
+    builder.validate_explicit_output_contract(source, matching)
+    with pytest.raises(builder.ProfileAuthoringAttemptError) as caught:
+        builder.validate_explicit_output_contract(source, drifting)
+    assert caught.value.code == "AUTHORING_SCHEMA_INVALID"
+    builder.validate_explicit_output_contract("## Output\n\nReturn a concise summary.\n", drifting)
+
+
+def test_explicit_output_contract_fails_closed_on_ambiguity_without_enforcing_examples() -> None:
+    builder = load_builder()
+    matching = {
+        "output_schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"priority": {"type": "string"}, "reason": {"type": "string"}},
+            "required": ["priority", "reason"],
+        }
+    }
+    duplicate_output = """## Output
+No exact contract here.
+
+## Output
+Return a JSON object with exactly:
+- `priority`: p
+- `reason`: r
+"""
+    multiple_markers = """## Output
+Return a JSON object with exactly:
+- `priority`: p
+- `reason`: r
+
+Return a JSON object with exactly:
+- `priority`: p
+- `reason`: r
+"""
+    malformed_bullet = """## Output
+Return a JSON object with exactly:
+- `priority`: p
+- `reason`: r
+- `third` missing colon
+"""
+    for source in (duplicate_output, multiple_markers, malformed_bullet):
+        with pytest.raises(builder.ProfileAuthoringAttemptError) as caught:
+            builder.validate_explicit_output_contract(source, matching)
+        assert caught.value.code == "AUTHORING_SCHEMA_INVALID"
+
+    fenced_example = """## Output
+```markdown
+Return a JSON object with exactly:
+- `priority`: p
+- `reason`: r
+```
+Return any documented response.
+"""
+    lowercase_near_match = """## Output
+return a json object with exactly:
+- `priority`: p
+- `reason`: r
+"""
+    drifting = {
+        "output_schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"label": {"type": "string"}},
+            "required": ["label"],
+        }
+    }
+    builder.validate_explicit_output_contract(fenced_example, drifting)
+    builder.validate_explicit_output_contract(lowercase_near_match, drifting)
+
+    long_fence_examples = (
+        """## Output
+````markdown
+```
+Return a JSON object with exactly:
+- `priority`: p
+- `reason`: r
+```
+````
+""",
+        """## Output
+~~~~markdown
+~~~
+Return a JSON object with exactly:
+- `priority`: p
+- `reason`: r
+~~~
+~~~~
+""",
+        """## Output
+````markdown
+```not-a-closer
+Return a JSON object with exactly:
+- `priority`: p
+- `reason`: r
+````
+""",
+        """    ## Output
+    Return a JSON object with exactly:
+    - `priority`: p
+    - `reason`: r
+""",
+    )
+    for source in long_fence_examples:
+        builder.validate_explicit_output_contract(source, drifting)
+
+    whitespace_description = (
+        "## Output\n"
+        "Return a JSON object with exactly:\n"
+        "- `priority`: p\n"
+        "- `reason`:" + "    \n"
+    )
+    with pytest.raises(builder.ProfileAuthoringAttemptError) as caught:
+        builder.validate_explicit_output_contract(whitespace_description, matching)
+    assert caught.value.code == "AUTHORING_SCHEMA_INVALID"
 
 
 def test_trusted_authoring_lifecycle_repairs_spec_then_writes_compiler_profile(tmp_path: Path) -> None:
