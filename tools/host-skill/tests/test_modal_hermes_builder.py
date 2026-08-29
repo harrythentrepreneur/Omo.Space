@@ -69,7 +69,7 @@ def test_builder_and_worker_base_revision_pins_match() -> None:
     match = __import__("re").search(r'^OMO_BUILDER_BASE_REVISION = "([0-9a-f]{40})"$', wrangler, __import__("re").MULTILINE)
     assert match is not None
     assert match.group(1) == builder.ALLOWED_BASE_REVISION
-    assert builder.ALLOWED_BASE_REVISION == "dfc59565bbdab144796b54ddb715ba2cdf4ef5b0"
+    assert builder.ALLOWED_BASE_REVISION == "207eeb339c31786456912b22cd0aa5d9ce64effc"
 
 
 def test_job_identity_is_exact_and_source_scoped() -> None:
