@@ -1743,11 +1743,25 @@ class GitHubReleaseAdapter:
         )
         return {path for path in str(changed_raw or "").split("\0") if path}
 
+    def _fetch_base_ref(self, repository: Path) -> None:
+        shallow = str(
+            self._run(["git", "rev-parse", "--is-shallow-repository"], cwd=repository)
+        ).strip()
+        if shallow not in {"true", "false"}:
+            raise RuntimeError("invalid repository shallow state")
+        command = ["git", "fetch"]
+        if shallow == "true":
+            command.append("--unshallow")
+        command.extend(
+            ["origin", f"refs/heads/{self.base}:refs/remotes/origin/{self.base}"]
+        )
+        self._run(command, cwd=repository)
+
     def _prepare_worktree(self, branch: str, slug: str) -> tuple[Path, str]:
         scratch_parent = self.scratch_root or Path(tempfile.mkdtemp(prefix="omo-release-parent-"))
         scratch_parent.mkdir(parents=True, exist_ok=True)
         worktree = Path(tempfile.mkdtemp(prefix="omo-release-worktree-", dir=scratch_parent))
-        self._run(["git", "fetch", "origin", self.base])
+        self._fetch_base_ref(ROOT)
         remote_head = self._existing_remote_branch_head(branch)
         start_revision = f"origin/{self.base}"
         if remote_head:
