@@ -77,7 +77,7 @@ PILOT_GRANT_CENTS = "99"
 PILOT_BOOK_BUILDER_PATH = "/run.html?slug=decodable-book-maker"
 OMO_SUPPORT_BROKER_URL = "https://cognition.cv/omo-support-api/v1/chat"
 OMO_BUILDER_MODAL_URL = "https://omo-space--omo-hermes-builder-dispatch.modal.run"
-OMO_BUILDER_BASE_REVISION = "30e029af43b3a38b1bb98cdd6a596eabf780fc58"
+OMO_BUILDER_BASE_REVISION = "b2abde7ceb890d1871045a778b214a8ee2db661d"
 # Hosted Facebook Ads runtime in the phonicsmaker / OMOSpace Modal environment.
 FACEBOOK_ADS_MODAL_URL = "https://phonicsmaker-omospace--cognition-facebook-ads-copywriter-api.modal.run"
 
