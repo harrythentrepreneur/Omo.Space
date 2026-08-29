@@ -271,12 +271,13 @@ def _verify_provenance(
                     "source_sha256": claim.source_sha256,
                 },
             )
+            promoted = compiler.promote_generated_candidate_for_release(assembled)
         except (UnicodeDecodeError, json.JSONDecodeError, UnicodeEncodeError, ValueError):
             raise FinalizerError("artifact_hash_mismatch") from None
         except Exception:
             raise FinalizerError("artifact_hash_mismatch") from None
         if (
-            profile != assembled
+            profile not in (assembled, promoted)
             or
             hashlib.sha256(receipt_raw).hexdigest() != digest
             or assembled.get("authoring_spec_version") != profile.get("authoring_spec_version")

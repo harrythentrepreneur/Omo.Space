@@ -358,6 +358,26 @@ def test_authored_release_hash_includes_profile_and_authoring_receipt():
     ) in mainline.calls
 
 
+def test_authored_release_accepts_compiler_owned_catalog_promotion():
+    mod, mainline, store, modal, cloudflare, vercel = components()
+    receipt = valid_authoring_receipt()
+    profile = assembled_profile(receipt)
+    profile["marketplace"]["catalog_managed"] = True
+    profile["marketplace"]["storefront_visible"] = True
+    mainline.entries.update({
+        "packages/skill-to-modal/profiles/demo.json": json.dumps(profile).encode(),
+        "packages/skill-to-modal/profile-authoring-specs/demo.json": receipt,
+    })
+    store.claim_value = replace(
+        store.claim_value,
+        artifact_hash=artifact_hash(mainline.entries),
+    )
+
+    result = mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert result["status"] == "deployed"
+
+
 def test_trusted_legacy_profile_pins_match_reviewed_tree():
     mod = load_finalizer()
     for slug, (source_digest, profile_digest) in mod.TRUSTED_LEGACY_PROFILE_DIGESTS.items():

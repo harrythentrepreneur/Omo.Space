@@ -1221,26 +1221,7 @@ def persisted_reviewed_profile_artifact(slug: str, profile_path: Path):
 
 
 def promote_generated_candidate_for_release(profile: dict[str, Any]) -> dict[str, Any]:
-    promoted = json.loads(json.dumps(profile))
-    market = promoted.get("marketplace")
-    if not isinstance(market, dict):
-        return promoted
-    tags = market.get("tags")
-    authored_candidate = (
-        HOST_MODULE.COMPILER.is_supported_profile_authoring_spec_version(
-            promoted.get("authoring_spec_version")
-        )
-        and isinstance(promoted.get("authoring_spec_sha256"), str)
-        and SAFE_SHA256_RE.fullmatch(promoted["authoring_spec_sha256"]) is not None
-    )
-    tagged_candidate = isinstance(tags, list) and "generated-candidate" in tags
-    if (
-        market.get("maker") == "Submitted skill"
-        and (tagged_candidate or authored_candidate)
-    ):
-        market["catalog_managed"] = True
-        market["storefront_visible"] = True
-    return promoted
+    return HOST_MODULE.COMPILER.promote_generated_candidate_for_release(profile)
 
 
 def generated_runtime_metadata(slug: str, profile_path: Path, expected_source_sha256: str) -> dict[str, Any]:
