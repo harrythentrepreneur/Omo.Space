@@ -598,6 +598,25 @@ def canonical_profile_authoring_spec_bytes(authoring_spec: dict[str, Any]) -> by
     return canonical_json(normalized).encode("utf-8")
 
 
+def promote_generated_candidate_for_release(profile: dict[str, Any]) -> dict[str, Any]:
+    """Apply the only compiler-owned catalog promotion to an authored profile."""
+    promoted = copy.deepcopy(profile)
+    market = promoted.get("marketplace")
+    if not isinstance(market, dict):
+        return promoted
+    tags = market.get("tags")
+    authored_candidate = (
+        is_supported_profile_authoring_spec_version(promoted.get("authoring_spec_version"))
+        and isinstance(promoted.get("authoring_spec_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", promoted["authoring_spec_sha256"]) is not None
+    )
+    tagged_candidate = isinstance(tags, list) and "generated-candidate" in tags
+    if market.get("maker") == "Submitted skill" and (tagged_candidate or authored_candidate):
+        market["catalog_managed"] = True
+        market["storefront_visible"] = True
+    return promoted
+
+
 def canonical_profile_authoring_bytes(
     authoring_spec: dict[str, Any], identity: dict[str, Any]
 ) -> bytes:
