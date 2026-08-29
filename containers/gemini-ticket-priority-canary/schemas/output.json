@@ -1,13 +1,14 @@
 {
   "additionalProperties": false,
   "properties": {
-    "priority": {
+    "label": {
       "enum": [
         "high",
         "low",
         "medium"
       ],
       "maxLength": 6,
+      "minLength": 3,
       "type": "string"
     },
     "reason": {
@@ -17,7 +18,7 @@
     }
   },
   "required": [
-    "priority",
+    "label",
     "reason"
   ],
   "type": "object"

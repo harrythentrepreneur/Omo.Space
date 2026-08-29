@@ -2,11 +2,11 @@
   "happy_path": {
     "input": {
       "customer_blocked": true,
-      "ticket": "My account is locked and I cannot log in."
+      "ticket": "My website is completely down and I can't access it at all. All my customers are seeing an error page."
     },
     "output": {
-      "priority": "high",
-      "reason": "Customer is blocked from accessing their account, indicating a critical issue."
+      "label": "high",
+      "reason": "Customer's website is completely down and they are blocked, indicating a critical service interruption."
     }
   },
   "negative_cases": [
@@ -14,7 +14,7 @@
       "id": "empty_ticket",
       "input": {
         "customer_blocked": false,
-        "ticket": "short"
+        "ticket": ""
       },
       "reason": "INVALID_INPUT"
     }

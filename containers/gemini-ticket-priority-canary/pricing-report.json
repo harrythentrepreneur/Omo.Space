@@ -8,16 +8,16 @@
       "cost_model_run_price_usd": 0.1,
       "detail": [
         {
-          "cost_usd": 0.01704,
+          "cost_usd": 0.01727,
           "qty": 2,
           "step": "llm(generate)"
         }
       ],
       "guard_cost_usd": 0.0,
       "guarded_price_floor_usd": 0.1,
-      "modeled_cost_usd": 0.01704,
+      "modeled_cost_usd": 0.01727,
       "notes": [],
-      "pricing_cost_usd": 0.01704,
+      "pricing_cost_usd": 0.01727,
       "tier": "standard"
     }
   ],

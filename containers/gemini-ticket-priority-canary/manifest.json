@@ -40,13 +40,14 @@
   "output_schema": {
     "additionalProperties": false,
     "properties": {
-      "priority": {
+      "label": {
         "enum": [
           "high",
           "low",
           "medium"
         ],
         "maxLength": 6,
+        "minLength": 3,
         "type": "string"
       },
       "reason": {
@@ -56,7 +57,7 @@
       }
     },
     "required": [
-      "priority",
+      "label",
       "reason"
     ],
     "type": "object"
@@ -70,7 +71,7 @@
     "quote_status": "cost_model",
     "report_path": "pricing-report.json"
   },
-  "profile_sha256": "103fc17eba05bb63da25f0a10aecab166183806b8c51137fc5d60a7e77ec57bd",
+  "profile_sha256": "7b2c88b60675d2bfdcdf699d0afd01afdd33a3a4fe94f5669e859778342d23c1",
   "readiness": {
     "blockers": [],
     "can_submit": true,

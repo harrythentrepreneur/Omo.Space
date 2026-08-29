@@ -4610,34 +4610,32 @@ window.OMO_CATALOG = [
     "demoCap": "Run reviewed example",
     "desc": "Classify a bounded customer support ticket into low, medium, or high priority with a concise reason.",
     "emoji": "\ud83c\udfab",
-    "exampleIn": "{\n  \"customer_blocked\": true,\n  \"ticket\": \"My account is locked and I cannot log in.\"\n}",
+    "exampleIn": "{\n  \"customer_blocked\": true,\n  \"ticket\": \"My website is completely down and I can't access it at all. All my customers are seeing an error page.\"\n}",
     "exampleOut": [
-      "priority: one of low, medium, or high",
-      "reason: a concise sentence between 10 and 240 characters"
+      "priority label and concise reason"
     ],
     "free": false,
     "icon": null,
     "inputs": [
-      "ticket: a plain-text support ticket between 10 and 800 characters",
-      "customer_blocked: a boolean indicating whether the customer cannot continue their work"
+      "ticket: a plain-text support ticket (10-800 chars)",
+      "customer_blocked: boolean"
     ],
     "maker": "Submitted skill",
     "makerName": "Submitted skill",
     "name": "Gemini Ticket Priority Canary",
-    "niche": "support",
+    "niche": "ticket classification",
     "outputs": [
-      "priority: one of low, medium, or high",
-      "reason: a concise sentence between 10 and 240 characters"
+      "priority label and concise reason"
     ],
     "priceMaintain": 0.0,
     "priceOwn": 0.0,
-    "promise": "Return a JSON object with priority and a concise reason.",
+    "promise": "Return a deterministic priority label and concise reason for a customer support ticket.",
     "runManifest": "run-manifests/gemini-ticket-priority-canary.json",
     "runPrice": 0.1,
     "slug": "gemini-ticket-priority-canary",
     "tags": [
-      "support",
       "classification",
+      "customer support",
       "bounded"
     ],
     "upvotes": 0,
