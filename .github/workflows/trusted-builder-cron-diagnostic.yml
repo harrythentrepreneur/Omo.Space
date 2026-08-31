@@ -1,0 +1,43 @@
+name: trusted-builder-cron-diagnostic
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  tail:
+    if: github.repository == 'harrythentrepreneur/Omo.Space' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 3
+    steps:
+      - name: Check out exact protected main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: site/deploy/package-lock.json
+      - name: Install exact Wrangler
+        working-directory: site/deploy
+        shell: bash
+        run: |
+          npm ci --ignore-scripts
+          npx --no-install wrangler --version | grep -Fx '4.125.0'
+      - name: Tail one bounded error window
+        working-directory: site/deploy
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          timeout 100s npx --no-install wrangler tail cognition-demos --format json --status error --env=""
+          status=$?
+          test "$status" -eq 0 -o "$status" -eq 124
