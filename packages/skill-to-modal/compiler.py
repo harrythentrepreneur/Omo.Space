@@ -2919,6 +2919,12 @@ def runtime_timeout_seconds(profile: dict[str, Any]) -> int:
 
 def modal_app_template(profile: dict[str, Any]) -> str:
     compiler_version = compiler_version_for_profile(profile)
+    strict_authored_output = (
+        profile.get("execution_kind") == "single_llm"
+        and is_supported_profile_authoring_spec_version(
+            profile.get("authoring_spec_version")
+        )
+    )
     if profile.get("execution_kind") == "pure_data":
         return pure_data_template(profile, "modal_app.py.tmpl")
     if skill_owned_resource_template(profile) is not None:
@@ -4459,6 +4465,7 @@ LIVE_TIMEOUT_SECONDS = {int(live.get('timeout_seconds', 120))}
 LIVE_INPUT_RATE_PER_MILLION = {float(live_rates['input'])!r}
 LIVE_OUTPUT_RATE_PER_MILLION = {float(live_rates['output'])!r}
 LIVE_MODEL_OUTPUT_SCHEMA = {runtime_model_output_schema(profile)!r}
+LIVE_STRICT_AUTHORED_OUTPUT = {strict_authored_output!r}
 SEMANTIC_NORMALIZERS = {profile.get('semantic_normalizers', {})!r}
 SEMANTIC_EVIDENCE_SPEC = {semantic_evidence_spec(profile)!r}
 '''
@@ -5927,10 +5934,10 @@ def _structured_completion(
     missing = [name for name in readiness()["required_env_names"] if not os.environ.get(name)]
     if missing:
         raise WorkflowNotReady("MISSING_REQUIRED_ENV:" + ",".join(sorted(missing)))
-    base_url = os.environ[LIVE_BASE_URL_ENV].rstrip("/")
+    base_url = os.environ.get(LIVE_BASE_URL_ENV, LIVE_DEFAULT_BASE_URL).rstrip("/")
     if not base_url.startswith("https://"):
         raise WorkflowNotReady("LLM_BASE_URL_MUST_BE_HTTPS")
-    model = os.environ[LIVE_MODEL_ENV]
+    model = os.environ.get(LIVE_MODEL_ENV, LIVE_DEFAULT_MODEL)
     schema_contract = json.dumps(
         schema, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
@@ -6020,7 +6027,7 @@ def _provider_completion(
         workflow_instructions=workflow_instructions,
     )
     responses = [*(prior_responses or []), *workflow_responses]
-    model = os.environ[LIVE_MODEL_ENV]
+    model = os.environ.get(LIVE_MODEL_ENV, LIVE_DEFAULT_MODEL)
 
     prompt_tokens = sum(max(0, int((response.get("usage") or {}).get("prompt_tokens") or 0)) for response in responses)
     completion_tokens = sum(max(0, int((response.get("usage") or {}).get("completion_tokens") or 0)) for response in responses)
@@ -6028,6 +6035,8 @@ def _provider_completion(
         prompt_tokens * LIVE_INPUT_RATE_PER_MILLION
         + completion_tokens * LIVE_OUTPUT_RATE_PER_MILLION
     ) / 1_000_000
+    if LIVE_STRICT_AUTHORED_OUTPUT:
+        return generated
     return {
         "run_id": "run-" + str(uuid.uuid4()),
         "status": "completed",
