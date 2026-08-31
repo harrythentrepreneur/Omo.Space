@@ -1,0 +1,86 @@
+{
+  "artifacts": [],
+  "description": "Classify one bounded support message into low, medium, or high urgency with a concise grounded reason.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "blocked",
+      "widget": "text"
+    },
+    {
+      "field": "message",
+      "widget": "text"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "blocked": {
+        "type": "boolean"
+      },
+      "message": {
+        "maxLength": 600,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "blocked",
+      "message"
+    ],
+    "type": "object"
+  },
+  "name": "V02 Support Urgency Classifier",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "reason": {
+        "maxLength": 200,
+        "minLength": 10,
+        "type": "string"
+      },
+      "urgency": {
+        "enum": [
+          "high",
+          "low",
+          "medium"
+        ],
+        "maxLength": 6,
+        "type": "string"
+      }
+    },
+    "required": [
+      "reason",
+      "urgency"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "cost_model",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "e6ec002e1ed63997ce334f8bfad5e8c9268c6740637b1e24cff4b1ef1b5b64aa",
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "GEMINI_API_KEY"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "v02-support-urgency-classifier",
+  "source_sha256": "85126e7069bd7d0117a8e2db807e604b4c912281da19e9929ed603dd3941f763",
+  "version": "1.0.0"
+}

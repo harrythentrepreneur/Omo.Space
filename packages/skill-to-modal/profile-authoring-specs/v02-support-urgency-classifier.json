@@ -1,0 +1,92 @@
+{
+  "family": "single_llm",
+  "happy_path": {
+    "input": {
+      "blocked": true,
+      "message": "My account is locked and I cannot continue my work."
+    },
+    "output": {
+      "reason": "The user's account is locked and prevents work continuation.",
+      "urgency": "high"
+    }
+  },
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "blocked": {
+        "type": "boolean"
+      },
+      "message": {
+        "maxLength": 600,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "blocked",
+      "message"
+    ],
+    "type": "object"
+  },
+  "marketplace": {
+    "category": "customer-service",
+    "description": "Classify one bounded support message into low, medium, or high urgency with a concise grounded reason.",
+    "emoji": "🚨",
+    "inputs": [
+      "message: 10 to 600 characters of plain text",
+      "blocked: boolean"
+    ],
+    "niche": "customer-support",
+    "outputs": [
+      "urgency: low, medium, or high",
+      "reason: 10 to 200 characters"
+    ],
+    "promise": "Classify support message urgency into low, medium, or high with a concise grounded reason.",
+    "tags": [
+      "support",
+      "classification",
+      "bounded",
+      "llm"
+    ],
+    "title": "V02 Support Urgency Classifier"
+  },
+  "negative_cases": [
+    {
+      "id": "message_too_short",
+      "input": {
+        "blocked": false,
+        "message": "hi"
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ],
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "reason": {
+        "maxLength": 200,
+        "minLength": 10,
+        "type": "string"
+      },
+      "urgency": {
+        "enum": [
+          "high",
+          "low",
+          "medium"
+        ],
+        "maxLength": 6,
+        "type": "string"
+      }
+    },
+    "required": [
+      "reason",
+      "urgency"
+    ],
+    "type": "object"
+  },
+  "prompt": "Transform the supplied bounded input and return only JSON matching the output schema.",
+  "requested_capabilities": [
+    "bounded_single_llm"
+  ],
+  "schema_version": "omo.profile-authoring-spec/v2"
+}

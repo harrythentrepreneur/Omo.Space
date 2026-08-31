@@ -1,0 +1,136 @@
+{
+  "chargeable": true,
+  "container_slug": "v02-support-urgency-classifier",
+  "examples": [
+    {
+      "caption": "Complete input",
+      "id": "reviewed-example",
+      "input": {
+        "blocked": true,
+        "message": "My account is locked and I cannot continue my work."
+      },
+      "output_preview": "A schema-validated hosted result.",
+      "title": "Reviewed example"
+    }
+  ],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "blocked": {
+        "type": "boolean"
+      },
+      "message": {
+        "maxLength": 600,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "blocked",
+      "message"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/v02-support-urgency-classifier/schemas/input.json",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "reason": {
+        "maxLength": 200,
+        "minLength": 10,
+        "type": "string"
+      },
+      "run_id": {
+        "type": "string"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "urgency": {
+        "enum": [
+          "high",
+          "low",
+          "medium"
+        ],
+        "maxLength": 6,
+        "type": "string"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_calls": {
+            "const": 1
+          },
+          "model": {
+            "const": "gemini-2.5-flash"
+          },
+          "prompt_tokens": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "const": "gemini"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "v02-support-urgency-classifier@1.0.0"
+      }
+    },
+    "required": [
+      "reason",
+      "urgency",
+      "status",
+      "run_id",
+      "workflow_version",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/v02-support-urgency-classifier/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Running the workflow"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "v02-support-urgency-classifier",
+  "ui": {
+    "fields": {
+      "blocked": {
+        "widget": "text"
+      },
+      "message": {
+        "widget": "text"
+      }
+    },
+    "order": [
+      "blocked",
+      "message"
+    ]
+  }
+}
