@@ -204,10 +204,13 @@ def test_failed_finalization_http_envelopes_are_exact_and_secret_free():
 
     def opener(request, timeout):
         requests.append(request)
-        assert json.loads(request.data) == {"target_sha": SHA}
         if request.full_url.endswith("/failed"):
+            assert json.loads(request.data) == {"target_sha": SHA}
             return Response({"ok": True, "finalization": failed})
         if request.full_url.endswith("/resume-failed"):
+            assert json.loads(request.data) == {
+                "target_sha": SHA, "finalization_id": failed["id"],
+            }
             return Response({"ok": True, "status": "ready_for_deploy"})
         raise AssertionError(request.full_url)
 
@@ -220,10 +223,81 @@ def test_failed_finalization_http_envelopes_are_exact_and_secret_free():
     ):
         failed["failure_code"] = failure_code
         assert store.inspect_failed(SHA) == mod.FailedFinalization(**failed)
-    assert store.resume_failed(SHA) is True
+    assert store.resume_failed(SHA, failed["id"]) is True
     assert [request.full_url.rsplit('/', 1)[-1] for request in requests] == [
         "failed", "failed", "failed", "failed", "resume-failed",
     ]
+
+
+def test_recovery_candidate_boundary_is_bounded_and_fail_closed():
+    mod = load_module()
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request)
+        assert json.loads(request.data) == {}
+        return Response({
+            "ok": True,
+            "recovery": {
+                "target_sha": OLD_TARGET, "finalization_id": FINALIZATION_ID,
+                "mode": "resume_no_effect",
+            },
+        })
+
+    store = mod.HttpFinalizationStore("finalizer-secret", opener=opener)
+    assert store.recovery_candidate() == mod.RecoveryCandidate(
+        target_sha=OLD_TARGET, finalization_id=FINALIZATION_ID, mode="resume_no_effect",
+    )
+    assert requests[0].full_url.endswith("/api/internal/finalizations/recovery-candidate")
+
+    legacy = mod.HttpFinalizationStore(
+        "token", opener=lambda request, timeout: Response({"error": "not_found"}, status=404)
+    )
+    assert legacy.recovery_candidate() is None
+
+    for recovery in (
+        {"target_sha": "bad", "finalization_id": FINALIZATION_ID, "mode": "resume_no_effect"},
+        {"target_sha": OLD_TARGET, "finalization_id": "bad", "mode": "resume_no_effect"},
+        {"target_sha": OLD_TARGET, "finalization_id": FINALIZATION_ID, "mode": "unsafe"},
+        {"target_sha": OLD_TARGET, "finalization_id": FINALIZATION_ID, "mode": "resume_no_effect", "secret": "SENTINEL"},
+    ):
+        malformed = mod.HttpFinalizationStore(
+            "token", opener=lambda request, timeout, recovery=recovery: Response({"ok": True, "recovery": recovery})
+        )
+        with pytest.raises(mod.ControllerError, match="invalid_recovery_candidate"):
+            malformed.recovery_candidate()
+
+
+def test_automatic_recovery_uses_exact_safe_mode_before_normal_finalization(monkeypatch):
+    mod = load_module()
+    events = []
+    mainline = SimpleNamespace()
+    modal = SimpleNamespace()
+    cloudflare = SimpleNamespace()
+
+    no_effect_store = SimpleNamespace(
+        recovery_candidate=lambda: mod.RecoveryCandidate(OLD_TARGET, FINALIZATION_ID, "resume_no_effect"),
+        resume_failed=lambda target, finalization_id: events.append(("resume", target, finalization_id)) or True,
+    )
+    assert mod.recover_failed_before_run(mainline, no_effect_store, modal, cloudflare) == {
+        "status": "ready_for_deploy", "target_sha": OLD_TARGET,
+    }
+    assert events == [("resume", OLD_TARGET, FINALIZATION_ID)]
+
+    events.clear()
+    receipt_store = SimpleNamespace(
+        recovery_candidate=lambda: mod.RecoveryCandidate(OLD_TARGET, FINALIZATION_ID, "verify_then_retry"),
+    )
+    monkeypatch.setattr(
+        mod, "recover_rolled_back_finalization",
+        lambda *args: events.append(args) or {
+            "status": "ready_for_deploy", "target_sha": LATEST_GREEN,
+        },
+    )
+    assert mod.recover_failed_before_run(mainline, receipt_store, modal, cloudflare) == {
+        "status": "ready_for_deploy", "target_sha": LATEST_GREEN,
+    }
+    assert events == [(mainline, receipt_store, modal, cloudflare, OLD_TARGET, FINALIZATION_ID)]
 
 
 def test_failed_finalization_client_rejects_extra_or_malformed_safe_fields():
@@ -252,7 +326,7 @@ def recovery_plan(mod):
             "target_sha": OLD_TARGET, "version_id": version,
         }
     return {
-        "target_sha": OLD_TARGET,
+        "target_sha": OLD_TARGET, "finalization_id": FINALIZATION_ID,
         "modal": {"receipt": receipt("modal", mod.MODAL_TARGET, mod.MODAL_ENVIRONMENT, False, "modal-v7", "modal-v6"),
                   "expected_active_version_id": "modal-v7"},
         "cloudflare": {"receipt": receipt("cloudflare", mod.CLOUDFLARE_TARGET, "production", False, "cf-v9", "cf-v8"),
@@ -260,14 +334,16 @@ def recovery_plan(mod):
     }
 
 
-def test_recovery_store_boundary_sends_only_target_sha_and_validates_plan():
+def test_recovery_store_boundary_sends_only_exact_generation_and_validates_plan():
     mod = load_module()
     requests = []
     plan = recovery_plan(mod)
 
     def opener(request, timeout):
         requests.append(request)
-        assert json.loads(request.data) == {"target_sha": OLD_TARGET}
+        assert json.loads(request.data) == {
+            "target_sha": OLD_TARGET, "finalization_id": FINALIZATION_ID,
+        }
         if request.full_url.endswith("/recovery-plan"):
             return Response({"ok": True, "recovery": plan})
         if request.full_url.endswith("/recover-rolled-back"):
@@ -275,12 +351,15 @@ def test_recovery_store_boundary_sends_only_target_sha_and_validates_plan():
         raise AssertionError(request.full_url)
 
     store = mod.HttpFinalizationStore("finalizer-secret", opener=opener)
-    assert store.recovery_plan(OLD_TARGET) == plan
-    assert store.recover_rolled_back(OLD_TARGET) is True
+    assert store.recovery_plan(OLD_TARGET, FINALIZATION_ID) == plan
+    assert store.recover_rolled_back(OLD_TARGET, FINALIZATION_ID) is True
     assert [request.full_url.rsplit('/', 1)[-1] for request in requests] == [
         "recovery-plan", "recover-rolled-back",
     ]
-    assert all(set(json.loads(request.data)) == {"target_sha"} for request in requests)
+    assert all(
+        set(json.loads(request.data)) == {"target_sha", "finalization_id"}
+        for request in requests
+    )
 
 
 def test_receipt_aware_recovery_verifies_ancestry_and_exact_provider_state_without_effects():
@@ -293,18 +372,20 @@ def test_receipt_aware_recovery_verifies_ancestry_and_exact_provider_state_witho
         checkout_detached=lambda sha: events.append(("checkout", sha)) or ROOT,
     )
     store = SimpleNamespace(
-        recovery_plan=lambda target: events.append(("plan", target)) or plan,
-        recover_rolled_back=lambda target: events.append(("recover", target)) or True,
+        recovery_plan=lambda target, fid: events.append(("plan", target, fid)) or plan,
+        recover_rolled_back=lambda target, fid: events.append(("recover", target, fid)) or True,
     )
     modal = SimpleNamespace(active_version=lambda checkout, sha: events.append(("modal_read", checkout, sha)) or "modal-v7")
     cloudflare = SimpleNamespace(active_version=lambda checkout, sha: events.append(("cloudflare_read", checkout, sha)) or "cf-v8")
 
-    assert mod.recover_rolled_back_finalization(mainline, store, modal, cloudflare, OLD_TARGET) == {
+    assert mod.recover_rolled_back_finalization(
+        mainline, store, modal, cloudflare, OLD_TARGET, FINALIZATION_ID,
+    ) == {
         "status": "ready_for_deploy", "target_sha": LATEST_GREEN,
     }
     assert events == [
-        ("ancestor", OLD_TARGET, LATEST_GREEN), ("plan", OLD_TARGET), ("checkout", LATEST_GREEN),
-        ("modal_read", ROOT, LATEST_GREEN), ("cloudflare_read", ROOT, LATEST_GREEN), ("recover", OLD_TARGET),
+        ("ancestor", OLD_TARGET, LATEST_GREEN), ("plan", OLD_TARGET, FINALIZATION_ID), ("checkout", LATEST_GREEN),
+        ("modal_read", ROOT, LATEST_GREEN), ("cloudflare_read", ROOT, LATEST_GREEN), ("recover", OLD_TARGET, FINALIZATION_ID),
     ]
 
 
@@ -323,13 +404,15 @@ def test_receipt_aware_recovery_mismatch_never_posts(failure, code):
         checkout_detached=lambda sha: ROOT,
     )
     store = SimpleNamespace(
-        recovery_plan=lambda target: plan,
-        recover_rolled_back=lambda target: posts.append(target) or True,
+        recovery_plan=lambda target, fid: plan,
+        recover_rolled_back=lambda target, fid: posts.append((target, fid)) or True,
     )
     modal = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "modal" else "modal-v7")
     cloudflare = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "cloudflare" else "cf-v8")
     with pytest.raises(mod.ControllerError) as caught:
-        mod.recover_rolled_back_finalization(mainline, store, modal, cloudflare, OLD_TARGET)
+        mod.recover_rolled_back_finalization(
+            mainline, store, modal, cloudflare, OLD_TARGET, FINALIZATION_ID,
+        )
     assert caught.value.code == code
     assert posts == []
 
@@ -1013,12 +1096,19 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
     monkeypatch.setattr(mod, "ProductionModalAdapter", lambda env: object())
     monkeypatch.setattr(mod, "ProductionCloudflareAdapter", Cloudflare)
     monkeypatch.setattr(mod, "ProductionPublicAdapter", Public)
+    monkeypatch.setattr(
+        mod, "recover_failed_before_run",
+        lambda *args: order.append(("recovery", SHA)) or None,
+    )
     monkeypatch.setattr(mod, "run_finalizer", lambda *args, **kwargs: order.append(("finalizer", SHA)) or {"status": "idle", "target_sha": SHA})
     result = mod.run_once(SimpleNamespace(trigger_sha=SHA, run_id="1", run_attempt="1"), {
         "GITHUB_WORKSPACE": str(tmp_path), "GITHUB_TOKEN": "token",
         "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
     })
-    assert order == [("finalizer", SHA), ("checkout", SHA), ("schedule", target, SHA), ("seed", target)]
+    assert order == [
+        ("recovery", SHA), ("finalizer", SHA), ("checkout", SHA),
+        ("schedule", target, SHA), ("seed", target),
+    ]
     assert result == {"status": "seeded", "target_sha": SHA, "submission_id": "sub_" + "2" * 32}
 
 

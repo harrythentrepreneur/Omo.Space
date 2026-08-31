@@ -282,6 +282,9 @@ const FINALIZATION_FAILURE_CODES = new Set([
   'internal_finalizer_failed',
   'release_head_not_ancestor',
 ]);
+const AUTO_RECOVERY_NO_EFFECT_CODES = new Set([
+  'modal_preflight_failed', 'worker_preflight_failed', 'public_preflight_failed',
+]);
 const EXPECTED_MODAL_WORKSPACE = 'omo-space';
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
 const STRIPE_CHECKOUT_API_VERSION = '2025-09-30.clover';
@@ -447,6 +450,8 @@ function dynamicRoute(pathname) {
   if (internalFinalizationRecoveryPlan) return { handler: handleInternalFinalizationRecoveryPlan, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationRecoverRolledBack = /^\/api\/internal\/finalizations\/recover-rolled-back$/.exec(pathname);
   if (internalFinalizationRecoverRolledBack) return { handler: handleInternalFinalizationRecoverRolledBack, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationRecoveryCandidate = /^\/api\/internal\/finalizations\/recovery-candidate$/.exec(pathname);
+  if (internalFinalizationRecoveryCandidate) return { handler: handleInternalFinalizationRecoveryCandidate, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationResumeProbe = /^\/api\/internal\/finalizations\/resume-probe$/.exec(pathname);
   if (internalFinalizationResumeProbe) return { handler: handleInternalFinalizationResumeProbe, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationRegistrySlugs = /^\/api\/internal\/finalizations\/registry-slugs$/.exec(pathname);
@@ -3037,12 +3042,14 @@ async function handleInternalFinalizationFailed(request, env) {
 async function handleInternalFinalizationResumeFailed(request, env) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
-  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+  if (Object.keys(parsed.body).sort().join(',') !== 'finalization_id,target_sha') {
     return internalJson({ error: 'invalid_failed_finalization_resume' }, 400);
   }
   const targetSha = safeGitSha(parsed.body.target_sha);
-  if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
-  const requeued = await internalResumeFailedFinalization(env, targetSha);
+  const finalizationId = /^fin_[0-9a-f]{32}$/.test(String(parsed.body.finalization_id || ''))
+    ? String(parsed.body.finalization_id) : null;
+  if (!targetSha || !finalizationId) return internalJson({ error: 'invalid_recovery_generation' }, 400);
+  const requeued = await internalResumeFailedFinalization(env, targetSha, finalizationId);
   return requeued
     ? internalJson({ ok: true, status: 'ready_for_deploy' }, 200)
     : internalJson({ error: 'invalid_transition' }, 409);
@@ -3051,19 +3058,23 @@ async function handleInternalFinalizationResumeFailed(request, env) {
 async function readRecoveryTarget(request, error) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return { response: internalJson({ error: parsed.error }, parsed.status) };
-  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+  if (Object.keys(parsed.body).sort().join(',') !== 'finalization_id,target_sha') {
     return { response: internalJson({ error }, 400) };
   }
   const targetSha = safeGitSha(parsed.body.target_sha);
-  return targetSha
-    ? { targetSha }
-    : { response: internalJson({ error: 'invalid_target_sha' }, 400) };
+  const finalizationId = /^fin_[0-9a-f]{32}$/.test(String(parsed.body.finalization_id || ''))
+    ? String(parsed.body.finalization_id) : null;
+  return targetSha && finalizationId
+    ? { targetSha, finalizationId }
+    : { response: internalJson({ error: 'invalid_recovery_generation' }, 400) };
 }
 
 async function handleInternalFinalizationRecoveryPlan(request, env) {
   const parsed = await readRecoveryTarget(request, 'invalid_recovery_plan');
   if (parsed.response) return parsed.response;
-  const candidate = recoveryCandidate(await internalInspectFailedFinalization(env, parsed.targetSha));
+  const candidate = recoveryCandidate(await internalInspectFailedFinalization(
+    env, parsed.targetSha, parsed.finalizationId
+  ));
   return candidate
     ? internalJson({ ok: true, recovery: recoveryPlan(candidate) }, 200)
     : new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
@@ -3072,10 +3083,21 @@ async function handleInternalFinalizationRecoveryPlan(request, env) {
 async function handleInternalFinalizationRecoverRolledBack(request, env) {
   const parsed = await readRecoveryTarget(request, 'invalid_rollback_recovery');
   if (parsed.response) return parsed.response;
-  const recovered = await internalRecoverRolledBackFinalization(env, parsed.targetSha);
+  const recovered = await internalRecoverRolledBackFinalization(
+    env, parsed.targetSha, parsed.finalizationId
+  );
   return recovered
     ? internalJson({ ok: true, status: 'ready_for_deploy' }, 200)
     : internalJson({ error: 'invalid_transition' }, 409);
+}
+
+async function handleInternalFinalizationRecoveryCandidate(request, env) {
+  const parsed = await readStrictEmptyInternalJson(request, MAX_INTERNAL_MIGRATION_BODY_BYTES);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const recovery = await internalAutomaticRecoveryCandidate(env);
+  return recovery
+    ? internalJson({ ok: true, recovery }, 200)
+    : new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
 }
 
 async function handleInternalFinalizationResumeProbe(request, env) {
@@ -4487,13 +4509,81 @@ function recoveryCandidate(row) {
   return { row, failed, modalReceipt, workerReceipt, history };
 }
 
+function automaticRecoveryCandidateRow(row) {
+  const failed = failedFinalizationRow(row);
+  if (!failed) return null;
+  if (failed.attempts === 1 && !failed.modal_receipt_present && !failed.worker_receipt_present &&
+      AUTO_RECOVERY_NO_EFFECT_CODES.has(failed.failure_code)) {
+    return {
+      target_sha: failed.target_sha, finalization_id: failed.id, mode: 'resume_no_effect',
+    };
+  }
+  const receiptCandidate = recoveryCandidate(row);
+  return receiptCandidate && receiptCandidate.history.length === 0
+    ? { target_sha: failed.target_sha, finalization_id: failed.id, mode: 'verify_then_retry' }
+    : null;
+}
+
+async function internalAutomaticRecoveryCandidate(env) {
+  const columns = `id,slug,selected_runtime,status,release_phase,source_sha256,release_head_sha,release_merge_sha,
+    release_artifact_hash,finalization_id,finalization_status,finalization_target_sha,
+    finalization_source_sha256,finalization_head_sha,finalization_merge_sha,
+    finalization_artifact_hash,finalization_attempts,finalization_failure_code,
+    finalization_modal_receipt,finalization_worker_receipt,finalization_recovery_receipt,
+    (finalization_modal_receipt IS NOT NULL) AS modal_receipt_present,
+    (finalization_worker_receipt IS NOT NULL) AS worker_receipt_present`;
+  const effectCodes = ['worker_smoke_failed', 'internal_finalizer_failed', 'public_verification_failed'];
+  let rows;
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-recovery-candidate-v1',
+      `SELECT ${columns} FROM submissions
+       WHERE finalization_status = 'failed'
+         AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash
+         AND ((finalization_attempts = 1 AND finalization_failure_code = ANY($1::text[])
+               AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL)
+           OR (selected_runtime = 'modal-hosted' AND finalization_failure_code = ANY($2::text[])
+               AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NOT NULL))
+       ORDER BY automation_updated_at ASC, id ASC LIMIT 32`,
+      [Array.from(AUTO_RECOVERY_NO_EFFECT_CODES), effectCodes]
+    ));
+    rows = result.rows || [];
+  } else if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `SELECT ${columns} FROM submissions
+       WHERE finalization_status = 'failed'
+         AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
+         AND source_sha256 = finalization_source_sha256
+         AND release_head_sha = finalization_head_sha
+         AND release_merge_sha = finalization_merge_sha
+         AND release_artifact_hash = finalization_artifact_hash
+         AND ((finalization_attempts = 1 AND finalization_failure_code IN (?, ?, ?)
+               AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL)
+           OR (selected_runtime = 'modal-hosted' AND finalization_failure_code IN (?, ?, ?)
+               AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NOT NULL))
+       ORDER BY automation_updated_at ASC, id ASC LIMIT 32`
+    ).bind(...AUTO_RECOVERY_NO_EFFECT_CODES, ...effectCodes).all();
+    rows = result.results || [];
+  } else {
+    rows = Array.from(mockSubmissions.values()).sort((left, right) =>
+      String(left.automation_updated_at || '').localeCompare(String(right.automation_updated_at || '')) ||
+      String(left.id || '').localeCompare(String(right.id || ''))
+    );
+  }
+  return rows.map(automaticRecoveryCandidateRow).find(Boolean) || null;
+}
+
 function expectedRecoveryVersion(receipt, provider) {
   return provider === 'modal' || receipt.reused ? receipt.version_id : receipt.previous_version_id;
 }
 
 function recoveryPlan(candidate) {
   return {
-    target_sha: candidate.failed.target_sha,
+    target_sha: candidate.failed.target_sha, finalization_id: candidate.failed.id,
     modal: { receipt: candidate.modalReceipt, expected_active_version_id: expectedRecoveryVersion(candidate.modalReceipt, 'modal') },
     cloudflare: { receipt: candidate.workerReceipt, expected_active_version_id: expectedRecoveryVersion(candidate.workerReceipt, 'cloudflare') },
   };
@@ -4514,7 +4604,7 @@ function recoverySnapshot(candidate, recoveredAt) {
   });
 }
 
-async function internalInspectFailedFinalization(env, targetSha) {
+async function internalInspectFailedFinalization(env, targetSha, finalizationId = null) {
   const columns = `id,slug,selected_runtime,status,release_phase,source_sha256,release_head_sha,release_merge_sha,
     release_artifact_hash,finalization_id,finalization_status,finalization_target_sha,
     finalization_source_sha256,finalization_head_sha,finalization_merge_sha,
@@ -4522,38 +4612,43 @@ async function internalInspectFailedFinalization(env, targetSha) {
     finalization_modal_receipt,finalization_worker_receipt,finalization_recovery_receipt,
     (finalization_modal_receipt IS NOT NULL) AS modal_receipt_present,
     (finalization_worker_receipt IS NOT NULL) AS worker_receipt_present`;
-  const filters = `finalization_status = 'failed' AND finalization_target_sha = $1
+  const generationFilter = finalizationId ? ' AND finalization_id = $2' : '';
+  const filters = `finalization_status = 'failed' AND finalization_target_sha = $1${generationFilter}
     AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
     AND source_sha256 = finalization_source_sha256
     AND release_head_sha = finalization_head_sha
     AND release_merge_sha = finalization_merge_sha
     AND release_artifact_hash = finalization_artifact_hash`;
+  const values = finalizationId ? [targetSha, finalizationId] : [targetSha];
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
-      'omo-internal-finalization-failed-v1',
+      finalizationId
+        ? 'omo-internal-finalization-failed-by-generation-v1'
+        : 'omo-internal-finalization-failed-by-target-v1',
       `SELECT ${columns} FROM submissions WHERE ${filters}
        ORDER BY automation_updated_at DESC, id ASC LIMIT 1`,
-      [targetSha]
+      values
     ));
     return result.rows[0] || null;
   }
   if (databaseKind(env) === 'd1') {
     return await env.BALANCE_DB.prepare(
       `SELECT ${columns.replaceAll('$1', '?')} FROM submissions
-       WHERE ${filters.replaceAll('$1', '?')}
+       WHERE ${filters.replaceAll('$1', '?').replaceAll('$2', '?')}
        ORDER BY automation_updated_at DESC, id ASC LIMIT 1`
-    ).bind(targetSha).first();
+    ).bind(...values).first();
   }
   return Array.from(mockSubmissions.values())
     .filter((record) => record.finalization_status === 'failed' &&
-      record.finalization_target_sha === targetSha && ['ready_for_deploy', 'failed'].includes(record.status) &&
-      record.release_phase === 'merged_verified')
+      record.finalization_target_sha === targetSha && (!finalizationId || record.finalization_id === finalizationId) &&
+      ['ready_for_deploy', 'failed'].includes(record.status) && record.release_phase === 'merged_verified')
     .sort((a, b) => String(b.automation_updated_at || '').localeCompare(String(a.automation_updated_at || '')) ||
       String(a.id || '').localeCompare(String(b.id || '')))[0] || null;
 }
 
-async function internalRecoverRolledBackFinalization(env, targetSha) {
-  const candidate = recoveryCandidate(await internalInspectFailedFinalization(env, targetSha));
+async function internalRecoverRolledBackFinalization(env, targetSha, finalizationId) {
+  if (!/^fin_[0-9a-f]{32}$/.test(String(finalizationId || ''))) return false;
+  const candidate = recoveryCandidate(await internalInspectFailedFinalization(env, targetSha, finalizationId));
   if (!candidate) return false;
   const { failed, row } = candidate;
   const recoveredAt = new Date().toISOString();
@@ -4581,7 +4676,7 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
 +         AND release_artifact_hash = $8 AND finalization_artifact_hash = $8
 +         AND finalization_modal_receipt = $9 AND finalization_worker_receipt = $10
 +       RETURNING id`.replace(/^\+/gm, ''),
-      [snapshot, failed.submission_id, failed.id, targetSha, failed.source_sha256, failed.head_sha,
+      [snapshot, failed.submission_id, finalizationId, targetSha, failed.source_sha256, failed.head_sha,
         failed.merge_sha, failed.artifact_hash, row.finalization_modal_receipt, row.finalization_worker_receipt,
         row.finalization_recovery_receipt]
     ));
@@ -4604,7 +4699,7 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
 +         AND release_merge_sha = ? AND finalization_merge_sha = ?
 +         AND release_artifact_hash = ? AND finalization_artifact_hash = ?
 +         AND finalization_modal_receipt = ? AND finalization_worker_receipt = ?`.replace(/^\+/gm, '')
-    ).bind(snapshot, recoveredAt, failed.submission_id, failed.id, targetSha,
+    ).bind(snapshot, recoveredAt, failed.submission_id, finalizationId, targetSha,
       row.finalization_recovery_receipt,
       failed.source_sha256, failed.source_sha256, failed.head_sha, failed.head_sha,
       failed.merge_sha, failed.merge_sha, failed.artifact_hash, failed.artifact_hash,
@@ -4622,7 +4717,8 @@ async function internalRecoverRolledBackFinalization(env, targetSha) {
   return true;
 }
 
-async function internalResumeFailedFinalization(env, targetSha) {
+async function internalResumeFailedFinalization(env, targetSha, finalizationId) {
+  if (!/^fin_[0-9a-f]{32}$/.test(String(finalizationId || ''))) return false;
   const now = new Date().toISOString();
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
@@ -4630,8 +4726,9 @@ async function internalResumeFailedFinalization(env, targetSha) {
       `WITH candidate AS (
          SELECT id, finalization_id
          FROM submissions
-         WHERE finalization_target_sha = $1 AND finalization_status = 'failed'
-           AND finalization_failure_code = ANY($2::text[])
+         WHERE finalization_target_sha = $1 AND finalization_id = $2
+           AND finalization_status = 'failed'
+           AND finalization_failure_code = ANY($3::text[])
            AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
            AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL
            AND source_sha256 = finalization_source_sha256
@@ -4656,11 +4753,11 @@ async function internalResumeFailedFinalization(env, targetSha) {
          AND submission.finalization_target_sha = $1
          AND submission.finalization_status = 'failed'
        RETURNING submission.id`,
-      [targetSha, Array.from(FINALIZATION_FAILURE_CODES)]
+      [targetSha, finalizationId, Array.from(FINALIZATION_FAILURE_CODES)]
     ));
     return result.rowCount === 1;
   }
-  const row = await internalInspectFailedFinalization(env, targetSha);
+  const row = await internalInspectFailedFinalization(env, targetSha, finalizationId);
   const failed = failedFinalizationRow(row);
   if (!failed || failed.modal_receipt_present || failed.worker_receipt_present) return false;
   if (databaseKind(env) === 'd1') {

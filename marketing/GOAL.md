@@ -215,10 +215,16 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-Finish v0.2 zero-touch closure. The first local slice replaces the hard-coded
-public canary with exact claim/generation-bound Worker-native verification,
-authoritative billing and strict replay evidence. Current gates pass 468 host
-and 269 Worker tests after independent review findings were reproduced and
-fixed. Next: fresh exact-diff review, focused PR/CI/merge, then implement
-receipt-safe automatic recovery, equal-tree squash reconciliation, durable typed
-diagnostics, exact selector deployment and two new no-human production canaries.
+Finish v0.2 zero-touch closure. Claim-specific production canaries merged through
+PR #263 with exact reviewed-head/merge-tree equality. The next local slice now
+adds a five-minute source-owned scheduled trigger that resolves a real successful
+`contracts` run for exact current `main`, plus a finalizer-only bounded recovery
+candidate across mock/D1/Neon. Every discovery, plan, provider readback and CAS
+mutation is bound to both exact `target_sha` and exact `finalization_id`, including
+the explicit manual-resume path and direct helper boundaries. Receipt-free
+preflight failures receive one CAS resume; receipt-bearing failures receive one
+provider-readback recovery; further failures remain terminal. Current protected
+gates pass 530 Python and 275 Worker tests plus all supporting Worker/API
+contracts. Next: fresh exact-diff review and focused PR/CI/merge, then equal-tree
+squash reconciliation, durable typed diagnostics, exact selector deployment and
+two new no-human production canaries.

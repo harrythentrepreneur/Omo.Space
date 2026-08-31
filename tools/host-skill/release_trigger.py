@@ -78,6 +78,35 @@ def evaluate_event(event: Any) -> TriggerDecision:
     )
 
 
+def evaluate_scheduled_runs(runs_payload: Any, ref_payload: Any) -> TriggerDecision:
+    """Select a real successful contracts run for the exact current main commit."""
+    ref = _mapping(ref_payload)
+    ref_object = _mapping(ref.get("object"))
+    target_sha = str(ref_object.get("sha") or "").strip().lower()
+    if (
+        ref.get("ref") != f"refs/heads/{EXPECTED_BRANCH}"
+        or ref_object.get("type") != "commit"
+        or not GIT_SHA_RE.fullmatch(target_sha)
+    ):
+        return _decision("invalid_main_ref")
+    root = _mapping(runs_payload)
+    runs = root.get("workflow_runs")
+    if not isinstance(runs, list) or len(runs) > 100:
+        return _decision("invalid_runs_payload")
+    eligible: list[TriggerDecision] = []
+    for candidate in runs:
+        decision = evaluate_event({
+            "action": "completed",
+            "repository": {"full_name": EXPECTED_REPOSITORY, "default_branch": EXPECTED_BRANCH},
+            "workflow_run": candidate,
+        })
+        if decision.eligible and decision.target_sha == target_sha:
+            eligible.append(decision)
+    if not eligible:
+        return _decision("no_green_main_run")
+    return max(eligible, key=lambda item: (item.run_id or 0, item.run_attempt or 0))
+
+
 def decision_json(decision: TriggerDecision) -> str:
     return json.dumps(asdict(decision), separators=(",", ":"), sort_keys=True)
 
@@ -104,14 +133,24 @@ def _load_event(path: Path) -> Any:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--event", required=True, type=Path)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--event", type=Path)
+    source.add_argument("--runs", type=Path)
+    parser.add_argument("--ref", type=Path)
     parser.add_argument("--format", choices=("json", "github-output"), default="json")
     args = parser.parse_args(argv)
     try:
-        event = _load_event(args.event)
-        if not isinstance(event, dict) or not isinstance(event.get("workflow_run"), dict):
-            raise ValueError("invalid_event")
-        decision = evaluate_event(event)
+        if args.event is not None:
+            if args.ref is not None:
+                raise ValueError("invalid_event")
+            event = _load_event(args.event)
+            if not isinstance(event, dict) or not isinstance(event.get("workflow_run"), dict):
+                raise ValueError("invalid_event")
+            decision = evaluate_event(event)
+        else:
+            if args.ref is None:
+                raise ValueError("invalid_event")
+            decision = evaluate_scheduled_runs(_load_event(args.runs), _load_event(args.ref))
         output = decision_json(decision) if args.format == "json" else github_output(decision)
         print(output)
         return 0

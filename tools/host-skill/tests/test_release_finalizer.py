@@ -177,9 +177,13 @@ class Store:
         self.events.append(("inspect_failed", target_sha))
         return self.failed_inspection
 
-    def resume_failed(self, target_sha):
-        self.events.append(("resume_failed", target_sha))
-        if self.failed_inspection and self.failed_inspection.target_sha == target_sha:
+    def resume_failed(self, target_sha, finalization_id):
+        self.events.append(("resume_failed", target_sha, finalization_id))
+        if (
+            self.failed_inspection
+            and self.failed_inspection.target_sha == target_sha
+            and self.failed_inspection.id == finalization_id
+        ):
             self.failed_inspection = None
             self.state = "requeued"
             self.submission_status = "ready_for_deploy"
@@ -1096,6 +1100,7 @@ def test_failed_generation_is_diagnosed_before_completed_resume_and_surfaces_typ
 def test_controlled_failed_resume_uses_fresh_generation_then_runs_normally():
     mod, mainline, store, modal, cloudflare, vercel = components()
     store.state = "failed"
+    failed_id = store.claim_value.id
     store.failed_inspection = mod.FailedFinalization(
         id=store.claim_value.id, submission_id=store.claim_value.submission_id,
         status="failed", failure_code="release_head_not_ancestor",
@@ -1109,4 +1114,4 @@ def test_controlled_failed_resume_uses_fresh_generation_then_runs_normally():
 
     assert result["status"] == "deployed"
     assert ("inspect_failed", TARGET) in store.events
-    assert ("resume_failed", TARGET) in store.events
+    assert ("resume_failed", TARGET, failed_id) in store.events
