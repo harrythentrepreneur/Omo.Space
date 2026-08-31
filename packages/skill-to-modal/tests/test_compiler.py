@@ -883,6 +883,59 @@ def test_authored_single_llm_modal_runtime_keeps_workflow_instructions_out_of_sy
     }
 
 
+def test_authored_gemini_runtime_uses_reviewed_defaults_and_exact_output_contract(
+    monkeypatch, tmp_path: Path
+) -> None:
+    authored = _single_llm_authoring_spec()
+    authored["schema_version"] = "omo.profile-authoring-spec/v2"
+    skill = "---\nname: Fresh Word Writer\ndescription: Bounded test workflow.\n---\n# Fresh Word Writer\n"
+    profile = compiler.assemble_profile_authoring_spec(
+        authored,
+        {
+            "slug": "fresh-word-writer",
+            "name": "Fresh Word Writer",
+            "source_sha256": compiler.sha256_text(skill),
+        },
+    )
+    files = compiler.build_files(skill, profile)
+    output = tmp_path / "exact-authored-gemini-runtime"
+    assert compiler.write_or_check(files, output, check=False) == 0
+    runtime_spec = importlib.util.spec_from_file_location(
+        "generated_exact_authored_gemini_runtime", output / "modal_app.py"
+    )
+    assert runtime_spec is not None and runtime_spec.loader is not None
+    runtime = importlib.util.module_from_spec(runtime_spec)
+    runtime_spec.loader.exec_module(runtime)
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-only")
+    monkeypatch.delenv("GEMINI_BASE_URL", raising=False)
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    provider_calls: list[tuple[str, str]] = []
+
+    def fake_provider(base_url: str, model: str, _messages: list[dict[str, str]]):
+        provider_calls.append((base_url, model))
+        return (
+            json.dumps(authored["happy_path"]["output"]),
+            {"model": model, "usage": {"prompt_tokens": 10, "completion_tokens": 10}},
+        )
+
+    monkeypatch.setattr(runtime, "_provider_request", fake_provider)
+
+    assert runtime.readiness() == {
+        "status": "ready",
+        "can_submit": True,
+        "blockers": [],
+        "required_env_names": ["GEMINI_API_KEY"],
+    }
+    assert runtime.execute_workflow(authored["happy_path"]["input"]) == authored["happy_path"]["output"]
+    assert provider_calls == [
+        (
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+            "gemini-2.5-flash",
+        )
+    ]
+
+
 def _has_pinned_media_runtime() -> bool:
     """Run the real media smoke only against the reviewed binary release."""
 
