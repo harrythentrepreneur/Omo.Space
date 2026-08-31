@@ -1,0 +1,38 @@
+{
+  "happy_path": {
+    "input": {
+      "blocked": true,
+      "message": "My account is locked and I cannot continue my work."
+    },
+    "output": {
+      "reason": "Account is locked and work is blocked, indicating high urgency.",
+      "urgency": "high"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "empty_message",
+      "input": {
+        "blocked": false,
+        "message": ""
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "short_message",
+      "input": {
+        "blocked": false,
+        "message": "Too short"
+      },
+      "reason": "INVALID_INPUT"
+    },
+    {
+      "id": "long_message",
+      "input": {
+        "blocked": false,
+        "message": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ]
+}
