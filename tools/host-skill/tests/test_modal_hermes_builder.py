@@ -194,6 +194,41 @@ class DelayedResponse(FakeResponse):
         return super().read(size)
 
 
+class ManualTimer:
+    def __init__(self, interval: float, function) -> None:
+        self.interval = interval
+        self.function = function
+        self.daemon = False
+        self.started = False
+        self.cancelled = False
+        self.callback_ran = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+    def fire(self) -> None:
+        if not self.cancelled:
+            self.callback_ran = True
+            self.function()
+
+
+class TimerFiringResponse(FakeResponse):
+    def __init__(self, payload: bytes, timers: list[ManualTimer]) -> None:
+        super().__init__(payload)
+        self._timers = timers
+        self._fired = False
+
+    def read(self, size: int = -1) -> bytes:
+        if not self._fired:
+            self._fired = True
+            assert len(self._timers) == 1
+            self._timers[0].fire()
+        return super().read(size)
+
+
 class RecordingOpener:
     def __init__(self, response: FakeResponse | Exception) -> None:
         self.response = response
@@ -385,12 +420,23 @@ def test_proxy_total_deadline_stops_periodic_upstream(monkeypatch) -> None:
 
 def test_proxy_inbound_deadline_is_cancelled_before_slow_valid_inference(monkeypatch) -> None:
     builder = load_builder()
-    monkeypatch.setattr(builder, "GEMINI_PROXY_INBOUND_TOTAL_TIMEOUT_SECONDS", 0.05)
-    opener = RecordingOpener(DelayedResponse(b'{"ok":true}', 0.12))
+    timers = []
+
+    def timer_factory(interval: float, function):
+        timer = ManualTimer(interval, function)
+        timers.append(timer)
+        return timer
+
+    monkeypatch.setattr(builder.threading, "Timer", timer_factory)
+    opener = RecordingOpener(TimerFiringResponse(b'{"ok":true}', timers))
     with builder.GeminiInferenceProxy("permanent-key", "local-token", opener=opener) as proxy:
         status, _headers, body = proxy_request(proxy, token="local-token")
     assert status == 200
     assert body == b'{"ok":true}'
+    assert len(timers) == 1
+    assert timers[0].started
+    assert timers[0].cancelled
+    assert not timers[0].callback_ran
 
 
 def test_proxy_exit_closes_blocked_upstream_and_waits_for_handler() -> None:
