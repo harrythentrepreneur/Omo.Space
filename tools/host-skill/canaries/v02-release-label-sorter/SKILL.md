@@ -24,7 +24,7 @@ For every label:
 3. Reject control characters.
 4. Sort the cleaned list using ASCII case-insensitive order with raw ASCII bytes as the tie-break.
 
-Preserve cleaned spelling and duplicates.
+The result must not depend on locale, language settings, wall-clock time, randomness, or external state. Preserve cleaned spelling and duplicates.
 
 ## Output
 
