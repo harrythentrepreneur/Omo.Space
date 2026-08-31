@@ -503,7 +503,11 @@ def assemble_profile_authoring_spec(
             "capabilities": [capability, "schema-validated-json-output"],
             "required_env_names": required_env_names,
             "resources": {"cpu": 1.0, "memory_mb": 512, "timeout_seconds": 180, "max_containers": 4},
-            "cost_drivers": [f"up to two bounded schema-validated {'Gemini 2.5 Flash' if gemini_runtime else 'DeepSeek V4 Flash'} calls"],
+            "cost_drivers": [
+                "exactly one bounded schema-validated Gemini 2.5 Flash call"
+                if gemini_runtime
+                else "up to two bounded schema-validated DeepSeek V4 Flash calls"
+            ],
             "prompts": {
                 "system.txt": AUTHORING_SINGLE_LLM_SYSTEM_PROMPT,
                 "workflow.txt": prompt,
@@ -521,7 +525,7 @@ def assemble_profile_authoring_spec(
                     "tier": "standard", "workflow": {"steps": [{
                         "type": "llm", "role": "generate", "model": model,
                         "estimated_input_tokens": pricing_input_tokens, "max_output_tokens": 1200,
-                        "qty": 2,
+                        "qty": 1 if gemini_runtime else 2,
                     }]},
                 }],
             },
@@ -2925,6 +2929,10 @@ def modal_app_template(profile: dict[str, Any]) -> str:
             profile.get("authoring_spec_version")
         )
     )
+    lock_reviewed_provider = (
+        profile.get("execution_kind") == "single_llm"
+        and profile.get("authoring_spec_version") == PROFILE_AUTHORING_SPEC_VERSION
+    )
     if profile.get("execution_kind") == "pure_data":
         return pure_data_template(profile, "modal_app.py.tmpl")
     if skill_owned_resource_template(profile) is not None:
@@ -4466,6 +4474,7 @@ LIVE_INPUT_RATE_PER_MILLION = {float(live_rates['input'])!r}
 LIVE_OUTPUT_RATE_PER_MILLION = {float(live_rates['output'])!r}
 LIVE_MODEL_OUTPUT_SCHEMA = {runtime_model_output_schema(profile)!r}
 LIVE_STRICT_AUTHORED_OUTPUT = {strict_authored_output!r}
+LIVE_LOCK_REVIEWED_PROVIDER = {lock_reviewed_provider!r}
 SEMANTIC_NORMALIZERS = {profile.get('semantic_normalizers', {})!r}
 SEMANTIC_EVIDENCE_SPEC = {semantic_evidence_spec(profile)!r}
 '''
@@ -5934,10 +5943,18 @@ def _structured_completion(
     missing = [name for name in readiness()["required_env_names"] if not os.environ.get(name)]
     if missing:
         raise WorkflowNotReady("MISSING_REQUIRED_ENV:" + ",".join(sorted(missing)))
-    base_url = os.environ.get(LIVE_BASE_URL_ENV, LIVE_DEFAULT_BASE_URL).rstrip("/")
+    base_url = (
+        LIVE_DEFAULT_BASE_URL
+        if LIVE_LOCK_REVIEWED_PROVIDER
+        else os.environ.get(LIVE_BASE_URL_ENV, LIVE_DEFAULT_BASE_URL)
+    ).rstrip("/")
     if not base_url.startswith("https://"):
         raise WorkflowNotReady("LLM_BASE_URL_MUST_BE_HTTPS")
-    model = os.environ.get(LIVE_MODEL_ENV, LIVE_DEFAULT_MODEL)
+    model = (
+        LIVE_DEFAULT_MODEL
+        if LIVE_LOCK_REVIEWED_PROVIDER
+        else os.environ.get(LIVE_MODEL_ENV, LIVE_DEFAULT_MODEL)
+    )
     schema_contract = json.dumps(
         schema, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
@@ -5968,6 +5985,8 @@ def _structured_completion(
     )
     responses = [first_response]
     if validation_diff:
+        if LIVE_LOCK_REVIEWED_PROVIDER:
+            raise ProviderCallError("LLM_INVALID_OUTPUT:" + validation_diff)
         corrective = (
             "CORRECTIVE RETRY (final attempt): the previous JSON failed validation. "
             "Fix exactly these schema or semantic violations: " + validation_diff + ". "
@@ -6027,7 +6046,11 @@ def _provider_completion(
         workflow_instructions=workflow_instructions,
     )
     responses = [*(prior_responses or []), *workflow_responses]
-    model = os.environ.get(LIVE_MODEL_ENV, LIVE_DEFAULT_MODEL)
+    model = (
+        LIVE_DEFAULT_MODEL
+        if LIVE_LOCK_REVIEWED_PROVIDER
+        else os.environ.get(LIVE_MODEL_ENV, LIVE_DEFAULT_MODEL)
+    )
 
     prompt_tokens = sum(max(0, int((response.get("usage") or {}).get("prompt_tokens") or 0)) for response in responses)
     completion_tokens = sum(max(0, int((response.get("usage") or {}).get("completion_tokens") or 0)) for response in responses)
