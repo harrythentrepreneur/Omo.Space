@@ -11,7 +11,7 @@ Build a `pure_data` workflow for a bounded list of release labels.
 
 Accept a JSON object with exactly one required field:
 
-- `labels`: an array containing 1 to 12 strings, each from 1 to 60 Unicode code points.
+- `labels`: an array containing 1 to 12 strings, each containing 1 to 60 printable ASCII characters before trimming.
 
 No additional fields are allowed.
 

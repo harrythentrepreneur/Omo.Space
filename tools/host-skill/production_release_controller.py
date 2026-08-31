@@ -76,13 +76,13 @@ CANARY_SOURCES = (
         "name": "V02 Release Label Sorter",
         "slug": "v02-release-label-sorter",
         "path": "tools/host-skill/canaries/v02-release-label-sorter/SKILL.md",
-        "sha256": "303ad02d227521f1ea97914a5686a5b640e367610f6d8b20afbc183230c783b1",
+        "sha256": "3ce5bea79a54ccd2fa5e7522242260e60c792b3baefcada6ad5675cf7f55abf4",
     },
     {
         "name": "V02 Support Urgency Classifier",
         "slug": "v02-support-urgency-classifier",
         "path": "tools/host-skill/canaries/v02-support-urgency-classifier/SKILL.md",
-        "sha256": "d9b918f1feb8f92723e9ceedbdf8616f22cd35d5f380f7cfc6f090bd444a3008",
+        "sha256": "85126e7069bd7d0117a8e2db807e604b4c912281da19e9929ed603dd3941f763",
     },
 )
 CANARY_SOURCE_SLUGS = frozenset(item["slug"] for item in CANARY_SOURCES)
