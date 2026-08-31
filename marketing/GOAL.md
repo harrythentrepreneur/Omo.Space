@@ -14,13 +14,15 @@ merged, green release PR through exact-main verification, runtime deployment,
 shared Worker deployment, public canaries and guarded `deployed` state without
 SSH, tmux, hand-run Modal/Wrangler commands or direct database edits.
 
-Completion requires one deterministic creator fixture to traverse the real
-upload → builder → PR → merge → trusted finalizer → public run path with
-immutable evidence, crash recovery, no duplicate deployment and no secret
-leakage. Work through the credential-free controller and trigger phases
-autonomously. Stop only before production credential provisioning, schema
-application, live deployment, spend or another irreversible action that needs
-Harry's explicit approval.
+Completion requires two previously unseen supported uploads, one `pure_data`
+and one bounded Gemini `single_llm`, to traverse upload → builder → exact-head
+independent review → protected squash merge → trusted finalizer → deployment →
+publication → authenticated paid production run with no human action after
+upload. Preserve immutable evidence, crash recovery, exact billing, no duplicate
+effects and no secret leakage. Harry has explicitly authorized the reviewed
+v0.2 release/deployment path and reasonable bounded development canary spend;
+do not purchase credits, weaken security, bypass identity/hash checks or edit
+production databases directly.
 
 ### Builder hosting acceptance definition
 
@@ -213,12 +215,10 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-PR #211 is blocked and must not merge. Review found that the pure-data Modal
-candidate authenticated owner/run identity without binding the independently
-supplied Modal `call_id`, generated README/container polling contracts disagreed
-with the implementation, and pure-data catalog metadata incorrectly said media.
-The generator-level correction is locally green with failing-first regressions,
-406 trusted-gate tests, 351 host tests and 249 Worker tests. Next: independent
-review, then request Harry's explicit approval before remote push or production
-change. After merge, align exact builder/Worker selectors, dual-deploy and smoke,
-then regenerate the release through one guarded retry; never hand-edit PR #211.
+Finish v0.2 zero-touch closure. The first local slice replaces the hard-coded
+public canary with exact claim/generation-bound Worker-native verification,
+authoritative billing and strict replay evidence. Current gates pass 468 host
+and 269 Worker tests after independent review findings were reproduced and
+fixed. Next: fresh exact-diff review, focused PR/CI/merge, then implement
+receipt-safe automatic recovery, equal-tree squash reconciliation, durable typed
+diagnostics, exact selector deployment and two new no-human production canaries.

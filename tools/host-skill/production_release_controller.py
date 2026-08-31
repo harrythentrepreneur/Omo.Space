@@ -9,8 +9,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
+import stat
 import subprocess
 import tempfile
 import time
@@ -18,6 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import asdict
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -46,6 +49,7 @@ from production_release_adapters import (
     modal_rollback_call,
 )
 from production_release_transport import ProductionCommandTransport
+from host import COMPILER as HOST_COMPILER, pure_data_public_output_schema, single_llm_public_output_schema
 from release_finalizer import (
     DeploymentTargets,
     FailedFinalization,
@@ -65,6 +69,8 @@ SAFE_ID_RE = re.compile(r"^[1-9][0-9]{0,19}$")
 REGISTRY_ROW_RE = re.compile(r'^  \[\n    "([a-z0-9]+(?:-[a-z0-9]+)*)",\n    \{$', re.MULTILINE)
 MAX_HTTP_BYTES = 1024 * 1024
 CANARY_SOURCE_MAX_BYTES = 200 * 1024
+CANARY_CONTRACT_MAX_BYTES = 256 * 1024
+MAX_PAID_CANARY_USD = Decimal("0.10")
 CANARY_SOURCE_SHA256 = "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a"
 TARGETS = DeploymentTargets(MODAL_TARGET, MODAL_ENVIRONMENT, CLOUDFLARE_TARGET, "production")
 MODAL_CANARY_ORIGIN = "https://omo-space--cognition-label-normalizer-canary-api.modal.run"
@@ -150,6 +156,171 @@ class ControllerError(RuntimeError):
         super().__init__(code)
 
 
+def _strict_json_bytes(raw: bytes) -> Any:
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("duplicate key")
+            value[key] = item
+        return value
+
+    def finite_float(value: str) -> float:
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise ValueError("non-finite number")
+        return parsed
+
+    return json.loads(
+        raw.decode("utf-8"),
+        object_pairs_hook=object_pairs,
+        parse_float=finite_float,
+        parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
+    )
+
+
+def _read_bounded_regular_file(root: Path, relative: str, maximum: int) -> bytes:
+    parts = Path(relative).parts
+    if not parts or Path(relative).is_absolute() or any(part in {"", ".", ".."} for part in parts):
+        raise OSError("unsafe relative path")
+    resolved_root = root.resolve(strict=True)
+    root_fd = os.open(resolved_root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    current_fd = root_fd
+    try:
+        for index, part in enumerate(parts):
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+            if index < len(parts) - 1:
+                flags |= os.O_DIRECTORY
+            next_fd = os.open(part, flags, dir_fd=current_fd)
+            if current_fd != root_fd:
+                os.close(current_fd)
+            current_fd = next_fd
+        info = os.fstat(current_fd)
+        if not stat.S_ISREG(info.st_mode) or not 1 <= info.st_size <= maximum:
+            raise OSError("invalid regular file")
+        chunks: list[bytes] = []
+        remaining = maximum + 1
+        while remaining:
+            chunk = os.read(current_fd, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) != info.st_size:
+            raise OSError("file changed while reading")
+        return raw
+    finally:
+        if current_fd != root_fd:
+            os.close(current_fd)
+        os.close(root_fd)
+
+
+def _canary_json(checkout: Path, relative: str) -> Any:
+    try:
+        raw = _read_bounded_regular_file(checkout, relative, CANARY_CONTRACT_MAX_BYTES)
+        return _strict_json_bytes(raw)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        raise ControllerError("public_canary_contract_invalid") from None
+
+
+def _schema_has_reference(value: Any) -> bool:
+    if isinstance(value, dict):
+        return "$ref" in value or "$dynamicRef" in value or any(
+            _schema_has_reference(child) for child in value.values()
+        )
+    if isinstance(value, list):
+        return any(_schema_has_reference(child) for child in value)
+    return False
+
+
+def _claim_canary_contract(claim: FinalizationClaim, checkout: Path) -> dict[str, Any]:
+    slug = str(claim.slug or "")
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+        raise ControllerError("public_canary_contract_invalid")
+    prefix = f"containers/{slug}"
+    profile = _canary_json(checkout, f"packages/skill-to-modal/profiles/{slug}.json")
+    hosted = _canary_json(checkout, f"{prefix}/hosted-profile.json")
+    container_manifest = _canary_json(checkout, f"{prefix}/manifest.json")
+    cases = _canary_json(checkout, f"{prefix}/tests/cases.json")
+    input_schema = _canary_json(checkout, f"{prefix}/schemas/input.json")
+    output_schema = _canary_json(checkout, f"{prefix}/schemas/output.json")
+    happy = cases.get("happy_path") if isinstance(cases, dict) else None
+    run_manifest = hosted.get("run_manifest") if isinstance(hosted, dict) else None
+    catalog = hosted.get("catalog") if isinstance(hosted, dict) else None
+    if not isinstance(profile, dict):
+        raise ControllerError("public_canary_contract_invalid")
+    compiler_owned_profile = (
+        profile.get("execution_kind") == "pure_data"
+        or HOST_COMPILER.is_supported_profile_authoring_spec_version(
+            profile.get("authoring_spec_version")
+        )
+    )
+    try:
+        if profile.get("execution_kind") == "pure_data":
+            public_output_schema = pure_data_public_output_schema(profile)
+        elif (
+            profile.get("execution_kind") == "single_llm"
+            and compiler_owned_profile
+        ):
+            public_output_schema = single_llm_public_output_schema(profile)
+        else:
+            public_output_schema = output_schema
+    except (KeyError, TypeError, ValueError):
+        raise ControllerError("public_canary_contract_invalid") from None
+    if (
+        not isinstance(profile, dict) or profile.get("slug") != slug
+        or profile.get("execution_kind") not in {"pure_data", "single_llm", "skill_builder"}
+        or not isinstance(happy, dict) or set(happy) != {"input", "output"}
+        or profile.get("happy_path") != happy
+        or (compiler_owned_profile and profile.get("input_schema") != input_schema)
+        or (compiler_owned_profile and profile.get("output_schema") != output_schema)
+        or _schema_has_reference(input_schema) or _schema_has_reference(output_schema)
+        or not isinstance(container_manifest, dict)
+        or container_manifest.get("input_schema") != input_schema
+        or container_manifest.get("output_schema") != output_schema
+        or not isinstance(run_manifest, dict) or run_manifest.get("slug") != slug
+        or run_manifest.get("container_slug") != slug or run_manifest.get("ready") is not True
+        or run_manifest.get("chargeable") is not True
+        or run_manifest.get("input_schema_source") != f"{prefix}/schemas/input.json"
+        or run_manifest.get("output_schema_source") != f"{prefix}/schemas/output.json"
+        or run_manifest.get("input_schema") != input_schema
+        or run_manifest.get("output_schema") != public_output_schema
+        or not isinstance(catalog, dict) or catalog.get("slug") != slug
+    ):
+        raise ControllerError("public_canary_contract_invalid")
+    try:
+        price = Decimal(str(run_manifest.get("price_usd")))
+        catalog_price = Decimal(str(catalog.get("runPrice")))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ControllerError("public_canary_contract_invalid") from None
+    cost_cents = price * 100
+    if (
+        price != catalog_price or price <= 0 or price > MAX_PAID_CANARY_USD
+        or cost_cents != cost_cents.to_integral_value()
+    ):
+        raise ControllerError("public_canary_contract_invalid")
+    try:
+        from jsonschema import Draft202012Validator
+        Draft202012Validator.check_schema(input_schema)
+        Draft202012Validator.check_schema(output_schema)
+        Draft202012Validator(input_schema).validate(happy["input"])
+        Draft202012Validator(output_schema).validate(happy["output"])
+    except Exception:
+        raise ControllerError("public_canary_contract_invalid") from None
+    return {
+        "slug": slug,
+        "execution_kind": profile["execution_kind"],
+        "transport_bound": compiler_owned_profile,
+        "input": happy["input"],
+        "expected_output": happy["output"],
+        "output_schema": output_schema,
+        "public_output_schema": public_output_schema,
+        "price_usd": price,
+        "cost_cents": int(cost_cents),
+    }
+
+
 def _modal_result_url(value: object) -> str:
     raw = str(value or "").strip()
     parsed = None
@@ -179,8 +350,8 @@ def _safe_json_response(response) -> dict[str, Any]:
     if len(raw) > MAX_HTTP_BYTES:
         raise ControllerError("http_response_too_large")
     try:
-        value = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        value = _strict_json_bytes(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
         raise ControllerError("http_response_invalid") from None
     if not isinstance(value, dict):
         raise ControllerError("http_response_invalid")
@@ -728,6 +899,10 @@ class ProductionPublicAdapter:
         self.store, self.api_key = store, api_key
 
     def preflight(self, claim):
+        if not re.fullmatch(r"fin_[0-9a-f]{32}", str(getattr(claim, "id", ""))):
+            raise ControllerError("public_canary_contract_invalid")
+        if getattr(claim, "runtime", None) != "worker-native" and claim.slug != MODAL_ALLOWED_SLUG:
+            raise ControllerError("public_canary_contract_invalid")
         self.store.provision_canary_identity()
 
     def seed_submission(self, checkout: Path) -> dict[str, str]:
@@ -789,13 +964,16 @@ class ProductionPublicAdapter:
             raise ControllerError("production_canary_retry_failed")
         return {"status": "retried", "submission_id": submission_id}
 
-    def _dispatch(self, claim):
-        key = hashlib.sha256(f"v0.1:{claim.target_sha}:{claim.artifact_hash}".encode()).hexdigest()[:40]
-        payload = {"slug": MODAL_ALLOWED_SLUG, "input": {
-            "labels": [" Green Apple ", "green-apple", "Class 2B"], "prefix": "item",
-        }}
+    def _dispatch(self, claim, contract):
+        key = hashlib.sha256(
+            f"v0.2:{claim.target_sha}:{claim.artifact_hash}:{contract['slug']}".encode()
+        ).hexdigest()[:40]
+        payload = {"slug": contract["slug"], "input": contract["input"]}
         headers = {
-            "X-API-Key": self.api_key, "Idempotency-Key": f"v0.1-{key}",
+            "X-API-Key": self.api_key, "Idempotency-Key": f"v0.2-{key}",
+            "X-Omo-Finalization-Target-Sha": claim.target_sha,
+            "X-Omo-Finalization-Artifact-Hash": claim.artifact_hash,
+            "X-Omo-Finalization-Id": claim.id,
             "Content-Type": "application/json", "Accept": "application/json",
             "User-Agent": "OmoProductionFinalizer/1.0",
         }
@@ -805,42 +983,89 @@ class ProductionPublicAdapter:
         ), headers, payload
 
     def verify_public(self, claim, checkout):
-        (status, body), headers, payload = self._dispatch(claim)
-        if status != 202 or not body or not re.fullmatch(r"run_[0-9a-f]{32}", str(body.get("run_id") or "")):
-            return {"status": "failed"}
-        run_id = body["run_id"]
-        terminal = None
-        for _ in range(60):
-            poll_status, poll = _request_json_stage(
-                "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/run/{run_id}",
-                headers={
-                    "X-API-Key": self.api_key, "Accept": "application/json",
-                    "User-Agent": "OmoProductionFinalizer/1.0",
-                }, timeout=30
-            )
-            if poll_status == 200 and poll and poll.get("status") in {"succeeded", "completed", "failed", "refunded"}:
-                terminal = poll
-                break
-            time.sleep(2)
-        if not terminal or terminal.get("status") not in {"succeeded", "completed"}:
-            return {"status": "failed"}
-        result = terminal.get("result") or terminal.get("output") or {}
-        identifiers = [item.get("identifier") for item in result.get("items", [])] if isinstance(result, dict) else []
-        if not (
-            isinstance(result, dict) and result.get("input_count") == 3
-            and result.get("unique_count") == 2 and result.get("duplicate_count") == 1
-            and identifiers == ["ITEM_GREEN_APPLE", "ITEM_GREEN_APPLE", "ITEM_CLASS_2B"]
+        contract = _claim_canary_contract(claim, checkout)
+        (status, body), headers, payload = self._dispatch(claim, contract)
+        if status not in {200, 202} or not body or not re.fullmatch(
+            r"run_[0-9a-f]{32}", str(body.get("run_id") or "")
         ):
             return {"status": "failed"}
-        (replay_status, replay), _, _ = self._dispatch(claim)
+        run_id = body["run_id"]
+        terminal = body if status == 200 and body.get("status") in {"succeeded", "completed"} else None
+        if terminal is None:
+            for _ in range(60):
+                poll_status, poll = _request_json_stage(
+                    "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/run/{run_id}",
+                    headers={
+                        "X-API-Key": self.api_key, "Accept": "application/json",
+                        "X-Omo-Finalization-Target-Sha": claim.target_sha,
+                        "X-Omo-Finalization-Artifact-Hash": claim.artifact_hash,
+                        "X-Omo-Finalization-Id": claim.id,
+                        "User-Agent": "OmoProductionFinalizer/1.0",
+                    }, timeout=30
+                )
+                if poll_status == 200 and poll and poll.get("status") in {"succeeded", "completed", "failed", "refunded"}:
+                    terminal = poll
+                    break
+                time.sleep(2)
+        if not terminal or terminal.get("status") not in {"succeeded", "completed"}:
+            return {"status": "failed"}
+        if terminal.get("slug") != contract["slug"] or terminal.get("state") != "succeeded":
+            return {"status": "failed"}
+        result = terminal.get("result") or terminal.get("output") or {}
+        try:
+            from jsonschema import Draft202012Validator
+            Draft202012Validator(contract["public_output_schema"]).validate(result)
+            business_fields = set(contract["output_schema"].get("properties", {}))
+            business_result = {
+                key: value for key, value in result.items() if key in business_fields
+            } if isinstance(result, dict) else result
+            Draft202012Validator(contract["output_schema"]).validate(business_result)
+        except Exception:
+            return {"status": "failed"}
+        if contract["transport_bound"] and result.get("run_id") != run_id:
+            return {"status": "failed"}
+        if contract["execution_kind"] in {"pure_data", "skill_builder"} and business_result != contract["expected_output"]:
+            return {"status": "failed"}
+        try:
+            billing_value = terminal.get("billed_amount_usd")
+            if billing_value is None and contract["execution_kind"] == "skill_builder":
+                billing_value = terminal.get("cost_usd")
+            charged = Decimal(str(billing_value))
+        except (InvalidOperation, TypeError, ValueError):
+            return {"status": "failed"}
+        observed_cents = charged * 100
+        if charged != contract["price_usd"] or observed_cents != observed_cents.to_integral_value():
+            return {"status": "failed"}
+        (replay_status, replay), _, _ = self._dispatch(claim, contract)
         if (replay_status not in {200, 202} or not replay or replay.get("run_id") != run_id or
                 replay.get("idempotent_replay") is not True):
             return {"status": "failed"}
-        return {"status": "passed"}
+        replay_billing = replay.get("billed_amount_usd")
+        if replay_billing is None and contract["execution_kind"] == "skill_builder":
+            replay_billing = replay.get("cost_usd")
+        try:
+            replay_charged = Decimal(str(replay_billing))
+        except (InvalidOperation, TypeError, ValueError):
+            return {"status": "failed"}
+        replay_result = replay.get("result") or replay.get("output") or {}
+        if (
+            replay.get("slug") != contract["slug"]
+            or replay.get("status") != "completed" or replay.get("state") != "succeeded"
+            or replay_charged != charged or replay_result != result
+        ):
+            return {"status": "failed"}
+        output_hash = hashlib.sha256(
+            json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+        ).hexdigest()
+        return {
+            "status": "passed", "run_id": run_id, "slug": contract["slug"],
+            "cost_cents": int(observed_cents), "output_sha256": output_hash,
+        }
 
     def verify_publication(self, claim, checkout):
+        contract = _claim_canary_contract(claim, checkout)
         request = urllib.request.Request(
-            f"{PUBLIC_ORIGIN}/run.html?slug={MODAL_ALLOWED_SLUG}", headers={"User-Agent": "OmoProductionFinalizer/1.0"}
+            f"{PUBLIC_ORIGIN}/run.html?slug={contract['slug']}", headers={"User-Agent": "OmoProductionFinalizer/1.0"}
         )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
@@ -853,7 +1078,7 @@ class ProductionPublicAdapter:
                     and final.hostname == urllib.parse.urlsplit(PUBLIC_ORIGIN).hostname
                     and final.port is None and final.username is None and final.password is None
                     and final.path == "/run" and not final.fragment
-                    and query == {"slug": [MODAL_ALLOWED_SLUG]}
+                    and query == {"slug": [contract["slug"]]}
                     and b"<title>Run a workflow | Omo</title>" in raw
                 )
         except Exception:

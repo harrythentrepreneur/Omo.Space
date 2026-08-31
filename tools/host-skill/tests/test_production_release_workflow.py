@@ -62,13 +62,16 @@ def test_exact_sha_checkout_and_controller_cli_have_no_user_selectable_target():
         assert forbidden not in command
 
 
-def test_protected_finalizer_installs_exact_modal_cli_before_provider_preflight():
+def test_protected_finalizer_installs_exact_dependencies_before_provider_preflight():
     steps = workflow()["jobs"]["finalize"]["steps"]
-    install_index = next(i for i, step in enumerate(steps) if step.get("name") == "Install pinned Modal CLI")
+    install_index = next(i for i, step in enumerate(steps) if step.get("name") == "Install pinned finalizer dependencies")
     finalizer_index = next(i for i, step in enumerate(steps) if step.get("name") == "Run deterministic production finalizer")
     install = steps[install_index]
     assert install_index < finalizer_index
-    assert install["run"] == "python -m pip install --disable-pip-version-check modal==1.3.4"
+    assert install["run"] == (
+        "python -m pip install --disable-pip-version-check "
+        "modal==1.3.4 jsonschema==4.26.0"
+    )
     assert "env" not in install
 
 

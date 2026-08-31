@@ -4,6 +4,8 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import re
+import shutil
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tools" / "host-skill" / "production_release_controller.py"
 SHA = "a" * 40
 ARTIFACT = "b" * 64
+FINALIZATION_ID = "fin_" + "f" * 32
 OLD_TARGET = "9" * 40
 LATEST_GREEN = "8" * 40
 
@@ -352,7 +355,10 @@ def test_http_failures_are_mapped_to_secret_free_trust_boundary_stages(monkeypat
         raise mod.ControllerError("http_request_failed")
 
     monkeypatch.setattr(mod, "_request_json", typed_failure)
-    claim = SimpleNamespace(submission_id="sub_12345678", target_sha=SHA, artifact_hash=ARTIFACT)
+    claim = SimpleNamespace(
+        id=FINALIZATION_ID, submission_id="sub_12345678", slug="label-normalizer-canary",
+        runtime="modal-hosted", target_sha=SHA, artifact_hash=ARTIFACT,
+    )
     modal = mod.ProductionModalAdapter({})
     with pytest.raises(mod.ControllerError) as caught:
         modal.canary(claim, ROOT, {})
@@ -543,16 +549,16 @@ def test_modal_deploy_validates_baseline_before_mutation(monkeypatch, baseline):
 def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
     mod = load_module()
     run_id = "run_" + "1" * 32
+    expected = json.loads((ROOT / "containers/label-normalizer-canary/tests/cases.json").read_text())["happy_path"]["output"]
+    terminal = {
+        "run_id": run_id, "slug": "label-normalizer-canary",
+        "status": "completed", "state": "succeeded", "cost_usd": 0.1,
+        "result": expected,
+    }
     responses = [
         (202, {"run_id": run_id}),
-        (200, {"run_id": run_id, "status": "completed", "result": {
-            "items": [
-                {"identifier": "ITEM_GREEN_APPLE"}, {"identifier": "ITEM_GREEN_APPLE"},
-                {"identifier": "ITEM_CLASS_2B"},
-            ],
-            "input_count": 3, "unique_count": 2, "duplicate_count": 1,
-        }}),
-        (200, {"run_id": run_id, "idempotent_replay": True}),
+        (200, terminal),
+        (200, {**terminal, "idempotent_replay": True}),
     ]
     calls = []
 
@@ -563,14 +569,301 @@ def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
     monkeypatch.setattr(mod, "_request_json", request_json)
     store = SimpleNamespace(provision_canary_identity=lambda: None)
     adapter = mod.ProductionPublicAdapter(store, "omo_" + "1" * 32)
-    claim = SimpleNamespace(target_sha=SHA, artifact_hash=ARTIFACT)
+    claim = SimpleNamespace(
+        id=FINALIZATION_ID, slug="label-normalizer-canary", runtime="modal-hosted",
+        target_sha=SHA, artifact_hash=ARTIFACT,
+    )
     adapter.preflight(claim)
-    assert adapter.verify_public(claim, ROOT) == {"status": "passed"}
+    receipt = adapter.verify_public(claim, ROOT)
+    assert receipt["status"] == "passed" and receipt["run_id"] == run_id
+    assert receipt["slug"] == "label-normalizer-canary" and receipt["cost_cents"] == 10
     assert all(call[1]["headers"]["User-Agent"] == "OmoProductionFinalizer/1.0" for call in calls)
     assert all(call[1]["headers"]["Accept"] == "application/json" for call in calls)
     assert calls[0][1]["headers"]["Idempotency-Key"] == calls[2][1]["headers"]["Idempotency-Key"]
     assert calls[0][1]["payload"] == calls[2][1]["payload"]
     assert calls[1][0].endswith(run_id)
+    assert all(call[1]["headers"]["X-Omo-Finalization-Id"] == FINALIZATION_ID for call in calls)
+
+
+def test_legacy_public_canary_replay_must_match_terminal_billing(monkeypatch):
+    mod = load_module()
+    run_id = "run_" + "4" * 32
+    expected = json.loads(
+        (ROOT / "containers/label-normalizer-canary/tests/cases.json").read_text()
+    )["happy_path"]["output"]
+    terminal = {
+        "run_id": run_id, "slug": "label-normalizer-canary",
+        "status": "completed", "state": "succeeded", "cost_usd": 0.1,
+        "result": expected,
+    }
+    responses = [
+        (202, {"run_id": run_id}), (200, terminal),
+        (200, {**terminal, "cost_usd": 0.09, "idempotent_replay": True}),
+    ]
+    monkeypatch.setattr(mod, "_request_json", lambda *args, **kwargs: responses.pop(0))
+    monkeypatch.setattr(mod.time, "sleep", lambda _: None)
+    adapter = mod.ProductionPublicAdapter(SimpleNamespace(), "omo_" + "1" * 32)
+    claim = SimpleNamespace(
+        id=FINALIZATION_ID, slug="label-normalizer-canary", runtime="modal-hosted",
+        target_sha=SHA, artifact_hash=ARTIFACT,
+    )
+
+    assert adapter.verify_public(claim, ROOT) == {"status": "failed"}
+
+
+def test_public_canary_preflight_rejects_new_modal_claim_before_provisioning():
+    mod = load_module()
+    calls = []
+    adapter = mod.ProductionPublicAdapter(
+        SimpleNamespace(provision_canary_identity=lambda: calls.append("provision")),
+        "omo_" + "1" * 32,
+    )
+    claim = SimpleNamespace(
+        id=FINALIZATION_ID, slug="new-modal-workflow", runtime="modal-hosted",
+        target_sha=SHA, artifact_hash=ARTIFACT,
+    )
+
+    with pytest.raises(mod.ControllerError) as caught:
+        adapter.preflight(claim)
+
+    assert caught.value.code == "public_canary_contract_invalid"
+    assert calls == []
+
+
+def test_public_canary_uses_exact_claim_fixture_schema_and_price(monkeypatch):
+    mod = load_module()
+    run_id = "run_" + "2" * 32
+    output = {
+        "priority": "high",
+        "reason": "Customer is blocked from account access and needs urgent assistance.",
+        "status": "completed",
+        "run_id": run_id,
+        "workflow_version": "gemini-ticket-priority-canary@1.0.0",
+        "usage": {
+            "provider": "gemini", "model": "gemini-2.5-flash", "llm_calls": 1,
+            "prompt_tokens": 20, "completion_tokens": 10, "estimated_cost_usd": 0.001,
+        },
+    }
+    terminal = {
+        "run_id": run_id, "slug": "gemini-ticket-priority-canary",
+        "status": "completed", "state": "succeeded", "billed_amount_usd": 0.1,
+        "output": output,
+    }
+    responses = [
+        (202, {"run_id": run_id}),
+        (200, terminal),
+        (200, {**terminal, "idempotent_replay": True}),
+    ]
+    calls = []
+
+    def request_json(url, **kwargs):
+        calls.append((url, kwargs))
+        return responses.pop(0)
+
+    monkeypatch.setattr(mod, "_request_json", request_json)
+    monkeypatch.setattr(mod.time, "sleep", lambda _: None)
+    adapter = mod.ProductionPublicAdapter(SimpleNamespace(), "omo_" + "1" * 32)
+    claim = SimpleNamespace(
+        id=FINALIZATION_ID,
+        slug="gemini-ticket-priority-canary",
+        runtime="worker-native",
+        target_sha=SHA,
+        artifact_hash=ARTIFACT,
+    )
+
+    receipt = adapter.verify_public(claim, ROOT)
+    assert receipt["status"] == "passed"
+    assert receipt["run_id"] == run_id
+    assert receipt["slug"] == "gemini-ticket-priority-canary"
+    assert receipt["cost_cents"] == 10
+    assert re.fullmatch(r"[0-9a-f]{64}", receipt["output_sha256"])
+    fixture = json.loads((ROOT / "containers/gemini-ticket-priority-canary/tests/cases.json").read_text())
+    assert calls[0][1]["payload"] == {
+        "slug": "gemini-ticket-priority-canary",
+        "input": fixture["happy_path"]["input"],
+    }
+    assert calls[0][1]["payload"] == calls[2][1]["payload"]
+    assert calls[0][1]["headers"]["Idempotency-Key"] == calls[2][1]["headers"]["Idempotency-Key"]
+    assert calls[0][1]["headers"]["X-Omo-Finalization-Target-Sha"] == SHA
+    assert calls[0][1]["headers"]["X-Omo-Finalization-Artifact-Hash"] == ARTIFACT
+    assert all(call[1]["headers"]["X-Omo-Finalization-Id"] == FINALIZATION_ID for call in calls)
+
+
+@pytest.mark.parametrize("mutation", ["slug", "billing", "output"])
+def test_public_canary_replay_must_match_terminal_evidence(monkeypatch, mutation):
+    mod = load_module()
+    run_id = "run_" + "3" * 32
+    output = {
+        "priority": "high", "reason": "Customer access is blocked and needs urgent help.",
+        "status": "completed", "run_id": run_id,
+        "workflow_version": "gemini-ticket-priority-canary@1.0.0",
+        "usage": {
+            "provider": "gemini", "model": "gemini-2.5-flash", "llm_calls": 1,
+            "prompt_tokens": 20, "completion_tokens": 10, "estimated_cost_usd": 0.001,
+        },
+    }
+    terminal = {
+        "run_id": run_id, "slug": "gemini-ticket-priority-canary",
+        "status": "completed", "state": "succeeded", "billed_amount_usd": 0.1,
+        "output": output,
+    }
+    replay = {**terminal, "idempotent_replay": True}
+    if mutation == "slug":
+        replay["slug"] = "other-workflow"
+    elif mutation == "billing":
+        replay["billed_amount_usd"] = 0.09
+    else:
+        replay["output"] = {**output, "priority": "low"}
+    responses = [(202, {"run_id": run_id}), (200, terminal), (200, replay)]
+    monkeypatch.setattr(mod, "_request_json", lambda *args, **kwargs: responses.pop(0))
+    monkeypatch.setattr(mod.time, "sleep", lambda _: None)
+    adapter = mod.ProductionPublicAdapter(SimpleNamespace(), "omo_" + "1" * 32)
+    claim = SimpleNamespace(
+        id=FINALIZATION_ID, slug="gemini-ticket-priority-canary", runtime="worker-native",
+        target_sha=SHA, artifact_hash=ARTIFACT,
+    )
+
+    assert adapter.verify_public(claim, ROOT) == {"status": "failed"}
+
+
+def test_strict_json_rejects_overflow_and_duplicate_http_fields():
+    mod = load_module()
+
+    with pytest.raises(ValueError):
+        mod._strict_json_bytes(b'{"value":1e400}')
+    with pytest.raises(mod.ControllerError) as duplicate:
+        mod._safe_json_response(io.BytesIO(b'{"cost_usd":0.1,"cost_usd":0.2}'))
+    with pytest.raises(mod.ControllerError) as overflow:
+        mod._safe_json_response(io.BytesIO(b'{"cost_usd":1e400}'))
+
+    assert duplicate.value.code == "http_response_invalid"
+    assert overflow.value.code == "http_response_invalid"
+
+
+def test_canary_json_read_cannot_be_swapped_to_symlink(monkeypatch, tmp_path):
+    mod = load_module()
+    root = tmp_path / "root"
+    root.mkdir()
+    target = root / "value.json"
+    outside = tmp_path / "outside.json"
+    target.write_text('{"value":"inside"}', encoding="utf-8")
+    outside.write_text('{"value":"escape"}', encoding="utf-8")
+    original_open = Path.open
+    swapped = False
+
+    def swapping_open(path, *args, **kwargs):
+        nonlocal swapped
+        if path == target:
+            path.unlink()
+            path.symlink_to(outside)
+            swapped = True
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", swapping_open)
+    try:
+        value = mod._canary_json(root, "value.json")
+    except mod.ControllerError:
+        value = None
+
+    assert swapped is False or value != {"value": "escape"}
+
+
+def test_public_canary_loads_completed_pure_data_contract():
+    mod = load_module()
+
+    contract = mod._claim_canary_contract(
+        SimpleNamespace(slug="release-tag-sorter-canary"), ROOT
+    )
+
+    assert contract["execution_kind"] == "pure_data"
+    assert contract["slug"] == "release-tag-sorter-canary"
+    assert contract["cost_cents"] == 10
+
+
+def test_public_canary_preserves_legacy_single_llm_schema():
+    mod = load_module()
+
+    contract = mod._claim_canary_contract(
+        SimpleNamespace(slug="facebook-ads-copywriter"), ROOT
+    )
+
+    assert contract["execution_kind"] == "single_llm"
+    assert contract["public_output_schema"] == contract["output_schema"]
+
+
+def test_public_canary_rejects_non_object_profile_with_typed_error(tmp_path):
+    mod = load_module()
+    slug = "gemini-ticket-priority-canary"
+    shutil.copytree(ROOT / "containers" / slug, tmp_path / "containers" / slug)
+    profile_dir = tmp_path / "packages/skill-to-modal/profiles"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / f"{slug}.json").write_text("[]", encoding="utf-8")
+
+    with pytest.raises(mod.ControllerError) as caught:
+        mod._claim_canary_contract(SimpleNamespace(slug=slug), tmp_path)
+
+    assert caught.value.code == "public_canary_contract_invalid"
+
+
+def test_public_canary_rejects_schema_references_without_network(monkeypatch, tmp_path):
+    mod = load_module()
+    slug = "gemini-ticket-priority-canary"
+    shutil.copytree(ROOT / "containers" / slug, tmp_path / "containers" / slug)
+    profile_dir = tmp_path / "packages/skill-to-modal/profiles"
+    profile_dir.mkdir(parents=True)
+    shutil.copy2(ROOT / "packages/skill-to-modal/profiles" / f"{slug}.json", profile_dir)
+    schema_path = tmp_path / "containers" / slug / "schemas/output.json"
+    schema_path.write_text(json.dumps({"$ref": "https://example.invalid/schema.json"}), encoding="utf-8")
+    profile_path = profile_dir / f"{slug}.json"
+    profile = json.loads(profile_path.read_text())
+    profile["output_schema"] = {"$ref": "https://example.invalid/schema.json"}
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(mod.urllib.request, "urlopen", lambda *args, **kwargs: calls.append(args))
+    claim = SimpleNamespace(slug=slug)
+
+    with pytest.raises(mod.ControllerError) as caught:
+        mod._claim_canary_contract(claim, tmp_path)
+
+    assert caught.value.code == "public_canary_contract_invalid"
+    assert calls == []
+
+
+def test_public_canary_rejects_hosted_output_schema_drift(tmp_path):
+    mod = load_module()
+    slug = "gemini-ticket-priority-canary"
+    shutil.copytree(ROOT / "containers" / slug, tmp_path / "containers" / slug)
+    profile_dir = tmp_path / "packages/skill-to-modal/profiles"
+    profile_dir.mkdir(parents=True)
+    shutil.copy2(ROOT / "packages/skill-to-modal/profiles" / f"{slug}.json", profile_dir)
+    hosted_path = tmp_path / "containers" / slug / "hosted-profile.json"
+    hosted = json.loads(hosted_path.read_text())
+    hosted["run_manifest"]["output_schema"] = {"type": "object", "additionalProperties": True}
+    hosted_path.write_text(json.dumps(hosted), encoding="utf-8")
+
+    with pytest.raises(mod.ControllerError) as caught:
+        mod._claim_canary_contract(SimpleNamespace(slug=slug), tmp_path)
+
+    assert caught.value.code == "public_canary_contract_invalid"
+
+
+def test_public_canary_rejects_nonfinite_price_with_typed_error(tmp_path):
+    mod = load_module()
+    slug = "gemini-ticket-priority-canary"
+    shutil.copytree(ROOT / "containers" / slug, tmp_path / "containers" / slug)
+    profile_dir = tmp_path / "packages/skill-to-modal/profiles"
+    profile_dir.mkdir(parents=True)
+    shutil.copy2(ROOT / "packages/skill-to-modal/profiles" / f"{slug}.json", profile_dir)
+    hosted_path = tmp_path / "containers" / slug / "hosted-profile.json"
+    hosted = json.loads(hosted_path.read_text())
+    hosted["run_manifest"]["price_usd"] = "NaN"
+    hosted["catalog"]["runPrice"] = "NaN"
+    hosted_path.write_text(json.dumps(hosted), encoding="utf-8")
+
+    with pytest.raises(mod.ControllerError) as caught:
+        mod._claim_canary_contract(SimpleNamespace(slug=slug), tmp_path)
+
+    assert caught.value.code == "public_canary_contract_invalid"
 
 
 def test_publication_verifies_canonical_run_redirect_and_title(monkeypatch):
@@ -589,7 +882,8 @@ def test_publication_verifies_canonical_run_redirect_and_title(monkeypatch):
 
     monkeypatch.setattr(mod.urllib.request, "urlopen", lambda request, timeout: HtmlResponse())
     adapter = mod.ProductionPublicAdapter(SimpleNamespace(), "omo_" + "1" * 32)
-    assert adapter.verify_publication(SimpleNamespace(), ROOT) == {"status": "published"}
+    claim = SimpleNamespace(slug="label-normalizer-canary")
+    assert adapter.verify_publication(claim, ROOT) == {"status": "published"}
 
 
 def test_public_canary_seed_uses_only_canonical_exact_checkout_source(monkeypatch):

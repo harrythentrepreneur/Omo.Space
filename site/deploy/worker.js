@@ -714,6 +714,74 @@ async function handlePhoto(request, env) {
 // workflow, and price come only from SERVER_CATALOG. Mock mode keeps the old
 // client-prompt fallback so the zero-key storefront demo remains functional.
 
+function validFinalizationLease(value, now = Date.now()) {
+  const text = String(value || '');
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(text)
+    && Number.isFinite(Date.parse(text)) && Date.parse(text) > now;
+}
+
+async function activeGeneratedCanaryClaim(request, env, slug) {
+  const hosted = HOSTED_WORKER_SKILLS.get(slug);
+  const executionKind = String(hosted && hosted.executor && hosted.executor.execution_kind || '');
+  const runPriceCents = Number(hosted && hosted.run_price_cents);
+  if (!hosted || !['pure_data', 'single_llm'].includes(executionKind)
+      || !Number.isInteger(runPriceCents) || runPriceCents < 1 || runPriceCents > 10) {
+    return false;
+  }
+  const targetSha = String(request.headers.get('x-omo-finalization-target-sha') || '').trim();
+  const artifactHash = String(request.headers.get('x-omo-finalization-artifact-hash') || '').trim();
+  const finalizationId = String(request.headers.get('x-omo-finalization-id') || '').trim();
+  if (!/^[0-9a-f]{40}$/.test(targetSha) || !/^[0-9a-f]{64}$/.test(artifactHash)
+      || !/^fin_[0-9a-f]{32}$/.test(finalizationId)) return false;
+
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-production-canary-active-claim-v1',
+      `SELECT 1 AS ok FROM submissions
+       WHERE published_slug = $1 AND selected_runtime = 'worker-native'
+         AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+         AND release_artifact_hash = $2 AND finalization_artifact_hash = $2
+         AND finalization_target_sha = $3 AND finalization_status = 'verifying_public'
+         AND finalization_id = $4
+         AND CASE WHEN finalization_lease_expires_at ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9][.][0-9]{3}Z$'
+           THEN finalization_lease_expires_at > to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+           ELSE FALSE END
+       LIMIT 1`,
+      [slug, artifactHash, targetSha, finalizationId]
+    ));
+    return Boolean(result.rows && result.rows[0] && Number(result.rows[0].ok) === 1);
+  }
+  if (databaseKind(env) === 'd1') {
+    const row = await env.BALANCE_DB.prepare(
+      `SELECT 1 AS ok FROM submissions
+       WHERE published_slug = ? AND selected_runtime = 'worker-native'
+         AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+         AND release_artifact_hash = ? AND finalization_artifact_hash = ?
+         AND finalization_target_sha = ? AND finalization_status = 'verifying_public'
+         AND finalization_id = ?
+         AND finalization_lease_expires_at GLOB '????-??-??T??:??:??.???Z'
+         AND julianday(finalization_lease_expires_at) IS NOT NULL
+         AND finalization_lease_expires_at > ?
+       LIMIT 1`
+    ).bind(slug, artifactHash, artifactHash, targetSha, finalizationId, new Date().toISOString()).first();
+    return Boolean(row && Number(row.ok) === 1);
+  }
+  const now = Date.now();
+  return [...mockSubmissions.values()].some((row) =>
+    row && row.published_slug === slug && row.selected_runtime === 'worker-native'
+    && row.status === 'ready_for_deploy' && row.release_phase === 'merged_verified'
+    && row.release_artifact_hash === artifactHash && row.finalization_artifact_hash === artifactHash
+    && row.finalization_target_sha === targetSha && row.finalization_status === 'verifying_public'
+    && row.finalization_id === finalizationId
+    && validFinalizationLease(row.finalization_lease_expires_at, now)
+  );
+}
+
+async function productionCanaryRunAllowed(request, env, slug) {
+  return PRODUCTION_CANARY_RUN_SLUGS.has(slug)
+    || await activeGeneratedCanaryClaim(request, env, slug);
+}
+
 async function handleGenericRun(request, env) {
   let body;
   try { body = await request.json(); } catch { body = {}; }
@@ -740,7 +808,7 @@ async function handleGenericRun(request, env) {
   let userId = '';
   let authMethod = 'demo';
   if (real) {
-    const productionCanaryRun = PRODUCTION_CANARY_RUN_SLUGS.has(slug);
+    const productionCanaryRun = await productionCanaryRunAllowed(request, env, slug);
     const auth = await authenticateAccount(request, env, true, productionCanaryRun);
     if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
     userId = auth.userId;
@@ -1657,12 +1725,14 @@ async function dispatchDemelloRun(env, context) {
 
 async function handleRunStatus(request, env, _url, params) {
   const row = await getRunRequestById(env, params.runId);
+  const productionCanaryRun = Boolean(row)
+    && await productionCanaryRunAllowed(request, env, row.slug);
   const auth = await authenticateAccount(
-    request, env, true, Boolean(row && PRODUCTION_CANARY_RUN_SLUGS.has(row.slug))
+    request, env, true, productionCanaryRun
   );
   if (!auth.ok) return json({ error: auth.error }, auth.status, cors());
   if (!row || row.user_id !== auth.userId) return json({ error: 'run_not_found' }, 404, cors());
-  if (auth.userId === 'user_prod_label_normalizer_canary_v1' && !PRODUCTION_CANARY_RUN_SLUGS.has(row.slug)) {
+  if (auth.userId === 'user_prod_label_normalizer_canary_v1' && !productionCanaryRun) {
     return json({ error: 'run_not_found' }, 404, cors());
   }
   const hosted = row.slug === DEMELLO_SLUG && String(env.DEMELLO_LEGACY_EXECUTOR || '') === '1'
