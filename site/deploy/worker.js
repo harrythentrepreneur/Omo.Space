@@ -582,12 +582,14 @@ async function dispatchNextBuilderSubmission(env) {
   }
   const candidate = await internalPeekBuilderSubmission(env);
   if (!candidate) return { status: 'idle' };
-  const dispatchHash = await sha256Hex(`omo-modal-builder-v2\0${candidate.id}\0${candidate.source_sha256}\0${baseRevision}`);
+  const phase = candidate.status === 'ready_for_deploy' ? 'verify_merged' : 'build';
+  const dispatchHash = await sha256Hex(`omo-modal-builder-v3\0${phase}\0${candidate.id}\0${candidate.source_sha256}\0${baseRevision}`);
   const payload = {
     submission_id: candidate.id,
     slug: candidate.slug,
     source_sha256: candidate.source_sha256,
     dispatch_id: 'dispatch_' + dispatchHash.slice(0, 32),
+    phase,
   };
   const response = await fetch(modalUrl, {
     method: 'POST',
@@ -4115,7 +4117,8 @@ async function internalClaimSubmission(env, options) {
            failure_code = NULL,
            build_claimed_at = CURRENT_TIMESTAMP,
            build_attempts = COALESCE(build_attempts, 0) + 1,
-           build_evidence = NULL,
+           build_evidence = CASE WHEN candidate.prior_status = 'ready_for_deploy'
+             THEN submission.build_evidence ELSE NULL END,
            updated_at = CURRENT_TIMESTAMP
        FROM candidate
        WHERE submission.id = candidate.id
@@ -4146,8 +4149,8 @@ async function internalClaimSubmission(env, options) {
       .bind(...params).first();
     if (!row) return null;
     const updated = await env.BALANCE_DB
-      .prepare("UPDATE submissions SET status = 'processing', failure_code = NULL, build_claimed_at = ?, build_attempts = COALESCE(build_attempts, 0) + 1, build_evidence = NULL, updated_at = ? WHERE id = ? AND status = ? AND finalization_id IS NULL AND (status IN (" + placeholders + ") OR (status = 'processing' AND build_claimed_at = ? AND datetime(build_claimed_at) < datetime('now', '-' || ? || ' seconds')))" )
-      .bind(new Date().toISOString(), new Date().toISOString(), row.id, row.prior_status, ...claimStates, row.build_claimed_at || '', SUBMISSION_CLAIM_LEASE_SECONDS).run();
+      .prepare("UPDATE submissions SET status = 'processing', failure_code = NULL, build_claimed_at = ?, build_attempts = COALESCE(build_attempts, 0) + 1, build_evidence = CASE WHEN ? = 'ready_for_deploy' THEN build_evidence ELSE NULL END, updated_at = ? WHERE id = ? AND status = ? AND finalization_id IS NULL AND (status IN (" + placeholders + ") OR (status = 'processing' AND build_claimed_at = ? AND datetime(build_claimed_at) < datetime('now', '-' || ? || ' seconds')))" )
+      .bind(new Date().toISOString(), row.prior_status, new Date().toISOString(), row.id, row.prior_status, ...claimStates, row.build_claimed_at || '', SUBMISSION_CLAIM_LEASE_SECONDS).run();
     return updated.meta && updated.meta.changes ? row : null;
   }
   const claimStates = new Set(['queued']);
@@ -4165,7 +4168,7 @@ async function internalClaimSubmission(env, options) {
   record.failure_code = null;
   record.build_claimed_at = new Date().toISOString();
   record.build_attempts = Number(record.build_attempts || 0) + 1;
-  record.build_evidence = null;
+  if (priorStatus !== 'ready_for_deploy') record.build_evidence = null;
   record.updated_at = new Date().toISOString();
   return {
     id: record.id,
@@ -4186,7 +4189,11 @@ async function internalPeekBuilderSubmission(env) {
       `SELECT id,slug,source_sha256,status
        FROM submissions
        WHERE status IN ($1, $2)
-       ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC
+          OR (status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
+              AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
+              AND release_artifact_hash IS NOT NULL)
+       ORDER BY CASE WHEN status = 'ready_for_deploy' THEN 0 WHEN status = 'needs_review' THEN 1 ELSE 2 END,
+                created_at ASC
        LIMIT 1`,
       statuses
     ));
@@ -4196,13 +4203,20 @@ async function internalPeekBuilderSubmission(env) {
     const row = await env.BALANCE_DB
       .prepare(`SELECT id,slug,source_sha256,status FROM submissions
                 WHERE status IN (?, ?)
-                ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`)
+                   OR (status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
+                       AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
+                       AND release_artifact_hash IS NOT NULL)
+                ORDER BY CASE WHEN status = 'ready_for_deploy' THEN 0 WHEN status = 'needs_review' THEN 1 ELSE 2 END,
+                         created_at ASC LIMIT 1`)
       .bind(...statuses).first();
     return safeBuilderPeekRow(row);
   }
   const row = Array.from(mockSubmissions.values())
-    .filter((record) => statuses.includes(record.status))
-    .sort((a, b) => (a.status === b.status ? 0 : a.status === 'needs_review' ? -1 : 1) ||
+    .filter((record) => statuses.includes(record.status) ||
+      (record.status === 'ready_for_deploy' && ['pr_open', 'ci_passed'].includes(record.release_phase) &&
+       record.release_pr_url && record.release_head_sha && record.release_artifact_hash))
+    .sort((a, b) => ({ ready_for_deploy: 0, needs_review: 1, queued: 2 }[a.status] -
+                     { ready_for_deploy: 0, needs_review: 1, queued: 2 }[b.status]) ||
       String(a.created_at || '').localeCompare(String(b.created_at || '')))[0];
   return safeBuilderPeekRow(row);
 }
@@ -4213,7 +4227,7 @@ function safeBuilderPeekRow(row) {
   const slug = safeSlug(row.slug);
   const sourceSha256 = safeSha256(row.source_sha256 || row.sourceSha256);
   const status = safeSubmissionStatus(row.status);
-  if (!id || !slug || !sourceSha256 || !['queued', 'needs_review'].includes(status)) return null;
+  if (!id || !slug || !sourceSha256 || !['queued', 'needs_review', 'ready_for_deploy'].includes(status)) return null;
   return { id, slug, source_sha256: sourceSha256, status };
 }
 

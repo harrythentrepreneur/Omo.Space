@@ -1823,6 +1823,28 @@ check('internal claim: atomically returns one safe processing row and cannot rep
 const internalBadClaimId = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', { id: 'sub_bad' }, internalHeaders), buildEnv);
 check('internal claim: unsafe specific ids are rejected before SQL', internalBadClaimId.status === 400);
 
+const readyVerifyId = 'sub_readyverify12345678';
+const readyVerifyEvidence = { checks: ['pytest'], source_sha256: '8'.repeat(64) };
+workerTest.mockSubmissions.set('ready-verify-claim', {
+  id: readyVerifyId,
+  user_id: 'user_private_must_not_leak',
+  name: 'Ready Verify Workflow',
+  slug: 'ready-verify-workflow',
+  content: 'bounded source',
+  source_sha256: '8'.repeat(64),
+  requested_runtime: 'auto',
+  status: 'ready_for_deploy',
+  build_evidence: readyVerifyEvidence,
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+const readyVerifyClaim = await worker.fetch(mkReq('POST', '/api/internal/submissions/claim', {
+  id: readyVerifyId, include_ready: true,
+}, internalHeaders), buildEnv);
+const readyVerifyRecord = workerTest.mockSubmissions.get('ready-verify-claim');
+check('internal claim: post-merge verification preserves immutable build evidence',
+  readyVerifyClaim.status === 200 && readyVerifyRecord.status === 'processing' &&
+  readyVerifyRecord.build_evidence === readyVerifyEvidence);
+
 const staleMockId = 'sub_staleclaimmock01';
 const staleMockLease = new Date(Date.now() - (2 * 60 * 60 + 1) * 1000).toISOString();
 workerTest.mockSubmissions.set('stale-mock-claim', {
@@ -1886,6 +1908,7 @@ check('internal claim lease Neon: one locked guarded update applies the bounded 
   staleNeonCall.text.includes("status = 'processing'") &&
   staleNeonCall.text.includes('build_claimed_at') &&
   staleNeonCall.text.includes('build_attempts') &&
+  staleNeonCall.text.includes("CASE WHEN candidate.prior_status = 'ready_for_deploy'") &&
   staleNeonCall.text.includes('build_evidence') &&
   staleNeonCall.text.includes('source_sha256') &&
   staleNeonCall.values.includes(7200) &&
@@ -4486,12 +4509,46 @@ check('builder cron: dispatches identifiers only with Modal proxy auth',
   builderCall.payload.submission_id === 'sub_abcdefgh12345678' &&
   builderCall.payload.slug === 'label-normalizer-canary' &&
   builderCall.payload.source_sha256 === 'a'.repeat(64) &&
+  builderCall.payload.phase === 'build' &&
   /^dispatch_[0-9a-f]{32}$/.test(builderCall.payload.dispatch_id) &&
   !('base_revision' in builderCall.payload) &&
   !JSON.stringify(builderCall.payload).includes('PRIVATE_SOURCE_MUST_NOT_LEAVE_WORKER') &&
   !('content' in builderCall.payload) && !('user_id' in builderCall.payload));
 check('builder cron: peek does not mutate authoritative queue state before Modal claims',
   workerTest.mockSubmissions.get('user_builder:label-normalizer-canary').status === 'needs_review');
+
+const buildDispatchId = builderCall.payload.dispatch_id;
+workerTest.mockSubmissions.clear();
+workerTest.mockSubmissions.set('user_builder:v02-release-label-sorter', {
+  id: 'sub_mergedverify12345678',
+  user_id: 'user_builder',
+  name: 'V02 Release Label Sorter',
+  slug: 'v02-release-label-sorter',
+  content: 'PRIVATE_MERGED_SOURCE_MUST_NOT_LEAVE_WORKER',
+  source_sha256: 'b'.repeat(64),
+  requested_runtime: 'auto',
+  status: 'ready_for_deploy',
+  release_phase: 'pr_open',
+  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/287',
+  release_head_sha: 'c'.repeat(40),
+  release_artifact_hash: 'd'.repeat(64),
+  created_at: new Date().toISOString(),
+});
+scheduledTask = null;
+await worker.scheduled({}, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+if (scheduledTask) await scheduledTask;
+const mergedVerifierCall = builderDispatchCalls.at(-1);
+check('builder cron: dispatches a distinct identifier-only post-merge verifier phase',
+  mergedVerifierCall.payload.submission_id === 'sub_mergedverify12345678' &&
+  mergedVerifierCall.payload.slug === 'v02-release-label-sorter' &&
+  mergedVerifierCall.payload.source_sha256 === 'b'.repeat(64) &&
+  mergedVerifierCall.payload.phase === 'verify_merged' &&
+  /^dispatch_[0-9a-f]{32}$/.test(mergedVerifierCall.payload.dispatch_id) &&
+  mergedVerifierCall.payload.dispatch_id !== buildDispatchId &&
+  !JSON.stringify(mergedVerifierCall.payload).includes('PRIVATE_MERGED_SOURCE_MUST_NOT_LEAVE_WORKER') &&
+  !('content' in mergedVerifierCall.payload) && !('user_id' in mergedVerifierCall.payload));
+check('builder cron: post-merge peek remains non-mutating until Modal claims',
+  workerTest.mockSubmissions.get('user_builder:v02-release-label-sorter').status === 'ready_for_deploy');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
