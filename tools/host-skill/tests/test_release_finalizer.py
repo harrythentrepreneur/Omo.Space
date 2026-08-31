@@ -297,7 +297,15 @@ class Adapter:
 
     def verify_public(self, claim, checkout):
         self.events.append("verify_public")
-        return {"status": "failed" if self.fail_on == "verify_public" else "passed"}
+        if self.fail_on == "verify_public":
+            return {"status": "failed"}
+        return {
+            "status": "passed",
+            "run_id": "run_" + "1" * 32,
+            "slug": claim.slug,
+            "cost_cents": 10,
+            "output_sha256": "d" * 64,
+        }
 
     def verify_publication(self, claim, checkout):
         self.events.append("verify_publication")
@@ -328,9 +336,71 @@ def test_worker_native_success_skips_modal_and_completes_exact_order():
     assert store.submission_status == "deployed"
     assert store.gates == {
         "status": "live", "checked_at": "2026-08-21T00:00:00Z",
-        "R1": {"status": "passed"}, "R2": {"status": "passed"},
+        "R1": {"status": "passed"},
+        "R2": {
+            "status": "passed", "run_id": "run_" + "1" * 32,
+            "slug": store.claim_value.slug, "cost_cents": 10,
+            "output_sha256": "d" * 64,
+        },
         "R3": {"status": "passed"}, "R4": {"status": "excluded_premium"},
     }
+
+
+def test_public_canary_receipt_is_persisted_in_promotion_evidence():
+    mod, mainline, store, modal, cloudflare, _vercel = components()
+
+    class EvidenceAdapter(Adapter):
+        def verify_public(self, claim, checkout):
+            self.events.append("verify_public")
+            return {
+                "status": "passed",
+                "run_id": "run_" + "2" * 32,
+                "slug": claim.slug,
+                "cost_cents": 10,
+                "output_sha256": "e" * 64,
+            }
+
+    vercel = EvidenceAdapter("vercel")
+
+    result = mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert result["status"] == "deployed"
+    assert store.gates is not None
+    assert store.gates["R2"] == {
+        "status": "passed",
+        "run_id": "run_" + "2" * 32,
+        "slug": store.claim_value.slug,
+        "cost_cents": 10,
+        "output_sha256": "e" * 64,
+    }
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"slug": "other-workflow"},
+        {"cost_cents": 11},
+        {"debug": "should-not-persist"},
+    ],
+)
+def test_public_canary_receipt_rejects_mismatched_or_extra_evidence(mutation):
+    mod, mainline, store, modal, cloudflare, _vercel = components()
+
+    class InvalidEvidenceAdapter(Adapter):
+        def verify_public(self, claim, checkout):
+            receipt = {
+                "status": "passed", "run_id": "run_" + "2" * 32,
+                "slug": claim.slug, "cost_cents": 10,
+                "output_sha256": "e" * 64,
+            }
+            receipt.update(mutation)
+            return receipt
+
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, InvalidEvidenceAdapter("vercel"))
+
+    assert caught.value.code == "public_verification_failed"
+    assert store.gates is None
 
 
 def test_authored_release_hash_includes_profile_and_authoring_receipt():

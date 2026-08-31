@@ -309,6 +309,22 @@ def _require_passed(receipt: object, code: str) -> None:
         raise FinalizerError(code)
 
 
+def _public_canary_receipt(value: object, claim: FinalizationClaim) -> dict[str, object]:
+    required = {"status", "run_id", "slug", "cost_cents", "output_sha256"}
+    if (
+        not isinstance(value, dict)
+        or set(value) != required
+        or value.get("status") != "passed"
+        or not re.fullmatch(r"run_[0-9a-f]{32}", str(value.get("run_id") or ""))
+        or value.get("slug") != claim.slug
+        or type(value.get("cost_cents")) is not int
+        or not 1 <= value["cost_cents"] <= 10
+        or not SAFE_SHA256_RE.fullmatch(str(value.get("output_sha256") or ""))
+    ):
+        raise FinalizerError("public_verification_failed")
+    return dict(value)
+
+
 _PHASE1_FAILURE_CODES = {
     "credential_preflight_failed",
     "modal_preflight_failed",
@@ -522,8 +538,7 @@ def run_finalizer(
         _require_passed(r3, "worker_smoke_failed")
 
         store.advance(claim, "verifying_public")
-        public = vercel.verify_public(claim, checkout)
-        _require_passed(public, "public_verification_failed")
+        public = _public_canary_receipt(vercel.verify_public(claim, checkout), claim)
         publication = vercel.verify_publication(claim, checkout)
         r4_status = publication.get("status") if isinstance(publication, dict) else None
         if r4_status not in {"published", "excluded_premium"}:
@@ -532,7 +547,7 @@ def run_finalizer(
             "status": "live",
             "checked_at": CHECKED_AT,
             "R1": {"status": "passed"},
-            "R2": {"status": "passed"},
+            "R2": public,
             "R3": {"status": "passed"},
             "R4": {"status": r4_status},
         }
@@ -611,6 +626,14 @@ class EffectJournal:
                     "previous_version_id": "worker-v1",
                     "reused": False,
                     "rollback_token": "worker-v1",
+                }
+            elif operation == "public_verify":
+                self._receipts[key] = {
+                    "status": "passed",
+                    "run_id": "run_" + hashlib.sha256("|".join(key).encode()).hexdigest()[:32],
+                    "slug": claim.slug,
+                    "cost_cents": 10,
+                    "output_sha256": hashlib.sha256("output|".encode() + claim.artifact_hash.encode()).hexdigest(),
                 }
             else:
                 self._receipts[key] = {"status": "passed", "operation": operation}

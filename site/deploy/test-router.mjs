@@ -211,6 +211,7 @@ let neonFailedResumeRow = null;
 let neonRecoveryRow = null;
 let neonFinalizationRegistryRows = [];
 let neonFinalizationEffectRow = null;
+let neonProductionCanaryClaimRow = null;
 
 class MockPool {
   constructor(options) {
@@ -467,6 +468,8 @@ const sandbox = {
                 ? 'omo-internal-finalization-promote-v1'
               : text.includes("SET status = 'ready_for_deploy'") && text.includes("release_phase = 'merged_verified'")
                 ? 'omo-internal-resume-merged-release-v1'
+              : text.includes('SELECT 1 AS ok FROM submissions') && text.includes("finalization_status = 'verifying_public'")
+                ? 'omo-production-canary-active-claim-v1'
                 : null,
         connectionString,
       };
@@ -503,6 +506,11 @@ const sandbox = {
       if (entry.name === 'omo-internal-finalization-effect-modal_deploy-v1' || entry.name === 'omo-internal-finalization-effect-worker_deploy-v1') {
         return neonFinalizationEffectRow ? { rows: [neonFinalizationEffectRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-production-canary-active-claim-v1') {
+        return neonProductionCanaryClaimRow
+          ? { rows: [neonProductionCanaryClaimRow], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
       if (entry.name === 'omo-internal-finalization-detail-v1') {
         return neonFinalizationDetailRow ? { rows: [neonFinalizationDetailRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
@@ -517,7 +525,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -2579,6 +2587,100 @@ const productionCanaryReleaseTagAuth = await worker.fetch(mkReq('POST', '/api/ru
 const productionCanaryIncidentAuth = await worker.fetch(mkReq('POST', '/api/run', {
   slug: 'incident-route-classifier-canary', input: {},
 }, { 'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-incident-auth' }), productionCanaryEnv);
+const productionCanaryGeminiClaim = {
+  id: 'sub_productioncanarygeminiclaim',
+  published_slug: 'gemini-ticket-priority-canary',
+  selected_runtime: 'worker-native', status: 'ready_for_deploy', release_phase: 'merged_verified',
+  release_artifact_hash: 'b'.repeat(64), finalization_artifact_hash: 'b'.repeat(64),
+  finalization_target_sha: 'a'.repeat(40), finalization_status: 'verifying_public',
+  finalization_id: 'fin_' + 'a'.repeat(32),
+  finalization_lease_expires_at: '2099-08-30T00:00:00.000Z',
+};
+workerTest.mockSubmissions.set(productionCanaryGeminiClaim.id, productionCanaryGeminiClaim);
+const productionCanaryGeminiAuth = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'gemini-ticket-priority-canary', input: {},
+}, {
+  'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-gemini-auth',
+  'X-Omo-Finalization-Target-Sha': 'a'.repeat(40),
+  'X-Omo-Finalization-Artifact-Hash': 'b'.repeat(64),
+  'X-Omo-Finalization-Id': 'fin_' + 'a'.repeat(32),
+}), productionCanaryEnv);
+const productionCanaryGeminiUnbound = await worker.fetch(mkReq('POST', '/api/run', {
+  slug: 'gemini-ticket-priority-canary', input: {},
+}, { 'X-API-Key': productionCanaryKey, 'Idempotency-Key': 'production-canary-gemini-unbound' }), productionCanaryEnv);
+const generatedClaimHeaders = {
+  'X-Omo-Finalization-Target-Sha': 'a'.repeat(40),
+  'X-Omo-Finalization-Artifact-Hash': 'b'.repeat(64),
+  'X-Omo-Finalization-Id': 'fin_' + 'a'.repeat(32),
+};
+const generatedClaimRequest = mkReq('GET', '/api/run/run_generatedclaim', null, generatedClaimHeaders);
+const generatedClaimWrongTargetRequest = mkReq('GET', '/api/run/run_generatedclaim', null, {
+  ...generatedClaimHeaders, 'X-Omo-Finalization-Target-Sha': 'c'.repeat(40),
+});
+const generatedClaimWrongIdRequest = mkReq('GET', '/api/run/run_generatedclaim', null, {
+  ...generatedClaimHeaders, 'X-Omo-Finalization-Id': 'fin_' + 'c'.repeat(32),
+});
+const mockGeneratedClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimRequest, productionCanaryEnv, 'gemini-ticket-priority-canary'
+);
+const mockWrongIdClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimWrongIdRequest, productionCanaryEnv, 'gemini-ticket-priority-canary'
+);
+productionCanaryGeminiClaim.finalization_lease_expires_at = '2099-13-01T00:00:00.000Z';
+const mockMalformedLeaseClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimRequest, productionCanaryEnv, 'gemini-ticket-priority-canary'
+);
+productionCanaryGeminiClaim.finalization_lease_expires_at = '2099-08-30T00:00:00.000Z';
+const generatedClaimD1 = new DatabaseSync(':memory:');
+generatedClaimD1.exec(`CREATE TABLE submissions (
+  published_slug TEXT, selected_runtime TEXT, status TEXT, release_phase TEXT,
+  release_artifact_hash TEXT, finalization_artifact_hash TEXT,
+  finalization_target_sha TEXT, finalization_status TEXT,
+  finalization_id TEXT, finalization_lease_expires_at TEXT
+)`);
+generatedClaimD1.prepare(`INSERT INTO submissions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  'gemini-ticket-priority-canary', 'worker-native', 'ready_for_deploy', 'merged_verified',
+  'b'.repeat(64), 'b'.repeat(64), 'a'.repeat(40), 'verifying_public',
+  'fin_' + 'a'.repeat(32), '2099-08-30T00:00:00.000Z'
+);
+const generatedClaimD1Env = { BALANCE_DB: sqliteD1Binding(generatedClaimD1) };
+const d1GeneratedClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimRequest, generatedClaimD1Env, 'gemini-ticket-priority-canary'
+);
+const d1WrongTargetClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimWrongTargetRequest, generatedClaimD1Env, 'gemini-ticket-priority-canary'
+);
+const d1WrongIdClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimWrongIdRequest, generatedClaimD1Env, 'gemini-ticket-priority-canary'
+);
+generatedClaimD1.prepare('UPDATE submissions SET finalization_lease_expires_at = ?').run('2099-13-01T00:00:00.000Z');
+const d1MalformedLeaseClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimRequest, generatedClaimD1Env, 'gemini-ticket-priority-canary'
+);
+generatedClaimD1.close();
+neonProductionCanaryClaimRow = { ok: 1 };
+const neonCallStart = neonSqlCalls.length;
+const neonGeneratedClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimRequest, { NEON_DATABASE_URL: 'postgres://generated-claim.invalid/db' },
+  'gemini-ticket-priority-canary'
+);
+const neonGeneratedClaimCall = neonSqlCalls.slice(neonCallStart).find(
+  (entry) => entry.name === 'omo-production-canary-active-claim-v1'
+);
+neonProductionCanaryClaimRow = null;
+check('production canary claim: mock binds exact slug artifact and target', mockGeneratedClaim === true);
+check('production canary claim: mock rejects stale generation and malformed lease',
+  mockWrongIdClaim === false && mockMalformedLeaseClaim === false);
+check('production canary claim: D1 binds exact claim and rejects wrong target',
+  d1GeneratedClaim === true && d1WrongTargetClaim === false && d1WrongIdClaim === false &&
+  d1MalformedLeaseClaim === false);
+check('production canary claim: Neon binds exact claim', neonGeneratedClaim === true);
+check('production canary claim: Neon query parameters bind slug artifact and target',
+  JSON.stringify(neonGeneratedClaimCall?.values) === JSON.stringify([
+    'gemini-ticket-priority-canary', 'b'.repeat(64), 'a'.repeat(40), 'fin_' + 'a'.repeat(32),
+  ]) && neonGeneratedClaimCall?.text.includes('CASE WHEN') &&
+  neonGeneratedClaimCall?.text.includes('(0[1-9]|1[0-2])'));
+workerTest.mockSubmissions.delete(productionCanaryGeminiClaim.id);
 workerTest.mockRunRequests.set('production-canary-unrelated-status', {
   run_id: 'run_productioncanaryunrelated',
   user_id: 'user_prod_label_normalizer_canary_v1',
@@ -2650,6 +2752,10 @@ check('production canary identity: release tag run scope reaches schema validati
   productionCanaryReleaseTagAuth.status === 422);
 check('production canary identity: incident run scope reaches schema validation',
   productionCanaryIncidentAuth.status === 422);
+check('production canary identity: reviewed bounded Gemini run reaches schema validation',
+  productionCanaryGeminiAuth.status === 422);
+check('production canary identity: generated run without exact active claim hashes remains blocked',
+  productionCanaryGeminiUnbound.status === 403);
 check('production canary identity: unrelated run scope remains blocked',
   productionCanaryScopedReject.status === 403);
 check('production canary identity: unrelated owned run status remains hidden',
