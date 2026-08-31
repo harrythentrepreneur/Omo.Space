@@ -1,0 +1,32 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.7.0",
+  "cost_drivers": [
+    "up to two bounded schema-validated Gemini 2.5 Flash calls"
+  ],
+  "description": "Classify one bounded support message into low, medium, or high urgency with a concise grounded reason.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "V02 Support Urgency Classifier",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "GEMINI_API_KEY"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "system.txt",
+      "provider": "gemini",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "v02-support-urgency-classifier",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "d9b918f1feb8f92723e9ceedbdf8616f22cd35d5f380f7cfc6f090bd444a3008"
+  },
+  "unresolved": []
+}

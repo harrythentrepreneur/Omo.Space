@@ -1,0 +1,22 @@
+{
+  "happy_path": {
+    "input": {
+      "blocked": true,
+      "message": "My account is locked and I cannot continue my work."
+    },
+    "output": {
+      "reason": "Account is locked and the user is blocked from continuing work.",
+      "urgency": "high"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "empty_message",
+      "input": {
+        "blocked": false,
+        "message": "Too short"
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ]
+}
