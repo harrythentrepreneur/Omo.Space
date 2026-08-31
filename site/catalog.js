@@ -5046,6 +5046,58 @@ window.OMO_CATALOG = [
     "category": "ops",
     "cover": null,
     "demoCap": "Run reviewed example",
+    "desc": "Clean and deterministically sort a bounded list of release labels for a production lifecycle proof.",
+    "emoji": "\ud83c\udff7\ufe0f",
+    "exampleIn": "{\n  \"labels\": [\n    \" Stable \",\n    \"alpha\",\n    \"Beta\"\n  ]\n}",
+    "exampleOut": [
+      "cleaned, deterministically sorted release labels"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "labels: 1 to 12 bounded strings (1-60 chars each)"
+    ],
+    "maker": "Submitted skill",
+    "makerName": "Submitted skill",
+    "name": "V02 Release Label Sorter",
+    "niche": "release management",
+    "outputs": [
+      "cleaned, deterministically sorted release labels"
+    ],
+    "priceMaintain": 0.0,
+    "priceOwn": 0.0,
+    "promise": "Return a deterministic sorted list of release labels.",
+    "runManifest": "run-manifests/v02-release-label-sorter.json",
+    "runPrice": 0.1,
+    "slug": "v02-release-label-sorter",
+    "tags": [
+      "text",
+      "deterministic",
+      "release",
+      "label",
+      "sort"
+    ],
+    "upvotes": 0,
+    "version": "1.0.0",
+    "workflow": {
+      "steps": [
+        {
+          "label": "pure_data.execute",
+          "role": "execute",
+          "type": "pipeline"
+        },
+        {
+          "label": "Running the workflow",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  }
+  ,{
+    "category": "ops",
+    "cover": null,
+    "demoCap": "Run reviewed example",
     "desc": "Classify one bounded support message into low, medium, or high urgency with a concise grounded reason.",
     "emoji": "\ud83d\udea8",
     "exampleIn": "{\n  \"blocked\": true,\n  \"message\": \"My account is locked and I cannot continue my work.\"\n}",
@@ -7918,6 +7970,7 @@ window.OMO_VISIBLE_SLUGS = [
   'gemini-ticket-priority-canary',
   'incident-route-classifier-canary',
   'release-tag-sorter-canary',
+  'v02-release-label-sorter',
   'v02-support-urgency-classifier',
   // host-skill:visible:end
   'japanese-style-story-video',
