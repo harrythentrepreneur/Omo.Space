@@ -68,6 +68,42 @@ def test_valid_completed_main_contract_is_eligible():
     )
 
 
+def test_scheduled_tick_selects_real_successful_contract_run_for_exact_current_main():
+    mod = load_module()
+    older = valid_event()["workflow_run"]
+    older = {**older, "id": 120, "head_sha": "b" * 40}
+    current = {**valid_event()["workflow_run"], "id": 125, "run_attempt": 2}
+    decision = mod.evaluate_scheduled_runs(
+        {"workflow_runs": [older, current]},
+        {"ref": "refs/heads/main", "object": {"type": "commit", "sha": SHA}},
+    )
+    assert decision == mod.TriggerDecision(
+        eligible=True, reason="eligible", target_sha=SHA, run_id=125, run_attempt=2,
+    )
+
+
+@pytest.mark.parametrize("mutation", [
+    "wrong_ref", "bad_sha", "missing_exact_run", "failed_exact_run", "fork_exact_run",
+])
+def test_scheduled_tick_fails_closed_without_exact_green_main_run(mutation):
+    mod = load_module()
+    ref = {"ref": "refs/heads/main", "object": {"type": "commit", "sha": SHA}}
+    run = {**valid_event()["workflow_run"]}
+    if mutation == "wrong_ref":
+        ref["ref"] = "refs/heads/dev"
+    elif mutation == "bad_sha":
+        ref["object"]["sha"] = "bad"
+    elif mutation == "missing_exact_run":
+        run["head_sha"] = "b" * 40
+    elif mutation == "failed_exact_run":
+        run["conclusion"] = "failure"
+    else:
+        run["head_repository"] = {"full_name": "attacker/fork"}
+    decision = mod.evaluate_scheduled_runs({"workflow_runs": [run]}, ref)
+    assert decision.eligible is False
+    assert decision.target_sha is None and decision.run_id is None and decision.run_attempt is None
+
+
 @pytest.mark.parametrize(
     ("path", "value", "reason"),
     [
@@ -128,6 +164,23 @@ def test_cli_json_and_github_output_are_bounded(tmp_path, capsys):
     ]
 
 
+def test_scheduled_cli_reads_bounded_github_api_files(tmp_path, capsys):
+    mod = load_module()
+    runs_path = tmp_path / "runs.json"
+    ref_path = tmp_path / "ref.json"
+    runs_path.write_text(json.dumps({"workflow_runs": [valid_event()["workflow_run"]]}), encoding="utf-8")
+    ref_path.write_text(json.dumps({
+        "ref": "refs/heads/main", "object": {"type": "commit", "sha": SHA},
+    }), encoding="utf-8")
+    assert mod.main([
+        "--runs", str(runs_path), "--ref", str(ref_path), "--format", "github-output",
+    ]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "eligible=true", "reason=eligible", f"target_sha={SHA}",
+        "run_id=123456789", "run_attempt=1",
+    ]
+
+
 def test_cli_malformed_payload_fails_closed_without_echo(tmp_path, capsys):
     mod = load_module()
     event_path = tmp_path / "event.json"
@@ -146,15 +199,21 @@ def test_workflow_separates_credential_free_trigger_from_protected_finalizer():
         "workflow_run": {
             "workflows": ["generated-workflow-contracts"],
             "types": ["completed"],
-        }
+        },
+        "schedule": [{"cron": "*/5 * * * *"}],
     }
     assert workflow["permissions"] == {"actions": "read", "contents": "read"}
     assert "workflow_dispatch" not in text
+    assert "actions/workflows/generated-workflow-contracts.yml/runs" in text
+    assert "git/ref/heads/main" in text
+    assert "--runs" in text and "--ref" in text
+    assert "--jq" in text and "workflow_runs" in text and "head_repository" in text
     assert "pull_request_target" not in text
     assert "persist-credentials: false" in text
     assert "11d5960a326750d5838078e36cf38b85af677262" in text
     assert "github.event.workflow_run.head_sha" not in text
-    assert "steps.trigger.outputs.target_sha" in text
+    assert "steps.event.outputs.target_sha" in text
+    assert "steps.scheduled.outputs.target_sha" in text
     assert "git -C target rev-parse HEAD" in text
 
     evaluate = yaml.dump(workflow["jobs"]["evaluate"])

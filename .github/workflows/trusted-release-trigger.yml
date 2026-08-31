@@ -6,6 +6,8 @@ on:
       - generated-workflow-contracts
     types:
       - completed
+  schedule:
+    - cron: '*/5 * * * *'
 
 permissions:
   actions: read
@@ -19,10 +21,10 @@ jobs:
   evaluate:
     runs-on: ubuntu-latest
     outputs:
-      eligible: ${{ steps.trigger.outputs.eligible }}
-      target_sha: ${{ steps.trigger.outputs.target_sha }}
-      run_id: ${{ steps.trigger.outputs.run_id }}
-      run_attempt: ${{ steps.trigger.outputs.run_attempt }}
+      eligible: ${{ steps.event.outputs.eligible || steps.scheduled.outputs.eligible }}
+      target_sha: ${{ steps.event.outputs.target_sha || steps.scheduled.outputs.target_sha }}
+      run_id: ${{ steps.event.outputs.run_id || steps.scheduled.outputs.run_id }}
+      run_attempt: ${{ steps.event.outputs.run_attempt || steps.scheduled.outputs.run_attempt }}
     steps:
       - name: Check out trusted controller from main
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -31,27 +33,53 @@ jobs:
           persist-credentials: false
           path: controller
       - name: Validate completed workflow run
-        id: trigger
+        if: github.event_name == 'workflow_run'
+        id: event
         shell: bash
         run: >-
           python3 controller/tools/host-skill/release_trigger.py
           --event "$GITHUB_EVENT_PATH"
           --format github-output
           >> "$GITHUB_OUTPUT"
+      - name: Fetch exact current main and completed contracts runs
+        if: github.event_name == 'schedule'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method GET \
+            'repos/harrythentrepreneur/Omo.Space/actions/workflows/generated-workflow-contracts.yml/runs?branch=main&event=push&status=completed&per_page=20' \
+            --jq '{workflow_runs:[.workflow_runs[]|{id,run_attempt,name,path,event,status,conclusion,head_branch,head_sha,head_repository:{full_name:.head_repository.full_name}}]}' \
+            > "$RUNNER_TEMP/contracts-runs.json"
+          gh api --method GET \
+            'repos/harrythentrepreneur/Omo.Space/git/ref/heads/main' \
+            --jq '{ref,object:{type:.object.type,sha:.object.sha}}' \
+            > "$RUNNER_TEMP/main-ref.json"
+      - name: Validate scheduled exact-main contracts run
+        if: github.event_name == 'schedule'
+        id: scheduled
+        shell: bash
+        run: >-
+          python3 controller/tools/host-skill/release_trigger.py
+          --runs "$RUNNER_TEMP/contracts-runs.json"
+          --ref "$RUNNER_TEMP/main-ref.json"
+          --format github-output
+          >> "$GITHUB_OUTPUT"
       - name: Check out exact eligible green commit
-        if: steps.trigger.outputs.eligible == 'true'
+        if: (steps.event.outputs.eligible || steps.scheduled.outputs.eligible) == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ steps.trigger.outputs.target_sha }}
+          ref: ${{ steps.event.outputs.target_sha || steps.scheduled.outputs.target_sha }}
           persist-credentials: false
           path: target
       - name: Verify exact detached target
-        if: steps.trigger.outputs.eligible == 'true'
+        if: (steps.event.outputs.eligible || steps.scheduled.outputs.eligible) == 'true'
         shell: bash
         env:
-          TARGET_SHA: ${{ steps.trigger.outputs.target_sha }}
+          TARGET_SHA: ${{ steps.event.outputs.target_sha || steps.scheduled.outputs.target_sha }}
         run: test "$(git -C target rev-parse HEAD)" = "$TARGET_SHA"
       - name: Record credential-free trigger decision
+        if: github.event_name == 'workflow_run'
         shell: bash
         run: >-
           python3 controller/tools/host-skill/release_trigger.py

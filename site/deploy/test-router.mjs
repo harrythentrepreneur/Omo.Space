@@ -209,6 +209,7 @@ let neonCompletedFinalizationRow = null;
 let neonFailedFinalizationRow = null;
 let neonFailedResumeRow = null;
 let neonRecoveryRow = null;
+let neonRecoveryCandidateRows = [];
 let neonFinalizationRegistryRows = [];
 let neonFinalizationEffectRow = null;
 let neonProductionCanaryClaimRow = null;
@@ -253,16 +254,20 @@ class MockPool {
         if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
           return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
-        if (entry.name === 'omo-internal-finalization-failed-v1') {
+        if (['omo-internal-finalization-failed-by-target-v1',
+          'omo-internal-finalization-failed-by-generation-v1'].includes(entry.name)) {
           return neonFailedFinalizationRow ? { rows: [neonFailedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         if (entry.name === 'omo-internal-finalization-resume-failed-v1') {
-          const allowed = Array.isArray(entry.values[1]) &&
-            entry.values[1].includes(neonFailedResumeRow && neonFailedResumeRow.finalization_failure_code);
+          const allowed = Array.isArray(entry.values[2]) &&
+            entry.values[2].includes(neonFailedResumeRow && neonFailedResumeRow.finalization_failure_code);
           return neonFailedResumeRow && allowed ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
         }
         if (entry.name === 'omo-internal-finalization-recover-rolled-back-v1') {
           return neonRecoveryRow ? { rows: [neonRecoveryRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        if (entry.name === 'omo-internal-finalization-recovery-candidate-v1') {
+          return { rows: neonRecoveryCandidateRows, rowCount: neonRecoveryCandidateRows.length };
         }
         return { rows: [], rowCount: 0 };
       },
@@ -446,10 +451,14 @@ const sandbox = {
                 ? 'omo-internal-submission-claim-v1'
               : text.includes('WITH candidate AS') && text.includes('finalization_id') && text.includes("finalization_status = 'claimed'")
                 ? 'omo-internal-finalization-claim-v1'
+              : text.includes('finalization_attempts = 1') && text.includes('LIMIT 32') && text.includes("finalization_status = 'failed'")
+                ? 'omo-internal-finalization-recovery-candidate-v1'
               : text.includes("status IN ('ready_for_publish', 'deployed')") && text.includes("finalization_status = 'completed'") && text.includes('SELECT')
                 ? 'omo-internal-finalization-resume-completed-v1'
               : text.includes("finalization_status = 'failed'") && text.includes('finalization_modal_receipt IS NOT NULL') && text.includes('SELECT')
-                ? 'omo-internal-finalization-failed-v1'
+                ? (text.includes('finalization_id = $2')
+                  ? 'omo-internal-finalization-failed-by-generation-v1'
+                  : 'omo-internal-finalization-failed-by-target-v1')
               : text.includes('finalization_recovery_receipt = $1')
                 ? 'omo-internal-finalization-recover-rolled-back-v1'
               : text.includes("SET status = 'ready_for_deploy'") && text.includes('finalization_id = NULL') && text.includes("finalization_status = 'failed'")
@@ -489,16 +498,20 @@ const sandbox = {
       if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
         return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      if (entry.name === 'omo-internal-finalization-failed-v1') {
+      if (['omo-internal-finalization-failed-by-target-v1',
+        'omo-internal-finalization-failed-by-generation-v1'].includes(entry.name)) {
         return neonFailedFinalizationRow ? { rows: [neonFailedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-internal-finalization-resume-failed-v1') {
-        const allowed = Array.isArray(entry.values[1]) &&
-          entry.values[1].includes(neonFailedResumeRow && neonFailedResumeRow.finalization_failure_code);
+        const allowed = Array.isArray(entry.values[2]) &&
+          entry.values[2].includes(neonFailedResumeRow && neonFailedResumeRow.finalization_failure_code);
         return neonFailedResumeRow && allowed ? { rows: [neonFailedResumeRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-internal-finalization-recover-rolled-back-v1') {
         return neonRecoveryRow ? { rows: [neonRecoveryRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (entry.name === 'omo-internal-finalization-recovery-candidate-v1') {
+        return { rows: neonRecoveryCandidateRows, rowCount: neonRecoveryCandidateRows.length };
       }
       if (entry.name === 'omo-internal-finalization-registry-slugs-v1') {
         return { rows: neonFinalizationRegistryRows, rowCount: neonFinalizationRegistryRows.length };
@@ -525,7 +538,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -2152,6 +2165,74 @@ for (const failureCode of ['modal_preflight_failed', 'worker_preflight_failed', 
   const body = await response.json();
   typedPreflightInspections.push(response.status === 200 && body.finalization.failure_code === failureCode);
 }
+failedRecoveryRecord.finalization_failure_code = 'modal_preflight_failed';
+const builderRecoveryCandidate = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', {}, internalHeaders
+), buildEnv);
+const recoveryCandidateExtra = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', { target_sha: failedRecoveryTarget }, finalizerHeaders
+), buildEnv);
+const recoveryCandidateResponse = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
+), buildEnv);
+const recoveryCandidateBody = await recoveryCandidateResponse.json();
+failedRecoveryRecord.finalization_attempts = 2;
+const exhaustedRecoveryCandidate = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
+), buildEnv);
+failedRecoveryRecord.finalization_attempts = 1;
+check('automatic finalization recovery candidate: finalizer-only bounded no-effect retry is offered once',
+  builderRecoveryCandidate.status === 401 && recoveryCandidateExtra.status === 400 &&
+  recoveryCandidateResponse.status === 200 && exhaustedRecoveryCandidate.status === 204 &&
+  JSON.stringify(recoveryCandidateBody) === JSON.stringify({
+    ok: true, recovery: {
+      target_sha: failedRecoveryTarget, finalization_id: failedRecoveryRecord.finalization_id,
+      mode: 'resume_no_effect',
+    },
+  }) && !JSON.stringify(recoveryCandidateBody).includes('failure_code'));
+
+const recoveryCandidateD1 = new DatabaseSync(':memory:');
+recoveryCandidateD1.exec(`CREATE TABLE submissions (
+  id TEXT PRIMARY KEY, slug TEXT, selected_runtime TEXT, status TEXT, release_phase TEXT,
+  source_sha256 TEXT, release_head_sha TEXT, release_merge_sha TEXT, release_artifact_hash TEXT,
+  finalization_id TEXT, finalization_status TEXT, finalization_target_sha TEXT,
+  finalization_source_sha256 TEXT, finalization_head_sha TEXT, finalization_merge_sha TEXT,
+  finalization_artifact_hash TEXT, finalization_attempts INTEGER, finalization_failure_code TEXT,
+  finalization_modal_receipt TEXT, finalization_worker_receipt TEXT, finalization_recovery_receipt TEXT,
+  automation_updated_at TEXT
+)`);
+const recoveryD1Keys = Object.keys(failedRecoveryRecord).filter((key) => [
+  'id', 'slug', 'selected_runtime', 'status', 'release_phase', 'source_sha256',
+  'release_head_sha', 'release_merge_sha', 'release_artifact_hash', 'finalization_id',
+  'finalization_status', 'finalization_target_sha', 'finalization_source_sha256',
+  'finalization_head_sha', 'finalization_merge_sha', 'finalization_artifact_hash',
+  'finalization_attempts', 'finalization_failure_code', 'finalization_modal_receipt',
+  'finalization_worker_receipt', 'finalization_recovery_receipt', 'automation_updated_at',
+].includes(key));
+recoveryCandidateD1.prepare(
+  `INSERT INTO submissions (${recoveryD1Keys.join(',')}) VALUES (${recoveryD1Keys.map(() => '?').join(',')})`
+).run(...recoveryD1Keys.map((key) => failedRecoveryRecord[key]));
+const d1AutomaticCandidate = await workerTest.internalAutomaticRecoveryCandidate({
+  BALANCE_DB: sqliteD1Binding(recoveryCandidateD1),
+});
+neonSqlCalls.length = 0;
+neonRecoveryCandidateRows = [{ ...failedRecoveryRecord, modal_receipt_present: false, worker_receipt_present: false }];
+const neonAutomaticCandidate = await workerTest.internalAutomaticRecoveryCandidate({
+  NEON_DATABASE_URL: 'postgres://example',
+});
+const neonAutomaticCandidateCall = neonSqlCalls.find(
+  (call) => call.name === 'omo-internal-finalization-recovery-candidate-v1'
+);
+check('automatic finalization recovery candidate: D1 matches bounded mock decision',
+  JSON.stringify(d1AutomaticCandidate) === JSON.stringify(recoveryCandidateBody.recovery));
+check('automatic finalization recovery candidate: Neon matches bounded mock decision and bounded SQL',
+  JSON.stringify(neonAutomaticCandidate) === JSON.stringify(recoveryCandidateBody.recovery) &&
+  neonAutomaticCandidateCall?.values.length === 2 &&
+  neonAutomaticCandidateCall?.text.includes('finalization_attempts = 1') &&
+  neonAutomaticCandidateCall?.text.includes('LIMIT 32'));
+neonRecoveryCandidateRows = [];
+recoveryCandidateD1.close();
+
 failedRecoveryRecord.finalization_failure_code = 'release_head_not_ancestor';
 const builderFailedInspect = await worker.fetch(mkReq('POST', '/api/internal/finalizations/failed', {
   target_sha: failedRecoveryTarget,
@@ -2164,11 +2245,11 @@ const failedInspectExtra = await worker.fetch(mkReq('POST', '/api/internal/final
   target_sha: failedRecoveryTarget, receipts: true,
 }, finalizerHeaders), buildEnv);
 const failedResume = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-failed', {
-  target_sha: failedRecoveryTarget,
+  target_sha: failedRecoveryTarget, finalization_id: failedRecoveryRecord.finalization_id,
 }, finalizerHeaders), buildEnv);
 const failedResumeBody = await failedResume.json();
 const failedResumeReplay = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-failed', {
-  target_sha: failedRecoveryTarget,
+  target_sha: failedRecoveryTarget, finalization_id: 'fin_' + 'f'.repeat(32),
 }, finalizerHeaders), buildEnv);
 check('failed finalization diagnosis/resume mock: finalizer-only exact safe envelope requeues once for a fresh standard claim',
   typedPreflightInspections.every(Boolean) && builderFailedInspect.status === 401 &&
@@ -2200,11 +2281,11 @@ const receiptFailedInspect = await worker.fetch(mkReq('POST', '/api/internal/fin
 }, finalizerHeaders), buildEnv);
 const receiptFailedInspectBody = await receiptFailedInspect.json();
 const receiptFailedResume = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-failed', {
-  target_sha: '5'.repeat(40),
+  target_sha: '5'.repeat(40), finalization_id: receiptBearingFailed.finalization_id,
 }, finalizerHeaders), buildEnv);
 receiptBearingFailed.release_merge_sha = 'f'.repeat(40);
 const malformedFailedResume = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-failed', {
-  target_sha: '5'.repeat(40),
+  target_sha: '5'.repeat(40), finalization_id: receiptBearingFailed.finalization_id,
 }, finalizerHeaders), buildEnv);
 check('failed finalization resume mock: receipt-bearing, malformed identity, wrong state, and replay fail closed',
   receiptFailedInspect.status === 200 && receiptFailedInspectBody.finalization.worker_receipt_present === true &&
@@ -2270,24 +2351,43 @@ check('failed finalization effect reconciliation: canonical receipt persists',
   JSON.parse(lateEffectRecord.finalization_worker_receipt).version_id === 'cf-current');
 workerTest.mockSubmissions.delete(lateEffectRecord.id);
 workerTest.mockSubmissions.set(rollbackRecord.id, rollbackRecord);
+const priorAutomaticRecoveryHistory = rollbackRecord.finalization_recovery_receipt;
+rollbackRecord.finalization_recovery_receipt = null;
+const automaticReceiptCandidateResponse = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
+), buildEnv);
+const automaticReceiptCandidateBody = await automaticReceiptCandidateResponse.json();
+rollbackRecord.finalization_recovery_receipt = priorAutomaticRecoveryHistory;
+const exhaustedAutomaticReceiptCandidate = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
+), buildEnv);
+check('automatic finalization recovery candidate: receipt-bearing failure gets one provider-verified retry',
+  automaticReceiptCandidateResponse.status === 200 && exhaustedAutomaticReceiptCandidate.status === 204 &&
+  JSON.stringify(automaticReceiptCandidateBody) === JSON.stringify({
+    ok: true, recovery: {
+      target_sha: rollbackTarget, finalization_id: rollbackRecord.finalization_id,
+      mode: 'verify_then_retry',
+    },
+  }) && !JSON.stringify(automaticReceiptCandidateBody).includes('receipt'));
 const recoveryPlanResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recovery-plan', {
-  target_sha: rollbackTarget,
+  target_sha: rollbackTarget, finalization_id: rollbackRecord.finalization_id,
 }, finalizerHeaders), buildEnv);
 const recoveryPlanBody = await recoveryPlanResponse.json();
 const recoveryExtra = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recover-rolled-back', {
   target_sha: rollbackTarget, modal_version: 'attacker-controlled',
 }, finalizerHeaders), buildEnv);
 const recoveryResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recover-rolled-back', {
-  target_sha: rollbackTarget,
+  target_sha: rollbackTarget, finalization_id: rollbackRecord.finalization_id,
 }, finalizerHeaders), buildEnv);
 const recoveryBody = await recoveryResponse.json();
 const recoveryHistory = JSON.parse(rollbackRecord.finalization_recovery_receipt || 'null');
 const recoverySnapshot = recoveryHistory[1];
 const recoveryReplay = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recover-rolled-back', {
-  target_sha: rollbackTarget,
+  target_sha: rollbackTarget, finalization_id: 'fin_' + 'f'.repeat(32),
 }, finalizerHeaders), buildEnv);
-check('receipt-aware rollback recovery mock: exact target-only boundary preserves immutable evidence and rearms once',
+check('receipt-aware rollback recovery mock: exact generation boundary preserves immutable evidence and rearms once',
   recoveryPlanResponse.status === 200 && recoveryPlanBody.recovery.target_sha === rollbackTarget &&
+  recoveryPlanBody.recovery.finalization_id === 'fin_' + '8'.repeat(32) &&
   recoveryPlanBody.recovery.modal.expected_active_version_id === 'modal-v7' &&
   recoveryPlanBody.recovery.cloudflare.expected_active_version_id === 'cf-v8' &&
   recoveryExtra.status === 400 && recoveryResponse.status === 200 &&
@@ -2306,25 +2406,90 @@ check('receipt-aware rollback recovery mock: exact target-only boundary preserve
   recoverySnapshot.verified_by === 'trusted_production_finalizer');
 workerTest.mockSubmissions.delete(rollbackRecord.id);
 
+const sharedRecoveryTarget = '4'.repeat(40);
+const sharedNoEffect = (suffix, updatedAt) => ({
+  ...failedRecoveryRecord,
+  id: `sub_sharednoeffect${suffix}`, finalization_id: `fin_${suffix.repeat(32)}`,
+  status: 'failed', release_phase: 'merged_verified', finalization_status: 'failed',
+  finalization_failure_code: 'modal_preflight_failed', finalization_target_sha: sharedRecoveryTarget,
+  source_sha256: 'a'.repeat(64), finalization_source_sha256: 'a'.repeat(64),
+  release_head_sha: 'b'.repeat(40), finalization_head_sha: 'b'.repeat(40),
+  release_merge_sha: 'c'.repeat(40), finalization_merge_sha: 'c'.repeat(40),
+  release_artifact_hash: 'd'.repeat(64), finalization_artifact_hash: 'd'.repeat(64),
+  finalization_attempts: 1, finalization_modal_receipt: null, finalization_worker_receipt: null,
+  finalization_recovery_receipt: null, automation_updated_at: updatedAt,
+});
+const sharedNoEffectA = sharedNoEffect('a', '1900-01-01T00:00:00.000Z');
+const sharedNoEffectB = sharedNoEffect('b', '1901-01-01T00:00:00.000Z');
+workerTest.mockSubmissions.set(sharedNoEffectA.id, sharedNoEffectA);
+workerTest.mockSubmissions.set(sharedNoEffectB.id, sharedNoEffectB);
+const sharedCandidateA = await workerTest.internalAutomaticRecoveryCandidate(buildEnv);
+const sharedResumeA = await workerTest.internalResumeFailedFinalization(
+  buildEnv, sharedRecoveryTarget, sharedNoEffectA.finalization_id
+);
+const sharedCandidateB = await workerTest.internalAutomaticRecoveryCandidate(buildEnv);
+check('automatic recovery shared target: candidate and no-effect mutation stay on exact generation',
+  sharedCandidateA.finalization_id === 'fin_' + 'a'.repeat(32) && sharedResumeA === true &&
+  sharedNoEffectA.finalization_id === null && sharedNoEffectB.finalization_id === 'fin_' + 'b'.repeat(32) &&
+  sharedCandidateB.finalization_id === 'fin_' + 'b'.repeat(32));
+workerTest.mockSubmissions.delete(sharedNoEffectA.id);
+workerTest.mockSubmissions.delete(sharedNoEffectB.id);
+
+const sharedReceipt = (suffix, updatedAt) => ({
+  ...rollbackRecord,
+  id: `sub_sharedreceipt${suffix}`, finalization_id: `fin_${suffix.repeat(32)}`,
+  slug: 'recovery-workflow', selected_runtime: 'modal-hosted', status: 'failed',
+  release_phase: 'merged_verified', finalization_status: 'failed',
+  finalization_failure_code: 'public_verification_failed', finalization_target_sha: rollbackTarget,
+  source_sha256: 'a'.repeat(64), finalization_source_sha256: 'a'.repeat(64),
+  release_head_sha: 'b'.repeat(40), finalization_head_sha: 'b'.repeat(40),
+  release_merge_sha: 'c'.repeat(40), finalization_merge_sha: 'c'.repeat(40),
+  release_artifact_hash: rollbackArtifact, finalization_artifact_hash: rollbackArtifact,
+  finalization_attempts: 5, finalization_modal_receipt: JSON.stringify(rollbackModalReceipt),
+  finalization_worker_receipt: JSON.stringify(rollbackWorkerReceipt),
+  finalization_recovery_receipt: null, automation_updated_at: updatedAt,
+});
+const sharedReceiptA = sharedReceipt('c', '1900-01-01T00:00:00.000Z');
+const sharedReceiptB = sharedReceipt('d', '1901-01-01T00:00:00.000Z');
+workerTest.mockSubmissions.set(sharedReceiptA.id, sharedReceiptA);
+workerTest.mockSubmissions.set(sharedReceiptB.id, sharedReceiptB);
+const sharedPlanB = await worker.fetch(mkReq('POST', '/api/internal/finalizations/recovery-plan', {
+  target_sha: rollbackTarget, finalization_id: sharedReceiptB.finalization_id,
+}, finalizerHeaders), buildEnv);
+const sharedPlanBBody = await sharedPlanB.json();
+const sharedRecoveredB = await workerTest.internalRecoverRolledBackFinalization(
+  buildEnv, rollbackTarget, sharedReceiptB.finalization_id
+);
+check('automatic recovery shared target: plan and receipt mutation stay on exact generation',
+  sharedPlanB.status === 200 && sharedPlanBBody.recovery.finalization_id === 'fin_' + 'd'.repeat(32) &&
+  sharedRecoveredB === true && sharedReceiptA.finalization_id === 'fin_' + 'c'.repeat(32) &&
+  sharedReceiptA.finalization_status === 'failed' && sharedReceiptB.finalization_id === null);
+workerTest.mockSubmissions.delete(sharedReceiptA.id);
+workerTest.mockSubmissions.delete(sharedReceiptB.id);
+
 neonSqlCalls.length = 0;
 neonFailedFinalizationRow = { ...receiptBearingFailed, release_merge_sha: 'c'.repeat(40),
   modal_receipt_present: false, worker_receipt_present: true };
 const neonFailedInspect = await workerTest.internalInspectFailedFinalization(
   { NEON_DATABASE_URL: 'postgres://example' }, '5'.repeat(40)
 );
-const neonFailedInspectCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-failed-v1');
+const neonFailedInspectCall = neonSqlCalls.at(-1);
+const neonFailedGenerationInspect = await workerTest.internalInspectFailedFinalization(
+  { NEON_DATABASE_URL: 'postgres://example' }, '5'.repeat(40), receiptBearingFailed.finalization_id
+);
+const neonFailedGenerationInspectCall = neonSqlCalls.at(-1);
 neonFailedResumeRow = { ...failedRecoveryRecord, finalization_id: 'fin_' + '7'.repeat(32),
   finalization_failure_code: 'unknown_preflight_failure', finalization_target_sha: '7'.repeat(40),
   finalization_attempts: 4, finalization_lease_expires_at: '2099-08-21T00:00:00Z' };
 const neonUnknownFailedResumed = await workerTest.internalResumeFailedFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, '7'.repeat(40)
+  { NEON_DATABASE_URL: 'postgres://example' }, '7'.repeat(40), 'fin_' + '7'.repeat(32)
 );
 neonFailedResumeRow = { ...failedRecoveryRecord, finalization_id: 'fin_' + '6'.repeat(32),
   finalization_failure_code: 'modal_preflight_failed',
   finalization_target_sha: '6'.repeat(40), finalization_attempts: 4,
   finalization_lease_expires_at: '2099-08-21T00:00:00Z' };
 const neonFailedResumed = await workerTest.internalResumeFailedFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, '6'.repeat(40)
+  { NEON_DATABASE_URL: 'postgres://example' }, '6'.repeat(40), 'fin_' + '6'.repeat(32)
 );
 const neonFailedResumeCall = neonSqlCalls.find((call) =>
   call.name === 'omo-internal-finalization-resume-failed-v1' && call.values[0] === '6'.repeat(40)
@@ -2332,16 +2497,23 @@ const neonFailedResumeCall = neonSqlCalls.find((call) =>
 check('failed finalization Neon SQL: exact target, allowlisted failure, complete immutable equality, and no-receipt requeue CAS',
   neonUnknownFailedResumed === false &&
   workerTest.failedFinalizationRow(neonFailedInspect).worker_receipt_present === true &&
+  workerTest.failedFinalizationRow(neonFailedGenerationInspect).id === receiptBearingFailed.finalization_id &&
+  neonFailedInspectCall.name === 'omo-internal-finalization-failed-by-target-v1' &&
+  neonFailedGenerationInspectCall.name === 'omo-internal-finalization-failed-by-generation-v1' &&
   neonFailedInspectCall.values[0] === '5'.repeat(40) &&
+  neonFailedInspectCall.values.length === 1 && neonFailedGenerationInspectCall.values.length === 2 &&
+  !neonFailedInspectCall.text.includes('finalization_id = $2') &&
+  neonFailedGenerationInspectCall.text.includes('finalization_id = $2') &&
   neonFailedInspectCall.text.includes('source_sha256 = finalization_source_sha256') &&
   neonFailedInspectCall.text.includes('release_artifact_hash = finalization_artifact_hash') &&
   neonFailedResumeCall.values.includes('6'.repeat(40)) &&
-  Array.isArray(neonFailedResumeCall.values[1]) &&
-  neonFailedResumeCall.values[1].includes('modal_preflight_failed') &&
-  neonFailedResumeCall.values[1].includes('worker_preflight_failed') &&
-  neonFailedResumeCall.values[1].includes('public_preflight_failed') &&
-  !neonFailedResumeCall.values[1].includes('unknown_preflight_failure') &&
-  neonFailedResumeCall.text.includes("finalization_failure_code = ANY($2::text[])") &&
+  neonFailedResumeCall.values.includes('fin_' + '6'.repeat(32)) &&
+  Array.isArray(neonFailedResumeCall.values[2]) &&
+  neonFailedResumeCall.values[2].includes('modal_preflight_failed') &&
+  neonFailedResumeCall.values[2].includes('worker_preflight_failed') &&
+  neonFailedResumeCall.values[2].includes('public_preflight_failed') &&
+  !neonFailedResumeCall.values[2].includes('unknown_preflight_failure') &&
+  neonFailedResumeCall.text.includes("finalization_failure_code = ANY($3::text[])") &&
   neonFailedResumeCall.text.includes("status IN ('ready_for_deploy', 'failed')") &&
   neonFailedResumeCall.text.includes('FOR UPDATE SKIP LOCKED') &&
   neonFailedResumeCall.text.includes('submission.id = candidate.id') &&
@@ -2362,12 +2534,13 @@ neonFailedFinalizationRow = {
 };
 neonRecoveryRow = { id: rollbackRecord.id };
 const neonRecovered = await workerTest.internalRecoverRolledBackFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, rollbackTarget
+  { NEON_DATABASE_URL: 'postgres://example' }, rollbackTarget, 'fin_' + '8'.repeat(32)
 );
 const neonRecoveryCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-recover-rolled-back-v1');
 check('receipt-aware rollback recovery Neon: exact immutable CAS stores evidence once and clears active generation',
   neonRecovered === true && neonRecoveryCall.values.length === 11 &&
   neonRecoveryCall.values[3] === rollbackTarget &&
+  neonRecoveryCall.values[2] === 'fin_' + '8'.repeat(32) &&
   JSON.parse(neonRecoveryCall.values[0])[1].verified_by === 'trusted_production_finalizer' &&
   neonRecoveryCall.values[8] === JSON.stringify(rollbackModalReceipt) &&
   neonRecoveryCall.values[9] === JSON.stringify(rollbackWorkerReceipt) &&
@@ -3388,10 +3561,15 @@ const d1FailedEnv = { BALANCE_DB: d1Failed.binding };
 const d1FailedBefore = workerTest.failedFinalizationRow(
   await workerTest.internalInspectFailedFinalization(d1FailedEnv, d1FailedTarget)
 );
-const d1FailedRequeued = await workerTest.internalResumeFailedFinalization(d1FailedEnv, d1FailedTarget);
+const d1FailedMissingGeneration = await workerTest.internalResumeFailedFinalization(d1FailedEnv, d1FailedTarget);
+const d1FailedRequeued = await workerTest.internalResumeFailedFinalization(
+  d1FailedEnv, d1FailedTarget, 'fin_' + '7'.repeat(32)
+);
 const d1FreshTarget = 'c'.repeat(40);
 const d1FailedResumed = await workerTest.internalClaimFinalization(d1FailedEnv, d1FreshTarget);
-const d1FailedReplay = await workerTest.internalResumeFailedFinalization(d1FailedEnv, d1FailedTarget);
+const d1FailedReplay = await workerTest.internalResumeFailedFinalization(
+  d1FailedEnv, d1FailedTarget, 'fin_' + '7'.repeat(32)
+);
 const d1FailedAfter = d1Failed.db.prepare(
   'SELECT status,finalization_id,finalization_status,finalization_attempts,finalization_failure_code FROM submissions WHERE id = ?'
 ).get('sub_d1failedfinal01');
@@ -3399,7 +3577,8 @@ const d1FailedAfter = d1Failed.db.prepare(
 check('internal failed finalization resume D1: real SQLite requeues once, then standard claim binds fresh green target',
   d1FailedBefore.failure_code === 'release_head_not_ancestor' &&
   d1FailedBefore.modal_receipt_present === false && d1FailedBefore.worker_receipt_present === false &&
-  d1FailedRequeued === true && d1FailedResumed && d1FailedResumed.target_sha === d1FreshTarget &&
+  d1FailedMissingGeneration === false && d1FailedRequeued === true &&
+  d1FailedResumed && d1FailedResumed.target_sha === d1FreshTarget &&
   d1FailedResumed.id !== 'fin_' + '7'.repeat(32) && d1FailedResumed.attempts === 2 &&
   d1FailedReplay === false && d1FailedAfter.status === 'ready_for_deploy' &&
   d1FailedAfter.finalization_status === 'claimed' && d1FailedAfter.finalization_attempts === 2 &&
@@ -3419,8 +3598,15 @@ const d1RecoveryRecord = {
 delete d1RecoveryRecord.failure_code;
 const d1Recovery = d1DatabaseForFinalization(d1RecoveryRecord);
 const d1RecoveryEnv = { BALANCE_DB: d1Recovery.binding };
-const d1Recovered = await workerTest.internalRecoverRolledBackFinalization(d1RecoveryEnv, rollbackTarget);
-const d1RecoveryReplay = await workerTest.internalRecoverRolledBackFinalization(d1RecoveryEnv, rollbackTarget);
+const d1RecoveryMissingGeneration = await workerTest.internalRecoverRolledBackFinalization(
+  d1RecoveryEnv, rollbackTarget
+);
+const d1Recovered = await workerTest.internalRecoverRolledBackFinalization(
+  d1RecoveryEnv, rollbackTarget, d1RecoveryRecord.finalization_id
+);
+const d1RecoveryReplay = await workerTest.internalRecoverRolledBackFinalization(
+  d1RecoveryEnv, rollbackTarget, d1RecoveryRecord.finalization_id
+);
 const d1RecoveryFreshTarget = 'e'.repeat(40);
 const d1RecoveryClaim = await workerTest.internalClaimFinalization(d1RecoveryEnv, d1RecoveryFreshTarget);
 const d1RecoveryAfter = d1Recovery.db.prepare(
@@ -3429,7 +3615,8 @@ const d1RecoveryAfter = d1Recovery.db.prepare(
 const d1RecoveryHistory = JSON.parse(d1RecoveryAfter.finalization_recovery_receipt);
 const d1RecoveryEvidence = d1RecoveryHistory[1];
 check('receipt-aware rollback recovery D1: real SQLite CAS has one winner and ordinary next claim preserves evidence',
-  d1Recovered === true && d1RecoveryReplay === false && d1RecoveryClaim &&
+  d1RecoveryMissingGeneration === false && d1Recovered === true &&
+  d1RecoveryReplay === false && d1RecoveryClaim &&
   d1RecoveryClaim.target_sha === d1RecoveryFreshTarget && d1RecoveryClaim.attempts === 6 &&
   d1RecoveryAfter.finalization_id !== 'fin_' + '8'.repeat(32) &&
   d1RecoveryAfter.finalization_target_sha === d1RecoveryFreshTarget &&
