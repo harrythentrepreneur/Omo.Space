@@ -31,14 +31,21 @@ def test_control_plane_deploy_is_main_only_environment_gated_and_secret_scoped()
 
 def test_control_plane_deploy_proves_exact_source_dry_run_deploy_and_live_pin() -> None:
     text = workflow_text()
+    package = (ROOT / "site" / "deploy" / "package.json").read_text(encoding="utf-8")
+    lock = (ROOT / "site" / "deploy" / "package-lock.json").read_text(encoding="utf-8")
     assert "ref: ${{ github.sha }}" in text
     assert "test \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"" in text
     assert "npm ci --ignore-scripts" in text
-    assert "npx wrangler@4.123.0 deploy --dry-run --keep-vars --env=\"\"" in text
-    assert "npx wrangler@4.123.0 deploy --keep-vars --env=\"\"" in text
-    assert "npx wrangler@4.123.0 deployments status --json --env=\"\"" in text
-    assert "npx wrangler@4.123.0 versions view \"$version_id\" --json --env=\"\"" in text
-    assert "${{ steps.allocation.outputs.version_id }}" not in text
+    assert '"wrangler": "4.125.0"' in package
+    assert '"node_modules/wrangler"' in lock and '"version": "4.125.0"' in lock
+    assert "npx --no-install wrangler --version | grep -Fx '4.125.0'" in text
+    assert "wrangler@" not in text
+    assert "npx --no-install wrangler deploy --dry-run --keep-vars --env=\"\"" in text
+    assert "npx --no-install wrangler deploy --keep-vars --env=\"\" --message \"omo-control-plane:$GITHUB_SHA\"" in text
+    assert "tee \"$RUNNER_TEMP/deploy.log\"" in text
+    assert "npx --no-install wrangler deployments status --json --env=\"\"" in text
+    assert "npx --no-install wrangler versions view \"$version_id\" --json --env=\"\"" in text
+    assert "verify_control_plane_deployment.py" in text
+    assert "--deploy-log \"$RUNNER_TEMP/deploy.log\"" in text
     assert PIN in text
     assert "OMO_BUILDER_BASE_REVISION" in text
-    assert "allocation" in text
