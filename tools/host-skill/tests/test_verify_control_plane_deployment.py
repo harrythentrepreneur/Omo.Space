@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 MODULE = ROOT / "tools" / "host-skill" / "verify_control_plane_deployment.py"
 VERSION_ID = "8c0b7456-eeac-45e8-b65e-c0c7fcdccfd3"
 SHA = "6beb3e5e4f4a01599861358646d16821aef5fcd4"
-SELECTOR = "d0b5ace1116f1483c7e818cab775b68ab357e2a6"
+SELECTOR = "e05f4abb9cda51f45b31b946caeae4ff299c02fd"
 
 
 def load_module():
