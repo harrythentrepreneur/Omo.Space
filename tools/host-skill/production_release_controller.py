@@ -71,7 +71,21 @@ MAX_HTTP_BYTES = 1024 * 1024
 CANARY_SOURCE_MAX_BYTES = 200 * 1024
 CANARY_CONTRACT_MAX_BYTES = 256 * 1024
 MAX_PAID_CANARY_USD = Decimal("0.10")
-CANARY_SOURCE_SHA256 = "32a9e56a4c3ff57fce713d5341c48a5a1b54deee7cd7369a5cda7f9eb50fea0a"
+CANARY_SOURCES = (
+    {
+        "name": "V02 Release Label Sorter",
+        "slug": "v02-release-label-sorter",
+        "path": "tools/host-skill/canaries/v02-release-label-sorter/SKILL.md",
+        "sha256": "303ad02d227521f1ea97914a5686a5b640e367610f6d8b20afbc183230c783b1",
+    },
+    {
+        "name": "V02 Support Urgency Classifier",
+        "slug": "v02-support-urgency-classifier",
+        "path": "tools/host-skill/canaries/v02-support-urgency-classifier/SKILL.md",
+        "sha256": "d9b918f1feb8f92723e9ceedbdf8616f22cd35d5f380f7cfc6f090bd444a3008",
+    },
+)
+CANARY_SOURCE_SLUGS = frozenset(item["slug"] for item in CANARY_SOURCES)
 TARGETS = DeploymentTargets(MODAL_TARGET, MODAL_ENVIRONMENT, CLOUDFLARE_TARGET, "production")
 MODAL_CANARY_ORIGIN = "https://omo-space--cognition-label-normalizer-canary-api.modal.run"
 
@@ -959,50 +973,56 @@ class ProductionPublicAdapter:
             raise ControllerError("public_canary_contract_invalid")
         self.store.provision_canary_identity()
 
-    def seed_submission(self, checkout: Path) -> dict[str, str]:
+    def seed_submissions(self, checkout: Path) -> list[dict[str, str]]:
         self.store.provision_canary_identity()
-        source_path = checkout / "containers" / "label-normalizer-canary" / "source" / "SKILL.md"
-        try:
-            resolved = source_path.resolve(strict=True)
-        except OSError:
-            raise ControllerError("production_canary_source_invalid")
-        if resolved != source_path or not resolved.is_file():
-            raise ControllerError("production_canary_source_invalid")
-        try:
-            size = resolved.stat().st_size
-            if not 1 <= size <= CANARY_SOURCE_MAX_BYTES:
+        seeded = []
+        for spec in CANARY_SOURCES:
+            source_path = checkout / spec["path"]
+            try:
+                resolved = source_path.resolve(strict=True)
+            except OSError:
                 raise ControllerError("production_canary_source_invalid")
-            with resolved.open("rb") as handle:
-                raw = handle.read(CANARY_SOURCE_MAX_BYTES + 1)
-            if len(raw) != size or hashlib.sha256(raw).hexdigest() != CANARY_SOURCE_SHA256:
+            if resolved != source_path or not resolved.is_file():
                 raise ControllerError("production_canary_source_invalid")
-            source = raw.decode("utf-8")
-        except (OSError, UnicodeDecodeError):
-            raise ControllerError("production_canary_source_invalid") from None
-        status, body = _request_json_stage(
-            "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/submit", method="POST",
-            payload={
-                "name": "Label normalizer canary", "content": source,
-                "visibility": "public", "runtime_preference": "modal-hosted",
-            },
-            headers={"X-API-Key": self.api_key, "Content-Type": "application/json"}, timeout=30,
-        )
-        submission_id = str((body or {}).get("id") or "")
-        submission_status = str((body or {}).get("status") or "")
-        if status != 202 or (body or {}).get("slug") != MODAL_ALLOWED_SLUG or not re.fullmatch(
-            r"sub_[0-9a-f]{32}", submission_id
-        ) or submission_status not in {
-            "queued", "processing", "needs_review", "ready_for_merge", "ready_for_deploy",
-            "ready_for_publish", "deployed", "failed",
-        } or (
-            submission_status == "failed"
-            and ((body or {}).get("duplicate") is not True or (body or {}).get("changed") is not False)
-        ):
-            raise ControllerError("production_canary_seed_failed")
-        return {"status": "queued", "submission_id": submission_id, "submission_status": submission_status}
+            try:
+                size = resolved.stat().st_size
+                if not 1 <= size <= CANARY_SOURCE_MAX_BYTES:
+                    raise ControllerError("production_canary_source_invalid")
+                with resolved.open("rb") as handle:
+                    raw = handle.read(CANARY_SOURCE_MAX_BYTES + 1)
+                if len(raw) != size or hashlib.sha256(raw).hexdigest() != spec["sha256"]:
+                    raise ControllerError("production_canary_source_invalid")
+                source = raw.decode("utf-8")
+            except (OSError, UnicodeDecodeError):
+                raise ControllerError("production_canary_source_invalid") from None
+            status, body = _request_json_stage(
+                "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/submit", method="POST",
+                payload={
+                    "name": spec["name"], "content": source,
+                    "visibility": "public", "runtime_preference": "worker-native",
+                },
+                headers={"X-API-Key": self.api_key, "Content-Type": "application/json"}, timeout=30,
+            )
+            submission_id = str((body or {}).get("id") or "")
+            submission_status = str((body or {}).get("status") or "")
+            if status != 202 or (body or {}).get("slug") != spec["slug"] or not re.fullmatch(
+                r"sub_[0-9a-f]{32}", submission_id
+            ) or submission_status not in {
+                "queued", "processing", "needs_review", "ready_for_merge", "ready_for_deploy",
+                "ready_for_publish", "deployed", "failed",
+            } or (
+                submission_status == "failed"
+                and ((body or {}).get("duplicate") is not True or (body or {}).get("changed") is not False)
+            ):
+                raise ControllerError("production_canary_seed_failed")
+            seeded.append({
+                "slug": spec["slug"], "submission_id": submission_id,
+                "submission_status": submission_status,
+            })
+        return seeded
 
-    def retry_submission(self, submission_id: str) -> dict[str, str]:
-        if not re.fullmatch(r"sub_[0-9a-f]{32}", submission_id):
+    def retry_submission(self, submission_id: str, slug: str) -> dict[str, str]:
+        if not re.fullmatch(r"sub_[0-9a-f]{32}", submission_id) or slug not in CANARY_SOURCE_SLUGS:
             raise ControllerError("production_canary_retry_failed")
         status, body = _request_json_stage(
             "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/submissions/{submission_id}/retry",
@@ -1013,10 +1033,10 @@ class ProductionPublicAdapter:
         if (
             status != 200 or (body or {}).get("ok") is not True or (body or {}).get("retried") is not True
             or not isinstance(submission, dict) or submission.get("id") != submission_id
-            or submission.get("slug") != MODAL_ALLOWED_SLUG or submission.get("status") != "queued"
+            or submission.get("slug") != slug or submission.get("status") != "queued"
         ):
             raise ControllerError("production_canary_retry_failed")
-        return {"status": "retried", "submission_id": submission_id}
+        return {"status": "retried", "slug": slug, "submission_id": submission_id}
 
     def _dispatch(self, claim, contract):
         key = hashlib.sha256(
@@ -1140,7 +1160,7 @@ class ProductionPublicAdapter:
         return {"status": "published" if ok else "failed"}
 
 
-def run_once(args, environ: dict[str, str] | None = None) -> dict[str, str]:
+def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
     env = dict(environ or os.environ)
     checkout = Path(env.get("GITHUB_WORKSPACE", ".")) / "target"
     mainline = GitHubMainlineAdapter(
@@ -1161,11 +1181,13 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, str]:
     if result.get("status") == "idle":
         trusted_checkout = mainline.checkout_detached(result["target_sha"])
         cloudflare.ensure_builder_schedule(trusted_checkout, result["target_sha"])
-        seeded = public.seed_submission(trusted_checkout)
-        if seeded.get("submission_status") == "failed":
-            retried = public.retry_submission(seeded["submission_id"])
-            return {**retried, "target_sha": result["target_sha"]}
-        return {**seeded, "status": "seeded", "target_sha": result["target_sha"]}
+        seeded = public.seed_submissions(trusted_checkout)
+        submissions = [
+            public.retry_submission(item["submission_id"], item["slug"])
+            if item["submission_status"] == "failed" else item
+            for item in seeded
+        ]
+        return {"status": "seeded", "submissions": submissions, "target_sha": result["target_sha"]}
     return result
 
 

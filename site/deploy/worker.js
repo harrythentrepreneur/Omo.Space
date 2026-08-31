@@ -160,6 +160,10 @@ const PRODUCTION_CANARY_RUN_SLUGS = new Set([
   'release-tag-sorter-canary',
   'incident-route-classifier-canary',
 ]);
+const PRODUCTION_CANARY_SUBMISSION_SLUGS = new Set([
+  'v02-release-label-sorter',
+  'v02-support-urgency-classifier',
+]);
 const DEMELLO_STYLE = 'sumi-e-awake-v3';
 const DEMELLO_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--omo-demello-awake-245304c8f988-api.modal.run';
 const DEMELLO_DEFAULT_RELEASE_HASH = 'sha256:245304c8f98839bf6ac570c3c09224fe839041dbc793f3fb7f7afb3eb475259e';
@@ -2225,7 +2229,7 @@ async function handleSubmission(request, env) {
 
   const parsed = parseSubmissionMarkdown(body.content);
   if (parsed.error) return json({ ok: false, ...parsed }, 400, cors());
-  if (userId === 'user_prod_label_normalizer_canary_v1' && parsed.slug !== 'label-normalizer-canary') {
+  if (userId === 'user_prod_label_normalizer_canary_v1' && !PRODUCTION_CANARY_SUBMISSION_SLUGS.has(parsed.slug)) {
     return json({ error: 'production_canary_scope_violation' }, 403, cors());
   }
   const suppliedName = String(body.name || '').trim();
@@ -2342,8 +2346,15 @@ async function handleSubmissionRetry(request, env, _url, params) {
     }
   }
   if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors(request, env));
-  const requiredSlug = auth.method === 'production_canary' ? 'label-normalizer-canary' : '';
-  const retried = await retryReviewedGatedBuildFailure(env, auth.userId, params.submissionId, requiredSlug);
+  let retried = { status: 'not_found' };
+  if (auth.method === 'production_canary') {
+    for (const requiredSlug of PRODUCTION_CANARY_SUBMISSION_SLUGS) {
+      retried = await retryReviewedGatedBuildFailure(env, auth.userId, params.submissionId, requiredSlug);
+      if (retried.status !== 'not_found') break;
+    }
+  } else {
+    retried = await retryReviewedGatedBuildFailure(env, auth.userId, params.submissionId);
+  }
   if (retried.status === 'not_found') return json({ ok: false, error: 'submission_not_found' }, 404, cors(request, env));
   if (retried.status === 'not_retryable') {
     return json({ ok: false, error: 'submission_not_retryable' }, 409, cors(request, env));
