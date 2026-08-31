@@ -1,0 +1,128 @@
+{
+  "chargeable": true,
+  "container_slug": "v02-release-label-sorter",
+  "examples": [
+    {
+      "caption": "Complete input",
+      "id": "reviewed-example",
+      "input": {
+        "labels": [
+          " Stable ",
+          "alpha",
+          "Beta"
+        ]
+      },
+      "output_preview": "A schema-validated hosted result.",
+      "title": "Reviewed example"
+    }
+  ],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "labels"
+    ],
+    "type": "object"
+  },
+  "input_schema_source": "containers/v02-release-label-sorter/schemas/input.json",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "run_id": {
+        "type": "string"
+      },
+      "sorted_labels": {
+        "items": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      },
+      "usage": {
+        "additionalProperties": false,
+        "properties": {
+          "completion_tokens": {
+            "const": 0
+          },
+          "estimated_cost_usd": {
+            "const": 0
+          },
+          "llm_calls": {
+            "const": 0
+          },
+          "model": {
+            "const": "omo.pure-data/v1"
+          },
+          "prompt_tokens": {
+            "const": 0
+          },
+          "provider": {
+            "const": "worker-pure-data"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "estimated_cost_usd"
+        ],
+        "type": "object"
+      },
+      "workflow_version": {
+        "const": "v02-release-label-sorter@1.0.0"
+      }
+    },
+    "required": [
+      "sorted_labels",
+      "status",
+      "run_id",
+      "workflow_version",
+      "usage"
+    ],
+    "type": "object"
+  },
+  "output_schema_source": "containers/v02-release-label-sorter/schemas/output.json",
+  "phases": [
+    {
+      "id": "running",
+      "label": "Running the workflow"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    }
+  ],
+  "price_usd": 0.1,
+  "ready": true,
+  "schema_version": "omo.run-manifest/v1",
+  "slug": "v02-release-label-sorter",
+  "ui": {
+    "fields": {
+      "labels": {
+        "widget": "textarea"
+      }
+    },
+    "order": [
+      "labels"
+    ]
+  }
+}

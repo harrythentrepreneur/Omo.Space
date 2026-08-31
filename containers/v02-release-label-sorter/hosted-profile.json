@@ -1,0 +1,369 @@
+{
+  "catalog": {
+    "category": "ops",
+    "cover": null,
+    "demoCap": "Run reviewed example",
+    "desc": "Clean and deterministically sort a bounded list of release labels.",
+    "emoji": "🏷️",
+    "exampleIn": "{\n  \"labels\": [\n    \" Stable \",\n    \"alpha\",\n    \"Beta\"\n  ]\n}",
+    "exampleOut": [
+      "cleaned sorted labels"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "labels: 1 to 12 bounded strings (1 to 60 chars each)"
+    ],
+    "maker": "Submitted skill",
+    "makerName": "Submitted skill",
+    "name": "V02 Release Label Sorter",
+    "niche": "release management",
+    "outputs": [
+      "cleaned sorted labels"
+    ],
+    "priceMaintain": 0.0,
+    "priceOwn": 0.0,
+    "promise": "Return a deterministic sorted list of release labels.",
+    "runManifest": "run-manifests/v02-release-label-sorter.json",
+    "runPrice": 0.1,
+    "slug": "v02-release-label-sorter",
+    "tags": [
+      "text",
+      "deterministic",
+      "release",
+      "sorting",
+      "labels"
+    ],
+    "upvotes": 0,
+    "version": "1.0.0",
+    "workflow": {
+      "steps": [
+        {
+          "label": "pure_data.execute",
+          "role": "execute",
+          "type": "pipeline"
+        },
+        {
+          "label": "Running the workflow",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  },
+  "catalog_managed": true,
+  "generator": "tools/host-skill/1.0.0",
+  "run_manifest": {
+    "chargeable": true,
+    "container_slug": "v02-release-label-sorter",
+    "examples": [
+      {
+        "caption": "Complete input",
+        "id": "reviewed-example",
+        "input": {
+          "labels": [
+            " Stable ",
+            "alpha",
+            "Beta"
+          ]
+        },
+        "output_preview": "A schema-validated hosted result.",
+        "title": "Reviewed example"
+      }
+    ],
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "labels"
+      ],
+      "type": "object"
+    },
+    "input_schema_source": "containers/v02-release-label-sorter/schemas/input.json",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "sorted_labels": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "const": 0
+            },
+            "estimated_cost_usd": {
+              "const": 0
+            },
+            "llm_calls": {
+              "const": 0
+            },
+            "model": {
+              "const": "omo.pure-data/v1"
+            },
+            "prompt_tokens": {
+              "const": 0
+            },
+            "provider": {
+              "const": "worker-pure-data"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "workflow_version": {
+          "const": "v02-release-label-sorter@1.0.0"
+        }
+      },
+      "required": [
+        "sorted_labels",
+        "status",
+        "run_id",
+        "workflow_version",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "output_schema_source": "containers/v02-release-label-sorter/schemas/output.json",
+    "phases": [
+      {
+        "id": "running",
+        "label": "Running the workflow"
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered"
+      }
+    ],
+    "price_usd": 0.1,
+    "ready": true,
+    "schema_version": "omo.run-manifest/v1",
+    "slug": "v02-release-label-sorter",
+    "ui": {
+      "fields": {
+        "labels": {
+          "widget": "textarea"
+        }
+      },
+      "order": [
+        "labels"
+      ]
+    }
+  },
+  "runtime": {
+    "artifact": null,
+    "container_slug": "v02-release-label-sorter",
+    "executor": {
+      "execution_kind": "pure_data",
+      "operation": "pure_data.execute",
+      "program": {
+        "limits": {
+          "max_input_bytes": 8192,
+          "max_list_items": 12,
+          "max_output_bytes": 8192,
+          "max_steps": 16,
+          "max_text_bytes": 60
+        },
+        "result": "result",
+        "spec_version": "omo.pure-data/v1",
+        "steps": [
+          {
+            "id": "labels",
+            "op": "input.get",
+            "path": "/labels"
+          },
+          {
+            "id": "clean",
+            "input": "labels",
+            "op": "text_list.normalize_ascii",
+            "reject_control_characters": true,
+            "reject_empty": true,
+            "trim_ascii_whitespace": true
+          },
+          {
+            "id": "sorted",
+            "input": "clean",
+            "key": "ascii_case_insensitive",
+            "op": "text_list.sort_ascii",
+            "tie_break": "ascii_bytes"
+          },
+          {
+            "fields": {
+              "sorted_labels": {
+                "ref": "sorted"
+              },
+              "status": {
+                "const": "completed"
+              }
+            },
+            "id": "result",
+            "op": "result.object"
+          }
+        ]
+      },
+      "program_digest": "sha256:c82597c542b2dd9142f2f0bc8be28c3cc8133f832c3b502568d13284e9318ad6",
+      "spec_version": "omo.worker-pure-data/v1",
+      "workflow_version": "1.0.0"
+    },
+    "input_adapters": [],
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "labels"
+      ],
+      "type": "object"
+    },
+    "kind": "worker-native",
+    "model_output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "sorted_labels": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array"
+        },
+        "status": {
+          "const": "completed"
+        }
+      },
+      "required": [
+        "sorted_labels",
+        "status"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "sorted_labels": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array"
+        },
+        "status": {
+          "const": "completed"
+        },
+        "usage": {
+          "additionalProperties": false,
+          "properties": {
+            "completion_tokens": {
+              "const": 0
+            },
+            "estimated_cost_usd": {
+              "const": 0
+            },
+            "llm_calls": {
+              "const": 0
+            },
+            "model": {
+              "const": "omo.pure-data/v1"
+            },
+            "prompt_tokens": {
+              "const": 0
+            },
+            "provider": {
+              "const": "worker-pure-data"
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "llm_calls",
+            "prompt_tokens",
+            "completion_tokens",
+            "estimated_cost_usd"
+          ],
+          "type": "object"
+        },
+        "workflow_version": {
+          "const": "v02-release-label-sorter@1.0.0"
+        }
+      },
+      "required": [
+        "sorted_labels",
+        "status",
+        "run_id",
+        "workflow_version",
+        "usage"
+      ],
+      "type": "object"
+    },
+    "reviewed_source_sha256": "303ad02d227521f1ea97914a5686a5b640e367610f6d8b20afbc183230c783b1",
+    "run_price_cents": 10,
+    "slug": "v02-release-label-sorter"
+  },
+  "runtime_placement": {
+    "compatible": true,
+    "effective": "worker-native",
+    "reason": "bounded_pure_data_is_worker_compatible",
+    "recommended": "worker-native",
+    "requested": "worker-native"
+  },
+  "schema_version": "omo.hosted-profile/v1",
+  "server_catalog": {
+    "license_price_usd": 0.0,
+    "max_tokens": 0,
+    "model": "pure-data",
+    "name": "V02 Release Label Sorter",
+    "run_price_usd": 0.1,
+    "slug": "v02-release-label-sorter",
+    "system_prompt": "Execute the reviewed deterministic pure-data pipeline."
+  },
+  "storefront_visible": true
+}

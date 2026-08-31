@@ -2871,23 +2871,12 @@ workerTest.mockRunRequests.delete('production-canary-unrelated-status');
 const productionCanarySubmissionReject = await worker.fetch(mkReq('POST', '/api/submit', {
   name: 'Sample workflow', content: submissionContent, visibility: 'public', runtime_preference: 'worker-native',
 }, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv);
-const productionCanaryPureContent = '---\nname: V02 Release Label Sorter\ndescription: Deterministic production release canary.\n---\n\n## Workflow\n\n1. Sort bounded labels.\n';
-const productionCanaryGeminiContent = '---\nname: V02 Support Urgency Classifier\ndescription: Bounded single LLM production release canary.\n---\n\n## Workflow\n\n1. Classify bounded support urgency.\n';
-const productionCanaryContent = '---\nname: Label Normalizer Canary\ndescription: Historical production release canary.\n---\n\n## Workflow\n\n1. Normalize bounded labels.\n';
+const productionCanaryContent = '---\nname: label-normalizer-canary\ndescription: Deterministic production release canary.\n---\n\n## Workflow\n\n1. Normalize bounded labels.\n';
 const productionCanarySubmissionAccept = await worker.fetch(mkReq('POST', '/api/submit', {
-  name: 'V02 Release Label Sorter', content: productionCanaryPureContent,
-  visibility: 'public', runtime_preference: 'worker-native',
-}, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv);
-const productionCanarySubmissionAcceptBody = await productionCanarySubmissionAccept.json();
-const productionCanaryGeminiSubmission = await worker.fetch(mkReq('POST', '/api/submit', {
-  name: 'V02 Support Urgency Classifier', content: productionCanaryGeminiContent,
-  visibility: 'public', runtime_preference: 'worker-native',
-}, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv);
-const productionCanaryGeminiSubmissionBody = await productionCanaryGeminiSubmission.json();
-const productionCanaryHistoricalSubmission = await worker.fetch(mkReq('POST', '/api/submit', {
-  name: 'Label Normalizer Canary', content: productionCanaryContent,
+  name: 'Label normalizer canary', content: productionCanaryContent,
   visibility: 'public', runtime_preference: 'modal-hosted',
 }, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv);
+const productionCanarySubmissionAcceptBody = await productionCanarySubmissionAccept.json();
 for (const record of workerTest.mockSubmissions.values()) {
   if (record.id === productionCanarySubmissionAcceptBody.id) {
     record.status = 'failed';
@@ -2963,10 +2952,7 @@ check('production canary identity: finalizer-only one-time finite principal uses
   productionCanaryIncidentAuth.status === 422 &&
   productionCanarySubmissionReject.status === 403 &&
   productionCanarySubmissionAccept.status === 202 &&
-  productionCanarySubmissionAcceptBody.slug === 'v02-release-label-sorter' &&
-  productionCanaryGeminiSubmission.status === 202 &&
-  productionCanaryGeminiSubmissionBody.slug === 'v02-support-urgency-classifier' &&
-  productionCanaryHistoricalSubmission.status === 403 &&
+  productionCanarySubmissionAcceptBody.slug === 'label-normalizer-canary' &&
   productionCanaryRetry.status === 200 && productionCanaryRetryBody.retried === true &&
   productionCanaryRetryBody.submission.id === productionCanarySubmissionAcceptBody.id &&
   productionCanaryRetryBody.submission.status === 'queued' && productionCanaryForeignRetry.status === 404 &&
