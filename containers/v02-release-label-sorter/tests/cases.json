@@ -1,0 +1,30 @@
+{
+  "happy_path": {
+    "input": {
+      "labels": [
+        " Stable ",
+        "alpha",
+        "Beta"
+      ]
+    },
+    "output": {
+      "sorted_labels": [
+        "alpha",
+        "Beta",
+        "Stable"
+      ],
+      "status": "completed"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "empty_label",
+      "input": {
+        "labels": [
+          " "
+        ]
+      },
+      "reason": "INVALID_VALUE"
+    }
+  ]
+}

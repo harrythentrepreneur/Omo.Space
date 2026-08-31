@@ -1,0 +1,91 @@
+{
+  "artifacts": [],
+  "description": "Clean and deterministically sort a bounded list of release labels for a production lifecycle proof.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{run_id}"
+  },
+  "form": [
+    {
+      "field": "labels",
+      "widget": "textarea"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "labels"
+    ],
+    "type": "object"
+  },
+  "name": "V02 Release Label Sorter",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "sorted_labels": {
+        "items": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      }
+    },
+    "required": [
+      "sorted_labels",
+      "status"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "reviewed_deterministic",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "83da010e138389295e09cb52ede60d3d0d8bc9f908425d42678f41561bbcbc34",
+  "providers": [],
+  "pure_data": {
+    "program_digest": "sha256:c82597c542b2dd9142f2f0bc8be28c3cc8133f832c3b502568d13284e9318ad6",
+    "program_path": "runtime/pure-data-program.json",
+    "provenance": {
+      "compiler_version": "skill-to-modal/0.7.0",
+      "profile_version": "1.0.0",
+      "reviewed_source_sha256": "d52e7984117e3986f0ce2a1a765c01b57d9f9b2b029a2c493571641c5ac605e9"
+    }
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [],
+    "status": "ready"
+  },
+  "required_env_names": [],
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "v02-release-label-sorter",
+  "source_sha256": "d52e7984117e3986f0ce2a1a765c01b57d9f9b2b029a2c493571641c5ac605e9",
+  "version": "1.0.0"
+}
