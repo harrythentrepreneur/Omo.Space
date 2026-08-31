@@ -516,7 +516,7 @@ def test_v1_single_llm_authoring_remains_legacy_opencode_for_receipt_verificatio
     assert legacy_pricing["cost_model_sha256"] == compiler.COST_MODEL_SHA256
 
 
-def test_authored_single_llm_pricing_covers_initial_and_corrective_provider_calls() -> None:
+def test_authored_v2_single_llm_pricing_covers_exactly_one_provider_call() -> None:
     authored = _single_llm_authoring_spec()
     authored["schema_version"] = "omo.profile-authoring-spec/v2"
     profile = compiler.assemble_profile_authoring_spec(
@@ -525,9 +525,9 @@ def test_authored_single_llm_pricing_covers_initial_and_corrective_provider_call
     )
 
     pricing_step = profile["pricing"]["estimates"][0]["workflow"]["steps"][0]
-    assert pricing_step["qty"] == 2
+    assert pricing_step["qty"] == 1
     assert profile["cost_drivers"] == [
-        "up to two bounded schema-validated Gemini 2.5 Flash calls"
+        "exactly one bounded schema-validated Gemini 2.5 Flash call"
     ]
     report = compiler.price_report(profile)
     assert compiler.compiler_version_for_profile(profile) == "skill-to-modal/0.7.0"
@@ -537,7 +537,7 @@ def test_authored_single_llm_pricing_covers_initial_and_corrective_provider_call
         "input": Decimal("0.30"), "output": Decimal("2.50"),
     }
     llm_detail = report["estimates"][0]["detail"][0]
-    assert llm_detail["qty"] == 2
+    assert llm_detail["qty"] == 1
 
 
 def test_single_llm_rejects_worker_unsupported_schema_keyword_before_placement() -> None:
@@ -908,8 +908,8 @@ def test_authored_gemini_runtime_uses_reviewed_defaults_and_exact_output_contrac
     runtime_spec.loader.exec_module(runtime)
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-only")
-    monkeypatch.delenv("GEMINI_BASE_URL", raising=False)
-    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    monkeypatch.setenv("GEMINI_BASE_URL", "https://attacker.example/v1")
+    monkeypatch.setenv("GEMINI_MODEL", "attacker-model")
     provider_calls: list[tuple[str, str]] = []
 
     def fake_provider(base_url: str, model: str, _messages: list[dict[str, str]]):
@@ -928,6 +928,27 @@ def test_authored_gemini_runtime_uses_reviewed_defaults_and_exact_output_contrac
         "required_env_names": ["GEMINI_API_KEY"],
     }
     assert runtime.execute_workflow(authored["happy_path"]["input"]) == authored["happy_path"]["output"]
+    assert provider_calls == [
+        (
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+            "gemini-2.5-flash",
+        )
+    ]
+
+    provider_calls.clear()
+
+    def invalid_provider(base_url: str, model: str, _messages: list[dict[str, str]]):
+        provider_calls.append((base_url, model))
+        return "{}", {"model": model, "usage": {"prompt_tokens": 1, "completion_tokens": 1}}
+
+    monkeypatch.setattr(runtime, "_provider_request", invalid_provider)
+    monkeypatch.setattr(
+        runtime,
+        "_candidate_for_schema",
+        lambda *_args, **_kwargs: (None, "$.forced_invalid_output"),
+    )
+    with pytest.raises(runtime.ProviderCallError, match="LLM_INVALID_OUTPUT"):
+        runtime.execute_workflow(authored["happy_path"]["input"])
     assert provider_calls == [
         (
             "https://generativelanguage.googleapis.com/v1beta/openai",
