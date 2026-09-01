@@ -277,8 +277,8 @@ def _schema_has_reference(value: Any) -> bool:
     return False
 
 
-def _claim_canary_contract(claim: FinalizationClaim, checkout: Path) -> dict[str, Any]:
-    slug = str(claim.slug or "")
+def _claim_canary_contract(claim: FinalizationClaim | str, checkout: Path) -> dict[str, Any]:
+    slug = str(claim if isinstance(claim, str) else claim.slug or "")
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
         raise ControllerError("public_canary_contract_invalid")
     prefix = f"containers/{slug}"
@@ -1194,6 +1194,63 @@ class ProductionPublicAdapter:
             "cost_cents": int(observed_cents), "output_sha256": output_hash,
         }
 
+    def verify_balance_snapshot(self, checkout: Path) -> dict[str, Any]:
+        status, body = _request_json_stage(
+            "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/me",
+            headers={
+                "X-API-Key": self.api_key, "Accept": "application/json",
+                "User-Agent": "OmoProductionFinalizer/1.0",
+            }, timeout=30,
+        )
+        required = {
+            "ok", "balance", "balance_usd", "balance_cents", "currency",
+            "signup_granted", "api_key", "mock", "runs",
+        }
+        if status != 200 or not isinstance(body, dict) or set(body) != required:
+            return {"status": "failed"}
+        balance_cents = body.get("balance_cents")
+        runs = body.get("runs")
+        if (
+            body.get("ok") is not True or body.get("currency") != "usd" or body.get("mock") is not False
+            or type(balance_cents) is not int or balance_cents < 0
+            or not isinstance(runs, list) or len(runs) > 50
+            or not re.fullmatch(r"omo_[0-9a-f]{32}", str(body.get("api_key") or ""))
+        ):
+            return {"status": "failed"}
+        try:
+            if Decimal(str(body.get("balance"))) * 100 != balance_cents:
+                return {"status": "failed"}
+            if Decimal(str(body.get("balance_usd"))) * 100 != balance_cents:
+                return {"status": "failed"}
+        except (InvalidOperation, TypeError, ValueError):
+            return {"status": "failed"}
+        expected: dict[str, int] = {}
+        for spec in CANARY_SOURCES:
+            contract = _claim_canary_contract(spec["slug"], checkout)
+            cents = contract["price_usd"] * 100
+            if cents != cents.to_integral_value():
+                return {"status": "failed"}
+            expected[spec["slug"]] = int(cents)
+        observed: dict[str, set[int]] = {slug: set() for slug in expected}
+        for run in runs:
+            if not isinstance(run, dict) or set(run) != {"slug", "cost_usd", "created_at"}:
+                return {"status": "failed"}
+            slug = run.get("slug")
+            try:
+                cents = Decimal(str(run.get("cost_usd"))) * 100
+            except (InvalidOperation, TypeError, ValueError):
+                return {"status": "failed"}
+            if cents != cents.to_integral_value() or not isinstance(run.get("created_at"), str):
+                return {"status": "failed"}
+            if slug in observed:
+                observed[slug].add(int(cents))
+        if any(price not in observed[slug] for slug, price in expected.items()):
+            return {"status": "failed"}
+        return {
+            "status": "passed", "currency": "usd", "balance_cents": balance_cents,
+            "usage": [{"slug": slug, "cost_cents": expected[slug]} for slug in sorted(expected)],
+        }
+
     def verify_publication(self, claim, checkout):
         contract = _claim_canary_contract(claim, checkout)
         request = urllib.request.Request(
@@ -1251,7 +1308,15 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
             "eligibility": eligibility, "target_sha": result["target_sha"],
         }
     if result.get("status") == "deployed":
-        return {**result, "eligibility": store.eligibility(result["target_sha"])}
+        checkout = mainline.checkout_detached(result["target_sha"])
+        balance = public.verify_balance_snapshot(checkout)
+        if not isinstance(balance, dict) or balance.get("status") != "passed":
+            raise ControllerError("public_balance_readback_failed")
+        return {
+            **result,
+            "eligibility": store.eligibility(result["target_sha"]),
+            "balance_readback": balance,
+        }
     return result
 
 

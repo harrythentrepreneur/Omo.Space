@@ -2819,6 +2819,13 @@ const canaryProvisionReplay = await worker.fetch(
   mkReq('POST', '/api/internal/finalizations/canary-identity', {}, finalizerHeaders), productionCanaryEnv
 );
 const canaryProvisionReplayBody = await canaryProvisionReplay.json();
+const productionCanaryBalanceResponse = await worker.fetch(
+  mkReq('GET', '/api/me', null, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv
+);
+const productionCanaryBalance = await productionCanaryBalanceResponse.json();
+const productionCanaryBalancePost = await worker.fetch(
+  mkReq('POST', '/api/me', {}, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv
+);
 const savedApiKeys = new Map(workerTest.mockApiKeys);
 workerTest.mockApiKeys.clear();
 const directProductionCanaryAuth = await workerTest.authenticateAccount(
@@ -3007,11 +3014,16 @@ const hashOnlyCanaryResolver = /async function userIdForHashedApiKey[\s\S]*?(?=a
 check('production canary auth: hashed submission fallback stays narrow and fixed secret is scope-gated',
   hashOnlyCanaryResolver.includes('omo-api-key-owner-v1') &&
   !hashOnlyCanaryResolver.includes('legacy') && !hashOnlyCanaryResolver.includes('users WHERE api_key') &&
-  (workerSrc.match(/apiKeyOwner = .*userIdForHashedApiKey/g) || []).length === 2 &&
+  (workerSrc.match(/apiKeyOwner = .*userIdForHashedApiKey/g) || []).length === 3 &&
   directProductionCanaryAuth.ok === true &&
   directProductionCanaryAuth.userId === 'user_prod_label_normalizer_canary_v1' &&
   directProductionCanaryAuth.method === 'production_canary' &&
   unscopedProductionCanaryAuth.ok === false);
+check('production canary balance: fixed key reads only its own account snapshot',
+  productionCanaryBalanceResponse.status === 200 && productionCanaryBalance.ok === true &&
+  productionCanaryBalance.currency === 'usd' &&
+  Number.isInteger(productionCanaryBalance.balance_cents) && Array.isArray(productionCanaryBalance.runs) &&
+  productionCanaryBalancePost.status === 401);
 check('production canary identity: release tag run scope reaches schema validation',
   productionCanaryReleaseTagAuth.status === 422);
 check('production canary identity: incident run scope reaches schema validation',

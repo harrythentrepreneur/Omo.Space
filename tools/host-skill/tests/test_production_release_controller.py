@@ -758,6 +758,39 @@ def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
     assert all(call[1]["headers"]["X-Omo-Finalization-Id"] == FINALIZATION_ID for call in calls)
 
 
+def test_public_balance_snapshot_requires_both_exact_v02_usage_entries(monkeypatch):
+    mod = load_module()
+    body = {
+        "ok": True, "balance": "4.80", "balance_usd": 4.8, "balance_cents": 480,
+        "currency": "usd", "signup_granted": False, "api_key": "omo_" + "9" * 32,
+        "mock": False,
+        "runs": [
+            {"slug": "v02-release-label-sorter", "cost_usd": 0.1, "created_at": "2026-09-01T07:11:05Z"},
+            {"slug": "v02-support-urgency-classifier", "cost_usd": 0.1, "created_at": "2026-09-01T07:21:30Z"},
+        ],
+    }
+    calls = []
+    monkeypatch.setattr(mod, "_request_json_stage", lambda stage, url, **kwargs: calls.append((stage, url, kwargs)) or (200, body))
+    adapter = mod.ProductionPublicAdapter(SimpleNamespace(), "omo_" + "1" * 32)
+
+    assert adapter.verify_balance_snapshot(ROOT) == {
+        "status": "passed", "currency": "usd", "balance_cents": 480,
+        "usage": [
+            {"slug": "v02-release-label-sorter", "cost_cents": 10},
+            {"slug": "v02-support-urgency-classifier", "cost_cents": 10},
+        ],
+    }
+    assert calls == [("public_canary_http_failed", "https://omo.space/api/me", {
+        "headers": {
+            "X-API-Key": "omo_" + "1" * 32, "Accept": "application/json",
+            "User-Agent": "OmoProductionFinalizer/1.0",
+        }, "timeout": 30,
+    })]
+
+    body["runs"] = body["runs"][:1]
+    assert adapter.verify_balance_snapshot(ROOT) == {"status": "failed"}
+
+
 def test_legacy_public_canary_replay_must_match_terminal_billing(monkeypatch):
     mod = load_module()
     run_id = "run_" + "4" * 32
@@ -1242,11 +1275,22 @@ def test_run_once_deployed_includes_bounded_eligibility_snapshot(monkeypatch, tm
         "claimable": False,
     }]
     store = SimpleNamespace(eligibility=lambda sha: eligibility if sha == SHA else None)
-    monkeypatch.setattr(mod, "GitHubMainlineAdapter", lambda *args: object())
+    checkout = tmp_path / "target"
+    checkout.mkdir()
+    mainline = SimpleNamespace(checkout_detached=lambda sha: checkout if sha == SHA else None)
+    balance = {
+        "status": "passed", "currency": "usd", "balance_cents": 480,
+        "usage": [
+            {"slug": "v02-release-label-sorter", "cost_cents": 10},
+            {"slug": "v02-support-urgency-classifier", "cost_cents": 10},
+        ],
+    }
+    public = SimpleNamespace(verify_balance_snapshot=lambda value: balance if value == checkout else None)
+    monkeypatch.setattr(mod, "GitHubMainlineAdapter", lambda *args: mainline)
     monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token: store)
     monkeypatch.setattr(mod, "ProductionModalAdapter", lambda env: object())
     monkeypatch.setattr(mod, "ProductionCloudflareAdapter", lambda env: object())
-    monkeypatch.setattr(mod, "ProductionPublicAdapter", lambda store, key: object())
+    monkeypatch.setattr(mod, "ProductionPublicAdapter", lambda store, key: public)
     monkeypatch.setattr(mod, "recover_failed_before_run", lambda *args: None)
     monkeypatch.setattr(mod, "run_finalizer", lambda *args, **kwargs: {
         "status": "deployed", "submission_id": "sub_" + "3" * 32, "target_sha": SHA,
@@ -1259,7 +1303,7 @@ def test_run_once_deployed_includes_bounded_eligibility_snapshot(monkeypatch, tm
 
     assert result == {
         "status": "deployed", "submission_id": "sub_" + "3" * 32,
-        "target_sha": SHA, "eligibility": eligibility,
+        "target_sha": SHA, "eligibility": eligibility, "balance_readback": balance,
     }
 
 
