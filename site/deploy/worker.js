@@ -5016,32 +5016,56 @@ async function internalFinalizationEligibility(env, targetSha, targets) {
   const columns = `id,published_slug,status,release_phase,selected_runtime,source_sha256,workflow_version,
     build_evidence,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,
     release_merge_sha,release_artifact_hash,finalization_status,finalization_target_sha,
-    finalization_lease_expires_at`;
+    finalization_lease_expires_at,updated_at`;
   const values = targets.flatMap((target) => [target.slug, target.source_sha256]);
   let rows;
   if (databaseKind(env) === 'neon') {
     const pairs = targets.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ');
     const result = await getNeonPool(env).query(prepared(
-      `omo-internal-finalization-eligibility-v2-${targets.length}`,
-      `SELECT ${columns} FROM submissions WHERE (published_slug, source_sha256) IN (${pairs}) ORDER BY published_slug ASC`,
+      `omo-internal-finalization-eligibility-v3-${targets.length}`,
+      `SELECT ${columns} FROM (
+         SELECT ${columns}, ROW_NUMBER() OVER (
+           PARTITION BY published_slug, source_sha256 ORDER BY updated_at DESC, id DESC
+         ) AS target_rank
+         FROM submissions WHERE (published_slug, source_sha256) IN (${pairs})
+       ) ranked WHERE target_rank = 1 ORDER BY published_slug ASC`,
       values
     ));
     rows = result.rows || [];
   } else if (databaseKind(env) === 'd1') {
     const pairs = targets.map(() => '(published_slug = ? AND source_sha256 = ?)').join(' OR ');
     const result = await env.BALANCE_DB.prepare(
-      `SELECT ${columns} FROM submissions WHERE ${pairs} ORDER BY published_slug ASC`
+      `SELECT ${columns} FROM (
+         SELECT ${columns}, ROW_NUMBER() OVER (
+           PARTITION BY published_slug, source_sha256 ORDER BY updated_at DESC, id DESC
+         ) AS target_rank
+         FROM submissions WHERE ${pairs}
+       ) ranked WHERE target_rank = 1 ORDER BY published_slug ASC`
     ).bind(...values).all();
     rows = result.results || [];
   } else {
     const targetMap = new Map(targets.map((target) => [target.slug, target.source_sha256]));
     rows = Array.from(mockSubmissions.values())
       .filter((row) => row && targetMap.has(row.published_slug)
-        && targetMap.get(row.published_slug) === row.source_sha256)
-      .sort((a, b) => String(a.published_slug).localeCompare(String(b.published_slug)));
+        && targetMap.get(row.published_slug) === row.source_sha256);
   }
   const now = Date.now();
-  return rows.map((row) => finalizationEligibilityRow(row, targetSha, now));
+  return latestExactTargetRows(rows)
+    .map((row) => finalizationEligibilityRow(row, targetSha, now));
+}
+
+function latestExactTargetRows(rows) {
+  const seen = new Set();
+  return [...rows]
+    .sort((a, b) => String(a.published_slug).localeCompare(String(b.published_slug))
+      || String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
+      || String(b.id || '').localeCompare(String(a.id || '')))
+    .filter((row) => {
+      const key = `${row.published_slug}\0${row.source_sha256}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function finalizationEligibilityRow(row, targetSha, now) {
@@ -5095,12 +5119,20 @@ async function internalClaimFinalization(env, targetSha, targets) {
   if (databaseKind(env) === 'neon') {
     const targetPairs = targets.map((_, index) => `($${index * 2 + 4}, $${index * 2 + 5})`).join(', ');
     const result = await getNeonPool(env).query(prepared(
-      `omo-internal-finalization-claim-v2-${targets.length}`,
+      `omo-internal-finalization-claim-v3-${targets.length}`,
       `WITH candidate AS (
-         SELECT id FROM submissions
+         SELECT id FROM submissions AS candidate_submission
          WHERE status = 'ready_for_deploy'
            AND release_phase = 'merged_verified'
            AND (published_slug, source_sha256) IN (${targetPairs})
+           AND NOT EXISTS (
+             SELECT 1 FROM submissions AS newer_submission
+             WHERE newer_submission.published_slug = candidate_submission.published_slug
+               AND newer_submission.source_sha256 = candidate_submission.source_sha256
+               AND (newer_submission.updated_at > candidate_submission.updated_at OR
+                    (newer_submission.updated_at = candidate_submission.updated_at
+                     AND newer_submission.id > candidate_submission.id))
+           )
            AND selected_runtime IN ('worker-native', 'modal-hosted')
            AND source_sha256 IS NOT NULL
            AND published_slug IS NOT NULL
@@ -5145,10 +5177,18 @@ async function internalClaimFinalization(env, targetSha, targets) {
       `SELECT id,slug,selected_runtime,source_sha256,published_slug,workflow_version,build_evidence,
               release_issue_url,release_pr_url,release_pr_number,release_branch,
               release_head_sha,release_merge_sha,release_artifact_hash,
-              finalization_status,finalization_lease_expires_at,finalization_attempts
-       FROM submissions
+              finalization_status,finalization_lease_expires_at,finalization_attempts,updated_at
+       FROM submissions AS candidate_submission
        WHERE status = 'ready_for_deploy' AND release_phase = 'merged_verified'
          AND (${targetPairs})
+         AND NOT EXISTS (
+           SELECT 1 FROM submissions AS newer_submission
+           WHERE newer_submission.published_slug = candidate_submission.published_slug
+             AND newer_submission.source_sha256 = candidate_submission.source_sha256
+             AND (newer_submission.updated_at > candidate_submission.updated_at OR
+                  (newer_submission.updated_at = candidate_submission.updated_at
+                   AND newer_submission.id > candidate_submission.id))
+         )
          AND selected_runtime IN ('worker-native', 'modal-hosted')
          AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
          AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL
@@ -5163,7 +5203,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
     ).bind(...targetValues, claimedAt).first();
     if (!row) return null;
     const updated = await env.BALANCE_DB.prepare(
-      `UPDATE submissions
+      `UPDATE submissions AS candidate_submission
        SET finalization_id = ?, finalization_status = 'claimed', finalization_target_sha = ?,
            finalization_source_sha256 = ?, finalization_head_sha = ?,
            finalization_merge_sha = ?, finalization_artifact_hash = ?,
@@ -5171,7 +5211,16 @@ async function internalClaimFinalization(env, targetSha, targets) {
            finalization_attempts = COALESCE(finalization_attempts, 0) + 1,
            finalization_failure_code = NULL, finalization_modal_receipt = NULL,
            finalization_worker_receipt = NULL, automation_updated_at = ?
-       WHERE id = ? AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+       WHERE id = ? AND updated_at = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM submissions AS newer_submission
+           WHERE newer_submission.published_slug = candidate_submission.published_slug
+             AND newer_submission.source_sha256 = candidate_submission.source_sha256
+             AND (newer_submission.updated_at > candidate_submission.updated_at OR
+                  (newer_submission.updated_at = candidate_submission.updated_at
+                   AND newer_submission.id > candidate_submission.id))
+         )
+         AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
          AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
          AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL
          AND release_issue_url IS NOT NULL AND release_pr_url IS NOT NULL
@@ -5187,6 +5236,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
     ).bind(
       finalizationId, targetSha, row.source_sha256, row.release_head_sha,
       row.release_merge_sha, row.release_artifact_hash, claimedAt, leaseExpiresAt, claimedAt, row.id,
+      row.updated_at,
       row.selected_runtime, row.source_sha256, row.published_slug, row.workflow_version,
       row.build_evidence, row.release_issue_url, row.release_pr_url, row.release_pr_number,
       row.release_branch, row.release_head_sha, row.release_merge_sha,
@@ -5206,13 +5256,14 @@ async function internalClaimFinalization(env, targetSha, targets) {
     });
   }
   const targetMap = new Map(targets.map((target) => [target.slug, target.source_sha256]));
-  for (const record of mockSubmissions.values()) {
+  const targetRows = latestExactTargetRows(Array.from(mockSubmissions.values())
+    .filter((record) => targetMap.get(record.published_slug) === record.source_sha256));
+  for (const record of targetRows) {
     const expiry = Date.parse(String(record.finalization_lease_expires_at || ''));
     const claimable = record.finalization_status == null ||
       (['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public'].includes(record.finalization_status) &&
        Number.isFinite(expiry) && expiry < now.getTime());
-    if (targetMap.get(record.published_slug) === record.source_sha256 &&
-        record.status === 'ready_for_deploy' && record.release_phase === 'merged_verified' &&
+    if (record.status === 'ready_for_deploy' && record.release_phase === 'merged_verified' &&
         safeRuntime(record.selected_runtime) && safeGitSha(record.release_head_sha) &&
         safeGitSha(record.release_merge_sha) && safeSha256(record.release_artifact_hash) &&
         safeSha256(record.source_sha256) && safeSlug(record.published_slug) &&
