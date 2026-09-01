@@ -1303,10 +1303,19 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
             if item["submission_status"] == "failed" else item
             for item in seeded
         ]
-        return {
+        seeded_result: dict[str, Any] = {
             "status": "seeded", "submissions": submissions,
             "eligibility": eligibility, "target_sha": result["target_sha"],
         }
+        if (
+            len(submissions) == len(CANARY_SOURCES)
+            and all(item.get("submission_status") == "deployed" for item in submissions)
+        ):
+            balance = public.verify_balance_snapshot(trusted_checkout)
+            if not isinstance(balance, dict) or balance.get("status") != "passed":
+                raise ControllerError("public_balance_readback_failed")
+            seeded_result["balance_readback"] = balance
+        return seeded_result
     if result.get("status") == "deployed":
         checkout = mainline.checkout_detached(result["target_sha"])
         balance = public.verify_balance_snapshot(checkout)

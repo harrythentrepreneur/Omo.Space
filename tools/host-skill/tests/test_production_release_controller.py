@@ -1192,6 +1192,7 @@ def test_public_canary_seed_rejects_parent_symlink_tamper_and_oversize(monkeypat
 def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatch, tmp_path):
     mod = load_module()
     order = []
+    all_deployed = False
     target = tmp_path / "target"
     target.mkdir()
 
@@ -1209,10 +1210,21 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
 
         def seed_submissions(self, checkout):
             order.append(("seed", checkout))
+            status = "deployed" if all_deployed else "queued"
             return [
-                {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "2" * 32, "submission_status": "queued"},
-                {"slug": "v02-support-urgency-classifier", "submission_id": "sub_" + "3" * 32, "submission_status": "queued"},
+                {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "2" * 32, "submission_status": status},
+                {"slug": "v02-support-urgency-classifier", "submission_id": "sub_" + "3" * 32, "submission_status": status},
             ]
+
+        def verify_balance_snapshot(self, checkout):
+            order.append(("balance", checkout))
+            return {
+                "status": "passed", "currency": "usd", "balance_cents": 480,
+                "usage": [
+                    {"slug": "v02-release-label-sorter", "cost_cents": 10},
+                    {"slug": "v02-support-urgency-classifier", "cost_cents": 10},
+                ],
+            }
 
     class Cloudflare:
         def __init__(self, env):
@@ -1260,6 +1272,26 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         "submissions": [
             {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "2" * 32, "submission_status": "queued"},
             {"slug": "v02-support-urgency-classifier", "submission_id": "sub_" + "3" * 32, "submission_status": "queued"},
+        ],
+    }
+
+    all_deployed = True
+    order.clear()
+    deployed_result = mod.run_once(SimpleNamespace(trigger_sha=SHA, run_id="1", run_attempt="2"), {
+        "GITHUB_WORKSPACE": str(tmp_path), "GITHUB_TOKEN": "token",
+        "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
+    })
+    assert order == [
+        ("recovery", SHA), ("finalizer", SHA), ("eligibility", SHA), ("checkout", SHA),
+        ("schedule", target, SHA), ("seed", target), ("balance", target),
+    ]
+    assert deployed_result["status"] == "seeded"
+    assert [item["submission_status"] for item in deployed_result["submissions"]] == ["deployed", "deployed"]
+    assert deployed_result["balance_readback"] == {
+        "status": "passed", "currency": "usd", "balance_cents": 480,
+        "usage": [
+            {"slug": "v02-release-label-sorter", "cost_cents": 10},
+            {"slug": "v02-support-urgency-classifier", "cost_cents": 10},
         ],
     }
 
