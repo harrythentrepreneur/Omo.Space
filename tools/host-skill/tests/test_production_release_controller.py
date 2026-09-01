@@ -197,6 +197,39 @@ def test_finalization_eligibility_is_exact_bounded_and_fail_closed():
             ).eligibility(SHA)
 
 
+def test_finalization_eligibility_reports_only_bounded_failure_classes():
+    mod = load_module()
+    boolean_fields = {
+        "source_sha256_present", "published_slug_present", "workflow_version_present",
+        "build_evidence_present", "release_issue_url_present", "release_pr_url_present",
+        "release_pr_number_present", "release_branch_present", "release_head_sha_present",
+        "release_merge_sha_present", "release_artifact_hash_present",
+        "finalization_target_matches", "finalization_lease_expired", "finalization_available",
+        "claimable",
+    }
+    row = {
+        "submission_id": "sub_" + "1" * 32, "slug": "v02-release-label-sorter",
+        "status": "ready_for_deploy", "release_phase": "merged_verified",
+        "selected_runtime": "worker-native", "finalization_status": None,
+        **{field: True for field in boolean_fields},
+    }
+    cases = (
+        (Response({}, status=500), "finalizer_eligibility_http_500"),
+        (Response({"ok": False, "eligibility": []}), "invalid_finalizer_eligibility_envelope"),
+        (Response({"ok": True, "eligibility": {}}), "invalid_finalizer_eligibility_rows"),
+        (Response({"ok": True, "eligibility": [row, row, row]}), "invalid_finalizer_eligibility_count"),
+        (Response({"ok": True, "eligibility": [{**row, "private": True}]}), "invalid_finalizer_eligibility_shape"),
+        (Response({"ok": True, "eligibility": [{**row, "submission_id": "bad"}]}), "invalid_finalizer_eligibility_identity"),
+        (Response({"ok": True, "eligibility": [{**row, "slug": "unrelated"}]}), "invalid_finalizer_eligibility_slug"),
+        (Response({"ok": True, "eligibility": [{**row, "status": "unknown"}]}), "invalid_finalizer_eligibility_enum"),
+        (Response({"ok": True, "eligibility": [{**row, "claimable": 1}]}), "invalid_finalizer_eligibility_boolean"),
+    )
+    for response, code in cases:
+        with pytest.raises(mod.ControllerError) as caught:
+            mod.HttpFinalizationStore("token", opener=lambda request, timeout, value=response: value).eligibility(SHA)
+        assert caught.value.code == code
+
+
 def test_finalization_claim_preserves_only_bounded_http_status():
     mod = load_module()
 
