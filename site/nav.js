@@ -862,6 +862,15 @@
     window.addEventListener('pagehide', function () { closeMenu(false); });
   }
 
+  function skipAutomaticAuthForInvalidSubmission() {
+    var page = (window.location.pathname.split('/').pop() || '').toLowerCase();
+    if (page !== 'submission' && page !== 'submission.html') return false;
+    var id = '';
+    try { id = new URLSearchParams(window.location.search || '').get('id') || ''; }
+    catch (error) { return true; }
+    return !/^sub_[A-Za-z0-9_-]{8,100}$/.test(id);
+  }
+
   function init() {
     installCreditStyles();
     primeAuthLinks();
@@ -870,7 +879,7 @@
     var menus = document.querySelectorAll('.omo-nav-menu');
     for (var i = 0; i < menus.length; i += 1) initMenu(menus[i]);
 
-    if (!beginAuthResolution()) loadAuthAdapter();
+    if (!skipAutomaticAuthForInvalidSubmission() && !beginAuthResolution()) loadAuthAdapter();
     document.addEventListener('click', handleLoginClick);
     document.addEventListener('click', handleLogoutClick);
 
