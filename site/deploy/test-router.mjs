@@ -450,10 +450,10 @@ const sandbox = {
               ? 'omo-internal-submission-detail-v1'
               : text.includes('WITH candidate AS') && text.includes('build_claimed_at')
                 ? 'omo-internal-submission-claim-v1'
-              : text.includes('SELECT id,published_slug,status,release_phase,selected_runtime') && text.includes('published_slug = ANY($1::text[])')
-                ? 'omo-internal-finalization-eligibility-v1'
+              : text.includes('SELECT id,published_slug,status,release_phase,selected_runtime') && text.includes('(published_slug, source_sha256) IN')
+                ? 'omo-internal-finalization-eligibility-v2'
               : text.includes('WITH candidate AS') && text.includes('finalization_id') && text.includes("finalization_status = 'claimed'")
-                ? 'omo-internal-finalization-claim-v1'
+                ? 'omo-internal-finalization-claim-v2'
               : text.includes('finalization_attempts = 1') && text.includes('LIMIT 32') && text.includes("finalization_status = 'failed'")
                 ? 'omo-internal-finalization-recovery-candidate-v1'
               : text.includes("status IN ('ready_for_publish', 'deployed')") && text.includes("finalization_status = 'completed'") && text.includes('SELECT')
@@ -495,10 +495,10 @@ const sandbox = {
       if (entry.name === 'omo-internal-submission-claim-v1') {
         return neonInternalClaimRow ? { rows: [neonInternalClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      if (entry.name === 'omo-internal-finalization-claim-v1') {
+      if (entry.name === 'omo-internal-finalization-claim-v2') {
         return neonFinalizationClaimRow ? { rows: [neonFinalizationClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      if (entry.name === 'omo-internal-finalization-eligibility-v1') {
+      if (entry.name === 'omo-internal-finalization-eligibility-v2') {
         return { rows: neonFinalizationEligibilityRows, rowCount: neonFinalizationEligibilityRows.length };
       }
       if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
@@ -2583,21 +2583,26 @@ neonFailedFinalizationRow = null;
 neonFailedResumeRow = null;
 neonRecoveryRow = null;
 workerTest.mockSubmissions.delete(failedRecoveryRecord.id);
+const leaseFinalizationTargets = [{ slug: 'lease-workflow', source_sha256: 'e'.repeat(64) }];
 const builderFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40),
+  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
 }, internalHeaders), buildEnv);
 const noConfigFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40),
+  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
 }, finalizerHeaders), { ...realEnv, BUILD_WORKER_TOKEN: 'bridge-token-for-tests' });
 const equalTokenFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40),
+  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
 }, internalHeaders), {
   ...realEnv,
   BUILD_WORKER_TOKEN: 'bridge-token-for-tests',
   RELEASE_FINALIZER_TOKEN: 'bridge-token-for-tests',
 });
-const finalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
+const wrongSourceFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
   target_sha: '3'.repeat(40),
+  targets: [{ slug: 'lease-workflow', source_sha256: 'd'.repeat(64) }],
+}, finalizerHeaders), buildEnv);
+const finalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
+  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
 }, finalizerHeaders), buildEnv);
 const finalizationClaimBody = await finalizationClaim.json();
 const finalizationRecord = workerTest.mockSubmissions.get(finalizationCandidateId);
@@ -2621,7 +2626,7 @@ const builderReleaseMutationAfterClaim = await worker.fetch(mkReq('POST', `/api/
   artifact_hash: finalizationRecord.release_artifact_hash,
 }, internalHeaders), buildEnv);
 const duplicateFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40),
+  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
 }, finalizerHeaders), buildEnv);
 const wrongTargetFinalizationAdvance = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/status`, {
   target_sha: '4'.repeat(40),
@@ -2684,6 +2689,7 @@ check('internal finalization claim: separate finalizer authority gets one target
   builderFinalizationClaim.status === 401 &&
   noConfigFinalizationClaim.status === 503 &&
   equalTokenFinalizationClaim.status === 503 &&
+  wrongSourceFinalizationClaim.status === 204 &&
   finalizationClaim.status === 200 &&
   finalizationClaimBody.finalization.submission_id === finalizationCandidateId &&
   finalizationClaimBody.finalization.target_sha === '3'.repeat(40) &&
@@ -3012,7 +3018,7 @@ for (const expiredStatus of ['claimed', 'deploying_modal', 'deploying_worker', '
   finalizationRecord.finalization_worker_receipt = '{"stale":"worker"}';
   finalizationRecord.finalization_lease_expires_at = '2020-01-01T00:00:00.000Z';
   reclaimedFinalization = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-    target_sha: '5'.repeat(40),
+    target_sha: '5'.repeat(40), targets: leaseFinalizationTargets,
   }, finalizerHeaders), buildEnv);
   reclaimedFinalizationBody = await reclaimedFinalization.json();
   reclaimedGenerationIds.push(reclaimedFinalizationBody.finalization.id);
@@ -3077,22 +3083,37 @@ workerTest.mockSubmissions.set('eligibility-llm', {
   release_head_sha: '6'.repeat(40), release_merge_sha: null, release_artifact_hash: '7'.repeat(64),
   finalization_status: 'failed', finalization_target_sha: eligibilityTarget,
 });
+const eligibilityTargets = [
+  { slug: 'v02-release-label-sorter', source_sha256: '1'.repeat(64) },
+  { slug: 'v02-support-urgency-classifier', source_sha256: '5'.repeat(64) },
+];
 const eligibilityResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
-  target_sha: eligibilityTarget,
+  target_sha: eligibilityTarget, targets: eligibilityTargets,
 }, finalizerHeaders), buildEnv);
 const eligibilityBody = await eligibilityResponse.json();
 const eligibilityUnauthorized = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
-  target_sha: eligibilityTarget,
+  target_sha: eligibilityTarget, targets: eligibilityTargets,
 }, internalHeaders), buildEnv);
-check('internal finalization eligibility: finalizer-only bounded predicates expose no private row data',
+const eligibilityMissingTargets = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
+  target_sha: eligibilityTarget,
+}, finalizerHeaders), buildEnv);
+const eligibilityDuplicateTargets = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
+  target_sha: eligibilityTarget, targets: [eligibilityTargets[0], eligibilityTargets[0]],
+}, finalizerHeaders), buildEnv);
+check('internal finalization eligibility: finalizer-only auth and target list validation',
   eligibilityResponse.status === 200 && eligibilityUnauthorized.status === 401 &&
-  eligibilityBody.ok === true && eligibilityBody.eligibility.length === 2 &&
+  eligibilityMissingTargets.status === 400 && eligibilityDuplicateTargets.status === 400);
+check('internal finalization eligibility: exact target filtering returns two rows',
+  eligibilityBody.ok === true && eligibilityBody.eligibility.length === 2);
+check('internal finalization eligibility: pure-data row reports its failed predicate',
   eligibilityBody.eligibility[0].slug === 'v02-release-label-sorter' &&
   eligibilityBody.eligibility[0].build_evidence_present === false &&
-  eligibilityBody.eligibility[0].claimable === false &&
+  eligibilityBody.eligibility[0].claimable === false);
+check('internal finalization eligibility: LLM row reports its failed predicate',
   eligibilityBody.eligibility[1].slug === 'v02-support-urgency-classifier' &&
   eligibilityBody.eligibility[1].release_phase === 'ci_passed' &&
-  eligibilityBody.eligibility[1].claimable === false &&
+  eligibilityBody.eligibility[1].claimable === false);
+check('internal finalization eligibility: response excludes private row data',
   !JSON.stringify(eligibilityBody).includes('private source') &&
   !JSON.stringify(eligibilityBody).includes('user_private'));
 
@@ -3108,8 +3129,11 @@ const backendEligibilityRow = {
 };
 neonSqlCalls.length = 0;
 neonFinalizationEligibilityRows = [backendEligibilityRow];
-const neonEligibility = await workerTest.internalFinalizationEligibility({ NEON_DATABASE_URL: 'postgres://example' }, eligibilityTarget);
-const neonEligibilityCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-eligibility-v1');
+const backendEligibilityTargets = [{ slug: 'v02-release-label-sorter', source_sha256: 'a'.repeat(64) }];
+const neonEligibility = await workerTest.internalFinalizationEligibility(
+  { NEON_DATABASE_URL: 'postgres://example' }, eligibilityTarget, backendEligibilityTargets
+);
+const neonEligibilityCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-eligibility-v2');
 const d1EligibilityCalls = [];
 const d1Eligibility = await workerTest.internalFinalizationEligibility({
   BALANCE_DB: {
@@ -3124,15 +3148,16 @@ const d1Eligibility = await workerTest.internalFinalizationEligibility({
       };
     },
   },
-}, eligibilityTarget);
-check('internal finalization eligibility: Neon and D1 query only the two exact canary slugs',
+}, eligibilityTarget, backendEligibilityTargets);
+check('internal finalization eligibility: Neon and D1 bind exact slug and source hash pairs',
   neonEligibility.length === 1 && neonEligibility[0].claimable === true &&
-  neonEligibilityCall.text.includes('published_slug = ANY($1::text[])') &&
-  Array.isArray(neonEligibilityCall.values[0]) && neonEligibilityCall.values[0].length === 2 &&
+  neonEligibilityCall.text.includes('(published_slug, source_sha256) IN (($1, $2))') &&
+  JSON.stringify(neonEligibilityCall.values) === JSON.stringify(['v02-release-label-sorter', 'a'.repeat(64)]) &&
   d1Eligibility.length === 1 && d1Eligibility[0].claimable === true &&
-  d1EligibilityCalls[0].text.includes('published_slug IN (?, ?)') &&
-  d1EligibilityCalls[0].values.length === 2 &&
-  d1EligibilityCalls[0].values.every((slug) => ['v02-release-label-sorter', 'v02-support-urgency-classifier'].includes(slug)) &&
+  d1EligibilityCalls[0].text.includes('(published_slug = ? AND source_sha256 = ?)') &&
+  JSON.stringify(d1EligibilityCalls[0].values) === JSON.stringify(['v02-release-label-sorter', 'a'.repeat(64)]) &&
+  workerSrc.includes('`omo-internal-finalization-eligibility-v2-${targets.length}`') &&
+  workerSrc.includes('`omo-internal-finalization-claim-v2-${targets.length}`') &&
   !neonEligibilityCall.text.includes('content') && !neonEligibilityCall.text.includes('user_id'));
 const malformedEligibilityRecord = {
   ...backendEligibilityRow,
@@ -3144,7 +3169,8 @@ const malformedEligibilityRecord = {
   release_branch: 'present-but-invalid',
 };
 workerTest.mockSubmissions.set('eligibility-pure', malformedEligibilityRecord);
-const malformedEligibility = await workerTest.internalFinalizationEligibility({}, eligibilityTarget);
+const malformedTargets = [backendEligibilityTargets[0], eligibilityTargets[1]];
+const malformedEligibility = await workerTest.internalFinalizationEligibility({}, eligibilityTarget, malformedTargets);
 const malformedPure = malformedEligibility.find((row) => row.slug === 'v02-release-label-sorter');
 check('internal finalization eligibility: malformed present evidence never reports claimable',
   malformedPure.workflow_version_present === false && malformedPure.build_evidence_present === false &&
@@ -3170,11 +3196,16 @@ neonFinalizationClaimRow = {
   finalization_lease_expires_at: '2099-08-20T12:00:00Z',
   finalization_attempts: 1,
 };
-const neonFinalization = await workerTest.internalClaimFinalization({ NEON_DATABASE_URL: 'postgres://example' }, 'b'.repeat(40));
-const neonFinalizationCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-claim-v1');
+const neonFinalization = await workerTest.internalClaimFinalization(
+  { NEON_DATABASE_URL: 'postgres://example' }, 'b'.repeat(40),
+  [{ slug: 'neon-finalizer', source_sha256: '6'.repeat(64) }]
+);
+const neonFinalizationCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-claim-v2');
 check('internal finalization claim Neon: one locked atomic update returns only finalizer fields',
   neonFinalization.id === 'fin_' + 'a'.repeat(32) &&
   neonFinalizationCall.text.includes('FOR UPDATE SKIP LOCKED') &&
+  neonFinalizationCall.text.includes('(published_slug, source_sha256) IN (($4, $5))') &&
+  neonFinalizationCall.values[3] === 'neon-finalizer' && neonFinalizationCall.values[4] === '6'.repeat(64) &&
   neonFinalizationCall.text.includes("release_phase = 'merged_verified'") &&
   neonFinalizationCall.text.includes('release_pr_url IS NOT NULL') &&
   neonFinalizationCall.text.includes('build_evidence IS NOT NULL') &&
@@ -3560,8 +3591,9 @@ const d1Finalizer = d1DatabaseForFinalization({
 const d1FinalizerEnv = { BALANCE_DB: d1Finalizer.binding };
 const d1FinalizerTarget = 'e'.repeat(40);
 const d1RegistrySlugs = await workerTest.internalRequiredRegistrySlugs(d1FinalizerEnv);
-const d1FinalizerClaim = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget);
-const d1FinalizerDuplicate = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget);
+const d1FinalizerTargets = [{ slug: 'd1-finalizer', source_sha256: 'a'.repeat(64) }];
+const d1FinalizerClaim = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget, d1FinalizerTargets);
+const d1FinalizerDuplicate = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget, d1FinalizerTargets);
 const d1FinalizerDeploying = await workerTest.internalSetFinalizationStatus(
   d1FinalizerEnv, d1FinalizerClaim.id, d1FinalizerTarget, 'deploying_worker'
 );
@@ -3707,7 +3739,8 @@ const d1FailedRequeued = await workerTest.internalResumeFailedFinalization(
   d1FailedEnv, d1FailedTarget, 'fin_' + '7'.repeat(32)
 );
 const d1FreshTarget = 'c'.repeat(40);
-const d1FailedResumed = await workerTest.internalClaimFinalization(d1FailedEnv, d1FreshTarget);
+const d1FailedTargets = [{ slug: 'd1-failed-final', source_sha256: '8'.repeat(64) }];
+const d1FailedResumed = await workerTest.internalClaimFinalization(d1FailedEnv, d1FreshTarget, d1FailedTargets);
 const d1FailedReplay = await workerTest.internalResumeFailedFinalization(
   d1FailedEnv, d1FailedTarget, 'fin_' + '7'.repeat(32)
 );
@@ -3749,7 +3782,8 @@ const d1RecoveryReplay = await workerTest.internalRecoverRolledBackFinalization(
   d1RecoveryEnv, rollbackTarget, d1RecoveryRecord.finalization_id
 );
 const d1RecoveryFreshTarget = 'e'.repeat(40);
-const d1RecoveryClaim = await workerTest.internalClaimFinalization(d1RecoveryEnv, d1RecoveryFreshTarget);
+const d1RecoveryTargets = [{ slug: rollbackRecord.published_slug, source_sha256: rollbackRecord.source_sha256 }];
+const d1RecoveryClaim = await workerTest.internalClaimFinalization(d1RecoveryEnv, d1RecoveryFreshTarget, d1RecoveryTargets);
 const d1RecoveryAfter = d1Recovery.db.prepare(
   'SELECT status,finalization_id,finalization_target_sha,finalization_attempts,finalization_recovery_receipt FROM submissions WHERE id = ?'
 ).get(rollbackRecord.id);
