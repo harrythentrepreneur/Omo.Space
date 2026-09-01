@@ -444,6 +444,8 @@ function dynamicRoute(pathname) {
   if (internalClaim) return { handler: handleInternalSubmissionClaim, methods: ['POST'], internal: true };
   const internalFinalizationClaim = /^\/api\/internal\/finalizations\/claim$/.exec(pathname);
   if (internalFinalizationClaim) return { handler: handleInternalFinalizationClaim, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationEligibility = /^\/api\/internal\/finalizations\/eligibility$/.exec(pathname);
+  if (internalFinalizationEligibility) return { handler: handleInternalFinalizationEligibility, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationResumeCompleted = /^\/api\/internal\/finalizations\/resume-completed$/.exec(pathname);
   if (internalFinalizationResumeCompleted) return { handler: handleInternalFinalizationResumeCompleted, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationFailed = /^\/api\/internal\/finalizations\/failed$/.exec(pathname);
@@ -3026,6 +3028,17 @@ async function handleInternalFinalizationClaim(request, env) {
   return internalJson({ ok: true, finalization }, 200);
 }
 
+async function handleInternalFinalizationEligibility(request, env) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+    return internalJson({ error: 'invalid_finalization_eligibility' }, 400);
+  }
+  const targetSha = safeGitSha(parsed.body.target_sha);
+  if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
+  return internalJson({ ok: true, eligibility: await internalFinalizationEligibility(env, targetSha) }, 200);
+}
+
 async function handleInternalFinalizationResumeCompleted(request, env) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
@@ -4917,6 +4930,76 @@ async function internalResumeCompletedFinalization(env, targetSha) {
     .sort((a, b) => Number(a.status === 'deployed') - Number(b.status === 'deployed') ||
       String(a.automation_updated_at || '').localeCompare(String(b.automation_updated_at || '')) ||
       String(a.id || '').localeCompare(String(b.id || '')))[0] || null;
+}
+
+async function internalFinalizationEligibility(env, targetSha) {
+  const slugs = [...PRODUCTION_CANARY_SUBMISSION_SLUGS].sort();
+  const columns = `id,published_slug,status,release_phase,selected_runtime,source_sha256,workflow_version,
+    build_evidence,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,
+    release_merge_sha,release_artifact_hash,finalization_status,finalization_target_sha,
+    finalization_lease_expires_at`;
+  let rows;
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-eligibility-v1',
+      `SELECT ${columns} FROM submissions WHERE published_slug = ANY($1::text[]) ORDER BY published_slug ASC`,
+      [slugs]
+    ));
+    rows = result.rows || [];
+  } else if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `SELECT ${columns} FROM submissions WHERE published_slug IN (?, ?) ORDER BY published_slug ASC`
+    ).bind(...slugs).all();
+    rows = result.results || [];
+  } else {
+    rows = Array.from(mockSubmissions.values())
+      .filter((row) => row && PRODUCTION_CANARY_SUBMISSION_SLUGS.has(row.published_slug))
+      .sort((a, b) => String(a.published_slug).localeCompare(String(b.published_slug)));
+  }
+  const now = Date.now();
+  return rows.map((row) => finalizationEligibilityRow(row, targetSha, now));
+}
+
+function finalizationEligibilityRow(row, targetSha, now) {
+  const activeStatuses = new Set(['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public']);
+  const rawFinalizationStatus = row.finalization_status == null ? null : String(row.finalization_status);
+  const finalizationState = rawFinalizationStatus === null || activeStatuses.has(rawFinalizationStatus)
+    || ['failed', 'completed', 'rolled_back'].includes(rawFinalizationStatus)
+    ? rawFinalizationStatus : 'invalid';
+  const leaseMs = Date.parse(String(row.finalization_lease_expires_at || ''));
+  const leaseExpired = activeStatuses.has(rawFinalizationStatus) && Number.isFinite(leaseMs) && leaseMs < now;
+  const finalizationAvailable = rawFinalizationStatus === null || leaseExpired;
+  const present = (value) => value !== null && value !== undefined && String(value).trim() !== '';
+  const result = {
+    submission_id: safeSubmissionId(row.id),
+    slug: safeSlug(row.published_slug),
+    status: safeSubmissionStatus(row.status),
+    release_phase: RELEASE_PHASES.has(String(row.release_phase || '')) ? String(row.release_phase) : null,
+    selected_runtime: safeRuntime(row.selected_runtime),
+    source_sha256_present: Boolean(safeSha256(row.source_sha256)),
+    published_slug_present: Boolean(safeSlug(row.published_slug)),
+    workflow_version_present: SAFE_WORKFLOW_VERSION_RE.test(String(row.workflow_version || '')),
+    build_evidence_present: safeBuildEvidence(row.build_evidence).checks.length > 0,
+    release_issue_url_present: Boolean(safeGithubUrl(row.release_issue_url, 'issues')),
+    release_pr_url_present: Boolean(safeGithubUrl(row.release_pr_url, 'pull')),
+    release_pr_number_present: Number.isSafeInteger(Number(row.release_pr_number)) && Number(row.release_pr_number) > 0,
+    release_branch_present: Boolean(safeReleaseBranch(row.release_branch)),
+    release_head_sha_present: Boolean(safeGitSha(row.release_head_sha)),
+    release_merge_sha_present: Boolean(safeGitSha(row.release_merge_sha)),
+    release_artifact_hash_present: Boolean(safeSha256(row.release_artifact_hash)),
+    finalization_status: finalizationState,
+    finalization_target_matches: present(row.finalization_target_sha) && row.finalization_target_sha === targetSha,
+    finalization_lease_expired: leaseExpired,
+    finalization_available: finalizationAvailable,
+  };
+  result.claimable = result.status === 'ready_for_deploy'
+    && result.release_phase === 'merged_verified'
+    && ['worker-native', 'modal-hosted'].includes(result.selected_runtime)
+    && result.source_sha256_present && result.published_slug_present && result.workflow_version_present
+    && result.build_evidence_present && result.release_issue_url_present && result.release_pr_url_present
+    && result.release_pr_number_present && result.release_branch_present && result.release_head_sha_present
+    && result.release_merge_sha_present && result.release_artifact_hash_present && result.finalization_available;
+  return result;
 }
 
 async function internalClaimFinalization(env, targetSha) {

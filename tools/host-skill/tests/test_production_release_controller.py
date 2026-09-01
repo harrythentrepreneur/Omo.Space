@@ -156,6 +156,47 @@ def test_finalization_store_treats_only_literal_204_as_idle():
     assert caught.value.code == "invalid_finalizer_response"
 
 
+def test_finalization_eligibility_is_exact_bounded_and_fail_closed():
+    mod = load_module()
+    boolean_fields = {
+        "source_sha256_present", "published_slug_present", "workflow_version_present",
+        "build_evidence_present", "release_issue_url_present", "release_pr_url_present",
+        "release_pr_number_present", "release_branch_present", "release_head_sha_present",
+        "release_merge_sha_present", "release_artifact_hash_present",
+        "finalization_target_matches", "finalization_lease_expired", "finalization_available",
+        "claimable",
+    }
+    row = {
+        "submission_id": "sub_" + "1" * 32,
+        "slug": "v02-release-label-sorter",
+        "status": "ready_for_deploy",
+        "release_phase": "merged_verified",
+        "selected_runtime": "worker-native",
+        "finalization_status": None,
+        **{field: True for field in boolean_fields},
+    }
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request)
+        return Response({"ok": True, "eligibility": [row]})
+
+    result = mod.HttpFinalizationStore("token", opener=opener).eligibility(SHA)
+    assert result == [row]
+    assert json.loads(requests[0].data) == {"target_sha": SHA}
+    assert requests[0].full_url.endswith("/api/internal/finalizations/eligibility")
+
+    for malformed in (
+        {**row, "claimable": 1},
+        {**row, "private": "must-not-pass"},
+        {**row, "slug": "unrelated"},
+    ):
+        with pytest.raises(mod.ControllerError, match="invalid_finalizer_eligibility"):
+            mod.HttpFinalizationStore(
+                "token", opener=lambda request, timeout, value=malformed: Response({"ok": True, "eligibility": [value]})
+            ).eligibility(SHA)
+
+
 def test_finalization_claim_preserves_only_bounded_http_status():
     mod = load_module()
 
@@ -1098,8 +1139,16 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         def ensure_builder_schedule(self, checkout, sha):
             order.append(("schedule", checkout, sha))
 
+    store = SimpleNamespace(eligibility=lambda sha: order.append(("eligibility", sha)) or [{
+        "submission_id": "sub_" + "2" * 32,
+        "slug": "v02-release-label-sorter",
+        "status": "ready_for_deploy",
+        "release_phase": "merged_verified",
+        "selected_runtime": "worker-native",
+        "claimable": False,
+    }])
     monkeypatch.setattr(mod, "GitHubMainlineAdapter", Mainline)
-    monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token: object())
+    monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token: store)
     monkeypatch.setattr(mod, "ProductionModalAdapter", lambda env: object())
     monkeypatch.setattr(mod, "ProductionCloudflareAdapter", Cloudflare)
     monkeypatch.setattr(mod, "ProductionPublicAdapter", Public)
@@ -1113,11 +1162,19 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
     })
     assert order == [
-        ("recovery", SHA), ("finalizer", SHA), ("checkout", SHA),
+        ("recovery", SHA), ("finalizer", SHA), ("eligibility", SHA), ("checkout", SHA),
         ("schedule", target, SHA), ("seed", target),
     ]
     assert result == {
         "status": "seeded", "target_sha": SHA,
+        "eligibility": [{
+            "submission_id": "sub_" + "2" * 32,
+            "slug": "v02-release-label-sorter",
+            "status": "ready_for_deploy",
+            "release_phase": "merged_verified",
+            "selected_runtime": "worker-native",
+            "claimable": False,
+        }],
         "submissions": [
             {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "2" * 32, "submission_status": "queued"},
             {"slug": "v02-support-urgency-classifier", "submission_id": "sub_" + "3" * 32, "submission_status": "queued"},
