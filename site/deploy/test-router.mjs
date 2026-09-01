@@ -652,6 +652,7 @@ const signupModalSource = fs.readFileSync(path.join(here, '..', 'signup-modal.js
 const sellSource = fs.readFileSync(path.join(here, '..', 'sell.html'), 'utf8');
 const hostSource = fs.readFileSync(path.join(here, '..', 'host.html'), 'utf8');
 const uploadSource = fs.readFileSync(path.join(here, '..', 'upload.js'), 'utf8');
+const navSource = fs.readFileSync(path.join(here, '..', 'nav.js'), 'utf8');
 const submissionsPagePath = path.join(here, '..', 'submissions.html');
 const submissionsClientPath = path.join(here, '..', 'submissions.js');
 const submissionsPageSource = fs.existsSync(submissionsPagePath) ? fs.readFileSync(submissionsPagePath, 'utf8') : '';
@@ -4800,6 +4801,12 @@ const submissionHtmlPath = path.join(here, '..', 'submission.html');
 const submissionJsPath = path.join(here, '..', 'submission.js');
 const submissionHtml = fs.existsSync(submissionHtmlPath) ? fs.readFileSync(submissionHtmlPath, 'utf8') : '';
 const submissionJs = fs.existsSync(submissionJsPath) ? fs.readFileSync(submissionJsPath, 'utf8') : '';
+
+check('shared nav: malformed submission links skip automatic Clerk loading before page bootstrap',
+  navSource.includes('function skipAutomaticAuthForInvalidSubmission()') &&
+  navSource.includes("page !== 'submission' && page !== 'submission.html'") &&
+  navSource.includes("/^sub_[A-Za-z0-9_-]{8,100}$/") &&
+  navSource.includes('if (!skipAutomaticAuthForInvalidSubmission() && !beginAuthResolution()) loadAuthAdapter();'));
 
 check('submission page: dedicated authenticated detail shell links back to all submissions',
   /href="submissions\.html"/.test(submissionHtml) &&
