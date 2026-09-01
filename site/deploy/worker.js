@@ -4224,7 +4224,7 @@ async function internalPeekBuilderSubmission(env) {
               AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
               AND release_artifact_hash IS NOT NULL)
        ORDER BY CASE WHEN status = 'ready_for_deploy' THEN 0 WHEN status = 'needs_review' THEN 1 ELSE 2 END,
-                created_at ASC
+                CASE WHEN status = 'ready_for_deploy' THEN updated_at ELSE created_at END ASC
        LIMIT 1`,
       statuses
     ));
@@ -4238,7 +4238,7 @@ async function internalPeekBuilderSubmission(env) {
                        AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
                        AND release_artifact_hash IS NOT NULL)
                 ORDER BY CASE WHEN status = 'ready_for_deploy' THEN 0 WHEN status = 'needs_review' THEN 1 ELSE 2 END,
-                         created_at ASC LIMIT 1`)
+                         CASE WHEN status = 'ready_for_deploy' THEN updated_at ELSE created_at END ASC LIMIT 1`)
       .bind(...statuses).first();
     return safeBuilderPeekRow(row);
   }
@@ -4248,7 +4248,8 @@ async function internalPeekBuilderSubmission(env) {
        record.release_pr_url && record.release_head_sha && record.release_artifact_hash))
     .sort((a, b) => ({ ready_for_deploy: 0, needs_review: 1, queued: 2 }[a.status] -
                      { ready_for_deploy: 0, needs_review: 1, queued: 2 }[b.status]) ||
-      String(a.created_at || '').localeCompare(String(b.created_at || '')))[0];
+      String(a.status === 'ready_for_deploy' ? a.updated_at || '' : a.created_at || '').localeCompare(
+        String(b.status === 'ready_for_deploy' ? b.updated_at || '' : b.created_at || '')))[0];
   return safeBuilderPeekRow(row);
 }
 
