@@ -454,6 +454,41 @@ def test_authored_release_accepts_compiler_owned_catalog_promotion():
     assert result["status"] == "deployed"
 
 
+def test_authored_release_accepts_claim_bound_runtime_placement_overlay():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="worker-native")
+    receipt = valid_authoring_receipt()
+    profile = load_compiler().promote_generated_candidate_for_release(assembled_profile(receipt))
+    assert profile["runtime_preference"] == "auto"
+    profile["runtime_preference"] = "worker-native"
+    mainline.entries.update({
+        "packages/skill-to-modal/profiles/demo.json": json.dumps(profile).encode(),
+        "packages/skill-to-modal/profile-authoring-specs/demo.json": receipt,
+    })
+    store.claim_value = replace(store.claim_value, artifact_hash=artifact_hash(mainline.entries))
+
+    result = mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert result["status"] == "deployed"
+
+
+def test_claim_bound_runtime_overlay_does_not_allow_other_profile_drift():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="worker-native")
+    receipt = valid_authoring_receipt()
+    profile = load_compiler().promote_generated_candidate_for_release(assembled_profile(receipt))
+    profile["runtime_preference"] = "worker-native"
+    profile["capabilities"] = ["attacker-selected-capability"]
+    mainline.entries.update({
+        "packages/skill-to-modal/profiles/demo.json": json.dumps(profile).encode(),
+        "packages/skill-to-modal/profile-authoring-specs/demo.json": receipt,
+    })
+    store.claim_value = replace(store.claim_value, artifact_hash=artifact_hash(mainline.entries))
+
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+
+    assert caught.value.code == "internal_finalizer_failed"
+
+
 def test_trusted_legacy_profile_pins_match_reviewed_tree():
     mod = load_finalizer()
     for slug, (source_digest, profile_digest) in mod.TRUSTED_LEGACY_PROFILE_DIGESTS.items():
