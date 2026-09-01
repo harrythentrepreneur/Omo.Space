@@ -203,7 +203,6 @@ let neonInternalClaimRow = null;
 let neonInternalDetailRow = null;
 let neonResumeMergedRow = null;
 let neonFinalizationClaimRow = null;
-let neonFinalizationEligibilityRows = [];
 let neonFinalizationDetailRow = null;
 let neonFinalizationStatusRow = null;
 let neonCompletedFinalizationRow = null;
@@ -450,10 +449,8 @@ const sandbox = {
               ? 'omo-internal-submission-detail-v1'
               : text.includes('WITH candidate AS') && text.includes('build_claimed_at')
                 ? 'omo-internal-submission-claim-v1'
-              : text.includes('SELECT id,published_slug,status,release_phase,selected_runtime') && text.includes('(published_slug, source_sha256) IN')
-                ? 'omo-internal-finalization-eligibility-v2'
               : text.includes('WITH candidate AS') && text.includes('finalization_id') && text.includes("finalization_status = 'claimed'")
-                ? 'omo-internal-finalization-claim-v2'
+                ? 'omo-internal-finalization-claim-v1'
               : text.includes('finalization_attempts = 1') && text.includes('LIMIT 32') && text.includes("finalization_status = 'failed'")
                 ? 'omo-internal-finalization-recovery-candidate-v1'
               : text.includes("status IN ('ready_for_publish', 'deployed')") && text.includes("finalization_status = 'completed'") && text.includes('SELECT')
@@ -495,11 +492,8 @@ const sandbox = {
       if (entry.name === 'omo-internal-submission-claim-v1') {
         return neonInternalClaimRow ? { rows: [neonInternalClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      if (entry.name === 'omo-internal-finalization-claim-v2') {
+      if (entry.name === 'omo-internal-finalization-claim-v1') {
         return neonFinalizationClaimRow ? { rows: [neonFinalizationClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
-      }
-      if (entry.name === 'omo-internal-finalization-eligibility-v2') {
-        return { rows: neonFinalizationEligibilityRows, rowCount: neonFinalizationEligibilityRows.length };
       }
       if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
         return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
@@ -544,7 +538,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalPeekBuilderSubmission, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalFinalizationEligibility, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -614,33 +608,6 @@ check('Neon: Worker never caches request-bound Pool I/O in module scope',
   workerSrc.includes("neon(url, { fullResults: true })") &&
   (workerSrc.match(/await client\.release\(\)/g) || []).length === 13);
 
-const fairnessOlderCreated = {
-  id: 'sub_fairnessolder0001', slug: 'fairness-older-created', source_sha256: '7'.repeat(64),
-  status: 'ready_for_deploy', release_phase: 'pr_open',
-  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/400',
-  release_head_sha: '8'.repeat(40), release_artifact_hash: '9'.repeat(64),
-  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-09-01T05:50:00Z',
-};
-const fairnessLeastRecent = {
-  id: 'sub_fairnessleast0002', slug: 'fairness-least-recent', source_sha256: 'a'.repeat(64),
-  status: 'ready_for_deploy', release_phase: 'pr_open',
-  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/401',
-  release_head_sha: 'b'.repeat(40), release_artifact_hash: 'c'.repeat(64),
-  created_at: '2026-02-01T00:00:00Z', updated_at: '2026-08-01T00:00:00Z',
-};
-workerTest.mockSubmissions.set(fairnessOlderCreated.id, fairnessOlderCreated);
-workerTest.mockSubmissions.set(fairnessLeastRecent.id, fairnessLeastRecent);
-const fairnessCandidate = await workerTest.internalPeekBuilderSubmission({}, 'verify_merged');
-check('post-merge verifier fairness: least recently updated ready row wins in mock ordering',
-  fairnessCandidate.id === fairnessLeastRecent.id);
-check('post-merge verifier fairness: Neon and D1 use phase-specific oldest-update ordering',
-  (workerSrc.match(/ORDER BY updated_at ASC/g) || []).length >= 2 &&
-  workerSrc.includes("omo-internal-builder-peek-verify-v1") &&
-  workerSrc.includes("omo-internal-builder-peek-build-v1") &&
-  workerSrc.includes("String(a.updated_at || '').localeCompare(String(b.updated_at || ''))"));
-workerTest.mockSubmissions.delete(fairnessOlderCreated.id);
-workerTest.mockSubmissions.delete(fairnessLeastRecent.id);
-
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
 const creditsSource = fs.readFileSync(path.join(here, '..', 'credits.js'), 'utf8');
@@ -652,10 +619,6 @@ const signupModalSource = fs.readFileSync(path.join(here, '..', 'signup-modal.js
 const sellSource = fs.readFileSync(path.join(here, '..', 'sell.html'), 'utf8');
 const hostSource = fs.readFileSync(path.join(here, '..', 'host.html'), 'utf8');
 const uploadSource = fs.readFileSync(path.join(here, '..', 'upload.js'), 'utf8');
-const submissionsPagePath = path.join(here, '..', 'submissions.html');
-const submissionsClientPath = path.join(here, '..', 'submissions.js');
-const submissionsPageSource = fs.existsSync(submissionsPagePath) ? fs.readFileSync(submissionsPagePath, 'utf8') : '';
-const submissionsClientSource = fs.existsSync(submissionsClientPath) ? fs.readFileSync(submissionsClientPath, 'utf8') : '';
 const catalogSandbox = { window: {} };
 vm.createContext(catalogSandbox);
 vm.runInContext(fs.readFileSync(path.join(here, '..', 'catalog.js'), 'utf8'), catalogSandbox, { filename: 'catalog.js' });
@@ -696,38 +659,6 @@ check('catalog cards: per-run prices render to two decimal places', indexSource.
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
 check('run page: textarea array inputs accept one item per line and examples preserve lines', runPageSource.includes("component: 'ArrayTextField'") && runPageSource.includes("value = multilineArrayValue(control.value)") && runPageSource.includes("values[key].join('\\n')"));
 check('run page: empty API base dispatches through the deployed same-origin Worker rewrite', runPageSource.includes("function workerBase() { return API_BASE || window.location.origin; }"));
-check('creator submissions page: dedicated authenticated owner index is wired from the upload page',
-  hostSource.includes('href="submissions.html"') &&
-  submissionsPageSource.includes('<script src="clerk.js"></script>') &&
-  submissionsPageSource.includes('<script src="submissions.js"></script>') &&
-  submissionsClientSource.includes('ClerkAuth.ensureLoaded') &&
-  submissionsClientSource.includes('ClerkAuth.onAuthChange') &&
-  submissionsClientSource.includes("var PAGE_SIZE = 50") &&
-  submissionsClientSource.includes("next_cursor") &&
-  submissionsClientSource.includes("Authorization: 'Bearer ' + token"));
-check('creator submissions page: loading, signed-out, empty, error/retry, and populated states are explicit',
-  submissionsPageSource.includes('id="submissions-loading"') &&
-  submissionsPageSource.includes('id="submissions-signed-out"') &&
-  submissionsPageSource.includes('id="submissions-empty"') &&
-  submissionsPageSource.includes('id="submissions-error"') &&
-  submissionsPageSource.includes('id="submissions-list"') &&
-  submissionsPageSource.includes('id="submissions-retry"') &&
-  submissionsClientSource.includes("showState('loading')") &&
-  submissionsClientSource.includes("showState('signed-out')") &&
-  submissionsClientSource.includes("showState('empty')") &&
-  submissionsClientSource.includes("showState('error')") &&
-  submissionsClientSource.includes("showState('populated')"));
-check('creator submissions page: server rows link safely to the frozen detail route without localStorage',
-  submissionsClientSource.includes("'submission.html?id=' + encodeURIComponent(submission.id)") &&
-  submissionsClientSource.includes('textContent = submission.name') &&
-  submissionsClientSource.includes('textContent = submission.slug') &&
-  submissionsClientSource.includes("visibilityText(submission.visibility)") &&
-  submissionsClientSource.includes("runtimeDecisionText(submission)") &&
-  submissionsClientSource.includes("formatDate(submission.created_at, 'Submitted')") &&
-  submissionsClientSource.includes("formatDate(submission.updated_at, 'Updated')") &&
-  submissionsClientSource.includes('statusLabel(submission.status)') &&
-  !submissionsClientSource.includes('localStorage') &&
-  !submissionsClientSource.includes('sessionStorage'));
 check('creator upload: seller CTA reaches a real file-reading authenticated queue with honest local-only rollout receipts', sellSource.includes('href="host.html#upload"') && hostSource.includes('id="upload-form"') && uploadSource.includes('await selectedFile.text()') && uploadSource.includes("fetch(apiBase() + '/api/submit'") && uploadSource.includes("Authorization: 'Bearer ' + token") && uploadSource.includes('if (isFilePreview())') && uploadSource.includes("error.code === 'queue_unavailable'") && uploadSource.includes('not the Markdown') && !uploadSource.includes('startProgress'));
 check('creator upload: browser persists only server submission ids and restores from owner APIs',
   uploadSource.includes("fetchJsonWithAuth('/api/submissions?limit=20')") &&
@@ -1133,19 +1064,7 @@ check('submissions list: authenticated owner receives newest-first bounded safe 
   submissionsList.submissions[0].selected_runtime === 'modal-hosted' &&
   submissionsList.submissions[0].compatibility.compatible === true &&
   submissionsList.submissions[0].build_evidence.checks.includes('compile') &&
-  submissionsList.submissions[0].visibility === 'public' &&
-  typeof submissionsList.next_cursor === 'string' && submissionsList.next_cursor.length > 10 &&
   !('content' in submissionsList.submissions[0]));
-
-const submissionsSecondResponse = await worker.fetch(mkReq(
-  'GET', `/api/submissions?limit=1&cursor=${encodeURIComponent(submissionsList.next_cursor)}`, {}, creatorHeaders
-), realEnv);
-const submissionsSecond = await submissionsSecondResponse.json();
-check('submissions list: opaque cursor traverses complete owner history without duplicate rows',
-  submissionsSecondResponse.status === 200 && submissionsSecond.ok === true &&
-  submissionsSecond.submissions.length === 1 &&
-  submissionsSecond.submissions[0].id !== submissionsList.submissions[0].id &&
-  submissionsSecond.submissions[0].visibility === 'public');
 
 const submissionDetailResponse = await worker.fetch(mkReq('GET', `/api/submissions/${submitAdded.id}`, {}, creatorHeaders), realEnv);
 const submissionDetail = await submissionDetailResponse.json();
@@ -2269,21 +2188,6 @@ for (const failureCode of ['modal_preflight_failed', 'worker_preflight_failed', 
   const body = await response.json();
   typedPreflightInspections.push(response.status === 200 && body.finalization.failure_code === failureCode);
 }
-failedRecoveryRecord.finalization_failure_code = 'internal_finalizer_failed';
-const internalNoEffectRecovery = await worker.fetch(mkReq(
-  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
-), buildEnv);
-const internalNoEffectRecoveryBody = internalNoEffectRecovery.status === 200
-  ? await internalNoEffectRecovery.json() : null;
-failedRecoveryRecord.finalization_attempts = 2;
-const internalSecondNoEffectRecovery = await worker.fetch(mkReq(
-  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
-), buildEnv);
-failedRecoveryRecord.finalization_attempts = 3;
-const internalThirdNoEffectRecovery = await worker.fetch(mkReq(
-  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
-), buildEnv);
-failedRecoveryRecord.finalization_attempts = 1;
 failedRecoveryRecord.finalization_failure_code = 'modal_preflight_failed';
 const builderRecoveryCandidate = await worker.fetch(mkReq(
   'POST', '/api/internal/finalizations/recovery-candidate', {}, internalHeaders
@@ -2302,11 +2206,6 @@ const exhaustedRecoveryCandidate = await worker.fetch(mkReq(
 failedRecoveryRecord.finalization_attempts = 1;
 check('automatic finalization recovery candidate: finalizer-only bounded no-effect retry is offered once',
   builderRecoveryCandidate.status === 401 && recoveryCandidateExtra.status === 400 &&
-  internalNoEffectRecovery.status === 200 &&
-  internalSecondNoEffectRecovery.status === 200 &&
-  internalThirdNoEffectRecovery.status === 204 &&
-  internalNoEffectRecoveryBody.recovery.mode === 'resume_no_effect' &&
-  internalNoEffectRecoveryBody.recovery.finalization_id === failedRecoveryRecord.finalization_id &&
   recoveryCandidateResponse.status === 200 && exhaustedRecoveryCandidate.status === 204 &&
   JSON.stringify(recoveryCandidateBody) === JSON.stringify({
     ok: true, recovery: {
@@ -2678,26 +2577,21 @@ neonFailedFinalizationRow = null;
 neonFailedResumeRow = null;
 neonRecoveryRow = null;
 workerTest.mockSubmissions.delete(failedRecoveryRecord.id);
-const leaseFinalizationTargets = [{ slug: 'lease-workflow', source_sha256: 'e'.repeat(64) }];
 const builderFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
+  target_sha: '3'.repeat(40),
 }, internalHeaders), buildEnv);
 const noConfigFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
+  target_sha: '3'.repeat(40),
 }, finalizerHeaders), { ...realEnv, BUILD_WORKER_TOKEN: 'bridge-token-for-tests' });
 const equalTokenFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
+  target_sha: '3'.repeat(40),
 }, internalHeaders), {
   ...realEnv,
   BUILD_WORKER_TOKEN: 'bridge-token-for-tests',
   RELEASE_FINALIZER_TOKEN: 'bridge-token-for-tests',
 });
-const wrongSourceFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40),
-  targets: [{ slug: 'lease-workflow', source_sha256: 'd'.repeat(64) }],
-}, finalizerHeaders), buildEnv);
 const finalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
+  target_sha: '3'.repeat(40),
 }, finalizerHeaders), buildEnv);
 const finalizationClaimBody = await finalizationClaim.json();
 const finalizationRecord = workerTest.mockSubmissions.get(finalizationCandidateId);
@@ -2721,7 +2615,7 @@ const builderReleaseMutationAfterClaim = await worker.fetch(mkReq('POST', `/api/
   artifact_hash: finalizationRecord.release_artifact_hash,
 }, internalHeaders), buildEnv);
 const duplicateFinalizationClaim = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-  target_sha: '3'.repeat(40), targets: leaseFinalizationTargets,
+  target_sha: '3'.repeat(40),
 }, finalizerHeaders), buildEnv);
 const wrongTargetFinalizationAdvance = await worker.fetch(mkReq('POST', `/api/internal/finalizations/${finalizationClaimBody.finalization.id}/status`, {
   target_sha: '4'.repeat(40),
@@ -2784,7 +2678,6 @@ check('internal finalization claim: separate finalizer authority gets one target
   builderFinalizationClaim.status === 401 &&
   noConfigFinalizationClaim.status === 503 &&
   equalTokenFinalizationClaim.status === 503 &&
-  wrongSourceFinalizationClaim.status === 204 &&
   finalizationClaim.status === 200 &&
   finalizationClaimBody.finalization.submission_id === finalizationCandidateId &&
   finalizationClaimBody.finalization.target_sha === '3'.repeat(40) &&
@@ -2869,13 +2762,6 @@ const canaryProvisionReplay = await worker.fetch(
   mkReq('POST', '/api/internal/finalizations/canary-identity', {}, finalizerHeaders), productionCanaryEnv
 );
 const canaryProvisionReplayBody = await canaryProvisionReplay.json();
-const productionCanaryBalanceResponse = await worker.fetch(
-  mkReq('GET', '/api/me', null, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv
-);
-const productionCanaryBalance = await productionCanaryBalanceResponse.json();
-const productionCanaryBalancePost = await worker.fetch(
-  mkReq('POST', '/api/me', {}, { 'X-API-Key': productionCanaryKey }), productionCanaryEnv
-);
 const savedApiKeys = new Map(workerTest.mockApiKeys);
 workerTest.mockApiKeys.clear();
 const directProductionCanaryAuth = await workerTest.authenticateAccount(
@@ -3064,16 +2950,11 @@ const hashOnlyCanaryResolver = /async function userIdForHashedApiKey[\s\S]*?(?=a
 check('production canary auth: hashed submission fallback stays narrow and fixed secret is scope-gated',
   hashOnlyCanaryResolver.includes('omo-api-key-owner-v1') &&
   !hashOnlyCanaryResolver.includes('legacy') && !hashOnlyCanaryResolver.includes('users WHERE api_key') &&
-  (workerSrc.match(/apiKeyOwner = .*userIdForHashedApiKey/g) || []).length === 3 &&
+  (workerSrc.match(/apiKeyOwner = .*userIdForHashedApiKey/g) || []).length === 2 &&
   directProductionCanaryAuth.ok === true &&
   directProductionCanaryAuth.userId === 'user_prod_label_normalizer_canary_v1' &&
   directProductionCanaryAuth.method === 'production_canary' &&
   unscopedProductionCanaryAuth.ok === false);
-check('production canary balance: fixed key reads only its own account snapshot',
-  productionCanaryBalanceResponse.status === 200 && productionCanaryBalance.ok === true &&
-  productionCanaryBalance.currency === 'usd' &&
-  Number.isInteger(productionCanaryBalance.balance_cents) && Array.isArray(productionCanaryBalance.runs) &&
-  productionCanaryBalancePost.status === 401);
 check('production canary identity: release tag run scope reaches schema validation',
   productionCanaryReleaseTagAuth.status === 422);
 check('production canary identity: incident run scope reaches schema validation',
@@ -3125,7 +3006,7 @@ for (const expiredStatus of ['claimed', 'deploying_modal', 'deploying_worker', '
   finalizationRecord.finalization_worker_receipt = '{"stale":"worker"}';
   finalizationRecord.finalization_lease_expires_at = '2020-01-01T00:00:00.000Z';
   reclaimedFinalization = await worker.fetch(mkReq('POST', '/api/internal/finalizations/claim', {
-    target_sha: '5'.repeat(40), targets: leaseFinalizationTargets,
+    target_sha: '5'.repeat(40),
   }, finalizerHeaders), buildEnv);
   reclaimedFinalizationBody = await reclaimedFinalization.json();
   reclaimedGenerationIds.push(reclaimedFinalizationBody.finalization.id);
@@ -3167,124 +3048,6 @@ check('internal finalization failure: exact generation records one typed safe te
   finalizationRecord.finalization_status === 'failed' &&
   finalizationRecord.finalization_failure_code === 'worker_deploy_failed');
 
-const eligibilityTarget = 'e'.repeat(40);
-workerTest.mockSubmissions.set('eligibility-pure', {
-  id: 'sub_eligibilitypure1234', user_id: 'user_private', content: 'private source',
-  published_slug: 'v02-release-label-sorter', status: 'ready_for_deploy',
-  release_phase: 'merged_verified', selected_runtime: 'worker-native',
-  source_sha256: '1'.repeat(64), workflow_version: '1.0.0', build_evidence: null,
-  release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/284',
-  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/287', release_pr_number: 287,
-  release_branch: 'omo-release/sub_eligibilitypure1234-v02-release-label-sorter',
-  release_head_sha: '2'.repeat(40), release_merge_sha: '3'.repeat(40), release_artifact_hash: '4'.repeat(64),
-  finalization_status: null, finalization_target_sha: null,
-});
-workerTest.mockSubmissions.set('eligibility-llm', {
-  id: 'sub_eligibilityllm12345', user_id: 'user_private', content: 'private source',
-  published_slug: 'v02-support-urgency-classifier', status: 'ready_for_deploy',
-  release_phase: 'ci_passed', selected_runtime: 'worker-native',
-  source_sha256: '5'.repeat(64), workflow_version: '1.0.0', build_evidence: { checks: ['pytest'] },
-  release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/285',
-  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/285', release_pr_number: 285,
-  release_branch: 'omo-release/sub_eligibilityllm12345-v02-support-urgency-classifier',
-  release_head_sha: '6'.repeat(40), release_merge_sha: null, release_artifact_hash: '7'.repeat(64),
-  finalization_status: 'failed', finalization_target_sha: eligibilityTarget,
-});
-const eligibilityTargets = [
-  { slug: 'v02-release-label-sorter', source_sha256: '1'.repeat(64) },
-  { slug: 'v02-support-urgency-classifier', source_sha256: '5'.repeat(64) },
-];
-const eligibilityResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
-  target_sha: eligibilityTarget, targets: eligibilityTargets,
-}, finalizerHeaders), buildEnv);
-const eligibilityBody = await eligibilityResponse.json();
-const eligibilityUnauthorized = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
-  target_sha: eligibilityTarget, targets: eligibilityTargets,
-}, internalHeaders), buildEnv);
-const eligibilityMissingTargets = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
-  target_sha: eligibilityTarget,
-}, finalizerHeaders), buildEnv);
-const eligibilityDuplicateTargets = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
-  target_sha: eligibilityTarget, targets: [eligibilityTargets[0], eligibilityTargets[0]],
-}, finalizerHeaders), buildEnv);
-check('internal finalization eligibility: finalizer-only auth and target list validation',
-  eligibilityResponse.status === 200 && eligibilityUnauthorized.status === 401 &&
-  eligibilityMissingTargets.status === 400 && eligibilityDuplicateTargets.status === 400);
-check('internal finalization eligibility: exact target filtering returns two rows',
-  eligibilityBody.ok === true && eligibilityBody.eligibility.length === 2);
-check('internal finalization eligibility: pure-data row reports its failed predicate',
-  eligibilityBody.eligibility[0].slug === 'v02-release-label-sorter' &&
-  eligibilityBody.eligibility[0].build_evidence_present === false &&
-  eligibilityBody.eligibility[0].claimable === false);
-check('internal finalization eligibility: LLM row reports its failed predicate',
-  eligibilityBody.eligibility[1].slug === 'v02-support-urgency-classifier' &&
-  eligibilityBody.eligibility[1].release_phase === 'ci_passed' &&
-  eligibilityBody.eligibility[1].claimable === false);
-check('internal finalization eligibility: response excludes private row data',
-  !JSON.stringify(eligibilityBody).includes('private source') &&
-  !JSON.stringify(eligibilityBody).includes('user_private'));
-
-const backendEligibilityRow = {
-  id: 'sub_backendeligibility1234', published_slug: 'v02-release-label-sorter',
-  status: 'ready_for_deploy', release_phase: 'merged_verified', selected_runtime: 'worker-native',
-  source_sha256: 'a'.repeat(64), workflow_version: 'v02-release-label-sorter@1.0.0', build_evidence: { checks: ['pytest'] },
-  release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/284',
-  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/287', release_pr_number: 287,
-  release_branch: 'omo-release/sub_backendeligibility1234-v02-release-label-sorter',
-  release_head_sha: 'b'.repeat(40), release_merge_sha: 'c'.repeat(40), release_artifact_hash: 'd'.repeat(64),
-  finalization_status: null, finalization_target_sha: null, finalization_lease_expires_at: null,
-};
-neonSqlCalls.length = 0;
-neonFinalizationEligibilityRows = [backendEligibilityRow];
-const backendEligibilityTargets = [{ slug: 'v02-release-label-sorter', source_sha256: 'a'.repeat(64) }];
-const neonEligibility = await workerTest.internalFinalizationEligibility(
-  { NEON_DATABASE_URL: 'postgres://example' }, eligibilityTarget, backendEligibilityTargets
-);
-const neonEligibilityCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-eligibility-v2');
-const d1EligibilityCalls = [];
-const d1Eligibility = await workerTest.internalFinalizationEligibility({
-  BALANCE_DB: {
-    prepare(text) {
-      const call = { text, values: [] };
-      d1EligibilityCalls.push(call);
-      return {
-        bind(...values) {
-          call.values = values;
-          return { all: async () => ({ results: [backendEligibilityRow] }) };
-        },
-      };
-    },
-  },
-}, eligibilityTarget, backendEligibilityTargets);
-check('internal finalization eligibility: Neon and D1 bind exact slug and source hash pairs',
-  neonEligibility.length === 1 && neonEligibility[0].claimable === true &&
-  neonEligibilityCall.text.includes('(published_slug, source_sha256) IN (($1, $2))') &&
-  JSON.stringify(neonEligibilityCall.values) === JSON.stringify(['v02-release-label-sorter', 'a'.repeat(64)]) &&
-  d1Eligibility.length === 1 && d1Eligibility[0].claimable === true &&
-  d1EligibilityCalls[0].text.includes('(published_slug = ? AND source_sha256 = ?)') &&
-  JSON.stringify(d1EligibilityCalls[0].values) === JSON.stringify(['v02-release-label-sorter', 'a'.repeat(64)]) &&
-  workerSrc.includes('`omo-internal-finalization-eligibility-v2-${targets.length}`') &&
-  workerSrc.includes('`omo-internal-finalization-claim-v2-${targets.length}`') &&
-  !neonEligibilityCall.text.includes('content') && !neonEligibilityCall.text.includes('user_id'));
-const malformedEligibilityRecord = {
-  ...backendEligibilityRow,
-  id: 'sub_malformedeligibility1',
-  workflow_version: 'present-but-invalid',
-  build_evidence: { checks: ['x'] },
-  release_issue_url: 'present-but-invalid',
-  release_pr_url: 'present-but-invalid',
-  release_branch: 'present-but-invalid',
-};
-workerTest.mockSubmissions.set('eligibility-pure', malformedEligibilityRecord);
-const malformedTargets = [backendEligibilityTargets[0], eligibilityTargets[1]];
-const malformedEligibility = await workerTest.internalFinalizationEligibility({}, eligibilityTarget, malformedTargets);
-const malformedPure = malformedEligibility.find((row) => row.slug === 'v02-release-label-sorter');
-check('internal finalization eligibility: malformed present evidence never reports claimable',
-  malformedPure.workflow_version_present === false && malformedPure.build_evidence_present === false &&
-  malformedPure.release_issue_url_present === false && malformedPure.release_pr_url_present === false &&
-  malformedPure.release_branch_present === false && malformedPure.claimable === false);
-neonFinalizationEligibilityRows = [];
-
 neonSqlCalls.length = 0;
 neonFinalizationClaimRow = {
   id: 'sub_neonfinalizer01',
@@ -3303,16 +3066,11 @@ neonFinalizationClaimRow = {
   finalization_lease_expires_at: '2099-08-20T12:00:00Z',
   finalization_attempts: 1,
 };
-const neonFinalization = await workerTest.internalClaimFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, 'b'.repeat(40),
-  [{ slug: 'neon-finalizer', source_sha256: '6'.repeat(64) }]
-);
-const neonFinalizationCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-claim-v2');
+const neonFinalization = await workerTest.internalClaimFinalization({ NEON_DATABASE_URL: 'postgres://example' }, 'b'.repeat(40));
+const neonFinalizationCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-claim-v1');
 check('internal finalization claim Neon: one locked atomic update returns only finalizer fields',
   neonFinalization.id === 'fin_' + 'a'.repeat(32) &&
   neonFinalizationCall.text.includes('FOR UPDATE SKIP LOCKED') &&
-  neonFinalizationCall.text.includes('(published_slug, source_sha256) IN (($4, $5))') &&
-  neonFinalizationCall.values[3] === 'neon-finalizer' && neonFinalizationCall.values[4] === '6'.repeat(64) &&
   neonFinalizationCall.text.includes("release_phase = 'merged_verified'") &&
   neonFinalizationCall.text.includes('release_pr_url IS NOT NULL') &&
   neonFinalizationCall.text.includes('build_evidence IS NOT NULL') &&
@@ -3698,9 +3456,8 @@ const d1Finalizer = d1DatabaseForFinalization({
 const d1FinalizerEnv = { BALANCE_DB: d1Finalizer.binding };
 const d1FinalizerTarget = 'e'.repeat(40);
 const d1RegistrySlugs = await workerTest.internalRequiredRegistrySlugs(d1FinalizerEnv);
-const d1FinalizerTargets = [{ slug: 'd1-finalizer', source_sha256: 'a'.repeat(64) }];
-const d1FinalizerClaim = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget, d1FinalizerTargets);
-const d1FinalizerDuplicate = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget, d1FinalizerTargets);
+const d1FinalizerClaim = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget);
+const d1FinalizerDuplicate = await workerTest.internalClaimFinalization(d1FinalizerEnv, d1FinalizerTarget);
 const d1FinalizerDeploying = await workerTest.internalSetFinalizationStatus(
   d1FinalizerEnv, d1FinalizerClaim.id, d1FinalizerTarget, 'deploying_worker'
 );
@@ -3846,8 +3603,7 @@ const d1FailedRequeued = await workerTest.internalResumeFailedFinalization(
   d1FailedEnv, d1FailedTarget, 'fin_' + '7'.repeat(32)
 );
 const d1FreshTarget = 'c'.repeat(40);
-const d1FailedTargets = [{ slug: 'd1-failed-final', source_sha256: '8'.repeat(64) }];
-const d1FailedResumed = await workerTest.internalClaimFinalization(d1FailedEnv, d1FreshTarget, d1FailedTargets);
+const d1FailedResumed = await workerTest.internalClaimFinalization(d1FailedEnv, d1FreshTarget);
 const d1FailedReplay = await workerTest.internalResumeFailedFinalization(
   d1FailedEnv, d1FailedTarget, 'fin_' + '7'.repeat(32)
 );
@@ -3889,8 +3645,7 @@ const d1RecoveryReplay = await workerTest.internalRecoverRolledBackFinalization(
   d1RecoveryEnv, rollbackTarget, d1RecoveryRecord.finalization_id
 );
 const d1RecoveryFreshTarget = 'e'.repeat(40);
-const d1RecoveryTargets = [{ slug: rollbackRecord.published_slug, source_sha256: rollbackRecord.source_sha256 }];
-const d1RecoveryClaim = await workerTest.internalClaimFinalization(d1RecoveryEnv, d1RecoveryFreshTarget, d1RecoveryTargets);
+const d1RecoveryClaim = await workerTest.internalClaimFinalization(d1RecoveryEnv, d1RecoveryFreshTarget);
 const d1RecoveryAfter = d1Recovery.db.prepare(
   'SELECT status,finalization_id,finalization_target_sha,finalization_attempts,finalization_recovery_receipt FROM submissions WHERE id = ?'
 ).get(rollbackRecord.id);
@@ -4780,7 +4535,7 @@ workerTest.mockSubmissions.set('user_builder:v02-release-label-sorter', {
   created_at: new Date().toISOString(),
 });
 scheduledTask = null;
-await worker.scheduled({ scheduledTime: 60_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({}, builderEnv, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const mergedVerifierCall = builderDispatchCalls.at(-1);
 check('builder cron: dispatches a distinct identifier-only post-merge verifier phase',
@@ -4794,83 +4549,6 @@ check('builder cron: dispatches a distinct identifier-only post-merge verifier p
   !('content' in mergedVerifierCall.payload) && !('user_id' in mergedVerifierCall.payload));
 check('builder cron: post-merge peek remains non-mutating until Modal claims',
   workerTest.mockSubmissions.get('user_builder:v02-release-label-sorter').status === 'ready_for_deploy');
-
-// ── Authenticated submission progress page ─────────────────────────────────
-const submissionHtmlPath = path.join(here, '..', 'submission.html');
-const submissionJsPath = path.join(here, '..', 'submission.js');
-const submissionHtml = fs.existsSync(submissionHtmlPath) ? fs.readFileSync(submissionHtmlPath, 'utf8') : '';
-const submissionJs = fs.existsSync(submissionJsPath) ? fs.readFileSync(submissionJsPath, 'utf8') : '';
-
-check('submission page: dedicated authenticated detail shell links back to all submissions',
-  /href="submissions\.html"/.test(submissionHtml) &&
-  /id="submission-state"/.test(submissionHtml) &&
-  /id="submission-timeline"/.test(submissionHtml) &&
-  /id="refresh-submission"/.test(submissionHtml) &&
-  /id="detail-slug"/.test(submissionHtml) && /id="detail-visibility"/.test(submissionHtml) &&
-  !/<script src="clerk\.js"><\/script>/.test(submissionHtml) &&
-  submissionHtml.includes("loadScript('clerk.js'") && submissionHtml.includes("loadScript('submission.js'"));
-check('submission page: validates the direct-link id before loading Clerk or owner API code',
-  submissionHtml.includes("/^sub_[A-Za-z0-9_-]{8,100}$/") &&
-  /if \(!valid\)[\s\S]*?loadScript\('submission\.js'\)[\s\S]*?return;[\s\S]*?loadScript\('clerk\.js'/.test(submissionHtml) &&
-  /if \(!isValidSubmissionId\(submissionId\)\)[\s\S]*?renderInvalidId\(\)[\s\S]*?return;[\s\S]*?ensureAuthenticated/.test(submissionJs));
-check('submission page: owner detail request uses a Clerk bearer token and encoded id',
-  /Clerk\.session\.getToken/.test(submissionJs) &&
-  /Authorization:\s*'Bearer '\s*\+\s*token/.test(submissionJs) &&
-  /'\/api\/submissions\/'\s*\+\s*encodeURIComponent\(submissionId\)/.test(submissionJs));
-check('submission page: workflow identity and server-derived visibility are rendered safely',
-  submissionJs.includes("document.getElementById('detail-slug').textContent = submission.slug") &&
-  submissionJs.includes("document.getElementById('detail-visibility').textContent = visibilityText(submission.visibility)") &&
-  submissionJs.includes("value === 'public' ? 'Marketplace' : 'Visibility unavailable'"));
-check('submission page: authoritative lifecycle covers every backend status and derives release-stage failures',
-  ['queued', 'needs_review', 'processing', 'ready_for_deploy', 'ready_for_publish', 'failed', 'deployed']
-    .every((status) => submissionJs.includes(`${status}:`)) &&
-  submissionJs.includes('Runtime pending review') &&
-  submissionJs.includes('function timelineStage(submission)') &&
-  submissionJs.includes("submission.release && submission.release.phase") &&
-  submissionJs.includes("ready_for_deploy: {\n      label: 'Build ready', title: 'Build complete — release gates are next', stage: 3") &&
-  submissionJs.includes("step.classList.toggle('is-action'") &&
-  submissionHtml.includes('.timeline-step.is-action'));
-check('submission page: polling continues only for nonterminal lifecycle states',
-  /NONTERMINAL_STATUSES\s*=\s*new Set\(\['queued', 'processing', 'ready_for_deploy', 'ready_for_publish'\]\)/.test(submissionJs) &&
-  /NONTERMINAL_STATUSES\.has\(submission\.status\)[\s\S]*?schedulePoll/.test(submissionJs) &&
-  /else\s*\{\s*stopPolling\(\)/.test(submissionJs));
-check('submission page: live workflow link is gated by deployed status and published slug',
-  /submission\.status === 'deployed'\s*&&\s*submission\.published_slug/.test(submissionJs) &&
-  /'run\.html\?slug='\s*\+\s*encodeURIComponent\(submission\.published_slug\)/.test(submissionJs));
-check('submission page: approval and retry retain narrow eligibility and explicit confirmation',
-  /status === 'needs_review'[\s\S]*?failure_code === 'slug_collision'/.test(submissionJs) &&
-  /retryableFailureCodes/.test(submissionJs) &&
-  /window\.confirm\('Approval sends it back through build\/test\/deploy gates and does not instantly publish\. Continue\?'\)/.test(submissionJs) &&
-  /window\.confirm\('Retry this reviewed gated build\? This does not publish or change the selected runtime\.'\)/.test(submissionJs) &&
-  /\/approve'/.test(submissionJs) && /\/retry'/.test(submissionJs));
-check('submission page: manual refresh and safe signed-out/not-found errors are present',
-  /refreshButton\.addEventListener\('click'/.test(submissionJs) &&
-  submissionJs.includes('Sign in to view this submission.') &&
-  submissionJs.includes('This submission was not found in your account.') &&
-  !submissionJs.includes('innerHTML'));
-workerTest.mockSubmissions.set('user_builder:fresh-upload', {
-  id: 'sub_freshupload123456789',
-  user_id: 'user_builder',
-  name: 'Fresh Upload',
-  slug: 'fresh-upload',
-  content: 'PRIVATE_FRESH_SOURCE_MUST_NOT_LEAVE_WORKER',
-  source_sha256: 'e'.repeat(64),
-  requested_runtime: 'auto',
-  status: 'queued',
-  created_at: new Date().toISOString(),
-});
-scheduledTask = null;
-await worker.scheduled({ scheduledTime: 120_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
-if (scheduledTask) await scheduledTask;
-const fairBuildCall = builderDispatchCalls.at(-1);
-check('builder cron fairness: build minute selects fresh upload despite eligible post-merge row',
-  fairBuildCall.payload.submission_id === 'sub_freshupload123456789' && fairBuildCall.payload.phase === 'build');
-scheduledTask = null;
-await worker.scheduled({ scheduledTime: 180_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
-if (scheduledTask) await scheduledTask;
-const fairVerifyCall = builderDispatchCalls.at(-1);
-check('builder cron fairness: verify minute selects eligible post-merge row despite fresh upload',
-  fairVerifyCall.payload.submission_id === 'sub_mergedverify12345678' && fairVerifyCall.payload.phase === 'verify_merged');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
