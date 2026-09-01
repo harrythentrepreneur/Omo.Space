@@ -565,8 +565,9 @@ async function handleWorkerFetch(request, env) {
 
 export default { fetch: handleWorkerFetch, scheduled: handleBuilderSchedule };
 
-async function handleBuilderSchedule(_controller, env, ctx) {
-  const task = dispatchNextBuilderSubmission(env).catch((error) => {
+async function handleBuilderSchedule(controller, env, ctx) {
+  const phase = builderSchedulePhase(controller);
+  const task = dispatchNextBuilderSubmission(env, phase).catch((error) => {
     console.error('builder_schedule_failed', String(error && error.message || error).slice(0, 120));
     throw error;
   });
@@ -574,7 +575,14 @@ async function handleBuilderSchedule(_controller, env, ctx) {
   else await task;
 }
 
-async function dispatchNextBuilderSubmission(env) {
+function builderSchedulePhase(controller) {
+  const scheduledTime = Number(controller && controller.scheduledTime);
+  if (!Number.isFinite(scheduledTime) || scheduledTime < 0) return 'build';
+  return Math.floor(scheduledTime / 60_000) % 2 === 0 ? 'build' : 'verify_merged';
+}
+
+async function dispatchNextBuilderSubmission(env, phase = 'build') {
+  if (!['build', 'verify_merged'].includes(phase)) throw new Error('invalid_builder_phase');
   const modalUrl = String(env.OMO_BUILDER_MODAL_URL || '').trim();
   const modalKey = String(env.OMO_BUILDER_MODAL_KEY || '').trim();
   const modalSecret = String(env.OMO_BUILDER_MODAL_SECRET || '').trim();
@@ -583,9 +591,11 @@ async function dispatchNextBuilderSubmission(env) {
       !modalKey || !modalSecret || !/^[0-9a-f]{40}$/.test(baseRevision)) {
     throw new Error('builder_dispatch_not_configured');
   }
-  const candidate = await internalPeekBuilderSubmission(env);
-  if (!candidate) return { status: 'idle' };
-  const phase = candidate.status === 'ready_for_deploy' ? 'verify_merged' : 'build';
+  const candidate = await internalPeekBuilderSubmission(env, phase);
+  if (!candidate) return { status: 'idle', phase };
+  if ((phase === 'verify_merged') !== (candidate.status === 'ready_for_deploy')) {
+    throw new Error('builder_phase_candidate_mismatch');
+  }
   const dispatchHash = await sha256Hex(`omo-modal-builder-v3\0${phase}\0${candidate.id}\0${candidate.source_sha256}\0${baseRevision}`);
   const payload = {
     submission_id: candidate.id,
@@ -2310,11 +2320,18 @@ async function handleSubmissions(request, env, url) {
   const auth = await authenticateAccount(request, env, false);
   if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors());
   const limit = boundedInt(url.searchParams && url.searchParams.get('limit'), 1, 50, 20);
-  const rows = await listSubmissions(env, auth.userId, limit);
+  const rawCursor = String(url.searchParams && url.searchParams.get('cursor') || '').trim();
+  const cursor = parseSubmissionCursor(rawCursor);
+  if (rawCursor && !cursor) return json({ ok: false, error: 'invalid_submission_cursor' }, 400, cors());
+  const rows = await listSubmissions(env, auth.userId, limit + 1, cursor);
+  const hasMore = rows.length > limit;
+  const pageRows = rows.slice(0, limit);
   return json({
     ok: true,
     limit,
-    submissions: rows.map(publicSubmission),
+    has_more: hasMore,
+    next_cursor: hasMore ? submissionCursor(pageRows[pageRows.length - 1]) : null,
+    submissions: pageRows.map(publicSubmission),
   }, 200, cors());
 }
 
@@ -2371,6 +2388,21 @@ async function handleSubmissionRetry(request, env, _url, params) {
   }, 200, cors(request, env));
 }
 
+function parseSubmissionCursor(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (text.length > 180 || text.split('~').length !== 2) return null;
+  const [createdAt, id] = text.split('~');
+  if (!safeTimestamp(createdAt) || Number.isNaN(new Date(createdAt).getTime()) || !safeSubmissionId(id)) return null;
+  return { created_at: createdAt, id };
+}
+
+function submissionCursor(row) {
+  const createdAt = safeTimestamp(row && row.created_at);
+  const id = safeSubmissionId(row && row.id);
+  return createdAt && id ? `${createdAt}~${id}` : null;
+}
+
 function publicSubmission(row) {
   const selectedRuntime = safeRuntime(row.selected_runtime);
   const status = safeSubmissionStatus(row.status);
@@ -2378,6 +2410,7 @@ function publicSubmission(row) {
     id: String(row.id || ''),
     name: String(row.name || ''),
     slug: String(row.slug || ''),
+    visibility: 'public',
     status,
     requested_runtime: normalizeRequestedRuntime(row.requested_runtime || 'auto') || 'auto',
     selected_runtime: selectedRuntime,
@@ -4220,44 +4253,60 @@ async function internalClaimSubmission(env, options) {
   };
 }
 
-async function internalPeekBuilderSubmission(env) {
-  const statuses = ['needs_review', 'queued'];
+async function internalPeekBuilderSubmission(env, phase = 'build') {
+  if (!['build', 'verify_merged'].includes(phase)) throw new Error('invalid_builder_phase');
+  const buildLane = phase === 'build';
   if (databaseKind(env) === 'neon') {
-    const result = await getNeonPool(env).query(prepared(
-      'omo-internal-builder-peek-v1',
-      `SELECT id,slug,source_sha256,status
-       FROM submissions
-       WHERE status IN ($1, $2)
-          OR (status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
-              AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
-              AND release_artifact_hash IS NOT NULL)
-       ORDER BY CASE WHEN status = 'ready_for_deploy' THEN 0 WHEN status = 'needs_review' THEN 1 ELSE 2 END,
-                CASE WHEN status = 'ready_for_deploy' THEN updated_at ELSE created_at END ASC
-       LIMIT 1`,
-      statuses
-    ));
+    const result = buildLane
+      ? await getNeonPool(env).query(prepared(
+        'omo-internal-builder-peek-build-v1',
+        `SELECT id,slug,source_sha256,status
+         FROM submissions
+         WHERE status IN ($1, $2)
+         ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC
+         LIMIT 1`,
+        ['needs_review', 'queued']
+      ))
+      : await getNeonPool(env).query(prepared(
+        'omo-internal-builder-peek-verify-v1',
+        `SELECT id,slug,source_sha256,status
+         FROM submissions
+         WHERE status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
+           AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
+           AND release_artifact_hash IS NOT NULL
+         ORDER BY updated_at ASC
+         LIMIT 1`,
+        []
+      ));
     return safeBuilderPeekRow(result.rows[0]);
   }
   if (databaseKind(env) === 'd1') {
-    const row = await env.BALANCE_DB
-      .prepare(`SELECT id,slug,source_sha256,status FROM submissions
-                WHERE status IN (?, ?)
-                   OR (status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
-                       AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
-                       AND release_artifact_hash IS NOT NULL)
-                ORDER BY CASE WHEN status = 'ready_for_deploy' THEN 0 WHEN status = 'needs_review' THEN 1 ELSE 2 END,
-                         CASE WHEN status = 'ready_for_deploy' THEN updated_at ELSE created_at END ASC LIMIT 1`)
-      .bind(...statuses).first();
+    const row = buildLane
+      ? await env.BALANCE_DB
+        .prepare(`SELECT id,slug,source_sha256,status FROM submissions
+                  WHERE status IN (?, ?)
+                  ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`)
+        .bind('needs_review', 'queued').first()
+      : await env.BALANCE_DB
+        .prepare(`SELECT id,slug,source_sha256,status FROM submissions
+                  WHERE status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
+                    AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
+                    AND release_artifact_hash IS NOT NULL
+                  ORDER BY updated_at ASC LIMIT 1`)
+        .first();
     return safeBuilderPeekRow(row);
   }
-  const row = Array.from(mockSubmissions.values())
-    .filter((record) => statuses.includes(record.status) ||
-      (record.status === 'ready_for_deploy' && ['pr_open', 'ci_passed'].includes(record.release_phase) &&
-       record.release_pr_url && record.release_head_sha && record.release_artifact_hash))
-    .sort((a, b) => ({ ready_for_deploy: 0, needs_review: 1, queued: 2 }[a.status] -
-                     { ready_for_deploy: 0, needs_review: 1, queued: 2 }[b.status]) ||
-      String(a.status === 'ready_for_deploy' ? a.updated_at || '' : a.created_at || '').localeCompare(
-        String(b.status === 'ready_for_deploy' ? b.updated_at || '' : b.created_at || '')))[0];
+  const rows = Array.from(mockSubmissions.values());
+  const row = buildLane
+    ? rows
+      .filter((record) => ['needs_review', 'queued'].includes(record.status))
+      .sort((a, b) => ({ needs_review: 0, queued: 1 }[a.status] - { needs_review: 0, queued: 1 }[b.status]) ||
+        String(a.created_at || '').localeCompare(String(b.created_at || '')))[0]
+    : rows
+      .filter((record) => record.status === 'ready_for_deploy' &&
+        ['pr_open', 'ci_passed'].includes(record.release_phase) &&
+        record.release_pr_url && record.release_head_sha && record.release_artifact_hash)
+      .sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')))[0];
   return safeBuilderPeekRow(row);
 }
 
@@ -6152,24 +6201,41 @@ async function getSubmissionApprovalState(env, userId, submissionId, requiredSlu
   return row && (!exactSlug || row.slug === exactSlug) ? row : null;
 }
 
-async function listSubmissions(env, userId, limit) {
+async function listSubmissions(env, userId, limit, cursor = null) {
   const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence,promotion_evidence';
   if (databaseKind(env) === 'neon') {
-    const result = await getNeonPool(env).query(prepared(
-      'omo-submissions-list-v1',
-      `SELECT ${columns} FROM submissions WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`,
-      [userId, limit]
-    ));
+    const result = cursor
+      ? await getNeonPool(env).query(prepared(
+        'omo-submissions-list-cursor-v1',
+        `SELECT ${columns} FROM submissions
+         WHERE user_id = $1 AND (created_at < $2 OR (created_at = $2 AND id < $3))
+         ORDER BY created_at DESC, id DESC LIMIT $4`,
+        [userId, cursor.created_at, cursor.id, limit]
+      ))
+      : await getNeonPool(env).query(prepared(
+        'omo-submissions-list-v1',
+        `SELECT ${columns} FROM submissions WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`,
+        [userId, limit]
+      ));
     return result.rows;
   }
   if (databaseKind(env) === 'd1') {
-    const result = await env.BALANCE_DB
-      .prepare(`SELECT ${columns} FROM submissions WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`)
-      .bind(userId, limit).all();
+    const statement = cursor
+      ? env.BALANCE_DB
+        .prepare(`SELECT ${columns} FROM submissions
+                  WHERE user_id = ? AND (created_at < ? OR (created_at = ? AND id < ?))
+                  ORDER BY created_at DESC, id DESC LIMIT ?`)
+        .bind(userId, cursor.created_at, cursor.created_at, cursor.id, limit)
+      : env.BALANCE_DB
+        .prepare(`SELECT ${columns} FROM submissions WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`)
+        .bind(userId, limit);
+    const result = await statement.all();
     return (result && result.results) || [];
   }
   return Array.from(mockSubmissions.values())
     .filter((record) => record.userId === userId || record.user_id === userId)
+    .filter((record) => !cursor || String(record.created_at || '') < cursor.created_at ||
+      (String(record.created_at || '') === cursor.created_at && String(record.id || '') < cursor.id))
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id || '').localeCompare(String(a.id || '')))
     .slice(0, limit);
 }

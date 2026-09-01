@@ -630,12 +630,14 @@ const fairnessLeastRecent = {
 };
 workerTest.mockSubmissions.set(fairnessOlderCreated.id, fairnessOlderCreated);
 workerTest.mockSubmissions.set(fairnessLeastRecent.id, fairnessLeastRecent);
-const fairnessCandidate = await workerTest.internalPeekBuilderSubmission({});
-check('post-merge verifier fairness: least recently updated ready row wins across backend ordering',
-  fairnessCandidate.id === fairnessLeastRecent.id &&
-  (workerSrc.match(/CASE WHEN status = 'ready_for_deploy' THEN updated_at ELSE created_at END ASC/g) || []).length === 2 &&
-  workerSrc.includes("a.status === 'ready_for_deploy' ? a.updated_at || '' : a.created_at || ''") &&
-  workerSrc.includes("b.status === 'ready_for_deploy' ? b.updated_at || '' : b.created_at || ''"));
+const fairnessCandidate = await workerTest.internalPeekBuilderSubmission({}, 'verify_merged');
+check('post-merge verifier fairness: least recently updated ready row wins in mock ordering',
+  fairnessCandidate.id === fairnessLeastRecent.id);
+check('post-merge verifier fairness: Neon and D1 use phase-specific oldest-update ordering',
+  (workerSrc.match(/ORDER BY updated_at ASC/g) || []).length >= 2 &&
+  workerSrc.includes("omo-internal-builder-peek-verify-v1") &&
+  workerSrc.includes("omo-internal-builder-peek-build-v1") &&
+  workerSrc.includes("String(a.updated_at || '').localeCompare(String(b.updated_at || ''))"));
 workerTest.mockSubmissions.delete(fairnessOlderCreated.id);
 workerTest.mockSubmissions.delete(fairnessLeastRecent.id);
 
@@ -650,6 +652,10 @@ const signupModalSource = fs.readFileSync(path.join(here, '..', 'signup-modal.js
 const sellSource = fs.readFileSync(path.join(here, '..', 'sell.html'), 'utf8');
 const hostSource = fs.readFileSync(path.join(here, '..', 'host.html'), 'utf8');
 const uploadSource = fs.readFileSync(path.join(here, '..', 'upload.js'), 'utf8');
+const submissionsPagePath = path.join(here, '..', 'submissions.html');
+const submissionsClientPath = path.join(here, '..', 'submissions.js');
+const submissionsPageSource = fs.existsSync(submissionsPagePath) ? fs.readFileSync(submissionsPagePath, 'utf8') : '';
+const submissionsClientSource = fs.existsSync(submissionsClientPath) ? fs.readFileSync(submissionsClientPath, 'utf8') : '';
 const catalogSandbox = { window: {} };
 vm.createContext(catalogSandbox);
 vm.runInContext(fs.readFileSync(path.join(here, '..', 'catalog.js'), 'utf8'), catalogSandbox, { filename: 'catalog.js' });
@@ -690,6 +696,38 @@ check('catalog cards: per-run prices render to two decimal places', indexSource.
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
 check('run page: textarea array inputs accept one item per line and examples preserve lines', runPageSource.includes("component: 'ArrayTextField'") && runPageSource.includes("value = multilineArrayValue(control.value)") && runPageSource.includes("values[key].join('\\n')"));
 check('run page: empty API base dispatches through the deployed same-origin Worker rewrite', runPageSource.includes("function workerBase() { return API_BASE || window.location.origin; }"));
+check('creator submissions page: dedicated authenticated owner index is wired from the upload page',
+  hostSource.includes('href="submissions.html"') &&
+  submissionsPageSource.includes('<script src="clerk.js"></script>') &&
+  submissionsPageSource.includes('<script src="submissions.js"></script>') &&
+  submissionsClientSource.includes('ClerkAuth.ensureLoaded') &&
+  submissionsClientSource.includes('ClerkAuth.onAuthChange') &&
+  submissionsClientSource.includes("var PAGE_SIZE = 50") &&
+  submissionsClientSource.includes("next_cursor") &&
+  submissionsClientSource.includes("Authorization: 'Bearer ' + token"));
+check('creator submissions page: loading, signed-out, empty, error/retry, and populated states are explicit',
+  submissionsPageSource.includes('id="submissions-loading"') &&
+  submissionsPageSource.includes('id="submissions-signed-out"') &&
+  submissionsPageSource.includes('id="submissions-empty"') &&
+  submissionsPageSource.includes('id="submissions-error"') &&
+  submissionsPageSource.includes('id="submissions-list"') &&
+  submissionsPageSource.includes('id="submissions-retry"') &&
+  submissionsClientSource.includes("showState('loading')") &&
+  submissionsClientSource.includes("showState('signed-out')") &&
+  submissionsClientSource.includes("showState('empty')") &&
+  submissionsClientSource.includes("showState('error')") &&
+  submissionsClientSource.includes("showState('populated')"));
+check('creator submissions page: server rows link safely to the frozen detail route without localStorage',
+  submissionsClientSource.includes("'submission.html?id=' + encodeURIComponent(submission.id)") &&
+  submissionsClientSource.includes('textContent = submission.name') &&
+  submissionsClientSource.includes('textContent = submission.slug') &&
+  submissionsClientSource.includes("visibilityText(submission.visibility)") &&
+  submissionsClientSource.includes("runtimeDecisionText(submission)") &&
+  submissionsClientSource.includes("formatDate(submission.created_at, 'Submitted')") &&
+  submissionsClientSource.includes("formatDate(submission.updated_at, 'Updated')") &&
+  submissionsClientSource.includes('statusLabel(submission.status)') &&
+  !submissionsClientSource.includes('localStorage') &&
+  !submissionsClientSource.includes('sessionStorage'));
 check('creator upload: seller CTA reaches a real file-reading authenticated queue with honest local-only rollout receipts', sellSource.includes('href="host.html#upload"') && hostSource.includes('id="upload-form"') && uploadSource.includes('await selectedFile.text()') && uploadSource.includes("fetch(apiBase() + '/api/submit'") && uploadSource.includes("Authorization: 'Bearer ' + token") && uploadSource.includes('if (isFilePreview())') && uploadSource.includes("error.code === 'queue_unavailable'") && uploadSource.includes('not the Markdown') && !uploadSource.includes('startProgress'));
 check('creator upload: browser persists only server submission ids and restores from owner APIs',
   uploadSource.includes("fetchJsonWithAuth('/api/submissions?limit=20')") &&
@@ -1095,7 +1133,19 @@ check('submissions list: authenticated owner receives newest-first bounded safe 
   submissionsList.submissions[0].selected_runtime === 'modal-hosted' &&
   submissionsList.submissions[0].compatibility.compatible === true &&
   submissionsList.submissions[0].build_evidence.checks.includes('compile') &&
+  submissionsList.submissions[0].visibility === 'public' &&
+  typeof submissionsList.next_cursor === 'string' && submissionsList.next_cursor.length > 10 &&
   !('content' in submissionsList.submissions[0]));
+
+const submissionsSecondResponse = await worker.fetch(mkReq(
+  'GET', `/api/submissions?limit=1&cursor=${encodeURIComponent(submissionsList.next_cursor)}`, {}, creatorHeaders
+), realEnv);
+const submissionsSecond = await submissionsSecondResponse.json();
+check('submissions list: opaque cursor traverses complete owner history without duplicate rows',
+  submissionsSecondResponse.status === 200 && submissionsSecond.ok === true &&
+  submissionsSecond.submissions.length === 1 &&
+  submissionsSecond.submissions[0].id !== submissionsList.submissions[0].id &&
+  submissionsSecond.submissions[0].visibility === 'public');
 
 const submissionDetailResponse = await worker.fetch(mkReq('GET', `/api/submissions/${submitAdded.id}`, {}, creatorHeaders), realEnv);
 const submissionDetail = await submissionDetailResponse.json();
@@ -4730,7 +4780,7 @@ workerTest.mockSubmissions.set('user_builder:v02-release-label-sorter', {
   created_at: new Date().toISOString(),
 });
 scheduledTask = null;
-await worker.scheduled({}, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({ scheduledTime: 60_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const mergedVerifierCall = builderDispatchCalls.at(-1);
 check('builder cron: dispatches a distinct identifier-only post-merge verifier phase',
@@ -4744,6 +4794,83 @@ check('builder cron: dispatches a distinct identifier-only post-merge verifier p
   !('content' in mergedVerifierCall.payload) && !('user_id' in mergedVerifierCall.payload));
 check('builder cron: post-merge peek remains non-mutating until Modal claims',
   workerTest.mockSubmissions.get('user_builder:v02-release-label-sorter').status === 'ready_for_deploy');
+
+// ── Authenticated submission progress page ─────────────────────────────────
+const submissionHtmlPath = path.join(here, '..', 'submission.html');
+const submissionJsPath = path.join(here, '..', 'submission.js');
+const submissionHtml = fs.existsSync(submissionHtmlPath) ? fs.readFileSync(submissionHtmlPath, 'utf8') : '';
+const submissionJs = fs.existsSync(submissionJsPath) ? fs.readFileSync(submissionJsPath, 'utf8') : '';
+
+check('submission page: dedicated authenticated detail shell links back to all submissions',
+  /href="submissions\.html"/.test(submissionHtml) &&
+  /id="submission-state"/.test(submissionHtml) &&
+  /id="submission-timeline"/.test(submissionHtml) &&
+  /id="refresh-submission"/.test(submissionHtml) &&
+  /id="detail-slug"/.test(submissionHtml) && /id="detail-visibility"/.test(submissionHtml) &&
+  !/<script src="clerk\.js"><\/script>/.test(submissionHtml) &&
+  submissionHtml.includes("loadScript('clerk.js'") && submissionHtml.includes("loadScript('submission.js'"));
+check('submission page: validates the direct-link id before loading Clerk or owner API code',
+  submissionHtml.includes("/^sub_[A-Za-z0-9_-]{8,100}$/") &&
+  /if \(!valid\)[\s\S]*?loadScript\('submission\.js'\)[\s\S]*?return;[\s\S]*?loadScript\('clerk\.js'/.test(submissionHtml) &&
+  /if \(!isValidSubmissionId\(submissionId\)\)[\s\S]*?renderInvalidId\(\)[\s\S]*?return;[\s\S]*?ensureAuthenticated/.test(submissionJs));
+check('submission page: owner detail request uses a Clerk bearer token and encoded id',
+  /Clerk\.session\.getToken/.test(submissionJs) &&
+  /Authorization:\s*'Bearer '\s*\+\s*token/.test(submissionJs) &&
+  /'\/api\/submissions\/'\s*\+\s*encodeURIComponent\(submissionId\)/.test(submissionJs));
+check('submission page: workflow identity and server-derived visibility are rendered safely',
+  submissionJs.includes("document.getElementById('detail-slug').textContent = submission.slug") &&
+  submissionJs.includes("document.getElementById('detail-visibility').textContent = visibilityText(submission.visibility)") &&
+  submissionJs.includes("value === 'public' ? 'Marketplace' : 'Visibility unavailable'"));
+check('submission page: authoritative lifecycle covers every backend status and derives release-stage failures',
+  ['queued', 'needs_review', 'processing', 'ready_for_deploy', 'ready_for_publish', 'failed', 'deployed']
+    .every((status) => submissionJs.includes(`${status}:`)) &&
+  submissionJs.includes('Runtime pending review') &&
+  submissionJs.includes('function timelineStage(submission)') &&
+  submissionJs.includes("submission.release && submission.release.phase") &&
+  submissionJs.includes("ready_for_deploy: {\n      label: 'Build ready', title: 'Build complete — release gates are next', stage: 3") &&
+  submissionJs.includes("step.classList.toggle('is-action'") &&
+  submissionHtml.includes('.timeline-step.is-action'));
+check('submission page: polling continues only for nonterminal lifecycle states',
+  /NONTERMINAL_STATUSES\s*=\s*new Set\(\['queued', 'processing', 'ready_for_deploy', 'ready_for_publish'\]\)/.test(submissionJs) &&
+  /NONTERMINAL_STATUSES\.has\(submission\.status\)[\s\S]*?schedulePoll/.test(submissionJs) &&
+  /else\s*\{\s*stopPolling\(\)/.test(submissionJs));
+check('submission page: live workflow link is gated by deployed status and published slug',
+  /submission\.status === 'deployed'\s*&&\s*submission\.published_slug/.test(submissionJs) &&
+  /'run\.html\?slug='\s*\+\s*encodeURIComponent\(submission\.published_slug\)/.test(submissionJs));
+check('submission page: approval and retry retain narrow eligibility and explicit confirmation',
+  /status === 'needs_review'[\s\S]*?failure_code === 'slug_collision'/.test(submissionJs) &&
+  /retryableFailureCodes/.test(submissionJs) &&
+  /window\.confirm\('Approval sends it back through build\/test\/deploy gates and does not instantly publish\. Continue\?'\)/.test(submissionJs) &&
+  /window\.confirm\('Retry this reviewed gated build\? This does not publish or change the selected runtime\.'\)/.test(submissionJs) &&
+  /\/approve'/.test(submissionJs) && /\/retry'/.test(submissionJs));
+check('submission page: manual refresh and safe signed-out/not-found errors are present',
+  /refreshButton\.addEventListener\('click'/.test(submissionJs) &&
+  submissionJs.includes('Sign in to view this submission.') &&
+  submissionJs.includes('This submission was not found in your account.') &&
+  !submissionJs.includes('innerHTML'));
+workerTest.mockSubmissions.set('user_builder:fresh-upload', {
+  id: 'sub_freshupload123456789',
+  user_id: 'user_builder',
+  name: 'Fresh Upload',
+  slug: 'fresh-upload',
+  content: 'PRIVATE_FRESH_SOURCE_MUST_NOT_LEAVE_WORKER',
+  source_sha256: 'e'.repeat(64),
+  requested_runtime: 'auto',
+  status: 'queued',
+  created_at: new Date().toISOString(),
+});
+scheduledTask = null;
+await worker.scheduled({ scheduledTime: 120_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+if (scheduledTask) await scheduledTask;
+const fairBuildCall = builderDispatchCalls.at(-1);
+check('builder cron fairness: build minute selects fresh upload despite eligible post-merge row',
+  fairBuildCall.payload.submission_id === 'sub_freshupload123456789' && fairBuildCall.payload.phase === 'build');
+scheduledTask = null;
+await worker.scheduled({ scheduledTime: 180_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+if (scheduledTask) await scheduledTask;
+const fairVerifyCall = builderDispatchCalls.at(-1);
+check('builder cron fairness: verify minute selects eligible post-merge row despite fresh upload',
+  fairVerifyCall.payload.submission_id === 'sub_mergedverify12345678' && fairVerifyCall.payload.phase === 'verify_merged');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

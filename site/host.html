@@ -290,6 +290,11 @@
     .hosted-head { padding: 22px; border-bottom: 1px solid var(--rule); background: var(--cream); }
     .hosted-head h3 { margin-bottom: 5px; font-family: var(--display); font-size: 23px; }
     .hosted-head p { margin: 0; color: var(--moss); font-size: 13px; }
+    .hosted-all {
+      min-height: 40px; display: inline-flex; align-items: center; margin-top: 12px;
+      color: var(--pine); font-size: 13px; font-weight: 700; text-decoration: none;
+    }
+    .hosted-all:hover { text-decoration: underline; text-underline-offset: 4px; }
     .hosted-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
     .hosted-empty { padding: 28px 22px; color: var(--moss); font-size: 14px; }
     .hosted-item { padding: 18px 22px; border-top: 1px solid var(--rule); }
@@ -549,7 +554,8 @@
           <aside class="hosted-card" aria-labelledby="hosted-title">
             <div class="hosted-head">
               <h3 id="hosted-title">Your submissions</h3>
-              <p>Recent queue receipts from this browser appear here.</p>
+              <p>Your latest account submissions appear here.</p>
+              <a class="hosted-all" href="submissions.html">View all submissions <span aria-hidden="true">→</span></a>
             </div>
             <p class="hosted-empty" id="hosted-empty">Nothing on the bench yet. Your first upload will show up here.</p>
             <ul class="hosted-list" id="hosted-list"></ul>
