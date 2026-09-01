@@ -4793,5 +4793,59 @@ check('builder cron: dispatches a distinct identifier-only post-merge verifier p
 check('builder cron: post-merge peek remains non-mutating until Modal claims',
   workerTest.mockSubmissions.get('user_builder:v02-release-label-sorter').status === 'ready_for_deploy');
 
+// ── Authenticated submission progress page ─────────────────────────────────
+const submissionHtmlPath = path.join(here, '..', 'submission.html');
+const submissionJsPath = path.join(here, '..', 'submission.js');
+const submissionHtml = fs.existsSync(submissionHtmlPath) ? fs.readFileSync(submissionHtmlPath, 'utf8') : '';
+const submissionJs = fs.existsSync(submissionJsPath) ? fs.readFileSync(submissionJsPath, 'utf8') : '';
+
+check('submission page: dedicated authenticated detail shell links back to all submissions',
+  /href="submissions\.html"/.test(submissionHtml) &&
+  /id="submission-state"/.test(submissionHtml) &&
+  /id="submission-timeline"/.test(submissionHtml) &&
+  /id="refresh-submission"/.test(submissionHtml) &&
+  /id="detail-slug"/.test(submissionHtml) && /id="detail-visibility"/.test(submissionHtml) &&
+  !/<script src="clerk\.js"><\/script>/.test(submissionHtml) &&
+  submissionHtml.includes("loadScript('clerk.js'") && submissionHtml.includes("loadScript('submission.js'"));
+check('submission page: validates the direct-link id before loading Clerk or owner API code',
+  submissionHtml.includes("/^sub_[A-Za-z0-9_-]{8,100}$/") &&
+  /if \(!valid\)[\s\S]*?loadScript\('submission\.js'\)[\s\S]*?return;[\s\S]*?loadScript\('clerk\.js'/.test(submissionHtml) &&
+  /if \(!isValidSubmissionId\(submissionId\)\)[\s\S]*?renderInvalidId\(\)[\s\S]*?return;[\s\S]*?ensureAuthenticated/.test(submissionJs));
+check('submission page: owner detail request uses a Clerk bearer token and encoded id',
+  /Clerk\.session\.getToken/.test(submissionJs) &&
+  /Authorization:\s*'Bearer '\s*\+\s*token/.test(submissionJs) &&
+  /'\/api\/submissions\/'\s*\+\s*encodeURIComponent\(submissionId\)/.test(submissionJs));
+check('submission page: workflow identity and server-derived visibility are rendered safely',
+  submissionJs.includes("document.getElementById('detail-slug').textContent = submission.slug") &&
+  submissionJs.includes("document.getElementById('detail-visibility').textContent = visibilityText(submission.visibility)") &&
+  submissionJs.includes("value === 'public' ? 'Marketplace' : 'Visibility unavailable'"));
+check('submission page: authoritative lifecycle covers every backend status and derives release-stage failures',
+  ['queued', 'needs_review', 'processing', 'ready_for_deploy', 'ready_for_publish', 'failed', 'deployed']
+    .every((status) => submissionJs.includes(`${status}:`)) &&
+  submissionJs.includes('Runtime pending review') &&
+  submissionJs.includes('function timelineStage(submission)') &&
+  submissionJs.includes("submission.release && submission.release.phase") &&
+  submissionJs.includes("ready_for_deploy: {\n      label: 'Build ready', title: 'Build complete — release gates are next', stage: 3") &&
+  submissionJs.includes("step.classList.toggle('is-action'") &&
+  submissionHtml.includes('.timeline-step.is-action'));
+check('submission page: polling continues only for nonterminal lifecycle states',
+  /NONTERMINAL_STATUSES\s*=\s*new Set\(\['queued', 'processing', 'ready_for_deploy', 'ready_for_publish'\]\)/.test(submissionJs) &&
+  /NONTERMINAL_STATUSES\.has\(submission\.status\)[\s\S]*?schedulePoll/.test(submissionJs) &&
+  /else\s*\{\s*stopPolling\(\)/.test(submissionJs));
+check('submission page: live workflow link is gated by deployed status and published slug',
+  /submission\.status === 'deployed'\s*&&\s*submission\.published_slug/.test(submissionJs) &&
+  /'run\.html\?slug='\s*\+\s*encodeURIComponent\(submission\.published_slug\)/.test(submissionJs));
+check('submission page: approval and retry retain narrow eligibility and explicit confirmation',
+  /status === 'needs_review'[\s\S]*?failure_code === 'slug_collision'/.test(submissionJs) &&
+  /retryableFailureCodes/.test(submissionJs) &&
+  /window\.confirm\('Approval sends it back through build\/test\/deploy gates and does not instantly publish\. Continue\?'\)/.test(submissionJs) &&
+  /window\.confirm\('Retry this reviewed gated build\? This does not publish or change the selected runtime\.'\)/.test(submissionJs) &&
+  /\/approve'/.test(submissionJs) && /\/retry'/.test(submissionJs));
+check('submission page: manual refresh and safe signed-out/not-found errors are present',
+  /refreshButton\.addEventListener\('click'/.test(submissionJs) &&
+  submissionJs.includes('Sign in to view this submission.') &&
+  submissionJs.includes('This submission was not found in your account.') &&
+  !submissionJs.includes('innerHTML'));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
