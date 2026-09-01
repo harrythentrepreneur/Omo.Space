@@ -359,11 +359,18 @@
         catch (error) {}
       }
 
+      function allowsLocalAccountFallback() {
+        if (window.location && window.location.protocol === 'file:') return true;
+        var key = typeof window.CLERK_PUBLISHABLE_KEY === 'string' ? window.CLERK_PUBLISHABLE_KEY.trim() : '';
+        return !!key && (key === 'pk_test_placeholder' || !/^pk_(test|live)_/.test(key));
+      }
+
       function currentUser() {
         if (window.ClerkAuth && typeof window.ClerkAuth.getUser === 'function') {
           var clerkUser = window.ClerkAuth.getUser();
           return clerkUser && clerkUser.id ? clerkUser : null;
         }
+        if (!allowsLocalAccountFallback()) return null;
         try {
           var saved = JSON.parse(storageGet('cognition_user') || 'null');
           return saved && saved.id ? saved : null;
@@ -373,11 +380,8 @@
       }
 
       function getSessionToken() {
-        if (window.Clerk && window.Clerk.session && typeof window.Clerk.session.getToken === 'function') {
-          return Promise.resolve(window.Clerk.session.getToken()).then(function (token) {
-            if (!token) throw new Error('Your sign-in session has expired. Sign in again.');
-            return token;
-          });
+        if (window.ClerkAuth && typeof window.ClerkAuth.getToken === 'function') {
+          return window.ClerkAuth.getToken();
         }
         return Promise.reject(new Error('A verified sign-in session is not available.'));
       }

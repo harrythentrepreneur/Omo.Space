@@ -12,7 +12,7 @@ assert.match(
 );
 assert.match(
   dashboard,
-  /function clearAccountState\(\)[\s\S]*?accountRequestId \+= 1[\s\S]*?account\.apiKey = ''/,
+  /function clearAccountState\(\)[\s\S]*?accountRequestId \+= 1[\s\S]*?account\.runs = \[\]/,
   'dashboard must invalidate pending account requests and clear in-memory account data',
 );
 assert.match(

@@ -17,10 +17,17 @@
     }
   }
 
+  function allowsLocalUserFallback() {
+    if (window.location && window.location.protocol === 'file:') return true;
+    var key = typeof window.CLERK_PUBLISHABLE_KEY === 'string' ? window.CLERK_PUBLISHABLE_KEY.trim() : '';
+    return !!key && (key === 'pk_test_placeholder' || !/^pk_(test|live)_/.test(key));
+  }
+
   function isSignedIn() {
     if (window.ClerkAuth && typeof window.ClerkAuth.isSignedIn === 'function') {
       return window.ClerkAuth.isSignedIn();
     }
+    if (!allowsLocalUserFallback()) return false;
 
     var user = readJSON('cognition_user', null);
     return !!(user && user.id);

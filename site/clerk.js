@@ -2,7 +2,7 @@
  *
  * Exposes window.ClerkAuth =
  *   { isSignedIn, signIn, signOut, signUp, signUpAndRedirect,
- *     getUser, currentUser, ensureLoaded, onAuthChange }.
+ *     getUser, currentUser, getToken, ensureLoaded, onAuthChange }.
  */
 (function () {
   'use strict';
@@ -347,6 +347,21 @@
     };
   }
 
+  function sessionToken() {
+    if (demoMode()) return Promise.reject(new Error('A verified Clerk session is required.'));
+    var ready = realClerk ? Promise.resolve(realClerk) : loadRealClerk();
+    return Promise.resolve(ready).then(function (clerk) {
+      var session = clerk && clerk.session;
+      if (!session || typeof session.getToken !== 'function') {
+        throw new Error('A verified sign-in session is not available.');
+      }
+      return Promise.resolve(session.getToken()).then(function (token) {
+        if (!token) throw new Error('Your sign-in session has expired. Sign in again.');
+        return token;
+      });
+    });
+  }
+
   if (!demoMode()) {
     // Preload for a fast modal. The UI observes errors through getLoadError(),
     // and a later explicit sign-in starts a fresh attempt.
@@ -375,6 +390,7 @@
     },
     getUser: currentUser,
     currentUser: currentUser,
+    getToken: function () { return sessionToken(); },
     ensureLoaded: function () {
       var ready = loadRealClerk();
       return ready || Promise.resolve(null);
