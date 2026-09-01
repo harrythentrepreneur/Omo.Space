@@ -5,7 +5,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = ROOT / ".github" / "workflows" / "trusted-control-plane-deploy.yml"
-PIN = "b636440fcf59f5d9f7f975722e4193dd9d44869e"
+PIN = "0e9b52ce549aa729b87172de72b06e5eb052169e"
 
 
 def workflow_text() -> str:
