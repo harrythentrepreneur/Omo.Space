@@ -1905,6 +1905,10 @@ class GitHubReleaseAdapter:
             self._run(["git", "cat-file", "-e", f"{recorded_head}^{{commit}}"])
             self._run(["git", "cat-file", "-e", f"{current_head}^{{commit}}"])
             self._run(["git", "merge-base", "--is-ancestor", recorded_head, current_head])
+            current_tree = str(self._run(["git", "rev-parse", f"{current_head}^{{tree}}"])).strip().lower()
+            merge_tree = str(self._run(["git", "rev-parse", f"{merge_sha}^{{tree}}"])).strip().lower()
+            if SAFE_GIT_SHA_RE.fullmatch(current_tree) and hmac.compare_digest(current_tree, merge_tree):
+                return current_head
             changed_raw = self._run([
                 "git", "diff", "--name-only", "-z", recorded_head, current_head, "--",
             ])

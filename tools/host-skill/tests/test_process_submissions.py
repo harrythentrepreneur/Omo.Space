@@ -1550,6 +1550,47 @@ def test_verify_merged_release_accepts_only_reproducible_registry_repair_head() 
     assert calls.index(read_merge_commit) < calls.index(read_merge_tree)
 
 
+def test_reconciled_release_head_accepts_exact_merge_tree_noop_repair() -> None:
+    process = load_process_submissions()
+    recorded_head = "a" * 40
+    repaired_head = "b" * 40
+    merge_sha = "d" * 40
+    shared_tree = "e" * 40
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], cwd: Path | None = None, text: bool = True) -> str | bytes:
+        calls.append(command)
+        if command[:3] == ["git", "rev-parse", "FETCH_HEAD"]:
+            return repaired_head
+        if command[:2] == ["git", "rev-parse"] and command[2] in {
+            f"{repaired_head}^{{tree}}", f"{merge_sha}^{{tree}}",
+        }:
+            return shared_tree
+        if command[:2] == ["git", "diff"]:
+            return "site/deploy/worker.js\0site/deploy/test-router.mjs\0"
+        return ""
+
+    adapter = process.GitHubReleaseAdapter(command_runner=runner)
+    branch = "omo-release/sub_verifytree000000000001-facebook-ads-copywriter"
+    metadata = {
+        "pr_number": 42,
+        "pr_url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42",
+        "branch": branch,
+        "head_sha": recorded_head,
+    }
+    pr = {
+        "number": 42,
+        "url": "https://github.com/harrythentrepreneur/Omo.Space/pull/42",
+        "headRefName": branch,
+        "headRefOid": repaired_head,
+    }
+
+    assert adapter._reconciled_release_head(metadata, pr, merge_sha) == repaired_head
+    assert ["git", "merge-base", "--is-ancestor", recorded_head, repaired_head] in calls
+    assert ["git", "rev-parse", f"{repaired_head}^{{tree}}"] in calls
+    assert ["git", "rev-parse", f"{merge_sha}^{{tree}}"] in calls
+
+
 def test_reconciled_release_head_rejects_mismatched_pr_identity() -> None:
     process = load_process_submissions()
     recorded_head = "a" * 40
