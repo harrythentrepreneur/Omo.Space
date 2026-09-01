@@ -596,8 +596,17 @@ class HttpFinalizationStore:
         self.claims[claim.submission_id] = claim
         return claim
 
+    def _targets(self) -> list[dict[str, str]]:
+        return [
+            {"slug": item["slug"], "source_sha256": item["sha256"]}
+            for item in CANARY_SOURCES
+        ]
+
     def claim(self, target_sha: str) -> FinalizationClaim | None:
-        status, body = self._post("/api/internal/finalizations/claim", {"target_sha": target_sha})
+        status, body = self._post(
+            "/api/internal/finalizations/claim",
+            {"target_sha": target_sha, "targets": self._targets()},
+        )
         if status == 204:
             return None
         if status != 200:
@@ -606,7 +615,10 @@ class HttpFinalizationStore:
         return self._claim(body)
 
     def eligibility(self, target_sha: str) -> list[dict[str, Any]]:
-        status, body = self._post("/api/internal/finalizations/eligibility", {"target_sha": target_sha})
+        status, body = self._post(
+            "/api/internal/finalizations/eligibility",
+            {"target_sha": target_sha, "targets": self._targets()},
+        )
         rows = body.get("eligibility") if isinstance(body, dict) else None
         boolean_fields = {
             "source_sha256_present", "published_slug_present", "workflow_version_present",

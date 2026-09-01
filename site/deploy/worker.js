@@ -3018,12 +3018,13 @@ async function handleInternalSubmissionClaim(request, env) {
 async function handleInternalFinalizationClaim(request, env) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
-  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha,targets') {
     return internalJson({ error: 'invalid_finalization_claim' }, 400);
   }
   const targetSha = safeGitSha(parsed.body.target_sha);
-  if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
-  const finalization = await internalClaimFinalization(env, targetSha);
+  const targets = safeFinalizationTargets(parsed.body.targets);
+  if (!targetSha || !targets) return internalJson({ error: 'invalid_finalization_claim' }, 400);
+  const finalization = await internalClaimFinalization(env, targetSha, targets);
   if (!finalization) return new Response(null, { status: 204, headers: { 'Content-Type': 'application/json' } });
   return internalJson({ ok: true, finalization }, 200);
 }
@@ -3031,12 +3032,29 @@ async function handleInternalFinalizationClaim(request, env) {
 async function handleInternalFinalizationEligibility(request, env) {
   const parsed = await readInternalJson(request);
   if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
-  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha') {
+  if (Object.keys(parsed.body).sort().join(',') !== 'target_sha,targets') {
     return internalJson({ error: 'invalid_finalization_eligibility' }, 400);
   }
   const targetSha = safeGitSha(parsed.body.target_sha);
-  if (!targetSha) return internalJson({ error: 'invalid_target_sha' }, 400);
-  return internalJson({ ok: true, eligibility: await internalFinalizationEligibility(env, targetSha) }, 200);
+  const targets = safeFinalizationTargets(parsed.body.targets);
+  if (!targetSha || !targets) return internalJson({ error: 'invalid_finalization_eligibility' }, 400);
+  return internalJson({ ok: true, eligibility: await internalFinalizationEligibility(env, targetSha, targets) }, 200);
+}
+
+function safeFinalizationTargets(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 20) return null;
+  const targets = [];
+  const seen = new Set();
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)
+        || Object.keys(item).sort().join(',') !== 'slug,source_sha256') return null;
+    const slug = safeSlug(item.slug);
+    const sourceSha256 = safeSha256(item.source_sha256);
+    if (!slug || !sourceSha256 || seen.has(slug)) return null;
+    seen.add(slug);
+    targets.push({ slug, source_sha256: sourceSha256 });
+  }
+  return targets.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 async function handleInternalFinalizationResumeCompleted(request, env) {
@@ -4932,28 +4950,32 @@ async function internalResumeCompletedFinalization(env, targetSha) {
       String(a.id || '').localeCompare(String(b.id || '')))[0] || null;
 }
 
-async function internalFinalizationEligibility(env, targetSha) {
-  const slugs = [...PRODUCTION_CANARY_SUBMISSION_SLUGS].sort();
+async function internalFinalizationEligibility(env, targetSha, targets) {
   const columns = `id,published_slug,status,release_phase,selected_runtime,source_sha256,workflow_version,
     build_evidence,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,
     release_merge_sha,release_artifact_hash,finalization_status,finalization_target_sha,
     finalization_lease_expires_at`;
+  const values = targets.flatMap((target) => [target.slug, target.source_sha256]);
   let rows;
   if (databaseKind(env) === 'neon') {
+    const pairs = targets.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ');
     const result = await getNeonPool(env).query(prepared(
-      'omo-internal-finalization-eligibility-v1',
-      `SELECT ${columns} FROM submissions WHERE published_slug = ANY($1::text[]) ORDER BY published_slug ASC`,
-      [slugs]
+      `omo-internal-finalization-eligibility-v2-${targets.length}`,
+      `SELECT ${columns} FROM submissions WHERE (published_slug, source_sha256) IN (${pairs}) ORDER BY published_slug ASC`,
+      values
     ));
     rows = result.rows || [];
   } else if (databaseKind(env) === 'd1') {
+    const pairs = targets.map(() => '(published_slug = ? AND source_sha256 = ?)').join(' OR ');
     const result = await env.BALANCE_DB.prepare(
-      `SELECT ${columns} FROM submissions WHERE published_slug IN (?, ?) ORDER BY published_slug ASC`
-    ).bind(...slugs).all();
+      `SELECT ${columns} FROM submissions WHERE ${pairs} ORDER BY published_slug ASC`
+    ).bind(...values).all();
     rows = result.results || [];
   } else {
+    const targetMap = new Map(targets.map((target) => [target.slug, target.source_sha256]));
     rows = Array.from(mockSubmissions.values())
-      .filter((row) => row && PRODUCTION_CANARY_SUBMISSION_SLUGS.has(row.published_slug))
+      .filter((row) => row && targetMap.has(row.published_slug)
+        && targetMap.get(row.published_slug) === row.source_sha256)
       .sort((a, b) => String(a.published_slug).localeCompare(String(b.published_slug)));
   }
   const now = Date.now();
@@ -5002,18 +5024,21 @@ function finalizationEligibilityRow(row, targetSha, now) {
   return result;
 }
 
-async function internalClaimFinalization(env, targetSha) {
+async function internalClaimFinalization(env, targetSha, targets) {
   const now = new Date();
   const claimedAt = now.toISOString();
   const leaseExpiresAt = new Date(now.getTime() + FINALIZATION_LEASE_SECONDS * 1000).toISOString();
   const finalizationId = `fin_${crypto.randomUUID().replace(/-/g, '')}`;
+  const targetValues = targets.flatMap((target) => [target.slug, target.source_sha256]);
   if (databaseKind(env) === 'neon') {
+    const targetPairs = targets.map((_, index) => `($${index * 2 + 4}, $${index * 2 + 5})`).join(', ');
     const result = await getNeonPool(env).query(prepared(
-      'omo-internal-finalization-claim-v1',
+      `omo-internal-finalization-claim-v2-${targets.length}`,
       `WITH candidate AS (
          SELECT id FROM submissions
          WHERE status = 'ready_for_deploy'
            AND release_phase = 'merged_verified'
+           AND (published_slug, source_sha256) IN (${targetPairs})
            AND selected_runtime IN ('worker-native', 'modal-hosted')
            AND source_sha256 IS NOT NULL
            AND published_slug IS NOT NULL
@@ -5048,11 +5073,12 @@ async function internalClaimFinalization(env, targetSha) {
                  submission.finalization_source_sha256,submission.finalization_head_sha,
                  submission.finalization_merge_sha,submission.finalization_artifact_hash,
                  submission.finalization_lease_expires_at,submission.finalization_attempts`,
-      [finalizationId, targetSha, leaseExpiresAt]
+      [finalizationId, targetSha, leaseExpiresAt, ...targetValues]
     ));
     return finalizationClaimRow(result.rows[0]);
   }
   if (databaseKind(env) === 'd1') {
+    const targetPairs = targets.map(() => '(published_slug = ? AND source_sha256 = ?)').join(' OR ');
     const row = await env.BALANCE_DB.prepare(
       `SELECT id,slug,selected_runtime,source_sha256,published_slug,workflow_version,build_evidence,
               release_issue_url,release_pr_url,release_pr_number,release_branch,
@@ -5060,6 +5086,7 @@ async function internalClaimFinalization(env, targetSha) {
               finalization_status,finalization_lease_expires_at,finalization_attempts
        FROM submissions
        WHERE status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+         AND (${targetPairs})
          AND selected_runtime IN ('worker-native', 'modal-hosted')
          AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
          AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL
@@ -5071,7 +5098,7 @@ async function internalClaimFinalization(env, targetSha) {
               (finalization_status IN ('claimed', 'deploying_modal', 'deploying_worker', 'verifying_public')
                AND finalization_lease_expires_at < ?))
        ORDER BY updated_at ASC, id ASC LIMIT 1`
-    ).bind(claimedAt).first();
+    ).bind(...targetValues, claimedAt).first();
     if (!row) return null;
     const updated = await env.BALANCE_DB.prepare(
       `UPDATE submissions
@@ -5116,12 +5143,14 @@ async function internalClaimFinalization(env, targetSha) {
       finalization_attempts: Number(row.finalization_attempts || 0) + 1,
     });
   }
+  const targetMap = new Map(targets.map((target) => [target.slug, target.source_sha256]));
   for (const record of mockSubmissions.values()) {
     const expiry = Date.parse(String(record.finalization_lease_expires_at || ''));
     const claimable = record.finalization_status == null ||
       (['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public'].includes(record.finalization_status) &&
        Number.isFinite(expiry) && expiry < now.getTime());
-    if (record.status === 'ready_for_deploy' && record.release_phase === 'merged_verified' &&
+    if (targetMap.get(record.published_slug) === record.source_sha256 &&
+        record.status === 'ready_for_deploy' && record.release_phase === 'merged_verified' &&
         safeRuntime(record.selected_runtime) && safeGitSha(record.release_head_sha) &&
         safeGitSha(record.release_merge_sha) && safeSha256(record.release_artifact_hash) &&
         safeSha256(record.source_sha256) && safeSlug(record.published_slug) &&

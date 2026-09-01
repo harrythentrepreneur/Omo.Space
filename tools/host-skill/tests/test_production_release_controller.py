@@ -117,10 +117,16 @@ def test_finalization_store_uses_only_fixed_finalizer_routes_and_redacts_token()
         "artifact_hash": ARTIFACT, "lease_expires_at": "2099-01-01T00:00:00Z", "attempts": 1,
     }
 
+    expected_targets = [
+        {"slug": item["slug"], "source_sha256": item["sha256"]}
+        for item in mod.CANARY_SOURCES
+    ]
+
     def opener(request, timeout):
         requests.append(request)
         path = request.full_url
         if path.endswith("/claim"):
+            assert json.loads(request.data) == {"target_sha": SHA, "targets": expected_targets}
             return Response({"ok": True, "finalization": finalization})
         if path.endswith("/registry-slugs"):
             return Response({"ok": True, "slugs": ["label-normalizer-canary"]})
@@ -183,7 +189,11 @@ def test_finalization_eligibility_is_exact_bounded_and_fail_closed():
 
     result = mod.HttpFinalizationStore("token", opener=opener).eligibility(SHA)
     assert result == [row]
-    assert json.loads(requests[0].data) == {"target_sha": SHA}
+    expected_targets = [
+        {"slug": item["slug"], "source_sha256": item["sha256"]}
+        for item in mod.CANARY_SOURCES
+    ]
+    assert json.loads(requests[0].data) == {"target_sha": SHA, "targets": expected_targets}
     assert requests[0].full_url.endswith("/api/internal/finalizations/eligibility")
 
     for malformed in (
@@ -213,6 +223,11 @@ def test_finalization_eligibility_reports_only_bounded_failure_classes():
         "selected_runtime": "worker-native", "finalization_status": None,
         **{field: True for field in boolean_fields},
     }
+    row_two = {
+        **row,
+        "submission_id": "sub_" + "2" * 32,
+        "slug": "v02-support-urgency-classifier",
+    }
     cases = (
         (Response({}, status=500), "finalizer_eligibility_http_500"),
         (Response({"ok": False, "eligibility": []}), "invalid_finalizer_eligibility_envelope"),
@@ -223,6 +238,7 @@ def test_finalization_eligibility_reports_only_bounded_failure_classes():
         (Response({"ok": True, "eligibility": [{**row, "slug": "unrelated"}]}), "invalid_finalizer_eligibility_slug"),
         (Response({"ok": True, "eligibility": [{**row, "status": "unknown"}]}), "invalid_finalizer_eligibility_enum"),
         (Response({"ok": True, "eligibility": [{**row, "claimable": 1}]}), "invalid_finalizer_eligibility_boolean"),
+        (Response({"ok": True, "eligibility": [row_two, row]}), "invalid_finalizer_eligibility_order"),
     )
     for response, code in cases:
         with pytest.raises(mod.ControllerError) as caught:
