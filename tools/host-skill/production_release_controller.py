@@ -607,7 +607,7 @@ class HttpFinalizationStore:
 
     def eligibility(self, target_sha: str) -> list[dict[str, Any]]:
         status, body = self._post("/api/internal/finalizations/eligibility", {"target_sha": target_sha})
-        rows = (body or {}).get("eligibility")
+        rows = body.get("eligibility") if isinstance(body, dict) else None
         boolean_fields = {
             "source_sha256_present", "published_slug_present", "workflow_version_present",
             "build_evidence_present", "release_issue_url_present", "release_pr_url_present",
@@ -620,24 +620,35 @@ class HttpFinalizationStore:
             "submission_id", "slug", "status", "release_phase", "selected_runtime",
             "finalization_status", *boolean_fields,
         }
-        if status != 200 or (body or {}).get("ok") is not True or not isinstance(rows, list) or len(rows) > 2:
-            raise ControllerError("invalid_finalizer_eligibility")
+        if status != 200:
+            code = f"finalizer_eligibility_http_{status}" if isinstance(status, int) and 100 <= status <= 599 else "finalizer_eligibility_failed"
+            raise ControllerError(code)
+        if not isinstance(body, dict) or set(body) != {"ok", "eligibility"} or body.get("ok") is not True:
+            raise ControllerError("invalid_finalizer_eligibility_envelope")
+        if not isinstance(rows, list):
+            raise ControllerError("invalid_finalizer_eligibility_rows")
+        if len(rows) > 2:
+            raise ControllerError("invalid_finalizer_eligibility_count")
         seen: set[str] = set()
         for row in rows:
+            if not isinstance(row, dict) or set(row) != expected:
+                raise ControllerError("invalid_finalizer_eligibility_shape")
+            if not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", str(row.get("submission_id") or "")):
+                raise ControllerError("invalid_finalizer_eligibility_identity")
+            if row.get("slug") not in CANARY_SOURCE_SLUGS or row["slug"] in seen:
+                raise ControllerError("invalid_finalizer_eligibility_slug")
             if (
-                not isinstance(row, dict) or set(row) != expected
-                or not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", str(row.get("submission_id") or ""))
-                or row.get("slug") not in CANARY_SOURCE_SLUGS or row["slug"] in seen
-                or row.get("status") not in {"queued", "processing", "needs_review", "ready_for_deploy", "ready_for_publish", "deployed", "failed"}
+                row.get("status") not in {"queued", "processing", "needs_review", "ready_for_deploy", "ready_for_publish", "deployed", "failed"}
                 or row.get("release_phase") not in {"compiled", "pr_open", "ci_passed", "merged_verified", "promoted", "failed", None}
                 or row.get("selected_runtime") not in {"worker-native", "modal-hosted", None}
                 or row.get("finalization_status") not in {"claimed", "deploying_modal", "deploying_worker", "verifying_public", "failed", "completed", "rolled_back", "invalid", None}
-                or any(type(row.get(field)) is not bool for field in boolean_fields)
             ):
-                raise ControllerError("invalid_finalizer_eligibility")
+                raise ControllerError("invalid_finalizer_eligibility_enum")
+            if any(type(row.get(field)) is not bool for field in boolean_fields):
+                raise ControllerError("invalid_finalizer_eligibility_boolean")
             seen.add(row["slug"])
         if [row["slug"] for row in rows] != sorted(seen):
-            raise ControllerError("invalid_finalizer_eligibility")
+            raise ControllerError("invalid_finalizer_eligibility_order")
         return rows
 
     def resume_completed(self, target_sha: str) -> FinalizationClaim | None:
