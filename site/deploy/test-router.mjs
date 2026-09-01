@@ -630,12 +630,14 @@ const fairnessLeastRecent = {
 };
 workerTest.mockSubmissions.set(fairnessOlderCreated.id, fairnessOlderCreated);
 workerTest.mockSubmissions.set(fairnessLeastRecent.id, fairnessLeastRecent);
-const fairnessCandidate = await workerTest.internalPeekBuilderSubmission({});
-check('post-merge verifier fairness: least recently updated ready row wins across backend ordering',
-  fairnessCandidate.id === fairnessLeastRecent.id &&
-  (workerSrc.match(/CASE WHEN status = 'ready_for_deploy' THEN updated_at ELSE created_at END ASC/g) || []).length === 2 &&
-  workerSrc.includes("a.status === 'ready_for_deploy' ? a.updated_at || '' : a.created_at || ''") &&
-  workerSrc.includes("b.status === 'ready_for_deploy' ? b.updated_at || '' : b.created_at || ''"));
+const fairnessCandidate = await workerTest.internalPeekBuilderSubmission({}, 'verify_merged');
+check('post-merge verifier fairness: least recently updated ready row wins in mock ordering',
+  fairnessCandidate.id === fairnessLeastRecent.id);
+check('post-merge verifier fairness: Neon and D1 use phase-specific oldest-update ordering',
+  (workerSrc.match(/ORDER BY updated_at ASC/g) || []).length >= 2 &&
+  workerSrc.includes("omo-internal-builder-peek-verify-v1") &&
+  workerSrc.includes("omo-internal-builder-peek-build-v1") &&
+  workerSrc.includes("String(a.updated_at || '').localeCompare(String(b.updated_at || ''))"));
 workerTest.mockSubmissions.delete(fairnessOlderCreated.id);
 workerTest.mockSubmissions.delete(fairnessLeastRecent.id);
 
@@ -4778,7 +4780,7 @@ workerTest.mockSubmissions.set('user_builder:v02-release-label-sorter', {
   created_at: new Date().toISOString(),
 });
 scheduledTask = null;
-await worker.scheduled({}, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({ scheduledTime: 60_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const mergedVerifierCall = builderDispatchCalls.at(-1);
 check('builder cron: dispatches a distinct identifier-only post-merge verifier phase',
@@ -4846,6 +4848,29 @@ check('submission page: manual refresh and safe signed-out/not-found errors are 
   submissionJs.includes('Sign in to view this submission.') &&
   submissionJs.includes('This submission was not found in your account.') &&
   !submissionJs.includes('innerHTML'));
+workerTest.mockSubmissions.set('user_builder:fresh-upload', {
+  id: 'sub_freshupload123456789',
+  user_id: 'user_builder',
+  name: 'Fresh Upload',
+  slug: 'fresh-upload',
+  content: 'PRIVATE_FRESH_SOURCE_MUST_NOT_LEAVE_WORKER',
+  source_sha256: 'e'.repeat(64),
+  requested_runtime: 'auto',
+  status: 'queued',
+  created_at: new Date().toISOString(),
+});
+scheduledTask = null;
+await worker.scheduled({ scheduledTime: 120_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+if (scheduledTask) await scheduledTask;
+const fairBuildCall = builderDispatchCalls.at(-1);
+check('builder cron fairness: build minute selects fresh upload despite eligible post-merge row',
+  fairBuildCall.payload.submission_id === 'sub_freshupload123456789' && fairBuildCall.payload.phase === 'build');
+scheduledTask = null;
+await worker.scheduled({ scheduledTime: 180_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+if (scheduledTask) await scheduledTask;
+const fairVerifyCall = builderDispatchCalls.at(-1);
+check('builder cron fairness: verify minute selects eligible post-merge row despite fresh upload',
+  fairVerifyCall.payload.submission_id === 'sub_mergedverify12345678' && fairVerifyCall.payload.phase === 'verify_merged');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
