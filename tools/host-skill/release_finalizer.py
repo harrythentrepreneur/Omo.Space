@@ -530,7 +530,10 @@ def run_finalizer(
         store.advance(claim, "deploying_worker")
         r1 = cloudflare.verify_registry(claim, checkout)
         _require_passed(r1, "internal_finalizer_failed")
-        worker_receipt = cloudflare.deploy_worker(claim, checkout)
+        try:
+            worker_receipt = cloudflare.deploy_worker(claim, checkout)
+        except Exception as error:
+            raise FinalizerError("worker_deploy_failed") from error
         _require_passed(worker_receipt, "worker_deploy_failed")
         worker_receipt = _deployment_receipt(worker_receipt, claim, "cloudflare", targets)
         store.record_effect(claim, "worker_deploy", worker_receipt)

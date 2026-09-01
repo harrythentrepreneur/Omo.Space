@@ -288,6 +288,7 @@ const FINALIZATION_FAILURE_CODES = new Set([
 ]);
 const AUTO_RECOVERY_NO_EFFECT_CODES = new Set([
   'modal_preflight_failed', 'worker_preflight_failed', 'public_preflight_failed',
+  'internal_finalizer_failed',
 ]);
 const EXPECTED_MODAL_WORKSPACE = 'omo-space';
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9._:-]{8,128}$/;
@@ -4618,7 +4619,7 @@ async function internalAutomaticRecoveryCandidate(env) {
          AND release_head_sha = finalization_head_sha
          AND release_merge_sha = finalization_merge_sha
          AND release_artifact_hash = finalization_artifact_hash
-         AND ((finalization_attempts = 1 AND finalization_failure_code IN (?, ?, ?)
+         AND ((finalization_attempts = 1 AND finalization_failure_code IN (?, ?, ?, ?)
                AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL)
            OR (selected_runtime = 'modal-hosted' AND finalization_failure_code IN (?, ?, ?)
                AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NOT NULL))

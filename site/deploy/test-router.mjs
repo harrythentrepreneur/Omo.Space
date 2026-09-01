@@ -2219,6 +2219,12 @@ for (const failureCode of ['modal_preflight_failed', 'worker_preflight_failed', 
   const body = await response.json();
   typedPreflightInspections.push(response.status === 200 && body.finalization.failure_code === failureCode);
 }
+failedRecoveryRecord.finalization_failure_code = 'internal_finalizer_failed';
+const internalNoEffectRecovery = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
+), buildEnv);
+const internalNoEffectRecoveryBody = internalNoEffectRecovery.status === 200
+  ? await internalNoEffectRecovery.json() : null;
 failedRecoveryRecord.finalization_failure_code = 'modal_preflight_failed';
 const builderRecoveryCandidate = await worker.fetch(mkReq(
   'POST', '/api/internal/finalizations/recovery-candidate', {}, internalHeaders
@@ -2237,6 +2243,9 @@ const exhaustedRecoveryCandidate = await worker.fetch(mkReq(
 failedRecoveryRecord.finalization_attempts = 1;
 check('automatic finalization recovery candidate: finalizer-only bounded no-effect retry is offered once',
   builderRecoveryCandidate.status === 401 && recoveryCandidateExtra.status === 400 &&
+  internalNoEffectRecovery.status === 200 &&
+  internalNoEffectRecoveryBody.recovery.mode === 'resume_no_effect' &&
+  internalNoEffectRecoveryBody.recovery.finalization_id === failedRecoveryRecord.finalization_id &&
   recoveryCandidateResponse.status === 200 && exhaustedRecoveryCandidate.status === 204 &&
   JSON.stringify(recoveryCandidateBody) === JSON.stringify({
     ok: true, recovery: {
