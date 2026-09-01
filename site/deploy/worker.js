@@ -6098,10 +6098,108 @@ async function approveExactMatchSlugCollision(env, userId, submissionId) {
   return foundOwnerRecord ? { status: 'not_approvable' } : { status: 'not_found' };
 }
 
+function releaseVerificationResumeSnapshot(record, submissionId, exactSlug = '') {
+  if (!record || record.id !== submissionId || record.status !== 'failed' ||
+      record.failure_code !== 'canary_or_internal_failed' ||
+      !['pr_open', 'ci_passed'].includes(record.release_phase) ||
+      (exactSlug && record.slug !== exactSlug)) return null;
+  const sourceSha256 = safeSha256(record.source_sha256 || record.sourceSha256);
+  const runtime = safeRuntime(record.selected_runtime);
+  const runtimePolicy = safeRuntimePolicy(record.runtime_policy);
+  const workflowVersion = String(record.workflow_version || '').trim();
+  const publishedSlug = safeSlug(record.published_slug);
+  const buildEvidence = safeBuildEvidence(record.build_evidence);
+  const issueUrl = safeGithubUrl(record.release_issue_url, 'issues');
+  const prUrl = safeGithubUrl(record.release_pr_url, 'pull');
+  const prNumber = Number(record.release_pr_number);
+  const branch = safeReleaseBranch(record.release_branch);
+  const headSha = safeGitSha(record.release_head_sha);
+  const artifactHash = safeSha256(record.release_artifact_hash);
+  const rawBuildEvidence = typeof record.build_evidence === 'string'
+    ? record.build_evidence
+    : JSON.stringify(record.build_evidence || null);
+  if (!sourceSha256 || !runtime || !runtimePolicy ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*@[0-9A-Za-z][0-9A-Za-z._:-]{0,79}$/.test(workflowVersion) ||
+      !publishedSlug || buildEvidence.checks.length === 0 || !issueUrl || !prUrl ||
+      !Number.isSafeInteger(prNumber) || prNumber < 1 || !branch || !headSha || !artifactHash) return null;
+  return {
+    phase: record.release_phase, sourceSha256, runtime, runtimePolicy, workflowVersion,
+    publishedSlug, rawBuildEvidence, issueUrl, prUrl, prNumber, branch, headSha, artifactHash,
+    slug: record.slug,
+  };
+}
+
+async function resumeReviewedReleaseVerificationFailure(env, userId, submissionId, exactSlug = '') {
+  const record = await getSubmissionApprovalState(env, userId, submissionId, exactSlug);
+  if (!record) return { status: 'not_found' };
+  const releaseShapedFailure = record.status === 'failed' &&
+    record.failure_code === 'canary_or_internal_failed' &&
+    ['pr_open', 'ci_passed'].includes(record.release_phase);
+  if (!releaseShapedFailure) return { status: 'not_release_verification' };
+  const snapshot = releaseVerificationResumeSnapshot(record, submissionId, exactSlug);
+  if (!snapshot) return { status: 'not_retryable' };
+  const now = new Date().toISOString();
+  const resumedColumns = `id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,
+    runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,
+    approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,
+    release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,
+    modal_app,modal_url,canary_evidence,promotion_evidence`;
+  const evidenceValues = [
+    snapshot.phase, snapshot.sourceSha256, snapshot.runtime, snapshot.runtimePolicy,
+    snapshot.workflowVersion, snapshot.publishedSlug, snapshot.rawBuildEvidence,
+    snapshot.issueUrl, snapshot.prUrl, snapshot.prNumber, snapshot.branch,
+    snapshot.headSha, snapshot.artifactHash, snapshot.slug,
+  ];
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-submission-retry-release-verification-v2',
+      `UPDATE submissions
+       SET status = 'ready_for_deploy', failure_code = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND user_id = $2 AND status = 'failed'
+         AND failure_code = 'canary_or_internal_failed' AND release_phase = $3
+         AND source_sha256 = $4 AND selected_runtime = $5 AND runtime_policy = $6
+         AND workflow_version = $7 AND published_slug = $8 AND build_evidence = $9
+         AND release_issue_url = $10 AND release_pr_url = $11 AND release_pr_number = $12
+         AND release_branch = $13 AND release_head_sha = $14 AND release_artifact_hash = $15
+         AND slug = $16
+       RETURNING ${resumedColumns}`,
+      [submissionId, userId, ...evidenceValues]
+    ));
+    return result.rowCount === 1 && result.rows[0]
+      ? { status: 'retried', row: result.rows[0] }
+      : { status: 'not_retryable' };
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(`UPDATE submissions
+      SET status = 'ready_for_deploy', failure_code = NULL, updated_at = ?
+      WHERE id = ? AND user_id = ? AND status = 'failed'
+        AND failure_code = 'canary_or_internal_failed' AND release_phase = ?
+        AND source_sha256 = ? AND selected_runtime = ? AND runtime_policy = ?
+        AND workflow_version = ? AND published_slug = ? AND build_evidence = ?
+        AND release_issue_url = ? AND release_pr_url = ? AND release_pr_number = ?
+        AND release_branch = ? AND release_head_sha = ? AND release_artifact_hash = ?
+        AND slug = ?`)
+      .bind(now, submissionId, userId, ...evidenceValues).run();
+    return result.meta && result.meta.changes
+      ? { status: 'retried', row: await getSubmissionForOwner(env, userId, submissionId) }
+      : { status: 'not_retryable' };
+  }
+  record.status = 'ready_for_deploy';
+  record.failure_code = null;
+  record.updated_at = now;
+  return { status: 'retried', row: record };
+}
+
 async function retryReviewedGatedBuildFailure(env, userId, submissionId, requiredSlug = '') {
   const retryableFailureCodes = [...RETRYABLE_EXACT_MATCH_RELEASE_FAILURE_CODES];
   const exactSlug = requiredSlug ? safeSlug(requiredSlug) : '';
   if (requiredSlug && !exactSlug) return { status: 'not_found' };
+  const releaseVerificationRetry = await resumeReviewedReleaseVerificationFailure(
+    env, userId, submissionId, exactSlug
+  );
+  if (releaseVerificationRetry.status === 'retried' ||
+      releaseVerificationRetry.status === 'not_retryable' ||
+      releaseVerificationRetry.status === 'not_found') return releaseVerificationRetry;
   const now = new Date().toISOString();
   const transientAssignments = `failure_code = NULL, workflow_version = NULL, published_slug = NULL,
     deployed_at = NULL, build_evidence = NULL, release_phase = NULL, release_issue_url = NULL,

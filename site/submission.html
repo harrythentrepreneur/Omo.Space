@@ -187,7 +187,6 @@
     </div>
   </main>
 
-  <script src="key-config.js"></script>
   <script>
     (function () {
       'use strict';
@@ -206,7 +205,9 @@
         loadScript('submission.js');
         return;
       }
-      loadScript('clerk.js', function () { loadScript('submission.js'); });
+      loadScript('key-config.js', function () {
+        loadScript('clerk.js', function () { loadScript('submission.js'); });
+      });
     })();
   </script>
 </body>
