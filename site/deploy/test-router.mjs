@@ -544,7 +544,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalFinalizationEligibility, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalPeekBuilderSubmission, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalFinalizationEligibility, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -613,6 +613,31 @@ check('Neon: Worker never caches request-bound Pool I/O in module scope',
   !workerSrc.includes('let neonPool') &&
   workerSrc.includes("neon(url, { fullResults: true })") &&
   (workerSrc.match(/await client\.release\(\)/g) || []).length === 13);
+
+const fairnessOlderCreated = {
+  id: 'sub_fairnessolder0001', slug: 'fairness-older-created', source_sha256: '7'.repeat(64),
+  status: 'ready_for_deploy', release_phase: 'pr_open',
+  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/400',
+  release_head_sha: '8'.repeat(40), release_artifact_hash: '9'.repeat(64),
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-09-01T05:50:00Z',
+};
+const fairnessLeastRecent = {
+  id: 'sub_fairnessleast0002', slug: 'fairness-least-recent', source_sha256: 'a'.repeat(64),
+  status: 'ready_for_deploy', release_phase: 'pr_open',
+  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/401',
+  release_head_sha: 'b'.repeat(40), release_artifact_hash: 'c'.repeat(64),
+  created_at: '2026-02-01T00:00:00Z', updated_at: '2026-08-01T00:00:00Z',
+};
+workerTest.mockSubmissions.set(fairnessOlderCreated.id, fairnessOlderCreated);
+workerTest.mockSubmissions.set(fairnessLeastRecent.id, fairnessLeastRecent);
+const fairnessCandidate = await workerTest.internalPeekBuilderSubmission({});
+check('post-merge verifier fairness: least recently updated ready row wins across backend ordering',
+  fairnessCandidate.id === fairnessLeastRecent.id &&
+  (workerSrc.match(/CASE WHEN status = 'ready_for_deploy' THEN updated_at ELSE created_at END ASC/g) || []).length === 2 &&
+  workerSrc.includes("a.status === 'ready_for_deploy' ? a.updated_at || '' : a.created_at || ''") &&
+  workerSrc.includes("b.status === 'ready_for_deploy' ? b.updated_at || '' : b.created_at || ''"));
+workerTest.mockSubmissions.delete(fairnessOlderCreated.id);
+workerTest.mockSubmissions.delete(fairnessLeastRecent.id);
 
 const dashboardSource = fs.readFileSync(path.join(here, '..', 'dashboard.html'), 'utf8');
 const billingSource = fs.readFileSync(path.join(here, '..', 'billing.html'), 'utf8');
