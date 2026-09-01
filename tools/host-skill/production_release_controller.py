@@ -605,6 +605,41 @@ class HttpFinalizationStore:
             raise ControllerError(code)
         return self._claim(body)
 
+    def eligibility(self, target_sha: str) -> list[dict[str, Any]]:
+        status, body = self._post("/api/internal/finalizations/eligibility", {"target_sha": target_sha})
+        rows = (body or {}).get("eligibility")
+        boolean_fields = {
+            "source_sha256_present", "published_slug_present", "workflow_version_present",
+            "build_evidence_present", "release_issue_url_present", "release_pr_url_present",
+            "release_pr_number_present", "release_branch_present", "release_head_sha_present",
+            "release_merge_sha_present", "release_artifact_hash_present",
+            "finalization_target_matches", "finalization_lease_expired", "finalization_available",
+            "claimable",
+        }
+        expected = {
+            "submission_id", "slug", "status", "release_phase", "selected_runtime",
+            "finalization_status", *boolean_fields,
+        }
+        if status != 200 or (body or {}).get("ok") is not True or not isinstance(rows, list) or len(rows) > 2:
+            raise ControllerError("invalid_finalizer_eligibility")
+        seen: set[str] = set()
+        for row in rows:
+            if (
+                not isinstance(row, dict) or set(row) != expected
+                or not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", str(row.get("submission_id") or ""))
+                or row.get("slug") not in CANARY_SOURCE_SLUGS or row["slug"] in seen
+                or row.get("status") not in {"queued", "processing", "needs_review", "ready_for_deploy", "ready_for_publish", "deployed", "failed"}
+                or row.get("release_phase") not in {"compiled", "pr_open", "ci_passed", "merged_verified", "promoted", "failed", None}
+                or row.get("selected_runtime") not in {"worker-native", "modal-hosted", None}
+                or row.get("finalization_status") not in {"claimed", "deploying_modal", "deploying_worker", "verifying_public", "failed", "completed", "rolled_back", "invalid", None}
+                or any(type(row.get(field)) is not bool for field in boolean_fields)
+            ):
+                raise ControllerError("invalid_finalizer_eligibility")
+            seen.add(row["slug"])
+        if [row["slug"] for row in rows] != sorted(seen):
+            raise ControllerError("invalid_finalizer_eligibility")
+        return rows
+
     def resume_completed(self, target_sha: str) -> FinalizationClaim | None:
         status, body = self._post("/api/internal/finalizations/resume-completed", {"target_sha": target_sha})
         if status == 204:
@@ -1179,6 +1214,7 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
     else:
         result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
     if result.get("status") == "idle":
+        eligibility = store.eligibility(result["target_sha"])
         trusted_checkout = mainline.checkout_detached(result["target_sha"])
         cloudflare.ensure_builder_schedule(trusted_checkout, result["target_sha"])
         seeded = public.seed_submissions(trusted_checkout)
@@ -1187,7 +1223,10 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
             if item["submission_status"] == "failed" else item
             for item in seeded
         ]
-        return {"status": "seeded", "submissions": submissions, "target_sha": result["target_sha"]}
+        return {
+            "status": "seeded", "submissions": submissions,
+            "eligibility": eligibility, "target_sha": result["target_sha"],
+        }
     return result
 
 

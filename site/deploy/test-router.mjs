@@ -203,6 +203,7 @@ let neonInternalClaimRow = null;
 let neonInternalDetailRow = null;
 let neonResumeMergedRow = null;
 let neonFinalizationClaimRow = null;
+let neonFinalizationEligibilityRows = [];
 let neonFinalizationDetailRow = null;
 let neonFinalizationStatusRow = null;
 let neonCompletedFinalizationRow = null;
@@ -449,6 +450,8 @@ const sandbox = {
               ? 'omo-internal-submission-detail-v1'
               : text.includes('WITH candidate AS') && text.includes('build_claimed_at')
                 ? 'omo-internal-submission-claim-v1'
+              : text.includes('SELECT id,published_slug,status,release_phase,selected_runtime') && text.includes('published_slug = ANY($1::text[])')
+                ? 'omo-internal-finalization-eligibility-v1'
               : text.includes('WITH candidate AS') && text.includes('finalization_id') && text.includes("finalization_status = 'claimed'")
                 ? 'omo-internal-finalization-claim-v1'
               : text.includes('finalization_attempts = 1') && text.includes('LIMIT 32') && text.includes("finalization_status = 'failed'")
@@ -495,6 +498,9 @@ const sandbox = {
       if (entry.name === 'omo-internal-finalization-claim-v1') {
         return neonFinalizationClaimRow ? { rows: [neonFinalizationClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (entry.name === 'omo-internal-finalization-eligibility-v1') {
+        return { rows: neonFinalizationEligibilityRows, rowCount: neonFinalizationEligibilityRows.length };
+      }
       if (entry.name === 'omo-internal-finalization-resume-completed-v1') {
         return neonCompletedFinalizationRow ? { rows: [neonCompletedFinalizationRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
@@ -538,7 +544,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalFinalizationEligibility, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -3047,6 +3053,104 @@ check('internal finalization failure: exact generation records one typed safe te
   unsafeFailedFinalization.status === 400 &&
   finalizationRecord.finalization_status === 'failed' &&
   finalizationRecord.finalization_failure_code === 'worker_deploy_failed');
+
+const eligibilityTarget = 'e'.repeat(40);
+workerTest.mockSubmissions.set('eligibility-pure', {
+  id: 'sub_eligibilitypure1234', user_id: 'user_private', content: 'private source',
+  published_slug: 'v02-release-label-sorter', status: 'ready_for_deploy',
+  release_phase: 'merged_verified', selected_runtime: 'worker-native',
+  source_sha256: '1'.repeat(64), workflow_version: '1.0.0', build_evidence: null,
+  release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/284',
+  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/287', release_pr_number: 287,
+  release_branch: 'omo-release/sub_eligibilitypure1234-v02-release-label-sorter',
+  release_head_sha: '2'.repeat(40), release_merge_sha: '3'.repeat(40), release_artifact_hash: '4'.repeat(64),
+  finalization_status: null, finalization_target_sha: null,
+});
+workerTest.mockSubmissions.set('eligibility-llm', {
+  id: 'sub_eligibilityllm12345', user_id: 'user_private', content: 'private source',
+  published_slug: 'v02-support-urgency-classifier', status: 'ready_for_deploy',
+  release_phase: 'ci_passed', selected_runtime: 'worker-native',
+  source_sha256: '5'.repeat(64), workflow_version: '1.0.0', build_evidence: { checks: ['pytest'] },
+  release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/285',
+  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/285', release_pr_number: 285,
+  release_branch: 'omo-release/sub_eligibilityllm12345-v02-support-urgency-classifier',
+  release_head_sha: '6'.repeat(40), release_merge_sha: null, release_artifact_hash: '7'.repeat(64),
+  finalization_status: 'failed', finalization_target_sha: eligibilityTarget,
+});
+const eligibilityResponse = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
+  target_sha: eligibilityTarget,
+}, finalizerHeaders), buildEnv);
+const eligibilityBody = await eligibilityResponse.json();
+const eligibilityUnauthorized = await worker.fetch(mkReq('POST', '/api/internal/finalizations/eligibility', {
+  target_sha: eligibilityTarget,
+}, internalHeaders), buildEnv);
+check('internal finalization eligibility: finalizer-only bounded predicates expose no private row data',
+  eligibilityResponse.status === 200 && eligibilityUnauthorized.status === 401 &&
+  eligibilityBody.ok === true && eligibilityBody.eligibility.length === 2 &&
+  eligibilityBody.eligibility[0].slug === 'v02-release-label-sorter' &&
+  eligibilityBody.eligibility[0].build_evidence_present === false &&
+  eligibilityBody.eligibility[0].claimable === false &&
+  eligibilityBody.eligibility[1].slug === 'v02-support-urgency-classifier' &&
+  eligibilityBody.eligibility[1].release_phase === 'ci_passed' &&
+  eligibilityBody.eligibility[1].claimable === false &&
+  !JSON.stringify(eligibilityBody).includes('private source') &&
+  !JSON.stringify(eligibilityBody).includes('user_private'));
+
+const backendEligibilityRow = {
+  id: 'sub_backendeligibility1234', published_slug: 'v02-release-label-sorter',
+  status: 'ready_for_deploy', release_phase: 'merged_verified', selected_runtime: 'worker-native',
+  source_sha256: 'a'.repeat(64), workflow_version: 'v02-release-label-sorter@1.0.0', build_evidence: { checks: ['pytest'] },
+  release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/284',
+  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/287', release_pr_number: 287,
+  release_branch: 'omo-release/sub_backendeligibility1234-v02-release-label-sorter',
+  release_head_sha: 'b'.repeat(40), release_merge_sha: 'c'.repeat(40), release_artifact_hash: 'd'.repeat(64),
+  finalization_status: null, finalization_target_sha: null, finalization_lease_expires_at: null,
+};
+neonSqlCalls.length = 0;
+neonFinalizationEligibilityRows = [backendEligibilityRow];
+const neonEligibility = await workerTest.internalFinalizationEligibility({ NEON_DATABASE_URL: 'postgres://example' }, eligibilityTarget);
+const neonEligibilityCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-eligibility-v1');
+const d1EligibilityCalls = [];
+const d1Eligibility = await workerTest.internalFinalizationEligibility({
+  BALANCE_DB: {
+    prepare(text) {
+      const call = { text, values: [] };
+      d1EligibilityCalls.push(call);
+      return {
+        bind(...values) {
+          call.values = values;
+          return { all: async () => ({ results: [backendEligibilityRow] }) };
+        },
+      };
+    },
+  },
+}, eligibilityTarget);
+check('internal finalization eligibility: Neon and D1 query only the two exact canary slugs',
+  neonEligibility.length === 1 && neonEligibility[0].claimable === true &&
+  neonEligibilityCall.text.includes('published_slug = ANY($1::text[])') &&
+  Array.isArray(neonEligibilityCall.values[0]) && neonEligibilityCall.values[0].length === 2 &&
+  d1Eligibility.length === 1 && d1Eligibility[0].claimable === true &&
+  d1EligibilityCalls[0].text.includes('published_slug IN (?, ?)') &&
+  d1EligibilityCalls[0].values.length === 2 &&
+  d1EligibilityCalls[0].values.every((slug) => ['v02-release-label-sorter', 'v02-support-urgency-classifier'].includes(slug)) &&
+  !neonEligibilityCall.text.includes('content') && !neonEligibilityCall.text.includes('user_id'));
+const malformedEligibilityRecord = {
+  ...backendEligibilityRow,
+  id: 'sub_malformedeligibility1',
+  workflow_version: 'present-but-invalid',
+  build_evidence: { checks: ['x'] },
+  release_issue_url: 'present-but-invalid',
+  release_pr_url: 'present-but-invalid',
+  release_branch: 'present-but-invalid',
+};
+workerTest.mockSubmissions.set('eligibility-pure', malformedEligibilityRecord);
+const malformedEligibility = await workerTest.internalFinalizationEligibility({}, eligibilityTarget);
+const malformedPure = malformedEligibility.find((row) => row.slug === 'v02-release-label-sorter');
+check('internal finalization eligibility: malformed present evidence never reports claimable',
+  malformedPure.workflow_version_present === false && malformedPure.build_evidence_present === false &&
+  malformedPure.release_issue_url_present === false && malformedPure.release_pr_url_present === false &&
+  malformedPure.release_branch_present === false && malformedPure.claimable === false);
+neonFinalizationEligibilityRows = [];
 
 neonSqlCalls.length = 0;
 neonFinalizationClaimRow = {
