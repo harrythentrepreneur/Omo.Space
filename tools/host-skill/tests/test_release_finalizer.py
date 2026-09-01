@@ -276,6 +276,8 @@ class Adapter:
 
     def deploy_worker(self, claim, checkout):
         self.events.append("deploy_worker")
+        if self.fail_on == "deploy_worker_raise":
+            raise RuntimeError("SENTINEL_WORKER_DEPLOY_FAILURE")
         return {
             "status": "failed" if self.fail_on == "deploy_worker" else "passed",
             "provider": "cloudflare",
@@ -779,6 +781,16 @@ def test_adapter_failure_receipts_are_typed(runtime, adapter_name, operation, co
     assert caught.value.code == code
     assert "SENTINEL" not in str(caught.value)
     assert store.events[-1] == ("advance", "failed", code)
+
+
+def test_raised_worker_deploy_exception_is_typed_and_records_no_effect():
+    mod, mainline, store, modal, cloudflare, vercel = components(runtime="worker-native")
+    cloudflare.fail_on = "deploy_worker_raise"
+    with pytest.raises(mod.FinalizerError) as caught:
+        mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
+    assert caught.value.code == "worker_deploy_failed"
+    assert store.events[-1] == ("advance", "failed", "worker_deploy_failed")
+    assert not any(event[0] == "record_effect" for event in store.events)
 
 
 def test_promotion_readback_mismatch_fails_before_deployed_transition():
