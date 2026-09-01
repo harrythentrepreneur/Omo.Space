@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#17352C">
+  <title>Your submissions | Omo</title>
+  <meta name="description" content="Review every workflow you have submitted to Omo and follow its progress through the hosting queue.">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F2F6F1;
+      --surface: #FFFFFF;
+      --pine: #17352C;
+      --deep-pine: #1E3A34;
+      --mint: #BDEFD4;
+      --orange: #FF6B3D;
+      --moss: #6F7E77;
+      --rule: #D9E2DC;
+      --cream: #F7F3E8;
+      --danger: #9B3216;
+      --display: "Fraunces", Georgia, serif;
+      --body: "DM Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --shell: 1040px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { min-width: 320px; margin: 0; background: var(--canvas); color: var(--pine); font: 16px/1.55 var(--body); }
+    body, button { font-family: var(--body); }
+    a { color: inherit; }
+    button { cursor: pointer; }
+    [hidden] { display: none !important; }
+    :where(a, button):focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; }
+    .skip-link { position: fixed; top: 8px; left: 8px; z-index: 100; padding: 10px 14px; border-radius: 8px; background: #fff; transform: translateY(-160%); }
+    .skip-link:focus { transform: translateY(0); }
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin-inline: auto; }
+    .site-header { border-bottom: 1px solid var(--rule); }
+    .nav-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .wordmark { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+    .wordmark-logo { display: block; width: auto; height: 34px; }
+    .omo-nav-brand { display: flex; align-items: center; }
+    .omo-nav-login { min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 700; text-decoration: none; }
+    .hero { padding: clamp(56px, 8vw, 88px) 0 42px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 7px 13px; border: 1px solid currentColor; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .eyebrow::before { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); content: ""; }
+    h1 { max-width: 760px; margin: 0 0 16px; font: 600 clamp(44px, 7vw, 70px)/1 var(--display); letter-spacing: -.035em; text-wrap: balance; }
+    .hero-copy { max-width: 670px; margin: 0; color: var(--moss); font-size: 18px; text-wrap: pretty; }
+    .workspace { padding: 0 0 clamp(72px, 10vw, 112px); }
+    .workspace-card { overflow: hidden; border: 1px solid var(--pine); border-radius: 20px 20px 4px 20px; background: var(--surface); box-shadow: 0 16px 0 rgba(23,53,44,.07); }
+    .workspace-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px clamp(20px, 4vw, 34px); border-bottom: 1px solid var(--rule); background: var(--cream); }
+    .workspace-head h2 { margin: 0 0 3px; font: 600 27px/1.15 var(--display); }
+    .workspace-head p { margin: 0; color: var(--moss); font-size: 13px; }
+    .button { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; padding: 0 19px; border: 1px solid var(--pine); border-radius: 11px; background: transparent; color: var(--pine); font-size: 14px; font-weight: 700; text-decoration: none; }
+    .button:hover { transform: translateY(-1px); }
+    .button-primary { border-color: var(--pine); background: var(--pine); color: #fff; }
+    .state { min-height: 270px; display: grid; place-items: center; padding: clamp(34px, 7vw, 72px) 24px; text-align: center; }
+    .state-inner { max-width: 500px; }
+    .state-mark { width: 54px; height: 54px; display: grid; place-items: center; margin: 0 auto 17px; border-radius: 16px 16px 4px 16px; background: var(--mint); font: 600 25px/1 var(--display); }
+    .state h2 { margin: 0 0 8px; font: 600 28px/1.15 var(--display); }
+    .state p { margin: 0 0 21px; color: var(--moss); }
+    .state-error .state-mark { background: #FFE0D4; color: var(--danger); }
+    .spinner { width: 28px; height: 28px; margin: 0 auto 18px; border: 3px solid var(--rule); border-top-color: var(--orange); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .submissions-list { margin: 0; padding: 0; list-style: none; }
+    .submission-row { border-top: 1px solid var(--rule); }
+    .submission-row:first-child { border-top: 0; }
+    .submission-link { min-height: 106px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 21px clamp(20px, 4vw, 34px); text-decoration: none; transition: background .12s ease; }
+    .submission-link:hover { background: #F8FBF8; }
+    .submission-name { margin: 0 0 8px; font-size: 18px; font-weight: 700; line-height: 1.3; }
+    .submission-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--moss); font-size: 13px; }
+    .status-badge { display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px; background: var(--mint); color: var(--pine); font-size: 12px; font-weight: 700; }
+    .status-badge[data-status="failed"] { background: #FFE0D4; color: var(--danger); }
+    .status-badge[data-status="deployed"] { background: var(--deep-pine); color: #fff; }
+    .row-arrow { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--rule); border-radius: 50%; color: var(--orange); font-size: 20px; }
+    .site-footer { padding: 34px 0 50px; border-top: 1px solid var(--rule); }
+    .footer-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+    .footer-copy { margin: 0; color: var(--moss); font-size: 13px; }
+    @media (max-width: 700px) {
+      .shell { width: 100%; padding-inline: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+      .workspace-head { align-items: flex-start; flex-direction: column; }
+      .workspace-head .button { width: 100%; }
+      .submission-link { min-height: 124px; gap: 14px; }
+      .hero { padding-top: 48px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  </style>
+  <link rel="stylesheet" href="nav-footer.css">
+  <link rel="stylesheet" href="mobile-polish.css">
+  <script defer src="nav.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header omo-site-header">
+    <div class="shell nav-row omo-nav-row">
+      <div class="omo-nav-brand">
+        <a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a>
+        <div class="omo-nav-menu">
+          <button class="omo-nav-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="omo-nav-menu" aria-haspopup="true"><span class="omo-nav-chevron" aria-hidden="true">▾</span></button>
+          <nav class="omo-nav-popover" id="omo-nav-menu" aria-label="Main menu" hidden>
+            <a href="index.html">Discover</a>
+            <a href="sell.html">Sell Workflow</a>
+          </nav>
+        </div>
+      </div>
+      <a class="omo-nav-login" data-omo-login href="signup.html">Log in</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="shell">
+        <p class="eyebrow">Creator workspace</p>
+        <h1>Every submission, in one place.</h1>
+        <p class="hero-copy">Follow your workflows from first review through build gates and deployment. Select any submission to see its complete status.</p>
+      </div>
+    </section>
+
+    <section class="workspace" aria-labelledby="submissions-title">
+      <div class="shell">
+        <div class="workspace-card">
+          <header class="workspace-head">
+            <div>
+              <h2 id="submissions-title">Your submissions</h2>
+              <p>Securely loaded from your Omo account.</p>
+            </div>
+            <a class="button" href="host.html#upload">Submit another workflow</a>
+          </header>
+
+          <div class="state" id="submissions-loading" role="status" aria-live="polite">
+            <div class="state-inner"><div class="spinner" aria-hidden="true"></div><h2>Opening your queue…</h2><p>We’re checking your account and loading the latest submission status.</p></div>
+          </div>
+          <div class="state" id="submissions-signed-out" hidden>
+            <div class="state-inner"><div class="state-mark" aria-hidden="true">→</div><h2>Sign in to see your submissions</h2><p>This is a private owner view. Sign in with the account that submitted your workflows.</p><button class="button button-primary" id="submissions-sign-in" type="button">Sign in</button></div>
+          </div>
+          <div class="state" id="submissions-empty" hidden>
+            <div class="state-inner"><div class="state-mark" aria-hidden="true">＋</div><h2>Your bench is ready</h2><p>You haven’t submitted a workflow yet. Upload a Markdown workflow and it will appear here.</p><a class="button button-primary" href="host.html#upload">Submit your first workflow</a></div>
+          </div>
+          <div class="state state-error" id="submissions-error" role="alert" hidden>
+            <div class="state-inner"><div class="state-mark" aria-hidden="true">!</div><h2>We couldn’t load your queue</h2><p id="submissions-error-message">Your submissions are safe. Try loading them again.</p><button class="button button-primary" id="submissions-retry" type="button">Try again</button></div>
+          </div>
+          <ul class="submissions-list" id="submissions-list" aria-label="Your workflow submissions" hidden></ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer omo-footer">
+    <div class="shell footer-row"><a class="wordmark" href="index.html" aria-label="Omo home"><img class="wordmark-logo" src="logo-sweet-pastel.svg" alt=""></a><p class="footer-copy">Reviewed workflows. Honest gates. Clear status.</p></div>
+  </footer>
+  <script src="key-config.js"></script>
+  <script src="clerk.js"></script>
+  <script src="submissions.js"></script>
+</body>
+</html>

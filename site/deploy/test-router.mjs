@@ -650,6 +650,10 @@ const signupModalSource = fs.readFileSync(path.join(here, '..', 'signup-modal.js
 const sellSource = fs.readFileSync(path.join(here, '..', 'sell.html'), 'utf8');
 const hostSource = fs.readFileSync(path.join(here, '..', 'host.html'), 'utf8');
 const uploadSource = fs.readFileSync(path.join(here, '..', 'upload.js'), 'utf8');
+const submissionsPagePath = path.join(here, '..', 'submissions.html');
+const submissionsClientPath = path.join(here, '..', 'submissions.js');
+const submissionsPageSource = fs.existsSync(submissionsPagePath) ? fs.readFileSync(submissionsPagePath, 'utf8') : '';
+const submissionsClientSource = fs.existsSync(submissionsClientPath) ? fs.readFileSync(submissionsClientPath, 'utf8') : '';
 const catalogSandbox = { window: {} };
 vm.createContext(catalogSandbox);
 vm.runInContext(fs.readFileSync(path.join(here, '..', 'catalog.js'), 'utf8'), catalogSandbox, { filename: 'catalog.js' });
@@ -690,6 +694,33 @@ check('catalog cards: per-run prices render to two decimal places', indexSource.
 check('run page: compiled manifests drive typed form rendering and async polling', runPageSource.includes('listing.runManifest') && runPageSource.includes('resolveField') && runPageSource.includes('renderField') && runPageSource.includes('pollRun'));
 check('run page: textarea array inputs accept one item per line and examples preserve lines', runPageSource.includes("component: 'ArrayTextField'") && runPageSource.includes("value = multilineArrayValue(control.value)") && runPageSource.includes("values[key].join('\\n')"));
 check('run page: empty API base dispatches through the deployed same-origin Worker rewrite', runPageSource.includes("function workerBase() { return API_BASE || window.location.origin; }"));
+check('creator submissions page: dedicated authenticated owner index is wired from the upload page',
+  hostSource.includes('href="submissions.html"') &&
+  submissionsPageSource.includes('<script src="clerk.js"></script>') &&
+  submissionsPageSource.includes('<script src="submissions.js"></script>') &&
+  submissionsClientSource.includes('ClerkAuth.ensureLoaded') &&
+  submissionsClientSource.includes('ClerkAuth.onAuthChange') &&
+  submissionsClientSource.includes("fetch(apiBase() + '/api/submissions?limit=20'") &&
+  submissionsClientSource.includes("Authorization: 'Bearer ' + token"));
+check('creator submissions page: loading, signed-out, empty, error/retry, and populated states are explicit',
+  submissionsPageSource.includes('id="submissions-loading"') &&
+  submissionsPageSource.includes('id="submissions-signed-out"') &&
+  submissionsPageSource.includes('id="submissions-empty"') &&
+  submissionsPageSource.includes('id="submissions-error"') &&
+  submissionsPageSource.includes('id="submissions-list"') &&
+  submissionsPageSource.includes('id="submissions-retry"') &&
+  submissionsClientSource.includes("showState('loading')") &&
+  submissionsClientSource.includes("showState('signed-out')") &&
+  submissionsClientSource.includes("showState('empty')") &&
+  submissionsClientSource.includes("showState('error')") &&
+  submissionsClientSource.includes("showState('populated')"));
+check('creator submissions page: server rows link safely to the frozen detail route without localStorage',
+  submissionsClientSource.includes("'submission.html?id=' + encodeURIComponent(submission.id)") &&
+  submissionsClientSource.includes('textContent = submission.name') &&
+  submissionsClientSource.includes('statusLabel(submission.status)') &&
+  submissionsClientSource.includes('formatDate(submission.updated_at || submission.created_at)') &&
+  !submissionsClientSource.includes('localStorage') &&
+  !submissionsClientSource.includes('sessionStorage'));
 check('creator upload: seller CTA reaches a real file-reading authenticated queue with honest local-only rollout receipts', sellSource.includes('href="host.html#upload"') && hostSource.includes('id="upload-form"') && uploadSource.includes('await selectedFile.text()') && uploadSource.includes("fetch(apiBase() + '/api/submit'") && uploadSource.includes("Authorization: 'Bearer ' + token") && uploadSource.includes('if (isFilePreview())') && uploadSource.includes("error.code === 'queue_unavailable'") && uploadSource.includes('not the Markdown') && !uploadSource.includes('startProgress'));
 check('creator upload: browser persists only server submission ids and restores from owner APIs',
   uploadSource.includes("fetchJsonWithAuth('/api/submissions?limit=20')") &&
