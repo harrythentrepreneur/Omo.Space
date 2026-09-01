@@ -4570,7 +4570,9 @@ function recoveryCandidate(row) {
 function automaticRecoveryCandidateRow(row) {
   const failed = failedFinalizationRow(row);
   if (!failed) return null;
-  if (failed.attempts === 1 && !failed.modal_receipt_present && !failed.worker_receipt_present &&
+  const noEffectAttempt = failed.attempts === 1 ||
+    (failed.attempts === 2 && failed.failure_code === 'internal_finalizer_failed');
+  if (noEffectAttempt && !failed.modal_receipt_present && !failed.worker_receipt_present &&
       AUTO_RECOVERY_NO_EFFECT_CODES.has(failed.failure_code)) {
     return {
       target_sha: failed.target_sha, finalization_id: failed.id, mode: 'resume_no_effect',
@@ -4602,7 +4604,8 @@ async function internalAutomaticRecoveryCandidate(env) {
          AND release_head_sha = finalization_head_sha
          AND release_merge_sha = finalization_merge_sha
          AND release_artifact_hash = finalization_artifact_hash
-         AND ((finalization_attempts = 1 AND finalization_failure_code = ANY($1::text[])
+         AND ((((finalization_attempts = 1 AND finalization_failure_code = ANY($1::text[]))
+                 OR (finalization_attempts = 2 AND finalization_failure_code = 'internal_finalizer_failed'))
                AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL)
            OR (selected_runtime = 'modal-hosted' AND finalization_failure_code = ANY($2::text[])
                AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NOT NULL))
@@ -4619,7 +4622,8 @@ async function internalAutomaticRecoveryCandidate(env) {
          AND release_head_sha = finalization_head_sha
          AND release_merge_sha = finalization_merge_sha
          AND release_artifact_hash = finalization_artifact_hash
-         AND ((finalization_attempts = 1 AND finalization_failure_code IN (?, ?, ?, ?)
+         AND ((((finalization_attempts = 1 AND finalization_failure_code IN (?, ?, ?, ?))
+                 OR (finalization_attempts = 2 AND finalization_failure_code = 'internal_finalizer_failed'))
                AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL)
            OR (selected_runtime = 'modal-hosted' AND finalization_failure_code IN (?, ?, ?)
                AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NOT NULL))

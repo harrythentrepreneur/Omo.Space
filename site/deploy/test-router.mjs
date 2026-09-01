@@ -2225,6 +2225,15 @@ const internalNoEffectRecovery = await worker.fetch(mkReq(
 ), buildEnv);
 const internalNoEffectRecoveryBody = internalNoEffectRecovery.status === 200
   ? await internalNoEffectRecovery.json() : null;
+failedRecoveryRecord.finalization_attempts = 2;
+const internalSecondNoEffectRecovery = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
+), buildEnv);
+failedRecoveryRecord.finalization_attempts = 3;
+const internalThirdNoEffectRecovery = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/recovery-candidate', {}, finalizerHeaders
+), buildEnv);
+failedRecoveryRecord.finalization_attempts = 1;
 failedRecoveryRecord.finalization_failure_code = 'modal_preflight_failed';
 const builderRecoveryCandidate = await worker.fetch(mkReq(
   'POST', '/api/internal/finalizations/recovery-candidate', {}, internalHeaders
@@ -2244,6 +2253,8 @@ failedRecoveryRecord.finalization_attempts = 1;
 check('automatic finalization recovery candidate: finalizer-only bounded no-effect retry is offered once',
   builderRecoveryCandidate.status === 401 && recoveryCandidateExtra.status === 400 &&
   internalNoEffectRecovery.status === 200 &&
+  internalSecondNoEffectRecovery.status === 200 &&
+  internalThirdNoEffectRecovery.status === 204 &&
   internalNoEffectRecoveryBody.recovery.mode === 'resume_no_effect' &&
   internalNoEffectRecoveryBody.recovery.finalization_id === failedRecoveryRecord.finalization_id &&
   recoveryCandidateResponse.status === 200 && exhaustedRecoveryCandidate.status === 204 &&
