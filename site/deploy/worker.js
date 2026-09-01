@@ -5017,26 +5017,28 @@ async function internalFinalizationEligibility(env, targetSha, targets) {
     build_evidence,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,
     release_merge_sha,release_artifact_hash,finalization_status,finalization_target_sha,
     finalization_lease_expires_at`;
+  const canonicalOwner = 'user_prod_label_normalizer_canary_v1';
   const values = targets.flatMap((target) => [target.slug, target.source_sha256]);
   let rows;
   if (databaseKind(env) === 'neon') {
     const pairs = targets.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ');
+    const ownerParam = `$${values.length + 1}`;
     const result = await getNeonPool(env).query(prepared(
-      `omo-internal-finalization-eligibility-v2-${targets.length}`,
-      `SELECT ${columns} FROM submissions WHERE (published_slug, source_sha256) IN (${pairs}) ORDER BY published_slug ASC`,
-      values
+      `omo-internal-finalization-eligibility-v3-${targets.length}`,
+      `SELECT ${columns} FROM submissions WHERE user_id = ${ownerParam} AND (published_slug, source_sha256) IN (${pairs}) ORDER BY published_slug ASC`,
+      [...values, canonicalOwner]
     ));
     rows = result.rows || [];
   } else if (databaseKind(env) === 'd1') {
     const pairs = targets.map(() => '(published_slug = ? AND source_sha256 = ?)').join(' OR ');
     const result = await env.BALANCE_DB.prepare(
-      `SELECT ${columns} FROM submissions WHERE ${pairs} ORDER BY published_slug ASC`
-    ).bind(...values).all();
+      `SELECT ${columns} FROM submissions WHERE user_id = ? AND (${pairs}) ORDER BY published_slug ASC`
+    ).bind(canonicalOwner, ...values).all();
     rows = result.results || [];
   } else {
     const targetMap = new Map(targets.map((target) => [target.slug, target.source_sha256]));
     rows = Array.from(mockSubmissions.values())
-      .filter((row) => row && targetMap.has(row.published_slug)
+      .filter((row) => row && row.user_id === canonicalOwner && targetMap.has(row.published_slug)
         && targetMap.get(row.published_slug) === row.source_sha256)
       .sort((a, b) => String(a.published_slug).localeCompare(String(b.published_slug)));
   }
