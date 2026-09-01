@@ -1250,6 +1250,8 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
             "status": "seeded", "submissions": submissions,
             "eligibility": eligibility, "target_sha": result["target_sha"],
         }
+    if result.get("status") == "deployed":
+        return {**result, "eligibility": store.eligibility(result["target_sha"])}
     return result
 
 

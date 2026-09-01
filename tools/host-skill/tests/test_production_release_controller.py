@@ -1231,6 +1231,38 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
     }
 
 
+def test_run_once_deployed_includes_bounded_eligibility_snapshot(monkeypatch, tmp_path):
+    mod = load_module()
+    eligibility = [{
+        "submission_id": "sub_" + "2" * 32,
+        "slug": "v02-release-label-sorter",
+        "status": "ready_for_deploy",
+        "release_phase": "merged_verified",
+        "selected_runtime": "worker-native",
+        "claimable": False,
+    }]
+    store = SimpleNamespace(eligibility=lambda sha: eligibility if sha == SHA else None)
+    monkeypatch.setattr(mod, "GitHubMainlineAdapter", lambda *args: object())
+    monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token: store)
+    monkeypatch.setattr(mod, "ProductionModalAdapter", lambda env: object())
+    monkeypatch.setattr(mod, "ProductionCloudflareAdapter", lambda env: object())
+    monkeypatch.setattr(mod, "ProductionPublicAdapter", lambda store, key: object())
+    monkeypatch.setattr(mod, "recover_failed_before_run", lambda *args: None)
+    monkeypatch.setattr(mod, "run_finalizer", lambda *args, **kwargs: {
+        "status": "deployed", "submission_id": "sub_" + "3" * 32, "target_sha": SHA,
+    })
+
+    result = mod.run_once(SimpleNamespace(trigger_sha=SHA, run_id="1", run_attempt="1"), {
+        "GITHUB_WORKSPACE": str(tmp_path), "GITHUB_TOKEN": "token",
+        "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
+    })
+
+    assert result == {
+        "status": "deployed", "submission_id": "sub_" + "3" * 32,
+        "target_sha": SHA, "eligibility": eligibility,
+    }
+
+
 def test_cloudflare_builder_schedule_is_applied_and_read_back_exactly(monkeypatch):
     mod = load_module()
     responses = [
