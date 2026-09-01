@@ -77,6 +77,7 @@ SAFE_AUTHORING_REPAIR_CODES = frozenset({
 SAFE_FAILURE_STAGES = {
     "checkout", "processor_import", "claim", "source_validation",
     "private_handoff", "hermes", "hermes_profile_authoring", "hermes_profile_validation", "trusted_release", "release_evidence",
+    "release_merge_verification",
     "trusted_checkout_prepare", "trusted_processor_import",
     "trusted_adapter_init", "trusted_process_row",
     "trusted_compile", "trusted_register", "trusted_check", "worker_contracts",
@@ -155,10 +156,20 @@ image = (
 dispatches = modal.Dict.from_name(DISPATCH_STORE, create_if_missing=True)
 
 
-def expected_dispatch_id(submission_id: str, source_sha256: str, base_revision: str) -> str:
+BUILDER_PHASES = {"build", "verify_merged"}
+
+
+def claim_options_for_phase(phase: str) -> dict[str, bool]:
+    if phase not in BUILDER_PHASES:
+        raise ValueError("invalid builder phase")
+    return {"include_review": True, "include_ready": phase == "verify_merged"}
+
+
+def expected_dispatch_id(submission_id: str, source_sha256: str, base_revision: str, phase: str = "build") -> str:
+    claim_options_for_phase(phase)
     if not ID_RE.fullmatch(str(submission_id)) or not SHA_RE.fullmatch(str(source_sha256)) or not REVISION_RE.fullmatch(str(base_revision)):
         raise ValueError("invalid builder dispatch identity")
-    digest = hashlib.sha256(f"omo-modal-builder-v2\0{submission_id}\0{source_sha256}\0{base_revision}".encode()).hexdigest()
+    digest = hashlib.sha256(f"omo-modal-builder-v3\0{phase}\0{submission_id}\0{source_sha256}\0{base_revision}".encode()).hexdigest()
     return "dispatch_" + digest[:32]
 
 
@@ -177,7 +188,7 @@ def dispatch_is_duplicate(prior: Any, now: int) -> bool:
     return started_at > 0 and now - started_at < DISPATCH_LEASE_SECONDS
 
 
-def validate_job_identity(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str) -> None:
+def validate_job_identity(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str, phase: str = "build") -> None:
     if (
         not ID_RE.fullmatch(str(submission_id))
         or not SLUG_RE.fullmatch(str(slug))
@@ -185,13 +196,14 @@ def validate_job_identity(submission_id: str, slug: str, source_sha256: str, dis
         or not DISPATCH_RE.fullmatch(str(dispatch_id))
         or not REVISION_RE.fullmatch(str(base_revision))
         or str(base_revision) != ALLOWED_BASE_REVISION
-        or dispatch_id != expected_dispatch_id(submission_id, source_sha256, base_revision)
+        or phase not in BUILDER_PHASES
+        or dispatch_id != expected_dispatch_id(submission_id, source_sha256, base_revision, phase)
     ):
         raise ValueError("invalid builder job identity")
 
 
-def parse_dispatch_payload(payload: Mapping[str, Any]) -> tuple[str, str, str, str]:
-    expected_keys = {"submission_id", "slug", "source_sha256", "dispatch_id"}
+def parse_dispatch_payload(payload: Mapping[str, Any]) -> tuple[str, str, str, str, str]:
+    expected_keys = {"submission_id", "slug", "source_sha256", "dispatch_id", "phase"}
     if not isinstance(payload, Mapping) or set(payload) != expected_keys:
         raise ValueError("invalid builder dispatch payload")
     values = (
@@ -199,8 +211,9 @@ def parse_dispatch_payload(payload: Mapping[str, Any]) -> tuple[str, str, str, s
         str(payload["slug"]),
         str(payload["source_sha256"]),
         str(payload["dispatch_id"]),
+        str(payload["phase"]),
     )
-    validate_job_identity(*values, ALLOWED_BASE_REVISION)
+    validate_job_identity(*values[:4], ALLOWED_BASE_REVISION, values[4])
     return values
 
 
@@ -1356,10 +1369,17 @@ Keep every schema explicitly bounded and closed: every object must set `addition
 Do not choose or emit permanent credentials, credential names, providers, provider URLs, models, pricing authority, resource limits, runtime placement, deployment settings, release policy, generated runtime code, shell commands, Python, JavaScript, repository targets, branches, or revision pins. Do not write any other file. The trusted compiler owns identity, source binding, runtime behavior, resources, pricing, hosting, deployment and release settings. Your tools remain limited to file and skills."""
 
 
-def verified_completion(record: Mapping[str, Any] | None, submission_id: str, slug: str, source_sha256: str) -> bool:
+def verified_completion(
+    record: Mapping[str, Any] | None,
+    submission_id: str,
+    slug: str,
+    source_sha256: str,
+    phase: str = "build",
+) -> bool:
+    claim_options_for_phase(phase)
     if not isinstance(record, Mapping):
         return False
-    return bool(
+    base_complete = bool(
         record.get("id") == submission_id
         and record.get("slug") == slug
         and record.get("source_sha256") == source_sha256
@@ -1370,6 +1390,54 @@ def verified_completion(record: Mapping[str, Any] | None, submission_id: str, sl
         and record.get("release_pr_number")
         and record.get("release_branch")
     )
+    if not base_complete:
+        return False
+    if phase == "verify_merged":
+        return bool(
+            record.get("release_phase") == "merged_verified"
+            and REVISION_RE.fullmatch(str(record.get("release_merge_sha") or ""))
+        )
+    return True
+
+
+def verify_merged_release_phase(
+    processor: Any,
+    repository: Any,
+    submission_id: str,
+    adapter: Any | None = None,
+) -> str:
+    detail = repository.get(submission_id)
+    if not isinstance(detail, Mapping) or detail.get("id") != submission_id:
+        raise RuntimeError("release_evidence_missing")
+    published_slug = str(detail.get("published_slug") or "")
+    workflow_version = str(detail.get("workflow_version") or "")
+    build_evidence = detail.get("build_evidence")
+    if not SLUG_RE.fullmatch(published_slug) or not isinstance(build_evidence, Mapping):
+        raise RuntimeError("release_evidence_missing")
+    release_adapter = adapter or processor.GitHubReleaseAdapter()
+    try:
+        verified = release_adapter.verify_merged_release(processor.release_metadata_from_row(detail))
+    except RuntimeError as error:
+        if str(error) != "verified_merge_required":
+            raise
+        repository.set_deployment_metadata(
+            submission_id, "ready_for_deploy", published_slug, workflow_version, dict(build_evidence)
+        )
+        return "pending"
+    repository.set_deployment_metadata(
+        submission_id, "ready_for_deploy", published_slug, workflow_version, dict(build_evidence)
+    )
+    repository.set_release_metadata(submission_id, verified)
+    refreshed = repository.get(submission_id)
+    if not verified_completion(
+        refreshed,
+        submission_id,
+        str(detail.get("slug") or ""),
+        str(detail.get("source_sha256") or ""),
+        "verify_merged",
+    ):
+        raise RuntimeError("release_evidence_missing")
+    return "completed"
 
 
 def _safe_result(status: str, dispatch_id: str, submission_id: str, **extra: Any) -> dict[str, Any]:
@@ -1539,8 +1607,8 @@ def smoke() -> dict[str, Any]:
     single_use_containers=True,
 )
 @modal.concurrent(max_inputs=1)
-def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str) -> dict[str, Any]:
-    validate_job_identity(submission_id, slug, source_sha256, dispatch_id, base_revision)
+def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch_id: str, base_revision: str, phase: str = "build") -> dict[str, Any]:
+    validate_job_identity(submission_id, slug, source_sha256, dispatch_id, base_revision, phase)
     required = ("GEMINI_API_KEY", "BUILD_WORKER_BASE_URL", "BUILD_WORKER_TOKEN", "GH_TOKEN")
     if any(not os.environ.get(name) for name in required):
         raise RuntimeError("builder secret is incomplete")
@@ -1575,13 +1643,9 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
             stage = "processor_import"
             processor_path = checkout / "tools" / "host-skill" / "process-submissions.py"
             processor = load_processor_module(processor_path)
-            trusted_compiler = load_compiler_module(
-                checkout / "packages" / "skill-to-modal" / "compiler.py"
-            )
-            authoring_contract = compiler_validated_authoring_contract(trusted_compiler)
             repository = processor.repository_from_env(os.environ)
             stage = "claim"
-            row = repository.claim(submission_id, include_review=True)
+            row = repository.claim(submission_id, **claim_options_for_phase(phase))
             if not row:
                 raise RuntimeError("submission is not claimable")
             if row["id"] != submission_id or row["slug"] != slug or row["source_sha256"] != source_sha256:
@@ -1595,6 +1659,25 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 raise RuntimeError("claimed canonical identity mismatch")
             canonical_name = validated.name
 
+            if phase == "verify_merged":
+                stage = "release_merge_verification"
+                phase_status = verify_merged_release_phase(processor, repository, submission_id)
+                result = _safe_result(
+                    phase_status,
+                    dispatch_id,
+                    submission_id,
+                    returncode=0,
+                    **({"reason": "release_not_merged"} if phase_status == "pending" else {}),
+                )
+                dispatches[dispatch_id] = {
+                    **result, "started_at": now, "finished_at": int(time.time())
+                }
+                return result
+
+            trusted_compiler = load_compiler_module(
+                checkout / "packages" / "skill-to-modal" / "compiler.py"
+            )
+            authoring_contract = compiler_validated_authoring_contract(trusted_compiler)
             stage = "private_handoff"
             review_dir = checkout / ".omo-review"
             review_dir.mkdir(mode=0o700)
@@ -1734,11 +1817,17 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
                 return result
             stage = "release_evidence"
             detail = repository.get(submission_id)
-            if not verified_completion(detail, submission_id, slug, source_sha256):
+            if verified_completion(detail, submission_id, slug, source_sha256, phase):
+                result = _safe_result("completed", dispatch_id, submission_id, returncode=0, model=model)
+            elif phase == "verify_merged" and verified_completion(
+                detail, submission_id, slug, source_sha256, "build"
+            ):
+                result = _safe_result(
+                    "pending", dispatch_id, submission_id, returncode=0, reason="release_not_merged"
+                )
+            else:
                 repository.set_status(submission_id, "failed", "canary_or_internal_failed")
                 result = _safe_result("failed", dispatch_id, submission_id, returncode=0, reason="release_evidence_missing")
-            else:
-                result = _safe_result("completed", dispatch_id, submission_id, returncode=0, model=model)
             dispatches[dispatch_id] = {**result, "started_at": now, "finished_at": int(time.time())}
             return result
     except Exception as error:
@@ -1767,7 +1856,7 @@ def build_submission(submission_id: str, slug: str, source_sha256: str, dispatch
 def dispatch(payload: dict[str, Any]) -> dict[str, str]:
     """Authenticate a Cloudflare dispatch and spawn one idempotent builder job."""
     try:
-        submission_id, slug, source_sha256, dispatch_id = parse_dispatch_payload(payload)
+        submission_id, slug, source_sha256, dispatch_id, phase = parse_dispatch_payload(payload)
     except ValueError as error:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -1782,7 +1871,7 @@ def dispatch(payload: dict[str, Any]) -> dict[str, str]:
     }
     try:
         call = build_submission.spawn(
-            submission_id, slug, source_sha256, dispatch_id, ALLOWED_BASE_REVISION
+            submission_id, slug, source_sha256, dispatch_id, ALLOWED_BASE_REVISION, phase
         )
     except Exception:
         dispatches[dispatch_id] = {"status": "spawn_failed", "submission_id": submission_id}

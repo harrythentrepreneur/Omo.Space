@@ -2267,6 +2267,8 @@ def test_claim_sql_is_atomic_and_returns_only_processor_fields() -> None:
             assert "status = 'processing'" in query
             assert "build_claimed_at" in query
             assert "build_attempts" in query
+            normalized_query = " ".join(query.split())
+            assert "CASE WHEN candidate.prior_status = 'ready_for_deploy'" in normalized_query
             assert "build_evidence" in query
             assert "source_sha256" in query
             assert "RETURNING submission.id, submission.name, submission.slug, submission.content, submission.source_sha256, submission.requested_runtime, candidate.prior_status" in " ".join(query.split())

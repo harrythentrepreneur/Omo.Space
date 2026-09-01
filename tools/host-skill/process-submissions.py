@@ -661,7 +661,10 @@ class SubmissionRepository:
                 failure_code = NULL,
                 build_claimed_at = CURRENT_TIMESTAMP,
                 build_attempts = COALESCE(build_attempts, 0) + 1,
-                build_evidence = NULL,
+                build_evidence = CASE
+                  WHEN candidate.prior_status = 'ready_for_deploy' THEN submission.build_evidence
+                  ELSE NULL
+                END,
                 updated_at = CURRENT_TIMESTAMP
             FROM candidate
             WHERE submission.id = candidate.id

@@ -77,17 +77,26 @@ def test_job_identity_is_exact_and_source_scoped() -> None:
     submission_id = "sub_abcdefgh12345678"
     source_hash = "a" * 64
     revision = builder.ALLOWED_BASE_REVISION
-    dispatch_id = builder.expected_dispatch_id(submission_id, source_hash, revision)
-    builder.validate_job_identity(submission_id, "safe-skill", source_hash, dispatch_id, revision)
+    dispatch_id = builder.expected_dispatch_id(submission_id, source_hash, revision, "build")
+    builder.validate_job_identity(submission_id, "safe-skill", source_hash, dispatch_id, revision, "build")
     assert dispatch_id.startswith("dispatch_")
-    assert dispatch_id != builder.expected_dispatch_id(submission_id, "b" * 64, revision)
-    assert dispatch_id != builder.expected_dispatch_id(submission_id, source_hash, "d" * 40)
+    assert dispatch_id != builder.expected_dispatch_id(submission_id, "b" * 64, revision, "build")
+    assert dispatch_id != builder.expected_dispatch_id(submission_id, source_hash, "d" * 40, "build")
+    assert dispatch_id != builder.expected_dispatch_id(submission_id, source_hash, revision, "verify_merged")
+
+
+def test_dispatch_phase_scopes_ready_claims_without_widening_build() -> None:
+    builder = load_builder()
+    assert builder.claim_options_for_phase("build") == {"include_review": True, "include_ready": False}
+    assert builder.claim_options_for_phase("verify_merged") == {"include_review": True, "include_ready": True}
+    with pytest.raises(ValueError, match="invalid builder phase"):
+        builder.claim_options_for_phase("deploy")
 
 
 def test_job_identity_rejects_mismatched_dispatch() -> None:
     builder = load_builder()
     try:
-        builder.validate_job_identity("sub_abcdefgh12345678", "safe-skill", "a" * 64, "dispatch_" + "b" * 32, "c" * 40)
+        builder.validate_job_identity("sub_abcdefgh12345678", "safe-skill", "a" * 64, "dispatch_" + "b" * 32, "c" * 40, "build")
     except ValueError as error:
         assert str(error) == "invalid builder job identity"
     else:
@@ -97,9 +106,9 @@ def test_job_identity_rejects_mismatched_dispatch() -> None:
 def test_job_identity_rejects_unpinned_revision() -> None:
     builder = load_builder()
     revision = "c" * 40
-    dispatch_id = builder.expected_dispatch_id("sub_abcdefgh12345678", "a" * 64, revision)
+    dispatch_id = builder.expected_dispatch_id("sub_abcdefgh12345678", "a" * 64, revision, "build")
     try:
-        builder.validate_job_identity("sub_abcdefgh12345678", "safe-skill", "a" * 64, dispatch_id, revision)
+        builder.validate_job_identity("sub_abcdefgh12345678", "safe-skill", "a" * 64, dispatch_id, revision, "build")
     except ValueError as error:
         assert str(error) == "invalid builder job identity"
     else:
@@ -115,10 +124,11 @@ def test_dispatch_payload_is_exact_and_identifier_only() -> None:
         "submission_id": submission_id,
         "slug": "safe-skill",
         "source_sha256": source_hash,
-        "dispatch_id": builder.expected_dispatch_id(submission_id, source_hash, revision),
+        "dispatch_id": builder.expected_dispatch_id(submission_id, source_hash, revision, "verify_merged"),
+        "phase": "verify_merged",
     }
     assert builder.parse_dispatch_payload(payload) == (
-        submission_id, "safe-skill", source_hash, payload["dispatch_id"]
+        submission_id, "safe-skill", source_hash, payload["dispatch_id"], "verify_merged"
     )
     for forbidden in ("content", "user_id", "profile", "model", "token", "base_revision"):
         poisoned = dict(payload, **{forbidden: "not-allowed"})
@@ -1367,13 +1377,84 @@ def test_completion_requires_release_and_runtime_evidence() -> None:
         "release_pr_number": 2,
         "release_branch": "workflow/safe-skill",
     }
-    assert builder.verified_completion(complete, submission_id, "safe-skill", source_hash)
+    assert builder.verified_completion(complete, submission_id, "safe-skill", source_hash, "build")
+    assert not builder.verified_completion(complete, submission_id, "safe-skill", source_hash, "verify_merged")
+    merged = dict(complete, release_phase="merged_verified", release_merge_sha="b" * 40)
+    assert builder.verified_completion(merged, submission_id, "safe-skill", source_hash, "verify_merged")
     for field in ("release_issue_url", "release_pr_url", "release_pr_number", "release_branch"):
         incomplete = dict(complete)
         incomplete[field] = None
-        assert not builder.verified_completion(incomplete, submission_id, "safe-skill", source_hash)
+        assert not builder.verified_completion(incomplete, submission_id, "safe-skill", source_hash, "build")
     incomplete = dict(complete, status="needs_review")
-    assert not builder.verified_completion(incomplete, submission_id, "safe-skill", source_hash)
+    assert not builder.verified_completion(incomplete, submission_id, "safe-skill", source_hash, "build")
+
+
+def test_postmerge_verifier_uses_stored_release_and_restores_retryable_state() -> None:
+    builder = load_builder()
+    submission_id = "sub_abcdefgh12345678"
+    source_hash = "a" * 64
+    detail = {
+        "id": submission_id,
+        "slug": "safe-skill",
+        "source_sha256": source_hash,
+        "status": "processing",
+        "selected_runtime": "worker-native",
+        "published_slug": "safe-skill",
+        "workflow_version": "safe-skill@1",
+        "build_evidence": {"checks": ["pytest"], "source_sha256": source_hash},
+        "release_phase": "pr_open",
+        "release_issue_url": "https://github.com/example/repo/issues/1",
+        "release_pr_url": "https://github.com/example/repo/pull/2",
+        "release_pr_number": 2,
+        "release_branch": "omo-release/sub_abcdefgh12345678-safe-skill",
+        "release_head_sha": "b" * 40,
+        "release_artifact_hash": "c" * 64,
+    }
+
+    class Repository:
+        def __init__(self) -> None:
+            self.detail = dict(detail)
+            self.release_writes: list[dict] = []
+
+        def get(self, _submission_id):
+            return dict(self.detail)
+
+        def set_deployment_metadata(self, _submission_id, status, published_slug, workflow_version, build_evidence):
+            self.detail.update(status=status, published_slug=published_slug, workflow_version=workflow_version,
+                               build_evidence=build_evidence)
+
+        def set_release_metadata(self, _submission_id, metadata):
+            self.release_writes.append(dict(metadata))
+            self.detail.update(release_phase=metadata["release_phase"],
+                               release_merge_sha=metadata.get("merge_sha"),
+                               release_head_sha=metadata.get("head_sha"))
+
+    class Processor:
+        @staticmethod
+        def release_metadata_from_row(row):
+            return {"release_phase": row["release_phase"], "pr_number": row["release_pr_number"]}
+
+    class PendingAdapter:
+        @staticmethod
+        def verify_merged_release(_metadata):
+            raise RuntimeError("verified_merge_required")
+
+    pending_repository = Repository()
+    assert builder.verify_merged_release_phase(Processor, pending_repository, submission_id, PendingAdapter()) == "pending"
+    assert pending_repository.detail["status"] == "ready_for_deploy"
+    assert pending_repository.detail["build_evidence"] == detail["build_evidence"]
+    assert pending_repository.release_writes == []
+
+    class MergedAdapter:
+        @staticmethod
+        def verify_merged_release(_metadata):
+            return {"release_phase": "merged_verified", "merge_sha": "d" * 40, "head_sha": "b" * 40}
+
+    merged_repository = Repository()
+    assert builder.verify_merged_release_phase(Processor, merged_repository, submission_id, MergedAdapter()) == "completed"
+    assert merged_repository.detail["status"] == "ready_for_deploy"
+    assert merged_repository.detail["release_phase"] == "merged_verified"
+    assert merged_repository.detail["release_merge_sha"] == "d" * 40
 
 
 def test_modal_disk_request_stays_within_workspace_limit() -> None:
@@ -1402,6 +1483,9 @@ def test_build_submission_loads_trusted_compiler_before_untrusted_authoring() ->
 
     assert "trusted_compiler = load_compiler_module(" in build_body
     assert "authoring_contract = compiler_validated_authoring_contract(trusted_compiler)" in build_body
+    verify_branch = build_body.index('if phase == "verify_merged":')
+    verify_return = build_body.index("return result", verify_branch)
+    assert verify_return < build_body.index("trusted_compiler = load_compiler_module(")
     assert build_body.index("trusted_compiler = load_compiler_module(") < build_body.index(
         "authoring_contract = compiler_validated_authoring_contract(trusted_compiler)"
     )
@@ -1675,6 +1759,7 @@ def test_dispatch_reservation_lease_recovers_stale_jobs() -> None:
     assert not builder.dispatch_is_duplicate({"status": "accepted", "started_at": now - lease}, now)
     assert not builder.dispatch_is_duplicate({"status": "running", "started_at": now - lease - 1}, now)
     assert builder.dispatch_is_duplicate({"status": "completed", "started_at": 0}, now)
+    assert not builder.dispatch_is_duplicate({"status": "pending", "started_at": now}, now)
     assert not builder.dispatch_is_duplicate({"status": "failed", "started_at": now}, now)
     assert not builder.dispatch_is_duplicate({"status": "spawn_failed", "started_at": now}, now)
     assert not builder.dispatch_is_duplicate(None, now)
@@ -1686,9 +1771,13 @@ def test_safe_failure_stage_is_allowlisted() -> None:
     release_safe = builder._safe_result(
         "failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="release_issue_lookup"
     )
+    merged_verify_safe = builder._safe_result(
+        "failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="release_merge_verification"
+    )
     unsafe = builder._safe_result("failed", "dispatch_" + "a" * 32, "sub_abcdefgh12345678", stage="secret-value")
     assert safe["stage"] == "claim"
     assert release_safe["stage"] == "release_issue_lookup"
+    assert merged_verify_safe["stage"] == "release_merge_verification"
     assert "stage" not in unsafe
 
 
