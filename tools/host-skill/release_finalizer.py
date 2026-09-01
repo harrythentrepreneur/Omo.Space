@@ -272,12 +272,15 @@ def _verify_provenance(
                 },
             )
             promoted = compiler.promote_generated_candidate_for_release(assembled)
+            runtime_resolved = dict(promoted)
+            if promoted.get("runtime_preference") == "auto":
+                runtime_resolved["runtime_preference"] = claim.runtime
         except (UnicodeDecodeError, json.JSONDecodeError, UnicodeEncodeError, ValueError):
             raise FinalizerError("artifact_hash_mismatch") from None
         except Exception:
             raise FinalizerError("artifact_hash_mismatch") from None
         if (
-            profile not in (assembled, promoted)
+            profile not in (assembled, promoted, runtime_resolved)
             or
             hashlib.sha256(receipt_raw).hexdigest() != digest
             or assembled.get("authoring_spec_version") != profile.get("authoring_spec_version")
