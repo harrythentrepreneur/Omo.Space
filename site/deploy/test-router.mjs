@@ -199,6 +199,7 @@ let neonQueryFailureFragment = '';
 let neonInfoSchemaTableExists = false;
 let neonInfoSchemaColumns = [];
 let neonApprovalRow = null;
+let neonReleaseVerificationSourceRow = null;
 let neonReleaseVerificationRetryRow = null;
 let neonInternalClaimRow = null;
 let neonInternalDetailRow = null;
@@ -445,8 +446,10 @@ const sandbox = {
         values,
         name: text.includes('WITH updated AS') && text.includes("failure_code = 'slug_collision'")
           ? 'omo-submission-approve-v1'
-          : text.includes("SET status = 'ready_for_deploy'") && text.includes("release_phase IN ('pr_open', 'ci_passed')")
-            ? 'omo-submission-retry-release-verification-v1'
+          : text.includes("SET status = 'ready_for_deploy'") && text.includes('release_phase = $3')
+            ? 'omo-submission-retry-release-verification-v2'
+          : text.includes('SELECT id,name,slug,status') && text.includes('FROM submissions WHERE id = $1 AND user_id = $2')
+            ? 'omo-submission-approval-state-v1'
           : text.includes('UPDATE submissions') && text.includes('failure_code IN') && text.includes("status = 'queued'")
             ? 'omo-submission-retry-v3'
             : text.includes("SELECT id,slug,source_sha256,selected_runtime") && text.includes('WHERE id = $1')
@@ -492,9 +495,15 @@ const sandbox = {
       if (entry.name === 'omo-submission-approve-v1' || entry.name === 'omo-submission-retry-v3') {
         return neonApprovalRow ? { rows: [neonApprovalRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      if (entry.name === 'omo-submission-retry-release-verification-v1') {
+      if (entry.name === 'omo-submission-retry-release-verification-v2') {
         return neonReleaseVerificationRetryRow
           ? { rows: [neonReleaseVerificationRetryRow], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+      if (entry.name === 'omo-submission-approval-state-v1') {
+        const ownerStateRow = neonReleaseVerificationSourceRow || neonApprovalRow;
+        return ownerStateRow
+          ? { rows: [ownerStateRow], rowCount: 1 }
           : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-internal-submission-detail-v1') {
@@ -1401,6 +1410,45 @@ check('submission retry: reviewed PR verification failure resumes without rebuil
   retryReleaseVerificationRecord.release_head_sha === 'f'.repeat(40) &&
   retryReleaseVerificationRecord.release_artifact_hash === 'e'.repeat(64));
 
+const malformedReleaseResumeCases = [
+  ['sub_retryreleasebadbuild0000000001', { build_evidence: '{}' }],
+  ['sub_retryreleasebadissue0000000001', { release_issue_url: 'https://example.invalid/issues/304' }],
+  ['sub_retryreleasebadpr0000000000001', { release_pr_url: 'https://example.invalid/pull/305' }],
+  ['sub_retryreleasebadbranch000000001', { release_branch: 'bad release branch' }],
+  ['sub_retryreleasebadslug00000000001', { published_slug: '../bad' }],
+  ['sub_retryreleasebadpolicy000000001', { runtime_policy: 'BAD POLICY' }],
+  ['sub_retryreleasebadversion00000001', { workflow_version: 'not-a-version' }],
+];
+const malformedReleaseResumeResponses = [];
+for (const [id, override] of malformedReleaseResumeCases) {
+  const record = {
+    ...retryRecord,
+    id,
+    slug: 'v02-release-label-sorter',
+    sourceSha256: 'd'.repeat(64),
+    source_sha256: 'd'.repeat(64),
+    status: 'failed',
+    failure_code: 'canary_or_internal_failed',
+    workflow_version: 'v02-release-label-sorter@1',
+    published_slug: 'v02-release-label-sorter',
+    build_evidence: JSON.stringify({ checks: ['generated_contracts'] }),
+    release_phase: 'pr_open',
+    release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/304',
+    release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/305',
+    release_pr_number: 305,
+    release_branch: `omo-release/${id}-v02-release-label-sorter`,
+    release_head_sha: 'f'.repeat(40),
+    release_artifact_hash: 'e'.repeat(64),
+    ...override,
+  };
+  workerTest.mockSubmissions.set(`user_creator\u0000${id}`, record);
+  const response = await worker.fetch(mkReq('POST', `/api/submissions/${id}/retry`, {}, creatorHeaders), realEnv);
+  malformedReleaseResumeResponses.push({ id, response, record });
+}
+check('submission retry: malformed non-null release evidence fails closed before any resume transition',
+  malformedReleaseResumeResponses.every(({ response, record }) =>
+    response.status === 409 && record.status === 'failed' && record.failure_code === 'canary_or_internal_failed'));
+
 const retryCanaryRecord = {
   ...retryRecord,
   id: 'sub_retrycanary000000000000000001',
@@ -1604,7 +1652,7 @@ const retryD1UpdateCalls = d1RetryCalls.filter((call) =>
   call.text.includes("failure_code IN ('build_or_deploy_failed', 'canary_or_internal_failed', 'profile_identity_mismatch')")
 );
 const retryD1ResumeCalls = d1RetryCalls.filter((call) =>
-  call.text.includes("SET status = 'ready_for_deploy'") && call.text.includes("release_phase IN ('pr_open', 'ci_passed')")
+  call.text.includes("SET status = 'ready_for_deploy'") && call.text.includes('release_phase = ?')
 );
 check('submission retry: D1 permits only reviewed rows with the three gated failure codes',
   retryD1CanaryResponse.status === 200 &&
@@ -1623,10 +1671,15 @@ check('submission retry: D1 resumes reviewed PR verification without clearing re
   retryD1ReleaseVerificationBody.submission.status === 'ready_for_deploy' &&
   retryD1ReleaseVerificationBody.submission.release.phase === 'pr_open' &&
   retryD1ReleaseVerificationBody.submission.release.pr_number === 305 &&
-  retryD1ResumeCalls.length >= 3 &&
-  retryD1ResumeCalls.every((call) => call.text.includes("failure_code = 'canary_or_internal_failed'")) &&
-  retryD1ResumeCalls.every((call) => call.text.includes('release_head_sha')) &&
-  retryD1ResumeCalls.every((call) => call.text.includes('release_artifact_hash')));
+  retryD1ResumeCalls.length === 1 &&
+  retryD1ResumeCalls[0].text.includes("failure_code = 'canary_or_internal_failed'") &&
+  retryD1ResumeCalls[0].text.includes('release_head_sha = ?') &&
+  retryD1ResumeCalls[0].text.includes('release_artifact_hash = ?') &&
+  retryD1ResumeCalls[0].values[3] === 'pr_open' &&
+  retryD1ResumeCalls[0].values[4] === retryReleaseVerificationRecord.source_sha256 &&
+  retryD1ResumeCalls[0].values[9] === retryReleaseVerificationRecord.build_evidence &&
+  retryD1ResumeCalls[0].values[15] === retryReleaseVerificationRecord.release_artifact_hash &&
+  retryD1ResumeCalls[0].values[16] === retryReleaseVerificationRecord.slug);
 
 neonSqlCalls.length = 0;
 neonApprovalRow = {
@@ -1665,20 +1718,27 @@ check('submission retry: Neon uses one atomic guarded UPDATE and ignores client 
   JSON.stringify(neonSqlCalls).includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') === false);
 
 neonSqlCalls.length = 0;
-const retryNeonReleaseRecord = {
+const retryNeonReleaseSourceRecord = {
   ...retryReleaseVerificationRecord,
   id: 'sub_retryneonreleaseverify00000001',
-  status: 'ready_for_deploy',
-  failure_code: null,
+  status: 'failed',
+  failure_code: 'canary_or_internal_failed',
   release_branch: 'omo-release/sub_retryneonreleaseverify00000001-v02-release-label-sorter',
 };
+const retryNeonReleaseRecord = {
+  ...retryNeonReleaseSourceRecord,
+  status: 'ready_for_deploy',
+  failure_code: null,
+};
+neonReleaseVerificationSourceRow = retryNeonReleaseSourceRecord;
 neonReleaseVerificationRetryRow = retryNeonReleaseRecord;
 const retryNeonReleaseResponse = await worker.fetch(
   mkReq('POST', `/api/submissions/${retryNeonReleaseRecord.id}/retry`, {}, creatorHeaders),
   { ...realEnv, NEON_DATABASE_URL: 'postgres://approval-user:***@db.invalid/omo' }
 );
 const retryNeonReleaseBody = await retryNeonReleaseResponse.json();
-const retryNeonReleaseCall = neonSqlCalls.find((call) => call.name === 'omo-submission-retry-release-verification-v1');
+const retryNeonReleaseCall = neonSqlCalls.find((call) => call.name === 'omo-submission-retry-release-verification-v2');
+neonReleaseVerificationSourceRow = null;
 neonReleaseVerificationRetryRow = null;
 check('submission retry: Neon atomically resumes reviewed PR verification and returns preserved provenance',
   retryNeonReleaseResponse.status === 200 &&
@@ -1687,12 +1747,16 @@ check('submission retry: Neon atomically resumes reviewed PR verification and re
   retryNeonReleaseBody.submission.release.pr_number === 305 &&
   retryNeonReleaseCall &&
   retryNeonReleaseCall.text.includes("failure_code = 'canary_or_internal_failed'") &&
-  retryNeonReleaseCall.text.includes("release_phase IN ('pr_open', 'ci_passed')") &&
+  retryNeonReleaseCall.text.includes('release_phase = $3') &&
   retryNeonReleaseCall.text.includes('RETURNING') &&
-  retryNeonReleaseCall.text.includes('release_artifact_hash') &&
+  retryNeonReleaseCall.text.includes('release_artifact_hash = $15') &&
   retryNeonReleaseCall.values[0] === retryNeonReleaseRecord.id &&
   retryNeonReleaseCall.values[1] === 'user_creator' &&
-  retryNeonReleaseCall.values[2] === '');
+  retryNeonReleaseCall.values[2] === 'pr_open' &&
+  retryNeonReleaseCall.values[3] === retryNeonReleaseSourceRecord.source_sha256 &&
+  retryNeonReleaseCall.values[8] === retryNeonReleaseSourceRecord.build_evidence &&
+  retryNeonReleaseCall.values[14] === retryNeonReleaseSourceRecord.release_artifact_hash &&
+  retryNeonReleaseCall.values[15] === retryNeonReleaseSourceRecord.slug);
 
 // Private build-worker bridge: bearer-only, no CORS, bounded strict payloads.
 const buildEnv = {
