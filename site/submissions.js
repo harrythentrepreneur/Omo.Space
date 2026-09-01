@@ -14,6 +14,8 @@
   var signInButton = document.getElementById('submissions-sign-in');
   var errorMessage = document.getElementById('submissions-error-message');
   var requestId = 0;
+  var PAGE_SIZE = 50;
+  var MAX_PAGES = 100;
 
   if (!list) return;
 
@@ -40,16 +42,29 @@
     return labels[status] || 'Submitted';
   }
 
-  function formatDate(value) {
+  function formatDate(value, label) {
     var date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Recently updated';
+    if (Number.isNaN(date.getTime())) return label + ' time unavailable';
     try {
-      return 'Updated ' + new Intl.DateTimeFormat(undefined, {
-        month: 'short', day: 'numeric', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric'
+      return label + ' ' + new Intl.DateTimeFormat(undefined, {
+        month: 'short', day: 'numeric', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+        hour: 'numeric', minute: '2-digit'
       }).format(date);
     } catch (error) {
-      return 'Recently updated';
+      return label + ' ' + date.toLocaleString();
     }
+  }
+
+  function visibilityText(value) {
+    return value === 'public' ? 'Marketplace' : 'Visibility unavailable';
+  }
+
+  function runtimeDecisionText(submission) {
+    if (!submission.selected_runtime) return 'Runtime pending review';
+    var runtime = submission.selected_runtime === 'worker-native' ? 'Worker native' : 'Modal hosted';
+    return submission.runtime_policy
+      ? runtime + ' · ' + String(submission.runtime_policy).replace(/[_:-]+/g, ' ')
+      : runtime;
   }
 
   function sessionToken() {
@@ -62,12 +77,12 @@
     });
   }
 
-  function fetchSubmissions() {
-    return sessionToken().then(function (token) {
-      return fetch(apiBase() + '/api/submissions?limit=20', {
-        method: 'GET',
-        headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
-      });
+  function fetchSubmissionPage(token, cursor) {
+    var path = '/api/submissions?limit=' + PAGE_SIZE;
+    if (cursor) path += '&cursor=' + encodeURIComponent(cursor);
+    return fetch(apiBase() + path, {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (body) {
         if (!response.ok) {
@@ -75,8 +90,29 @@
           error.status = response.status;
           throw error;
         }
-        return Array.isArray(body.submissions) ? body.submissions : [];
+        return {
+          submissions: Array.isArray(body.submissions) ? body.submissions : [],
+          next_cursor: typeof body.next_cursor === 'string' && body.next_cursor ? body.next_cursor : null
+        };
       });
+    });
+  }
+
+  function fetchSubmissions() {
+    return sessionToken().then(function (token) {
+      var submissions = [];
+      var seenCursors = new Set();
+      function loadPage(cursor, pageNumber) {
+        if (pageNumber >= MAX_PAGES) throw new Error('Your submission history is unusually large. Refresh and try again.');
+        return fetchSubmissionPage(token, cursor).then(function (page) {
+          submissions.push.apply(submissions, page.submissions);
+          if (!page.next_cursor) return submissions;
+          if (seenCursors.has(page.next_cursor)) throw new Error('Submission history pagination could not advance safely.');
+          seenCursors.add(page.next_cursor);
+          return loadPage(page.next_cursor, pageNumber + 1);
+        });
+      }
+      return loadPage(null, 0);
     });
   }
 
@@ -95,17 +131,27 @@
       var name = document.createElement('p');
       name.className = 'submission-name';
       name.textContent = submission.name;
+      var slug = document.createElement('p');
+      slug.className = 'submission-slug';
+      slug.textContent = submission.slug;
       var meta = document.createElement('div');
       meta.className = 'submission-meta';
       var badge = document.createElement('span');
       badge.className = 'status-badge';
       badge.dataset.status = String(submission.status || '');
       badge.textContent = statusLabel(submission.status);
+      var visibility = document.createElement('span');
+      visibility.textContent = visibilityText(submission.visibility);
+      var runtime = document.createElement('span');
+      runtime.textContent = runtimeDecisionText(submission);
+      var submitted = document.createElement('time');
+      submitted.dateTime = submission.created_at || '';
+      submitted.textContent = formatDate(submission.created_at, 'Submitted');
       var updated = document.createElement('time');
-      updated.dateTime = submission.updated_at || submission.created_at || '';
-      updated.textContent = formatDate(submission.updated_at || submission.created_at);
-      meta.append(badge, updated);
-      content.append(name, meta);
+      updated.dateTime = submission.updated_at || '';
+      updated.textContent = formatDate(submission.updated_at, 'Updated');
+      meta.append(badge, visibility, runtime, submitted, updated);
+      content.append(name, slug, meta);
 
       var arrow = document.createElement('span');
       arrow.className = 'row-arrow';

@@ -71,8 +71,9 @@
     .submission-row:first-child { border-top: 0; }
     .submission-link { min-height: 106px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 21px clamp(20px, 4vw, 34px); text-decoration: none; transition: background .12s ease; }
     .submission-link:hover { background: #F8FBF8; }
-    .submission-name { margin: 0 0 8px; font-size: 18px; font-weight: 700; line-height: 1.3; }
-    .submission-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--moss); font-size: 13px; }
+    .submission-name { margin: 0 0 3px; font-size: 18px; font-weight: 700; line-height: 1.3; }
+    .submission-slug { margin: 0 0 9px; color: var(--moss); font: 500 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+    .submission-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; color: var(--moss); font-size: 13px; }
     .status-badge { display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px; background: var(--mint); color: var(--pine); font-size: 12px; font-weight: 700; }
     .status-badge[data-status="failed"] { background: #FFE0D4; color: var(--danger); }
     .status-badge[data-status="deployed"] { background: var(--deep-pine); color: #fff; }

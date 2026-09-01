@@ -700,7 +700,8 @@ check('creator submissions page: dedicated authenticated owner index is wired fr
   submissionsPageSource.includes('<script src="submissions.js"></script>') &&
   submissionsClientSource.includes('ClerkAuth.ensureLoaded') &&
   submissionsClientSource.includes('ClerkAuth.onAuthChange') &&
-  submissionsClientSource.includes("fetch(apiBase() + '/api/submissions?limit=20'") &&
+  submissionsClientSource.includes("var PAGE_SIZE = 50") &&
+  submissionsClientSource.includes("next_cursor") &&
   submissionsClientSource.includes("Authorization: 'Bearer ' + token"));
 check('creator submissions page: loading, signed-out, empty, error/retry, and populated states are explicit',
   submissionsPageSource.includes('id="submissions-loading"') &&
@@ -717,8 +718,12 @@ check('creator submissions page: loading, signed-out, empty, error/retry, and po
 check('creator submissions page: server rows link safely to the frozen detail route without localStorage',
   submissionsClientSource.includes("'submission.html?id=' + encodeURIComponent(submission.id)") &&
   submissionsClientSource.includes('textContent = submission.name') &&
+  submissionsClientSource.includes('textContent = submission.slug') &&
+  submissionsClientSource.includes("visibilityText(submission.visibility)") &&
+  submissionsClientSource.includes("runtimeDecisionText(submission)") &&
+  submissionsClientSource.includes("formatDate(submission.created_at, 'Submitted')") &&
+  submissionsClientSource.includes("formatDate(submission.updated_at, 'Updated')") &&
   submissionsClientSource.includes('statusLabel(submission.status)') &&
-  submissionsClientSource.includes('formatDate(submission.updated_at || submission.created_at)') &&
   !submissionsClientSource.includes('localStorage') &&
   !submissionsClientSource.includes('sessionStorage'));
 check('creator upload: seller CTA reaches a real file-reading authenticated queue with honest local-only rollout receipts', sellSource.includes('href="host.html#upload"') && hostSource.includes('id="upload-form"') && uploadSource.includes('await selectedFile.text()') && uploadSource.includes("fetch(apiBase() + '/api/submit'") && uploadSource.includes("Authorization: 'Bearer ' + token") && uploadSource.includes('if (isFilePreview())') && uploadSource.includes("error.code === 'queue_unavailable'") && uploadSource.includes('not the Markdown') && !uploadSource.includes('startProgress'));
@@ -1126,7 +1131,19 @@ check('submissions list: authenticated owner receives newest-first bounded safe 
   submissionsList.submissions[0].selected_runtime === 'modal-hosted' &&
   submissionsList.submissions[0].compatibility.compatible === true &&
   submissionsList.submissions[0].build_evidence.checks.includes('compile') &&
+  submissionsList.submissions[0].visibility === 'public' &&
+  typeof submissionsList.next_cursor === 'string' && submissionsList.next_cursor.length > 10 &&
   !('content' in submissionsList.submissions[0]));
+
+const submissionsSecondResponse = await worker.fetch(mkReq(
+  'GET', `/api/submissions?limit=1&cursor=${encodeURIComponent(submissionsList.next_cursor)}`, {}, creatorHeaders
+), realEnv);
+const submissionsSecond = await submissionsSecondResponse.json();
+check('submissions list: opaque cursor traverses complete owner history without duplicate rows',
+  submissionsSecondResponse.status === 200 && submissionsSecond.ok === true &&
+  submissionsSecond.submissions.length === 1 &&
+  submissionsSecond.submissions[0].id !== submissionsList.submissions[0].id &&
+  submissionsSecond.submissions[0].visibility === 'public');
 
 const submissionDetailResponse = await worker.fetch(mkReq('GET', `/api/submissions/${submitAdded.id}`, {}, creatorHeaders), realEnv);
 const submissionDetail = await submissionDetailResponse.json();

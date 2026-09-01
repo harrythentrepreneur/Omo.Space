@@ -2310,11 +2310,18 @@ async function handleSubmissions(request, env, url) {
   const auth = await authenticateAccount(request, env, false);
   if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status, cors());
   const limit = boundedInt(url.searchParams && url.searchParams.get('limit'), 1, 50, 20);
-  const rows = await listSubmissions(env, auth.userId, limit);
+  const rawCursor = String(url.searchParams && url.searchParams.get('cursor') || '').trim();
+  const cursor = parseSubmissionCursor(rawCursor);
+  if (rawCursor && !cursor) return json({ ok: false, error: 'invalid_submission_cursor' }, 400, cors());
+  const rows = await listSubmissions(env, auth.userId, limit + 1, cursor);
+  const hasMore = rows.length > limit;
+  const pageRows = rows.slice(0, limit);
   return json({
     ok: true,
     limit,
-    submissions: rows.map(publicSubmission),
+    has_more: hasMore,
+    next_cursor: hasMore ? submissionCursor(pageRows[pageRows.length - 1]) : null,
+    submissions: pageRows.map(publicSubmission),
   }, 200, cors());
 }
 
@@ -2371,6 +2378,21 @@ async function handleSubmissionRetry(request, env, _url, params) {
   }, 200, cors(request, env));
 }
 
+function parseSubmissionCursor(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (text.length > 180 || text.split('~').length !== 2) return null;
+  const [createdAt, id] = text.split('~');
+  if (!safeTimestamp(createdAt) || Number.isNaN(new Date(createdAt).getTime()) || !safeSubmissionId(id)) return null;
+  return { created_at: createdAt, id };
+}
+
+function submissionCursor(row) {
+  const createdAt = safeTimestamp(row && row.created_at);
+  const id = safeSubmissionId(row && row.id);
+  return createdAt && id ? `${createdAt}~${id}` : null;
+}
+
 function publicSubmission(row) {
   const selectedRuntime = safeRuntime(row.selected_runtime);
   const status = safeSubmissionStatus(row.status);
@@ -2378,6 +2400,7 @@ function publicSubmission(row) {
     id: String(row.id || ''),
     name: String(row.name || ''),
     slug: String(row.slug || ''),
+    visibility: 'public',
     status,
     requested_runtime: normalizeRequestedRuntime(row.requested_runtime || 'auto') || 'auto',
     selected_runtime: selectedRuntime,
@@ -6152,24 +6175,41 @@ async function getSubmissionApprovalState(env, userId, submissionId, requiredSlu
   return row && (!exactSlug || row.slug === exactSlug) ? row : null;
 }
 
-async function listSubmissions(env, userId, limit) {
+async function listSubmissions(env, userId, limit, cursor = null) {
   const columns = 'id,name,slug,status,requested_runtime,selected_runtime,runtime_policy,runtime_compatibility,source_sha256,failure_code,workflow_version,published_slug,created_at,updated_at,approved_at,approved_by,approval_reason,deployed_at,build_evidence,release_phase,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,release_merge_sha,release_artifact_hash,modal_app,modal_url,canary_evidence,promotion_evidence';
   if (databaseKind(env) === 'neon') {
-    const result = await getNeonPool(env).query(prepared(
-      'omo-submissions-list-v1',
-      `SELECT ${columns} FROM submissions WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`,
-      [userId, limit]
-    ));
+    const result = cursor
+      ? await getNeonPool(env).query(prepared(
+        'omo-submissions-list-cursor-v1',
+        `SELECT ${columns} FROM submissions
+         WHERE user_id = $1 AND (created_at < $2 OR (created_at = $2 AND id < $3))
+         ORDER BY created_at DESC, id DESC LIMIT $4`,
+        [userId, cursor.created_at, cursor.id, limit]
+      ))
+      : await getNeonPool(env).query(prepared(
+        'omo-submissions-list-v1',
+        `SELECT ${columns} FROM submissions WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`,
+        [userId, limit]
+      ));
     return result.rows;
   }
   if (databaseKind(env) === 'd1') {
-    const result = await env.BALANCE_DB
-      .prepare(`SELECT ${columns} FROM submissions WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`)
-      .bind(userId, limit).all();
+    const statement = cursor
+      ? env.BALANCE_DB
+        .prepare(`SELECT ${columns} FROM submissions
+                  WHERE user_id = ? AND (created_at < ? OR (created_at = ? AND id < ?))
+                  ORDER BY created_at DESC, id DESC LIMIT ?`)
+        .bind(userId, cursor.created_at, cursor.created_at, cursor.id, limit)
+      : env.BALANCE_DB
+        .prepare(`SELECT ${columns} FROM submissions WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`)
+        .bind(userId, limit);
+    const result = await statement.all();
     return (result && result.results) || [];
   }
   return Array.from(mockSubmissions.values())
     .filter((record) => record.userId === userId || record.user_id === userId)
+    .filter((record) => !cursor || String(record.created_at || '') < cursor.created_at ||
+      (String(record.created_at || '') === cursor.created_at && String(record.id || '') < cursor.id))
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id || '').localeCompare(String(a.id || '')))
     .slice(0, limit);
 }
