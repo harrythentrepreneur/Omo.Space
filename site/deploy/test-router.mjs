@@ -3697,6 +3697,7 @@ check('internal finalization eligibility: Neon and D1 bind exact target pairs wi
   neonEligibility.length === 1 && neonEligibility[0].claimable === true &&
   !neonEligibilityCall.text.includes('user_id =') &&
   neonEligibilityCall.text.includes('(published_slug, source_sha256) IN (($1, $2))') &&
+  neonEligibilityCall.text.includes('created_at::timestamptz >= $3::timestamptz') &&
   JSON.stringify(neonEligibilityCall.values) === JSON.stringify([
     'v02-release-label-sorter', 'a'.repeat(64), '2020-01-01T00:00:00Z',
   ]) &&
@@ -3708,6 +3709,7 @@ check('internal finalization eligibility: Neon and D1 bind exact target pairs wi
   ]) &&
   workerSrc.includes('`omo-internal-finalization-eligibility-v3-${targets.length}`') &&
   workerSrc.includes('`omo-internal-finalization-claim-v3-${targets.length}`') &&
+  workerSrc.includes('created_at::timestamptz >= $3::timestamptz') &&
   !neonEligibilityCall.text.includes('content'));
 const malformedEligibilityRecord = {
   ...backendEligibilityRow,
