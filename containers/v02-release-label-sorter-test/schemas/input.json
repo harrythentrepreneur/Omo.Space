@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "labels": {
+      "items": {
+        "maxLength": 60,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 12,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "labels"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,211 @@
+{
+  "apt_packages": [],
+  "artifacts": [],
+  "authoring_spec_sha256": "bdb001f69fa3b55c8b0912a21bc88127094ca200e8f9a070898d1fa9be71b8b4",
+  "authoring_spec_version": "omo.profile-authoring-spec/v2",
+  "capabilities": [],
+  "cost_drivers": [
+    "bounded deterministic CPU"
+  ],
+  "execution_kind": "pure_data",
+  "form": [
+    {
+      "field": "labels",
+      "widget": "textarea"
+    }
+  ],
+  "happy_path": {
+    "input": {
+      "labels": [
+        " Stable ",
+        "alpha",
+        "Beta"
+      ]
+    },
+    "output": {
+      "sorted_labels": [
+        "alpha",
+        "Beta",
+        "Stable"
+      ],
+      "status": "completed"
+    }
+  },
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "labels"
+    ],
+    "type": "object"
+  },
+  "inputs": [
+    "labels: 1 to 12 bounded strings"
+  ],
+  "marketplace": {
+    "catalog_managed": true,
+    "category": "ops",
+    "demo_cap": "Run reviewed example",
+    "description": "Clean and deterministically sort a bounded list of release labels for a production lifecycle proof.",
+    "emoji": "🏷️",
+    "example_in": "{\n  \"labels\": [\n    \" Stable \",\n    \"alpha\",\n    \"Beta\"\n  ]\n}",
+    "example_out": [
+      "cleaned sorted labels"
+    ],
+    "inputs": [
+      "labels: 1 to 12 bounded strings"
+    ],
+    "maker": "Submitted skill",
+    "maker_name": "Submitted skill",
+    "niche": "productivity",
+    "outputs": [
+      "cleaned sorted labels"
+    ],
+    "promise": "Return a deterministic sorted label list.",
+    "slug": "v02-release-label-sorter-test",
+    "storefront_visible": true,
+    "tags": [
+      "text",
+      "deterministic",
+      "labels"
+    ],
+    "title": "V02 Release Label Sorter Test",
+    "version": "1.0.0"
+  },
+  "name": "V02 Release Label Sorter Test",
+  "negative_cases": [
+    {
+      "id": "empty",
+      "input": {
+        "labels": [
+          " "
+        ]
+      },
+      "reason": "INVALID_VALUE"
+    }
+  ],
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "sorted_labels": {
+        "items": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      }
+    },
+    "required": [
+      "sorted_labels",
+      "status"
+    ],
+    "type": "object"
+  },
+  "outputs": [
+    "cleaned sorted labels"
+  ],
+  "pricing": {
+    "chargeable": true,
+    "default_tier": "deterministic",
+    "estimates": [
+      {
+        "guard_cost_usd": 0.02,
+        "notes": [
+          "zero provider calls"
+        ],
+        "tier": "deterministic",
+        "workflow": {
+          "steps": []
+        }
+      }
+    ],
+    "quote_status": "reviewed_deterministic",
+    "unpriced_costs": []
+  },
+  "prompts": {},
+  "pure_data_program": {
+    "limits": {
+      "max_input_bytes": 8192,
+      "max_list_items": 12,
+      "max_output_bytes": 8192,
+      "max_steps": 4,
+      "max_text_bytes": 60
+    },
+    "result": "result",
+    "spec_version": "omo.pure-data/v1",
+    "steps": [
+      {
+        "id": "labels",
+        "op": "input.get",
+        "path": "/labels"
+      },
+      {
+        "id": "clean",
+        "input": "labels",
+        "op": "text_list.normalize_ascii",
+        "reject_control_characters": true,
+        "reject_empty": true,
+        "trim_ascii_whitespace": true
+      },
+      {
+        "id": "sorted",
+        "input": "clean",
+        "key": "ascii_case_insensitive",
+        "op": "text_list.sort_ascii",
+        "tie_break": "ascii_bytes"
+      },
+      {
+        "fields": {
+          "sorted_labels": {
+            "ref": "sorted"
+          },
+          "status": {
+            "const": "completed"
+          }
+        },
+        "id": "result",
+        "op": "result.object"
+      }
+    ]
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true
+  },
+  "required_env_names": [],
+  "resources": {
+    "cpu": 0.25,
+    "max_containers": 1,
+    "memory_mb": 512,
+    "timeout_seconds": 30
+  },
+  "reviewed_source_sha256": "fe59ced44b15bf574dd6df387b8f4f08554f54b2bf2d878ff60e05faeee5578f",
+  "runtime_preference": "auto",
+  "slug": "v02-release-label-sorter-test",
+  "steps": [
+    {
+      "id": "execute",
+      "operation": "pure_data.execute",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "version": "1.0.0"
+}

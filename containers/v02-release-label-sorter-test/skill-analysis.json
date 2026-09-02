@@ -1,0 +1,28 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.7.0",
+  "cost_drivers": [
+    "bounded deterministic CPU"
+  ],
+  "description": "Clean and deterministically sort a bounded list of release labels for a production lifecycle proof.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "V02 Release Label Sorter Test",
+  "parsed_workflow_steps": [],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "execute",
+      "operation": "pure_data.execute",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "v02-release-label-sorter-test",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "fe59ced44b15bf574dd6df387b8f4f08554f54b2bf2d878ff60e05faeee5578f"
+  },
+  "unresolved": []
+}
