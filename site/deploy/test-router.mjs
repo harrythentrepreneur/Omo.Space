@@ -493,7 +493,7 @@ const sandbox = {
               : text.includes("SET status = 'ready_for_deploy'") && text.includes("release_phase = 'merged_verified'")
                 ? 'omo-internal-resume-merged-release-v1'
               : text.includes('SELECT 1 AS ok FROM submissions') && text.includes("finalization_status = 'verifying_public'")
-                ? 'omo-production-canary-active-claim-v1'
+                ? 'omo-production-canary-active-claim-v2'
                 : null,
         connectionString,
       };
@@ -558,7 +558,7 @@ const sandbox = {
       if (entry.name === 'omo-internal-finalization-effect-modal_deploy-v1' || entry.name === 'omo-internal-finalization-effect-worker_deploy-v1') {
         return neonFinalizationEffectRow ? { rows: [neonFinalizationEffectRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      if (entry.name === 'omo-production-canary-active-claim-v1') {
+      if (entry.name === 'omo-production-canary-active-claim-v2') {
         return neonProductionCanaryClaimRow
           ? { rows: [neonProductionCanaryClaimRow], rowCount: 1 }
           : { rows: [], rowCount: 0 };
@@ -663,18 +663,14 @@ const fairnessLeastRecent = {
 };
 workerTest.mockSubmissions.set(fairnessOlderCreated.id, fairnessOlderCreated);
 workerTest.mockSubmissions.set(fairnessLeastRecent.id, fairnessLeastRecent);
-const fairnessCandidate = await workerTest.internalPeekBuilderSubmission(
-  {}, 'verify_merged', fairnessLeastRecent.id
-);
-check('post-merge verifier scope: the configured ready row wins even when another row is older',
+const fairnessCandidate = await workerTest.internalPeekBuilderSubmission({}, 'verify_merged');
+check('post-merge verifier fairness: least recently updated ready row wins in mock ordering',
   fairnessCandidate.id === fairnessLeastRecent.id);
-check('builder scope: Neon and D1 selectors bind the exact submission in both phases',
-  workerSrc.includes("omo-internal-builder-peek-verify-scoped-v1") &&
-  workerSrc.includes("omo-internal-builder-peek-build-scoped-v1") &&
-  workerSrc.includes("WHERE status IN ($1, $2) AND id = $3") &&
-  workerSrc.includes("release_artifact_hash IS NOT NULL AND id = $1") &&
-  workerSrc.includes("WHERE status IN (?, ?) AND id = ?") &&
-  workerSrc.includes("release_artifact_hash IS NOT NULL AND id = ?"));
+check('post-merge verifier fairness: Neon and D1 use phase-specific oldest-update ordering',
+  (workerSrc.match(/ORDER BY updated_at ASC/g) || []).length >= 2 &&
+  workerSrc.includes("omo-internal-builder-peek-verify-v1") &&
+  workerSrc.includes("omo-internal-builder-peek-build-v1") &&
+  workerSrc.includes("String(a.updated_at || '').localeCompare(String(b.updated_at || ''))"));
 workerTest.mockSubmissions.delete(fairnessOlderCreated.id);
 workerTest.mockSubmissions.delete(fairnessLeastRecent.id);
 
@@ -1925,6 +1921,7 @@ const buildEnv = {
   ...realEnv,
   BUILD_WORKER_TOKEN: 'bridge-token-for-tests',
   RELEASE_FINALIZER_TOKEN: 'finalizer-token-for-tests',
+  OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z',
 };
 const internalHeaders = { Authorization: 'Bearer bridge-token-for-tests', Origin: 'https://omo.space' };
 const finalizerHeaders = { Authorization: 'Bearer finalizer-token-for-tests', Origin: 'https://omo.space' };
@@ -2488,7 +2485,7 @@ check('internal deployment: builder cannot bypass atomic finalization and promot
 const finalizationCandidateId = 'sub_finalizationlease0001';
 const finalizationCandidateRecord = {
   id: finalizationCandidateId,
-  user_id: 'user_prod_label_normalizer_canary_v1',
+  user_id: 'user_creator_release_owner',
   name: 'Lease Workflow',
   slug: 'lease-workflow',
   content: '# Lease Workflow\n',
@@ -2518,10 +2515,50 @@ workerTest.mockSubmissions.set(finalizationShadowId, {
   ...finalizationCandidateRecord,
   id: finalizationShadowId,
   user_id: 'user_private',
+  source_sha256: 'c'.repeat(64),
+  build_evidence: JSON.stringify({ checks: ['compile'], source_sha256: 'c'.repeat(64) }),
   created_at: '2026-08-19T00:00:00Z',
   release_branch: 'omo-release/' + finalizationShadowId + '-lease-workflow',
 });
 workerTest.mockSubmissions.set(finalizationCandidateId, finalizationCandidateRecord);
+const genericFinalizationNewer = {
+  ...finalizationCandidateRecord,
+  id: 'sub_genericfinalnewer001', user_id: 'user_other_release_owner',
+  slug: 'generic-newer', published_slug: 'generic-newer', source_sha256: 'a'.repeat(64),
+  workflow_version: 'generic-newer@1.0.0',
+  build_evidence: JSON.stringify({ checks: ['compile'], source_sha256: 'a'.repeat(64) }),
+  release_branch: 'omo-release/sub_genericfinalnewer001-generic-newer',
+  created_at: '2026-08-22T00:00:00Z', updated_at: '2026-08-22T00:00:00Z',
+};
+const genericFinalizationOlder = {
+  ...genericFinalizationNewer,
+  id: 'sub_genericfinalolder001', user_id: 'user_third_release_owner',
+  slug: 'generic-older', published_slug: 'generic-older', source_sha256: 'b'.repeat(64),
+  workflow_version: 'generic-older@1.0.0',
+  build_evidence: JSON.stringify({ checks: ['compile'], source_sha256: 'b'.repeat(64) }),
+  release_branch: 'omo-release/sub_genericfinalolder001-generic-older',
+  created_at: '2026-08-18T00:00:00Z', updated_at: '2026-08-18T00:00:00Z',
+};
+workerTest.mockSubmissions.set(genericFinalizationNewer.id, genericFinalizationNewer);
+workerTest.mockSubmissions.set(genericFinalizationOlder.id, genericFinalizationOlder);
+const historicalFinalizationClaim = await workerTest.internalClaimFinalization({
+  ...buildEnv, OMO_BUILDER_AUTONOMY_AFTER: '2026-09-02T16:37:18Z',
+}, '0'.repeat(40), [
+  { slug: 'generic-newer', source_sha256: 'a'.repeat(64) },
+  { slug: 'generic-older', source_sha256: 'b'.repeat(64) },
+]);
+const genericFinalizationClaim = await workerTest.internalClaimFinalization(buildEnv, '0'.repeat(40), [
+  { slug: 'generic-newer', source_sha256: 'a'.repeat(64) },
+  { slug: 'generic-older', source_sha256: 'b'.repeat(64) },
+]);
+check('internal finalization claim: any owner is eligible and exactly one oldest target-pair row is claimed',
+  historicalFinalizationClaim === null &&
+  genericFinalizationClaim?.submission_id === genericFinalizationOlder.id &&
+  genericFinalizationOlder.finalization_status === 'claimed' &&
+  genericFinalizationNewer.finalization_status == null &&
+  !('user_id' in genericFinalizationClaim) && !('content' in genericFinalizationClaim));
+workerTest.mockSubmissions.delete(genericFinalizationNewer.id);
+workerTest.mockSubmissions.delete(genericFinalizationOlder.id);
 const completedFinalizationId = 'sub_completedfinalization01';
 const completedFinalizationRecord = {
   id: completedFinalizationId,
@@ -2547,6 +2584,7 @@ const completedFinalizationRecord = {
   finalization_artifact_hash: '9'.repeat(64),
   finalization_lease_expires_at: '2099-08-21T00:00:00Z',
   finalization_attempts: 1,
+  created_at: '2026-08-20T00:00:00Z',
 };
 workerTest.mockSubmissions.set(completedFinalizationId, completedFinalizationRecord);
 const builderResumeCompleted = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-completed', {
@@ -2556,6 +2594,9 @@ const resumeCompleted = await worker.fetch(mkReq('POST', '/api/internal/finaliza
   target_sha: '3'.repeat(40),
 }, finalizerHeaders), buildEnv);
 const resumeCompletedBody = await resumeCompleted.json();
+const historicalCompletedResume = await workerTest.internalResumeCompletedFinalization({
+  ...buildEnv, OMO_BUILDER_AUTONOMY_AFTER: '2026-09-02T16:37:18Z',
+}, '3'.repeat(40));
 completedFinalizationRecord.status = 'deployed';
 const deployedResumeCompleted = await worker.fetch(mkReq('POST', '/api/internal/finalizations/resume-completed', {
   target_sha: '3'.repeat(40),
@@ -2564,6 +2605,7 @@ const deployedResumeCompletedBody = await deployedResumeCompleted.json();
 completedFinalizationRecord.status = 'ready_for_publish';
 check('internal completed finalization resume: finalizer-only receipt prefers publish-ready and confirms exact-target deployed rows',
   builderResumeCompleted.status === 401 &&
+  historicalCompletedResume === null &&
   resumeCompleted.status === 200 &&
   resumeCompletedBody.finalization.id === completedFinalizationRecord.finalization_id &&
   resumeCompletedBody.finalization.status === 'completed' &&
@@ -2574,14 +2616,14 @@ check('internal completed finalization resume: finalizer-only receipt prefers pu
 neonSqlCalls.length = 0;
 neonCompletedFinalizationRow = { ...completedFinalizationRecord };
 const neonCompletedResume = await workerTest.internalResumeCompletedFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, '3'.repeat(40)
+  { NEON_DATABASE_URL: 'postgres://example', OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, '3'.repeat(40)
 );
 const neonCompletedResumeCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-resume-completed-v1');
 check('internal completed finalization resume: empty result is idle rather than an exception',
   workerTest.completedFinalizationRow(null) === null);
 check('internal completed finalization resume Neon: exact target and immutable completed guards are parameterized',
   workerTest.completedFinalizationRow(neonCompletedResume).status === 'completed' &&
-  neonCompletedResumeCall.values.length === 1 &&
+  neonCompletedResumeCall.values.length === 2 &&
   neonCompletedResumeCall.values[0] === '3'.repeat(40) &&
   neonCompletedResumeCall.text.includes("status IN ('ready_for_publish', 'deployed')") &&
   neonCompletedResumeCall.text.includes("release_phase = 'promoted'") &&
@@ -2607,9 +2649,13 @@ const failedRecoveryRecord = {
   finalization_merge_sha: 'c'.repeat(40), finalization_artifact_hash: 'd'.repeat(64),
   finalization_lease_expires_at: '2026-08-21T00:00:00Z', finalization_attempts: 1,
   finalization_modal_receipt: null, finalization_worker_receipt: null,
+  created_at: '2026-08-20T00:00:00Z',
   updated_at: '2026-08-21T00:00:00Z', automation_updated_at: '2026-08-21T00:00:00Z',
 };
 workerTest.mockSubmissions.set(failedRecoveryRecord.id, failedRecoveryRecord);
+const historicalRecoveryCandidate = await workerTest.internalAutomaticRecoveryCandidate({
+  ...buildEnv, OMO_BUILDER_AUTONOMY_AFTER: '2026-09-02T16:37:18Z',
+});
 const typedPreflightInspections = [];
 for (const failureCode of ['modal_preflight_failed', 'worker_preflight_failed', 'public_preflight_failed']) {
   failedRecoveryRecord.finalization_failure_code = failureCode;
@@ -2651,6 +2697,7 @@ const exhaustedRecoveryCandidate = await worker.fetch(mkReq(
 ), buildEnv);
 failedRecoveryRecord.finalization_attempts = 1;
 check('automatic finalization recovery candidate: finalizer-only bounded no-effect retry is offered once',
+  historicalRecoveryCandidate === null &&
   builderRecoveryCandidate.status === 401 && recoveryCandidateExtra.status === 400 &&
   internalNoEffectRecovery.status === 200 &&
   internalSecondNoEffectRecovery.status === 200 &&
@@ -2673,7 +2720,7 @@ recoveryCandidateD1.exec(`CREATE TABLE submissions (
   finalization_source_sha256 TEXT, finalization_head_sha TEXT, finalization_merge_sha TEXT,
   finalization_artifact_hash TEXT, finalization_attempts INTEGER, finalization_failure_code TEXT,
   finalization_modal_receipt TEXT, finalization_worker_receipt TEXT, finalization_recovery_receipt TEXT,
-  automation_updated_at TEXT
+  automation_updated_at TEXT, created_at TEXT
 )`);
 const recoveryD1Keys = Object.keys(failedRecoveryRecord).filter((key) => [
   'id', 'slug', 'selected_runtime', 'status', 'release_phase', 'source_sha256',
@@ -2681,18 +2728,20 @@ const recoveryD1Keys = Object.keys(failedRecoveryRecord).filter((key) => [
   'finalization_status', 'finalization_target_sha', 'finalization_source_sha256',
   'finalization_head_sha', 'finalization_merge_sha', 'finalization_artifact_hash',
   'finalization_attempts', 'finalization_failure_code', 'finalization_modal_receipt',
-  'finalization_worker_receipt', 'finalization_recovery_receipt', 'automation_updated_at',
+  'finalization_worker_receipt', 'finalization_recovery_receipt', 'automation_updated_at', 'created_at',
 ].includes(key));
 recoveryCandidateD1.prepare(
   `INSERT INTO submissions (${recoveryD1Keys.join(',')}) VALUES (${recoveryD1Keys.map(() => '?').join(',')})`
 ).run(...recoveryD1Keys.map((key) => failedRecoveryRecord[key]));
 const d1AutomaticCandidate = await workerTest.internalAutomaticRecoveryCandidate({
   BALANCE_DB: sqliteD1Binding(recoveryCandidateD1),
+  OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z',
 });
 neonSqlCalls.length = 0;
 neonRecoveryCandidateRows = [{ ...failedRecoveryRecord, modal_receipt_present: false, worker_receipt_present: false }];
 const neonAutomaticCandidate = await workerTest.internalAutomaticRecoveryCandidate({
   NEON_DATABASE_URL: 'postgres://example',
+  OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z',
 });
 const neonAutomaticCandidateCall = neonSqlCalls.find(
   (call) => call.name === 'omo-internal-finalization-recovery-candidate-v1'
@@ -2701,7 +2750,7 @@ check('automatic finalization recovery candidate: D1 matches bounded mock decisi
   JSON.stringify(d1AutomaticCandidate) === JSON.stringify(recoveryCandidateBody.recovery));
 check('automatic finalization recovery candidate: Neon matches bounded mock decision and bounded SQL',
   JSON.stringify(neonAutomaticCandidate) === JSON.stringify(recoveryCandidateBody.recovery) &&
-  neonAutomaticCandidateCall?.values.length === 2 &&
+  neonAutomaticCandidateCall?.values.length === 3 &&
   neonAutomaticCandidateCall?.text.includes('finalization_attempts = 1') &&
   neonAutomaticCandidateCall?.text.includes('LIMIT 32'));
 neonRecoveryCandidateRows = [];
@@ -2945,25 +2994,25 @@ neonSqlCalls.length = 0;
 neonFailedFinalizationRow = { ...receiptBearingFailed, release_merge_sha: 'c'.repeat(40),
   modal_receipt_present: false, worker_receipt_present: true };
 const neonFailedInspect = await workerTest.internalInspectFailedFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, '5'.repeat(40)
+  { NEON_DATABASE_URL: 'postgres://example', OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, '5'.repeat(40)
 );
 const neonFailedInspectCall = neonSqlCalls.at(-1);
 const neonFailedGenerationInspect = await workerTest.internalInspectFailedFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, '5'.repeat(40), receiptBearingFailed.finalization_id
+  { NEON_DATABASE_URL: 'postgres://example', OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, '5'.repeat(40), receiptBearingFailed.finalization_id
 );
 const neonFailedGenerationInspectCall = neonSqlCalls.at(-1);
 neonFailedResumeRow = { ...failedRecoveryRecord, finalization_id: 'fin_' + '7'.repeat(32),
   finalization_failure_code: 'unknown_preflight_failure', finalization_target_sha: '7'.repeat(40),
   finalization_attempts: 4, finalization_lease_expires_at: '2099-08-21T00:00:00Z' };
 const neonUnknownFailedResumed = await workerTest.internalResumeFailedFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, '7'.repeat(40), 'fin_' + '7'.repeat(32)
+  { NEON_DATABASE_URL: 'postgres://example', OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, '7'.repeat(40), 'fin_' + '7'.repeat(32)
 );
 neonFailedResumeRow = { ...failedRecoveryRecord, finalization_id: 'fin_' + '6'.repeat(32),
   finalization_failure_code: 'modal_preflight_failed',
   finalization_target_sha: '6'.repeat(40), finalization_attempts: 4,
   finalization_lease_expires_at: '2099-08-21T00:00:00Z' };
 const neonFailedResumed = await workerTest.internalResumeFailedFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, '6'.repeat(40), 'fin_' + '6'.repeat(32)
+  { NEON_DATABASE_URL: 'postgres://example', OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, '6'.repeat(40), 'fin_' + '6'.repeat(32)
 );
 const neonFailedResumeCall = neonSqlCalls.find((call) =>
   call.name === 'omo-internal-finalization-resume-failed-v1' && call.values[0] === '6'.repeat(40)
@@ -2975,7 +3024,7 @@ check('failed finalization Neon SQL: exact target, allowlisted failure, complete
   neonFailedInspectCall.name === 'omo-internal-finalization-failed-by-target-v1' &&
   neonFailedGenerationInspectCall.name === 'omo-internal-finalization-failed-by-generation-v1' &&
   neonFailedInspectCall.values[0] === '5'.repeat(40) &&
-  neonFailedInspectCall.values.length === 1 && neonFailedGenerationInspectCall.values.length === 2 &&
+  neonFailedInspectCall.values.length === 2 && neonFailedGenerationInspectCall.values.length === 3 &&
   !neonFailedInspectCall.text.includes('finalization_id = $2') &&
   neonFailedGenerationInspectCall.text.includes('finalization_id = $2') &&
   neonFailedInspectCall.text.includes('source_sha256 = finalization_source_sha256') &&
@@ -3008,11 +3057,11 @@ neonFailedFinalizationRow = {
 };
 neonRecoveryRow = { id: rollbackRecord.id };
 const neonRecovered = await workerTest.internalRecoverRolledBackFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, rollbackTarget, 'fin_' + '8'.repeat(32)
+  { NEON_DATABASE_URL: 'postgres://example', OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, rollbackTarget, 'fin_' + '8'.repeat(32)
 );
 const neonRecoveryCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-recover-rolled-back-v1');
 check('receipt-aware rollback recovery Neon: exact immutable CAS stores evidence once and clears active generation',
-  neonRecovered === true && neonRecoveryCall.values.length === 11 &&
+  neonRecovered === true && neonRecoveryCall.values.length === 12 &&
   neonRecoveryCall.values[3] === rollbackTarget &&
   neonRecoveryCall.values[2] === 'fin_' + '8'.repeat(32) &&
   JSON.parse(neonRecoveryCall.values[0])[1].verified_by === 'trusted_production_finalizer' &&
@@ -3181,6 +3230,11 @@ const modalReceipt = workerTest.safeDeploymentReceipt({
   target_sha: 'f'.repeat(40), artifact_hash: 'd'.repeat(64), version_id: 'modal-v2',
   previous_version_id: 'modal-v1', reused: false, rollback_token: 'modal-v1', status: 'passed',
 }, 'modal_deploy', 'f'.repeat(40));
+const firstModalReceipt = workerTest.safeDeploymentReceipt({
+  provider: 'modal', target: 'cognition-first-generated', environment: 'main',
+  target_sha: 'f'.repeat(40), artifact_hash: 'd'.repeat(64), version_id: 'modal-v1',
+  previous_version_id: null, reused: false, rollback_token: null, status: 'passed',
+}, 'modal_deploy', 'f'.repeat(40));
 const modalEffectRecorded = await workerTest.internalRecordFinalizationEffect(
   buildEnv, modalEffectRecord.finalization_id, 'modal_deploy', modalEffectRecord.finalization_target_sha, modalReceipt
 );
@@ -3189,6 +3243,7 @@ const modalEffectAfterCompletion = await workerTest.internalRecordFinalizationEf
   buildEnv, modalEffectRecord.finalization_id, 'modal_deploy', modalEffectRecord.finalization_target_sha, modalReceipt
 );
 check('internal finalization Modal effect: exact main identity persists and completed generation is immutable',
+  firstModalReceipt?.previous_version_id === null && firstModalReceipt?.reused === false &&
   modalEffectRecorded === 'recorded' && modalEffectAfterCompletion === 'invalid' &&
   JSON.parse(modalEffectRecord.finalization_modal_receipt).target === 'cognition-label-normalizer-canary');
 
@@ -3283,6 +3338,20 @@ const generatedClaimWrongIdRequest = mkReq('GET', '/api/run/run_generatedclaim',
 const mockGeneratedClaim = await workerTest.activeGeneratedCanaryClaim(
   generatedClaimRequest, productionCanaryEnv, 'gemini-ticket-priority-canary'
 );
+const productionCanaryModalClaim = {
+  ...productionCanaryGeminiClaim,
+  id: 'sub_productioncanarymodalclaim', published_slug: 'customer-feedback-theme-finder',
+  selected_runtime: 'modal-hosted',
+};
+workerTest.mockSubmissions.set(productionCanaryModalClaim.id, productionCanaryModalClaim);
+const mockGeneratedModalClaim = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimRequest, productionCanaryEnv, 'customer-feedback-theme-finder'
+);
+productionCanaryModalClaim.selected_runtime = 'worker-native';
+const mockWrongModalRuntime = await workerTest.activeGeneratedCanaryClaim(
+  generatedClaimRequest, productionCanaryEnv, 'customer-feedback-theme-finder'
+);
+workerTest.mockSubmissions.delete(productionCanaryModalClaim.id);
 const mockWrongIdClaim = await workerTest.activeGeneratedCanaryClaim(
   generatedClaimWrongIdRequest, productionCanaryEnv, 'gemini-ticket-priority-canary'
 );
@@ -3325,10 +3394,12 @@ const neonGeneratedClaim = await workerTest.activeGeneratedCanaryClaim(
   'gemini-ticket-priority-canary'
 );
 const neonGeneratedClaimCall = neonSqlCalls.slice(neonCallStart).find(
-  (entry) => entry.name === 'omo-production-canary-active-claim-v1'
+  (entry) => entry.name === 'omo-production-canary-active-claim-v2'
 );
 neonProductionCanaryClaimRow = null;
 check('production canary claim: mock binds exact slug artifact and target', mockGeneratedClaim === true);
+check('production canary claim: exact active Modal registry and runtime are authorized',
+  mockGeneratedModalClaim === true && mockWrongModalRuntime === false);
 check('production canary claim: mock rejects stale generation and malformed lease',
   mockWrongIdClaim === false && mockMalformedLeaseClaim === false);
 check('production canary claim: D1 binds exact claim and rejects wrong target',
@@ -3337,7 +3408,7 @@ check('production canary claim: D1 binds exact claim and rejects wrong target',
 check('production canary claim: Neon binds exact claim', neonGeneratedClaim === true);
 check('production canary claim: Neon query parameters bind slug artifact and target',
   JSON.stringify(neonGeneratedClaimCall?.values) === JSON.stringify([
-    'gemini-ticket-priority-canary', 'b'.repeat(64), 'a'.repeat(40), 'fin_' + 'a'.repeat(32),
+    'gemini-ticket-priority-canary', 'b'.repeat(64), 'a'.repeat(40), 'fin_' + 'a'.repeat(32), 'worker-native',
   ]) && neonGeneratedClaimCall?.text.includes('CASE WHEN') &&
   neonGeneratedClaimCall?.text.includes('(0[1-9]|1[0-2])'));
 workerTest.mockSubmissions.delete(productionCanaryGeminiClaim.id);
@@ -3520,6 +3591,7 @@ check('internal finalization failure: exact generation records one typed safe te
 const eligibilityTarget = 'e'.repeat(40);
 workerTest.mockSubmissions.set('eligibility-pure', {
   id: 'sub_eligibilitypure1234', user_id: 'user_prod_label_normalizer_canary_v1', content: 'private source',
+  created_at: '2026-08-20T00:00:00Z',
   published_slug: 'v02-release-label-sorter', status: 'ready_for_deploy',
   release_phase: 'merged_verified', selected_runtime: 'worker-native',
   source_sha256: '1'.repeat(64), workflow_version: '1.0.0', build_evidence: null,
@@ -3531,6 +3603,7 @@ workerTest.mockSubmissions.set('eligibility-pure', {
 });
 workerTest.mockSubmissions.set('eligibility-llm', {
   id: 'sub_eligibilityllm12345', user_id: 'user_prod_label_normalizer_canary_v1', content: 'private source',
+  created_at: '2026-08-20T00:00:00Z',
   published_slug: 'v02-support-urgency-classifier', status: 'ready_for_deploy',
   release_phase: 'ci_passed', selected_runtime: 'worker-native',
   source_sha256: '5'.repeat(64), workflow_version: '1.0.0', build_evidence: { checks: ['pytest'] },
@@ -3570,22 +3643,25 @@ const eligibilityDuplicateTargets = await worker.fetch(mkReq('POST', '/api/inter
 check('internal finalization eligibility: finalizer-only auth and target list validation',
   eligibilityResponse.status === 200 && eligibilityUnauthorized.status === 401 &&
   eligibilityMissingTargets.status === 400 && eligibilityDuplicateTargets.status === 400);
-check('internal finalization eligibility: exact target filtering returns two rows',
-  eligibilityBody.ok === true && eligibilityBody.eligibility.length === 2);
+const pureEligibility = eligibilityBody.eligibility.find((row) => row.submission_id === 'sub_eligibilitypure1234');
+const llmEligibility = eligibilityBody.eligibility.find((row) => row.submission_id === 'sub_eligibilityllm12345');
+check('internal finalization eligibility: exact target filtering returns bounded rows across owners',
+  eligibilityBody.ok === true && eligibilityBody.eligibility.length === 4);
 check('internal finalization eligibility: pure-data row reports its failed predicate',
-  eligibilityBody.eligibility[0].slug === 'v02-release-label-sorter' &&
-  eligibilityBody.eligibility[0].build_evidence_present === false &&
-  eligibilityBody.eligibility[0].claimable === false);
+  pureEligibility.slug === 'v02-release-label-sorter' &&
+  pureEligibility.build_evidence_present === false &&
+  pureEligibility.claimable === false);
 check('internal finalization eligibility: LLM row reports its failed predicate',
-  eligibilityBody.eligibility[1].slug === 'v02-support-urgency-classifier' &&
-  eligibilityBody.eligibility[1].release_phase === 'ci_passed' &&
-  eligibilityBody.eligibility[1].claimable === false);
+  llmEligibility.slug === 'v02-support-urgency-classifier' &&
+  llmEligibility.release_phase === 'ci_passed' &&
+  llmEligibility.claimable === false);
 check('internal finalization eligibility: response excludes private row data',
   !JSON.stringify(eligibilityBody).includes('private source') &&
   !JSON.stringify(eligibilityBody).includes('user_private'));
 
 const backendEligibilityRow = {
   id: 'sub_backendeligibility1234', user_id: 'user_prod_label_normalizer_canary_v1', published_slug: 'v02-release-label-sorter',
+  created_at: '2026-08-20T00:00:00Z',
   status: 'ready_for_deploy', release_phase: 'merged_verified', selected_runtime: 'worker-native',
   source_sha256: 'a'.repeat(64), workflow_version: 'v02-release-label-sorter@1.0.0', build_evidence: { checks: ['pytest'] },
   release_issue_url: 'https://github.com/harrythentrepreneur/Omo.Space/issues/284',
@@ -3598,11 +3674,12 @@ neonSqlCalls.length = 0;
 neonFinalizationEligibilityRows = [backendEligibilityRow];
 const backendEligibilityTargets = [{ slug: 'v02-release-label-sorter', source_sha256: 'a'.repeat(64) }];
 const neonEligibility = await workerTest.internalFinalizationEligibility(
-  { NEON_DATABASE_URL: 'postgres://example' }, eligibilityTarget, backendEligibilityTargets
+  { NEON_DATABASE_URL: 'postgres://example', OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, eligibilityTarget, backendEligibilityTargets
 );
 const neonEligibilityCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-eligibility-v3');
 const d1EligibilityCalls = [];
 const d1Eligibility = await workerTest.internalFinalizationEligibility({
+  OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z',
   BALANCE_DB: {
     prepare(text) {
       const call = { text, values: [] };
@@ -3616,18 +3693,18 @@ const d1Eligibility = await workerTest.internalFinalizationEligibility({
     },
   },
 }, eligibilityTarget, backendEligibilityTargets);
-check('internal finalization eligibility: Neon and D1 bind canonical owner plus exact target pairs',
+check('internal finalization eligibility: Neon and D1 bind exact target pairs without owner restriction',
   neonEligibility.length === 1 && neonEligibility[0].claimable === true &&
-  neonEligibilityCall.text.includes('user_id = $3') &&
+  !neonEligibilityCall.text.includes('user_id =') &&
   neonEligibilityCall.text.includes('(published_slug, source_sha256) IN (($1, $2))') &&
   JSON.stringify(neonEligibilityCall.values) === JSON.stringify([
-    'v02-release-label-sorter', 'a'.repeat(64), 'user_prod_label_normalizer_canary_v1',
+    'v02-release-label-sorter', 'a'.repeat(64), '2020-01-01T00:00:00Z',
   ]) &&
   d1Eligibility.length === 1 && d1Eligibility[0].claimable === true &&
-  d1EligibilityCalls[0].text.includes('user_id = ?') &&
+  !d1EligibilityCalls[0].text.includes('user_id = ?') &&
   d1EligibilityCalls[0].text.includes('(published_slug = ? AND source_sha256 = ?)') &&
   JSON.stringify(d1EligibilityCalls[0].values) === JSON.stringify([
-    'user_prod_label_normalizer_canary_v1', 'v02-release-label-sorter', 'a'.repeat(64),
+    'v02-release-label-sorter', 'a'.repeat(64), '2020-01-01T00:00:00Z',
   ]) &&
   workerSrc.includes('`omo-internal-finalization-eligibility-v3-${targets.length}`') &&
   workerSrc.includes('`omo-internal-finalization-claim-v3-${targets.length}`') &&
@@ -3643,7 +3720,7 @@ const malformedEligibilityRecord = {
 };
 workerTest.mockSubmissions.set('eligibility-pure', malformedEligibilityRecord);
 const malformedTargets = [backendEligibilityTargets[0], eligibilityTargets[1]];
-const malformedEligibility = await workerTest.internalFinalizationEligibility({}, eligibilityTarget, malformedTargets);
+const malformedEligibility = await workerTest.internalFinalizationEligibility(buildEnv, eligibilityTarget, malformedTargets);
 const malformedPure = malformedEligibility.find((row) => row.slug === 'v02-release-label-sorter');
 check('internal finalization eligibility: malformed present evidence never reports claimable',
   malformedPure.workflow_version_present === false && malformedPure.build_evidence_present === false &&
@@ -3670,17 +3747,16 @@ neonFinalizationClaimRow = {
   finalization_attempts: 1,
 };
 const neonFinalization = await workerTest.internalClaimFinalization(
-  { NEON_DATABASE_URL: 'postgres://example' }, 'b'.repeat(40),
+  { NEON_DATABASE_URL: 'postgres://example', OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, 'b'.repeat(40),
   [{ slug: 'neon-finalizer', source_sha256: '6'.repeat(64) }]
 );
 const neonFinalizationCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-claim-v3');
 check('internal finalization claim Neon: one locked atomic update returns only finalizer fields',
   neonFinalization.id === 'fin_' + 'a'.repeat(32) &&
   neonFinalizationCall.text.includes('FOR UPDATE SKIP LOCKED') &&
-  neonFinalizationCall.text.includes('user_id = $4') &&
-  neonFinalizationCall.text.includes('(published_slug, source_sha256) IN (($5, $6))') &&
-  neonFinalizationCall.values[3] === 'user_prod_label_normalizer_canary_v1' &&
-  neonFinalizationCall.values[4] === 'neon-finalizer' && neonFinalizationCall.values[5] === '6'.repeat(64) &&
+  !neonFinalizationCall.text.includes('user_id =') &&
+  neonFinalizationCall.text.includes('(published_slug, source_sha256) IN (($4, $5))') &&
+  neonFinalizationCall.values[3] === 'neon-finalizer' && neonFinalizationCall.values[4] === '6'.repeat(64) &&
   neonFinalizationCall.text.includes("release_phase = 'merged_verified'") &&
   neonFinalizationCall.text.includes('release_pr_url IS NOT NULL') &&
   neonFinalizationCall.text.includes('build_evidence IS NOT NULL') &&
@@ -4016,7 +4092,7 @@ function d1DatabaseForFinalization(record) {
     finalization_attempts INTEGER NOT NULL DEFAULT 0,
     finalization_failure_code TEXT, finalization_modal_receipt TEXT,
     finalization_worker_receipt TEXT, finalization_recovery_receipt TEXT,
-    automation_updated_at TEXT, updated_at TEXT
+    automation_updated_at TEXT, created_at TEXT, updated_at TEXT
   )`);
   const keys = Object.keys(record);
   db.prepare(`INSERT INTO submissions (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`)
@@ -4062,9 +4138,10 @@ const d1Finalizer = d1DatabaseForFinalization({
   release_merge_sha: 'c'.repeat(40),
   release_artifact_hash: 'd'.repeat(64),
   finalization_attempts: 0,
+  created_at: '2026-08-20T00:00:00.000Z',
   updated_at: '2026-08-20T00:00:00.000Z',
 });
-const d1FinalizerEnv = { BALANCE_DB: d1Finalizer.binding };
+const d1FinalizerEnv = { BALANCE_DB: d1Finalizer.binding, OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' };
 const d1FinalizerTarget = 'e'.repeat(40);
 const d1RegistrySlugs = await workerTest.internalRequiredRegistrySlugs(d1FinalizerEnv);
 const d1FinalizerTargets = [{ slug: 'd1-finalizer', source_sha256: 'a'.repeat(64) }];
@@ -4175,11 +4252,11 @@ const d1Completed = d1DatabaseForFinalization({
   updated_at: '2026-08-21T00:00:00Z',
 });
 const d1CompletedResume = await workerTest.internalResumeCompletedFinalization(
-  { BALANCE_DB: d1Completed.binding }, '3'.repeat(40)
+  { BALANCE_DB: d1Completed.binding, OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, '3'.repeat(40)
 );
 d1Completed.db.prepare("UPDATE submissions SET status = 'deployed' WHERE id = ?").run(completedFinalizationId);
 const d1CompletedAfterDeploy = await workerTest.internalResumeCompletedFinalization(
-  { BALANCE_DB: d1Completed.binding }, '3'.repeat(40)
+  { BALANCE_DB: d1Completed.binding, OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' }, '3'.repeat(40)
 );
 check('internal completed finalization resume D1: real SQLite returns publish-ready and confirms deployed',
   workerTest.completedFinalizationRow(d1CompletedResume).status === 'completed' &&
@@ -4205,9 +4282,9 @@ const d1Failed = d1DatabaseForFinalization({
   finalization_artifact_hash: 'b'.repeat(64), finalization_attempts: 1,
   finalization_lease_expires_at: '2026-08-21T00:00:00Z', finalization_modal_receipt: null,
   finalization_worker_receipt: null, automation_updated_at: '2026-08-21T00:00:00Z',
-  updated_at: '2026-08-21T00:00:00Z',
+  created_at: '2026-08-20T00:00:00Z', updated_at: '2026-08-21T00:00:00Z',
 });
-const d1FailedEnv = { BALANCE_DB: d1Failed.binding };
+const d1FailedEnv = { BALANCE_DB: d1Failed.binding, OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' };
 const d1FailedBefore = workerTest.failedFinalizationRow(
   await workerTest.internalInspectFailedFinalization(d1FailedEnv, d1FailedTarget)
 );
@@ -4249,7 +4326,7 @@ const d1RecoveryRecord = {
 };
 delete d1RecoveryRecord.failure_code;
 const d1Recovery = d1DatabaseForFinalization(d1RecoveryRecord);
-const d1RecoveryEnv = { BALANCE_DB: d1Recovery.binding };
+const d1RecoveryEnv = { BALANCE_DB: d1Recovery.binding, OMO_BUILDER_AUTONOMY_AFTER: '2020-01-01T00:00:00Z' };
 const d1RecoveryMissingGeneration = await workerTest.internalRecoverRolledBackFinalization(
   d1RecoveryEnv, rollbackTarget
 );
@@ -5091,7 +5168,7 @@ check('webhook: unsigned demo works; real mode without secret fails closed', whN
 const builderEnv = {
   ...env,
   OMO_BUILDER_ENABLED: 'true',
-  OMO_BUILDER_ALLOWED_SUBMISSION_ID: 'sub_abcdefgh12345678',
+  OMO_BUILDER_AUTONOMY_AFTER: '2026-09-02T16:37:18Z',
   OMO_BUILDER_MODAL_URL: 'https://builder.modal.run',
   OMO_BUILDER_MODAL_KEY: 'modal-key-test',
   OMO_BUILDER_MODAL_SECRET: 'modal-secret-test',
@@ -5115,7 +5192,8 @@ check('builder cron: explicit default-off gate prevents Modal calls even when a 
   workerTest.mockSubmissions.get('user_builder:disabled-candidate').status === 'queued' &&
   workerSrc.includes("if (env.OMO_BUILDER_ENABLED !== 'true') return { status: 'disabled', phase };") &&
   wranglerSource.includes('OMO_BUILDER_ENABLED = "true"') &&
-  wranglerSource.includes('OMO_BUILDER_ALLOWED_SUBMISSION_ID = "sub_206cb9e53f30a18112371f4ee6a2bef8"'));
+  wranglerSource.includes('OMO_BUILDER_AUTONOMY_AFTER = "2026-09-02T16:37:18Z"') &&
+  !wranglerSource.includes('OMO_BUILDER_ALLOWED_SUBMISSION_ID'));
 workerTest.mockSubmissions.clear();
 const beforeIdleDispatches = builderDispatchCalls.length;
 let scheduledTask = null;
@@ -5142,7 +5220,13 @@ workerTest.mockSubmissions.set('user_builder:older-nontarget', {
   content: 'PRIVATE_NON_TARGET_SOURCE',
   source_sha256: '9'.repeat(64),
   requested_runtime: 'auto',
-  status: 'needs_review',
+  status: 'queued',
+  created_at: '2026-09-02T16:38:00.000Z',
+});
+workerTest.mockSubmissions.set('user_builder:historical-queued', {
+  id: 'sub_historicalqueued123456', user_id: 'user_builder',
+  name: 'Historical Queued', slug: 'historical-queued', content: 'PRIVATE_HISTORICAL_SOURCE',
+  source_sha256: '8'.repeat(64), requested_runtime: 'auto', status: 'queued',
   created_at: '2026-01-01T00:00:00.000Z',
 });
 scheduledTask = null;
@@ -5154,9 +5238,9 @@ check('builder cron: dispatches identifiers only with Modal proxy auth',
   builderCall.opts.method === 'POST' &&
   builderCall.opts.headers['Modal-Key'] === builderEnv.OMO_BUILDER_MODAL_KEY &&
   builderCall.opts.headers['Modal-Secret'] === builderEnv.OMO_BUILDER_MODAL_SECRET &&
-  builderCall.payload.submission_id === 'sub_abcdefgh12345678' &&
-  builderCall.payload.slug === 'label-normalizer-canary' &&
-  builderCall.payload.source_sha256 === 'a'.repeat(64) &&
+  builderCall.payload.submission_id === 'sub_oldernontarget123456' &&
+  builderCall.payload.slug === 'older-non-target' &&
+  builderCall.payload.source_sha256 === '9'.repeat(64) &&
   builderCall.payload.phase === 'build' &&
   /^dispatch_[0-9a-f]{32}$/.test(builderCall.payload.dispatch_id) &&
   !('base_revision' in builderCall.payload) &&
@@ -5164,10 +5248,11 @@ check('builder cron: dispatches identifiers only with Modal proxy auth',
   !('content' in builderCall.payload) && !('user_id' in builderCall.payload));
 check('builder cron: peek does not mutate authoritative queue state before Modal claims',
   workerTest.mockSubmissions.get('user_builder:label-normalizer-canary').status === 'needs_review' &&
-  workerTest.mockSubmissions.get('user_builder:older-nontarget').status === 'needs_review');
-check('builder cron: exact submission scope skips an older eligible non-target row',
-  builderCall.payload.submission_id === builderEnv.OMO_BUILDER_ALLOWED_SUBMISSION_ID &&
-  !JSON.stringify(builderCall.payload).includes('sub_oldernontarget123456'));
+  workerTest.mockSubmissions.get('user_builder:older-nontarget').status === 'queued' &&
+  workerTest.mockSubmissions.get('user_builder:historical-queued').status === 'queued');
+check('builder cron: cutoff excludes backlog and FIFO selects an older new queued row',
+  builderCall.payload.submission_id === 'sub_oldernontarget123456' &&
+  !JSON.stringify(builderCall.payload).includes('sub_historicalqueued123456'));
 
 const buildDispatchId = builderCall.payload.dispatch_id;
 workerTest.mockSubmissions.clear();
@@ -5187,9 +5272,7 @@ workerTest.mockSubmissions.set('user_builder:v02-release-label-sorter', {
   created_at: new Date().toISOString(),
 });
 scheduledTask = null;
-await worker.scheduled({ scheduledTime: 60_000 }, {
-  ...builderEnv, OMO_BUILDER_ALLOWED_SUBMISSION_ID: 'sub_mergedverify12345678',
-}, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({ scheduledTime: 60_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const mergedVerifierCall = builderDispatchCalls.at(-1);
 check('builder cron: dispatches a distinct identifier-only post-merge verifier phase',
@@ -5277,20 +5360,16 @@ workerTest.mockSubmissions.set('user_builder:fresh-upload', {
   created_at: new Date().toISOString(),
 });
 scheduledTask = null;
-await worker.scheduled({ scheduledTime: 120_000 }, {
-  ...builderEnv, OMO_BUILDER_ALLOWED_SUBMISSION_ID: 'sub_freshupload123456789',
-}, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({ scheduledTime: 120_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const fairBuildCall = builderDispatchCalls.at(-1);
-check('builder cron phase scheduling: build minute dispatches the scoped fresh upload',
+check('builder cron fairness: build minute dispatches fresh upload despite eligible post-merge row',
   fairBuildCall.payload.submission_id === 'sub_freshupload123456789' && fairBuildCall.payload.phase === 'build');
 scheduledTask = null;
-await worker.scheduled({ scheduledTime: 180_000 }, {
-  ...builderEnv, OMO_BUILDER_ALLOWED_SUBMISSION_ID: 'sub_mergedverify12345678',
-}, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({ scheduledTime: 180_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const fairVerifyCall = builderDispatchCalls.at(-1);
-check('builder cron phase scheduling: verify minute dispatches the same scoped release row',
+check('builder cron fairness: verify minute dispatches eligible post-merge row despite fresh upload',
   fairVerifyCall.payload.submission_id === 'sub_mergedverify12345678' && fairVerifyCall.payload.phase === 'verify_merged');
 
 console.log(`\n${pass} passed, ${fail} failed`);

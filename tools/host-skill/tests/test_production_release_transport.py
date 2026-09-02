@@ -89,6 +89,24 @@ def test_modal_environment_is_fresh_allowlisted_and_never_receives_cloudflare(tm
     }
 
 
+def test_first_modal_rollback_stop_and_list_cross_real_transport_boundary(tmp_path):
+    adapters, transport = load_modules()
+    root = checkout(tmp_path)
+    executor = Executor([
+        Result(stdout=""),
+        Result(stdout='[{"Description":"cognition-label-normalizer-canary","State":"stopped","Tasks":"0"}]'),
+    ])
+    runner = make_transport(
+        transport, root, executor=executor,
+        source_env={"PATH": "/safe/bin", "MODAL_TOKEN_ID": "id", "MODAL_TOKEN_SECRET": "secret"},
+        allow_mutation=True,
+    )
+    runner.run(adapters.modal_stop_call(root, adapters.MODAL_ALLOWED_SLUG))
+    rows = runner.run_json(adapters.modal_apps_call(root, adapters.MODAL_ALLOWED_SLUG))
+    assert adapters.modal_app_stopped(rows, adapters.MODAL_ALLOWED_SLUG) is True
+    assert len(executor.calls) == 2
+
+
 def test_cloudflare_environment_is_fresh_allowlisted_and_never_receives_modal(tmp_path):
     adapters, transport = load_modules()
     root = checkout(tmp_path)

@@ -39,9 +39,13 @@ def _command_mode(call: CommandCall) -> str:
             return "write"
         raise TransportError("invalid_production_command")
     tail = argv[3:]
-    if tail == ("environment", "list", "--json") or tail[:2] == ("app", "history"):
+    if (
+        tail == ("environment", "list", "--json")
+        or tail[:2] == ("app", "history")
+        or tail[:2] == ("app", "list")
+    ):
         return "read"
-    if tail[:1] == ("deploy",) or tail[:2] == ("app", "rollback"):
+    if tail[:1] == ("deploy",) or tail[:2] in {("app", "rollback"), ("app", "stop")}:
         return "write"
     raise TransportError("invalid_production_command")
 

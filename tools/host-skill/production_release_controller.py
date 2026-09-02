@@ -42,11 +42,16 @@ from production_release_adapters import (
     cloudflare_rollback_call,
     cloudflare_versions_call,
     modal_deploy_call,
+    modal_apps_call,
+    modal_app_stopped,
+    modal_app_state,
     modal_history_snapshot,
     modal_history_call,
     modal_preflight_call,
     modal_receipt,
     modal_rollback_call,
+    modal_stop_call,
+    modal_target,
 )
 from production_release_transport import ProductionCommandTransport
 from host import COMPILER as HOST_COMPILER, pure_data_public_output_schema, single_llm_public_output_schema
@@ -85,8 +90,25 @@ CANARY_SOURCES = (
         "sha256": "096a9402ae463392db8e840b1a2b256d2159d1a086d308c2831356df5c9a7d5c",
     },
 )
+AUTONOMY_PROOF_SOURCES = (
+    {
+        "name": "Autonomous Priority Label Sorter",
+        "slug": "autonomous-priority-label-sorter",
+        "path": "tools/host-skill/canaries/autonomous-priority-label-sorter/SKILL.md",
+        "sha256": "e8fab8c62f53ecb0df2ad8c08058a3a5c223fff4b524b8c939fce987d0345861",
+    },
+    {
+        "name": "Autonomous Reply Urgency Classifier",
+        "slug": "autonomous-reply-urgency-classifier",
+        "path": "tools/host-skill/canaries/autonomous-reply-urgency-classifier/SKILL.md",
+        "sha256": "e518520523e3d9cef7c487c5646cff47447252659497acd28151b7478f980859",
+    },
+)
+SUBMISSION_SEED_SOURCES = CANARY_SOURCES + AUTONOMY_PROOF_SOURCES
 CANARY_SOURCE_SLUGS = frozenset(item["slug"] for item in CANARY_SOURCES)
-TARGETS = DeploymentTargets(MODAL_TARGET, MODAL_ENVIRONMENT, CLOUDFLARE_TARGET, "production")
+SUBMISSION_SEED_SLUGS = frozenset(item["slug"] for item in SUBMISSION_SEED_SOURCES)
+MAX_FINALIZATION_TARGETS = 1000
+TARGETS = DeploymentTargets("cognition-{slug}", MODAL_ENVIRONMENT, CLOUDFLARE_TARGET, "production")
 MODAL_CANARY_ORIGIN = "https://omo-space--cognition-label-normalizer-canary-api.modal.run"
 
 
@@ -97,6 +119,71 @@ class RecoveryCandidate:
     mode: str
 
 
+def derive_finalization_targets(mainline: Any, target_sha: str) -> list[dict[str, str]]:
+    """Derive creator release identities from an exact trusted main tree.
+
+    Generated files are parsed only as bounded data. No candidate module is
+    imported or executed. The Worker still requires the exact slug/hash pair
+    before an authoritative row can be claimed.
+    """
+    if not SAFE_SHA_RE.fullmatch(str(target_sha or "")):
+        raise ControllerError("finalization_target_tree_invalid")
+    try:
+        tree: dict[str, bytes] = {}
+        for prefix in ("containers", "packages/skill-to-modal/profiles", "site/run-manifests"):
+            values = mainline.list_tree(target_sha, prefix)
+            if not isinstance(values, dict):
+                raise ValueError
+            for path, raw in values.items():
+                if not isinstance(path, str) or not isinstance(raw, bytes) or path in tree:
+                    raise ValueError
+                tree[path] = raw
+        source_re = re.compile(r"^containers/([a-z0-9]+(?:-[a-z0-9]+)*)/source/SKILL\.md$")
+        slugs = sorted(match.group(1) for path in tree if (match := source_re.fullmatch(path)))
+        if not slugs or len(slugs) > MAX_FINALIZATION_TARGETS or len(slugs) != len(set(slugs)):
+            raise ValueError
+        targets: list[dict[str, str]] = []
+        for slug in slugs:
+            source = tree[f"containers/{slug}/source/SKILL.md"]
+            if not 1 <= len(source) <= CANARY_SOURCE_MAX_BYTES:
+                raise ValueError
+            source_hash = hashlib.sha256(source).hexdigest()
+            profile_raw = tree.get(f"packages/skill-to-modal/profiles/{slug}.json")
+            if profile_raw is None:
+                continue
+            profile = _strict_json_bytes(profile_raw)
+            # Legacy/manual profiles are outside the autonomous v2 creator
+            # pipeline. They remain live but are never claimed by this path.
+            if not isinstance(profile, dict) or profile.get("authoring_spec_version") != "omo.profile-authoring-spec/v2":
+                continue
+            hosted = _strict_json_bytes(tree[f"containers/{slug}/hosted-profile.json"])
+            manifest = _strict_json_bytes(tree[f"containers/{slug}/manifest.json"])
+            run_manifest = _strict_json_bytes(tree[f"site/run-manifests/{slug}.json"])
+            runtime = hosted.get("runtime") if isinstance(hosted, dict) else None
+            hosted_run = hosted.get("run_manifest") if isinstance(hosted, dict) else None
+            if (
+                profile.get("slug") != slug
+                or profile.get("reviewed_source_sha256") != source_hash
+                or not isinstance(manifest, dict) or manifest.get("slug") != slug
+                or manifest.get("source_sha256") != source_hash
+                or not isinstance(hosted, dict) or hosted.get("schema_version") != "omo.hosted-profile/v1"
+                or hosted.get("generator") != "tools/host-skill/1.0.0"
+                or not isinstance(runtime, dict) or runtime.get("slug") != slug
+                or runtime.get("container_slug") != slug
+                or not isinstance(run_manifest, dict) or run_manifest.get("slug") != slug
+                or run_manifest.get("container_slug") != slug
+                or run_manifest.get("ready") is not True or run_manifest.get("chargeable") is not True
+                or hosted_run != run_manifest
+            ):
+                raise ValueError
+            targets.append({"slug": slug, "source_sha256": source_hash})
+        if not targets:
+            raise ValueError
+        return targets
+    except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        raise ControllerError("finalization_target_tree_invalid") from None
+
+
 def _validate_recovery_receipt(value: object, provider: str, target_sha: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ControllerError("invalid_recovery_plan")
@@ -104,7 +191,15 @@ def _validate_recovery_receipt(value: object, provider: str, target_sha: str) ->
         "artifact_hash", "environment", "previous_version_id", "provider", "reused",
         "rollback_token", "status", "target", "target_sha", "version_id",
     }
-    expected_target = MODAL_TARGET if provider == "modal" else CLOUDFLARE_TARGET
+    target_value = str(value.get("target") or "")
+    if provider == "modal":
+        slug = target_value.removeprefix("cognition-")
+        try:
+            expected_target = modal_target(slug)
+        except AdapterError:
+            raise ControllerError("invalid_recovery_plan") from None
+    else:
+        expected_target = CLOUDFLARE_TARGET
     expected_environment = MODAL_ENVIRONMENT if provider == "modal" else "production"
     previous = value.get("previous_version_id")
     reused = value.get("reused")
@@ -161,7 +256,11 @@ def recover_rolled_back_finalization(
     plan = store.recovery_plan(target_sha, finalization_id)
     _validate_recovery_plan(plan, target_sha, finalization_id)
     checkout = mainline.checkout_detached(latest.target_sha)
-    if modal.active_version(checkout, latest.target_sha) != plan["modal"]["expected_active_version_id"]:
+    modal_name = str(plan["modal"]["receipt"].get("target") or "")
+    modal_slug = modal_name.removeprefix("cognition-")
+    if modal_target(modal_slug) != modal_name:
+        raise ControllerError("modal_recovery_readback_mismatch")
+    if modal.active_version(checkout, latest.target_sha, modal_slug) != plan["modal"]["expected_active_version_id"]:
         raise ControllerError("modal_recovery_readback_mismatch")
     if cloudflare.active_version(checkout, latest.target_sha) != plan["cloudflare"]["expected_active_version_id"]:
         raise ControllerError("cloudflare_recovery_readback_mismatch")
@@ -364,15 +463,15 @@ def _claim_canary_contract(claim: FinalizationClaim | str, checkout: Path) -> di
     }
 
 
-def _modal_result_url(value: object) -> str:
+def _modal_result_url(value: object, origin: str = MODAL_CANARY_ORIGIN) -> str:
     raw = str(value or "").strip()
     parsed = None
     try:
-        joined = urllib.parse.urljoin(MODAL_CANARY_ORIGIN + "/v1/runs", raw)
+        joined = urllib.parse.urljoin(origin + "/v1/runs", raw)
         parsed = urllib.parse.urlsplit(joined)
         query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
         valid = (
-            parsed.scheme == "https" and parsed.hostname == urllib.parse.urlsplit(MODAL_CANARY_ORIGIN).hostname
+            parsed.scheme == "https" and parsed.hostname == urllib.parse.urlsplit(origin).hostname
             and parsed.port is None and parsed.username is None and parsed.password is None and not parsed.fragment
             and re.fullmatch(r"/v1/runs/run-[0-9a-f]{32}", parsed.path)
             and set(query) == {"call_id", "access_token"}
@@ -565,11 +664,34 @@ class GitHubMainlineAdapter:
 
 
 class HttpFinalizationStore:
-    def __init__(self, token: str, base_url: str = WORKER_BASE_URL, opener=urllib.request.urlopen):
+    def __init__(
+        self, token: str, base_url: str = WORKER_BASE_URL, opener=urllib.request.urlopen,
+        targets: list[dict[str, str]] | None = None,
+    ):
         if not token or base_url != WORKER_BASE_URL:
             raise ControllerError("invalid_finalizer_store_configuration")
         self.token, self.base_url, self.opener = token, base_url, opener
         self.claims: dict[str, FinalizationClaim] = {}
+        raw_targets = targets if targets is not None else [
+            {"slug": item["slug"], "source_sha256": item["sha256"]} for item in CANARY_SOURCES
+        ]
+        if not isinstance(raw_targets, list) or not 1 <= len(raw_targets) <= MAX_FINALIZATION_TARGETS:
+            raise ControllerError("invalid_finalizer_store_configuration")
+        normalized: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for target in raw_targets:
+            slug = str(target.get("slug") if isinstance(target, dict) else "")
+            source_hash = str(target.get("source_sha256") if isinstance(target, dict) else "")
+            if (
+                not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug)
+                or not re.fullmatch(r"[0-9a-f]{64}", source_hash)
+                or slug in seen
+                or set(target) != {"slug", "source_sha256"}
+            ):
+                raise ControllerError("invalid_finalizer_store_configuration")
+            seen.add(slug)
+            normalized.append({"slug": slug, "source_sha256": source_hash})
+        self.targets = sorted(normalized, key=lambda item: item["slug"])
 
     def _post(self, path: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
         return _request_json_stage(
@@ -597,10 +719,7 @@ class HttpFinalizationStore:
         return claim
 
     def _targets(self) -> list[dict[str, str]]:
-        return [
-            {"slug": item["slug"], "source_sha256": item["sha256"]}
-            for item in CANARY_SOURCES
-        ]
+        return [dict(item) for item in self.targets]
 
     def claim(self, target_sha: str) -> FinalizationClaim | None:
         status, body = self._post(
@@ -639,15 +758,17 @@ class HttpFinalizationStore:
             raise ControllerError("invalid_finalizer_eligibility_envelope")
         if not isinstance(rows, list):
             raise ControllerError("invalid_finalizer_eligibility_rows")
-        if len(rows) > 2:
+        if len(rows) > 100:
             raise ControllerError("invalid_finalizer_eligibility_count")
-        seen: set[str] = set()
+        target_slugs = {item["slug"] for item in self.targets}
+        seen_ids: set[str] = set()
         for row in rows:
             if not isinstance(row, dict) or set(row) != expected:
                 raise ControllerError("invalid_finalizer_eligibility_shape")
-            if not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", str(row.get("submission_id") or "")):
+            submission_id = str(row.get("submission_id") or "")
+            if not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", submission_id) or submission_id in seen_ids:
                 raise ControllerError("invalid_finalizer_eligibility_identity")
-            if row.get("slug") not in CANARY_SOURCE_SLUGS or row["slug"] in seen:
+            if row.get("slug") not in target_slugs:
                 raise ControllerError("invalid_finalizer_eligibility_slug")
             if (
                 row.get("status") not in {"queued", "processing", "needs_review", "ready_for_deploy", "ready_for_publish", "deployed", "failed"}
@@ -658,9 +779,7 @@ class HttpFinalizationStore:
                 raise ControllerError("invalid_finalizer_eligibility_enum")
             if any(type(row.get(field)) is not bool for field in boolean_fields):
                 raise ControllerError("invalid_finalizer_eligibility_boolean")
-            seen.add(row["slug"])
-        if [row["slug"] for row in rows] != sorted(seen):
-            raise ControllerError("invalid_finalizer_eligibility_order")
+            seen_ids.add(submission_id)
         return rows
 
     def resume_completed(self, target_sha: str) -> FinalizationClaim | None:
@@ -830,12 +949,12 @@ class ProductionModalAdapter:
         if MODAL_ENVIRONMENT not in names:
             raise ControllerError("modal_preflight_failed")
 
-    def active_version(self, checkout: Path, target_sha: str) -> str:
+    def active_version(self, checkout: Path, target_sha: str, slug: str = MODAL_ALLOWED_SLUG) -> str:
         transport = ProductionCommandTransport(
             source_env=self.source_env, trusted_checkout=str(checkout), trusted_sha=target_sha,
         )
         history = modal_history_snapshot(
-            transport.run_json(modal_history_call(checkout, MODAL_ALLOWED_SLUG))
+            transport.run_json(modal_history_call(checkout, slug))
         )
         if not history:
             raise ControllerError("modal_recovery_readback_mismatch")
@@ -843,22 +962,32 @@ class ProductionModalAdapter:
 
     def deploy(self, claim, checkout):
         transport = self._transport(claim, checkout, True)
-        before = transport.run_json(modal_history_call(checkout, claim.slug))
+        state = modal_app_state(transport.run_json(modal_apps_call(checkout, claim.slug)), claim.slug)
+        before = [] if state == "absent" else transport.run_json(modal_history_call(checkout, claim.slug))
         before_history = modal_history_snapshot(before)
-        if not before_history:
-            raise AdapterError("production_readback_failed")
-        if any(tag == claim.target_sha for _, tag in before_history):
+        if state != "stopped" and any(tag == claim.target_sha for _, tag in before_history):
             after = transport.run_json(modal_history_call(checkout, claim.slug))
             return asdict(modal_receipt(
                 before, after, claim.slug, claim.target_sha, claim.artifact_hash
             ))
         transport.run(modal_deploy_call(checkout, claim.slug, claim.target_sha))
         after = transport.run_json(modal_history_call(checkout, claim.slug))
+        if modal_app_state(transport.run_json(modal_apps_call(checkout, claim.slug)), claim.slug) not in {"deployed", "running"}:
+            raise AdapterError("production_readback_failed")
+        if state == "stopped":
+            after_history = modal_history_snapshot(after)
+            if len(after_history) != len(before_history) + 1 or after_history[1:] != before_history:
+                raise AdapterError("production_readback_failed")
+            return asdict(modal_receipt([], [
+                {"Version": after_history[0][0], "Tag": after_history[0][1]}
+            ], claim.slug, claim.target_sha, claim.artifact_hash))
         return asdict(modal_receipt(before, after, claim.slug, claim.target_sha, claim.artifact_hash))
 
     def canary(self, claim, checkout, deploy_receipt):
-        endpoint = MODAL_CANARY_ORIGIN + "/v1/runs"
-        payload = {"labels": [" Green Apple ", "green-apple", "Class 2B"], "prefix": "item"}
+        contract = _claim_canary_contract(claim, checkout)
+        origin = f"https://omo-space--{modal_target(claim.slug)}-api.modal.run"
+        endpoint = origin + "/v1/runs"
+        payload = contract["input"]
         owner = f"finalizer:{claim.submission_id}"
         headers = {
             "Content-Type": "application/json", "X-Omo-Owner-Id": owner,
@@ -872,7 +1001,7 @@ class ProductionModalAdapter:
         if status != 202 or not body or not isinstance(body.get("result_url"), str):
             return {"status": "failed"}
         try:
-            result_url = _modal_result_url(body["result_url"])
+            result_url = _modal_result_url(body["result_url"], origin)
         except ControllerError:
             return {"status": "failed"}
         result = None
@@ -887,12 +1016,17 @@ class ProductionModalAdapter:
             if poll_status != 202:
                 return {"status": "failed"}
             time.sleep(1)
-        identifiers = [item.get("identifier") for item in result.get("items", [])] if isinstance(result, dict) else []
-        valid = (
-            isinstance(result, dict) and result.get("input_count") == 3
-            and result.get("unique_count") == 2 and result.get("duplicate_count") == 1
-            and identifiers == ["ITEM_GREEN_APPLE", "ITEM_GREEN_APPLE", "ITEM_CLASS_2B"]
-        )
+        if not isinstance(result, dict):
+            valid = False
+        elif contract["execution_kind"] == "pure_data":
+            valid = result == contract["expected_output"]
+        else:
+            try:
+                from jsonschema import Draft202012Validator
+                Draft202012Validator(contract["output_schema"]).validate(result)
+                valid = True
+            except Exception:
+                valid = False
         return {"status": "passed" if valid else "failed"}
 
     def rollback(self, claim, deploy_receipt):
@@ -900,8 +1034,19 @@ class ProductionModalAdapter:
         if not checkout:
             raise ControllerError("rollback_checkout_missing")
         version = str(deploy_receipt.get("version_id") or "")
-        if self.active_version(checkout, claim.target_sha) != version:
+        if self.active_version(checkout, claim.target_sha, claim.slug) != version:
             raise ControllerError("modal_recovery_readback_mismatch")
+        transport = self._transport(claim, checkout, True)
+        previous = deploy_receipt.get("rollback_token")
+        if previous is None:
+            transport.run(modal_stop_call(checkout, claim.slug))
+            if not modal_app_stopped(transport.run_json(modal_apps_call(checkout, claim.slug)), claim.slug):
+                raise ControllerError("modal_recovery_readback_mismatch")
+        else:
+            transport.run(modal_rollback_call(checkout, claim.slug, str(previous)))
+            history = modal_history_snapshot(transport.run_json(modal_history_call(checkout, claim.slug)))
+            if not history or history[0][0] != previous:
+                raise ControllerError("modal_recovery_readback_mismatch")
         return {"status": "passed"}
 
 
@@ -1027,14 +1172,16 @@ class ProductionPublicAdapter:
     def preflight(self, claim):
         if not re.fullmatch(r"fin_[0-9a-f]{32}", str(getattr(claim, "id", ""))):
             raise ControllerError("public_canary_contract_invalid")
-        if getattr(claim, "runtime", None) != "worker-native" and claim.slug != MODAL_ALLOWED_SLUG:
+        if getattr(claim, "runtime", None) not in {"worker-native", "modal-hosted"}:
+            raise ControllerError("public_canary_contract_invalid")
+        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", str(getattr(claim, "slug", "") or "")):
             raise ControllerError("public_canary_contract_invalid")
         self.store.provision_canary_identity()
 
     def seed_submissions(self, checkout: Path) -> list[dict[str, str]]:
         self.store.provision_canary_identity()
         seeded = []
-        for spec in CANARY_SOURCES:
+        for spec in SUBMISSION_SEED_SOURCES:
             source_path = checkout / spec["path"]
             try:
                 resolved = source_path.resolve(strict=True)
@@ -1080,7 +1227,7 @@ class ProductionPublicAdapter:
         return seeded
 
     def retry_submission(self, submission_id: str, slug: str) -> dict[str, str]:
-        if not re.fullmatch(r"sub_[0-9a-f]{32}", submission_id) or slug not in CANARY_SOURCE_SLUGS:
+        if not re.fullmatch(r"sub_[0-9a-f]{32}", submission_id) or slug not in SUBMISSION_SEED_SLUGS:
             raise ControllerError("production_canary_retry_failed")
         status, body = _request_json_stage(
             "public_canary_http_failed", f"{PUBLIC_ORIGIN}/api/submissions/{submission_id}/retry",
@@ -1282,7 +1429,10 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
         checkout, args.trigger_sha, int(args.run_id), int(args.run_attempt),
         env.get("GITHUB_TOKEN", ""),
     )
-    store = HttpFinalizationStore(env.get("RELEASE_FINALIZER_TOKEN", ""))
+    store = HttpFinalizationStore(
+        env.get("RELEASE_FINALIZER_TOKEN", ""),
+        targets=derive_finalization_targets(mainline, args.trigger_sha),
+    )
     modal = ProductionModalAdapter(env)
     cloudflare = ProductionCloudflareAdapter(env)
     public = ProductionPublicAdapter(store, env.get("PRODUCTION_CANARY_API_KEY", ""))
@@ -1308,7 +1458,7 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
             "eligibility": eligibility, "target_sha": result["target_sha"],
         }
         if (
-            len(submissions) == len(CANARY_SOURCES)
+            len(submissions) == len(SUBMISSION_SEED_SOURCES)
             and all(item.get("submission_status") == "deployed" for item in submissions)
         ):
             balance = public.verify_balance_snapshot(trusted_checkout)

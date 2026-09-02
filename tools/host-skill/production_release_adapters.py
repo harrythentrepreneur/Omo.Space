@@ -26,6 +26,8 @@ PUBLIC_ORIGIN = "https://omo.space"
 SAFE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 SAFE_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+SAFE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SAFE_MODAL_TARGET_RE = re.compile(r"^cognition-[a-z0-9]+(?:-[a-z0-9]+)*$")
 MODAL_ENV_KEYS = ("HOME", "MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "NO_COLOR", "PATH", "PYTHONUNBUFFERED")
 CLOUDFLARE_ENV_KEYS = ("CI", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "HOME", "NO_COLOR", "PATH")
 
@@ -81,10 +83,10 @@ class DeploymentReceipt:
             or (self.previous_version_id is not None and not SAFE_VERSION_RE.fullmatch(self.previous_version_id))
             or self.rollback_token != self.previous_version_id
             or type(self.reused) is not bool
-            or (self.reused is False and self.previous_version_id is None)
+            or (self.reused is False and self.provider == "cloudflare" and self.previous_version_id is None)
             or (self.reused is True and self.previous_version_id is not None)
             or self.status != "passed"
-            or (self.provider == "modal" and (self.target != MODAL_TARGET or self.environment != MODAL_ENVIRONMENT))
+            or (self.provider == "modal" and (not SAFE_MODAL_TARGET_RE.fullmatch(self.target) or self.environment != MODAL_ENVIRONMENT))
             or (self.provider == "cloudflare" and (self.target != CLOUDFLARE_TARGET or self.environment != "production"))
         ):
             raise AdapterError("invalid_production_receipt")
@@ -94,18 +96,31 @@ def _valid_modal_argv(argv: tuple[str, ...]) -> bool:
     tail = argv[3:]
     if tail == ("environment", "list", "--json"):
         return True
-    if tail == ("app", "history", MODAL_TARGET, "--env", MODAL_ENVIRONMENT, "--json"):
+    if (
+        len(tail) == 6 and tail[:2] == ("app", "history")
+        and SAFE_MODAL_TARGET_RE.fullmatch(tail[2])
+        and tail[3:] == ("--env", MODAL_ENVIRONMENT, "--json")
+    ):
         return True
     if len(tail) == 8 and tail[:1] == ("deploy",):
         path = Path(tail[1])
+        slug = path.parent.name
         return (
             path.is_absolute()
-            and path.parts[-2:] == (MODAL_ALLOWED_SLUG, "modal_app.py")
-            and tail[2:7] == ("--env", MODAL_ENVIRONMENT, "--name", MODAL_TARGET, "--tag")
+            and SAFE_SLUG_RE.fullmatch(slug) is not None
+            and path.parts[-2:] == (slug, "modal_app.py")
+            and tail[2:7] == ("--env", MODAL_ENVIRONMENT, "--name", modal_target(slug), "--tag")
             and bool(SAFE_SHA_RE.fullmatch(tail[7]))
         )
-    if len(tail) == 6 and tail[:3] == ("app", "rollback", MODAL_TARGET):
+    if (
+        len(tail) == 6 and tail[:2] == ("app", "rollback")
+        and SAFE_MODAL_TARGET_RE.fullmatch(tail[2])
+    ):
         return bool(SAFE_VERSION_RE.fullmatch(tail[3])) and tail[4:] == ("--env", MODAL_ENVIRONMENT)
+    if len(tail) == 5 and tail[:2] == ("app", "stop") and SAFE_MODAL_TARGET_RE.fullmatch(tail[2]):
+        return tail[3:] == ("--env", MODAL_ENVIRONMENT)
+    if tail == ("app", "list", "--env", MODAL_ENVIRONMENT, "--json"):
+        return True
     return False
 
 
@@ -170,11 +185,19 @@ def _version(value: str) -> str:
     return version
 
 
+def modal_target(slug: str) -> str:
+    value = str(slug or "").strip()
+    target = f"cognition-{value}"
+    if not SAFE_SLUG_RE.fullmatch(value) or len(target) > 64 or not SAFE_MODAL_TARGET_RE.fullmatch(target):
+        raise AdapterError("invalid_production_target")
+    return target
+
+
 def _modal_app(checkout: Path, slug: str) -> tuple[Path, Path]:
     root = _root(checkout)
-    if str(slug or "").strip() != MODAL_ALLOWED_SLUG:
-        raise AdapterError("invalid_production_target")
-    raw_path = root / "containers" / MODAL_ALLOWED_SLUG / "modal_app.py"
+    value = str(slug or "").strip()
+    modal_target(value)
+    raw_path = root / "containers" / value / "modal_app.py"
     path = raw_path.resolve()
     if path != raw_path or path.parent.parent != root / "containers" or not path.is_file():
         raise AdapterError("production_artifact_missing")
@@ -204,19 +227,47 @@ def modal_preflight_call(checkout: Path, slug: str) -> CommandCall:
 
 def modal_history_call(checkout: Path, slug: str) -> CommandCall:
     root, _ = _modal_app(checkout, slug)
-    return CommandCall((sys.executable, "-m", "modal", "app", "history", MODAL_TARGET, "--env", MODAL_ENVIRONMENT, "--json"), root, MODAL_ENV_KEYS, 60)
+    return CommandCall((sys.executable, "-m", "modal", "app", "history", modal_target(slug), "--env", MODAL_ENVIRONMENT, "--json"), root, MODAL_ENV_KEYS, 60)
 
 
 def modal_deploy_call(checkout: Path, slug: str, target_sha: str) -> CommandCall:
     root, path = _modal_app(checkout, slug)
     sha = _sha(target_sha)
-    return CommandCall((sys.executable, "-m", "modal", "deploy", str(path), "--env", MODAL_ENVIRONMENT, "--name", MODAL_TARGET, "--tag", sha), root, MODAL_ENV_KEYS, 300)
+    return CommandCall((sys.executable, "-m", "modal", "deploy", str(path), "--env", MODAL_ENVIRONMENT, "--name", modal_target(slug), "--tag", sha), root, MODAL_ENV_KEYS, 300)
 
 
 def modal_rollback_call(checkout: Path, slug: str, version_id: str) -> CommandCall:
     root, _ = _modal_app(checkout, slug)
     version = _version(version_id)
-    return CommandCall((sys.executable, "-m", "modal", "app", "rollback", MODAL_TARGET, version, "--env", MODAL_ENVIRONMENT), root, MODAL_ENV_KEYS, 180)
+    return CommandCall((sys.executable, "-m", "modal", "app", "rollback", modal_target(slug), version, "--env", MODAL_ENVIRONMENT), root, MODAL_ENV_KEYS, 180)
+
+
+def modal_stop_call(checkout: Path, slug: str) -> CommandCall:
+    root, _ = _modal_app(checkout, slug)
+    return CommandCall((sys.executable, "-m", "modal", "app", "stop", modal_target(slug), "--env", MODAL_ENVIRONMENT), root, MODAL_ENV_KEYS, 180)
+
+
+def modal_apps_call(checkout: Path, slug: str) -> CommandCall:
+    root, _ = _modal_app(checkout, slug)
+    modal_target(slug)
+    return CommandCall((sys.executable, "-m", "modal", "app", "list", "--env", MODAL_ENVIRONMENT, "--json"), root, MODAL_ENV_KEYS, 60)
+
+
+def modal_app_stopped(value: Any, slug: str) -> bool:
+    return modal_app_state(value, slug) == "stopped"
+
+
+def modal_app_state(value: Any, slug: str) -> str:
+    target = modal_target(slug)
+    matches = [row for row in _list(value) if row.get("Description") == target]
+    if not matches:
+        return "absent"
+    if len(matches) != 1 or matches[0].get("State") not in {"deployed", "running", "stopped"}:
+        raise AdapterError("production_readback_failed")
+    tasks = str(matches[0].get("Tasks"))
+    if not tasks.isdigit() or (matches[0]["State"] == "stopped" and tasks != "0"):
+        raise AdapterError("production_readback_failed")
+    return str(matches[0]["State"])
 
 
 def cloudflare_preflight_call(checkout: Path, outdir: Path) -> CommandCall:
@@ -280,8 +331,7 @@ def modal_history_snapshot(value: Any) -> list[tuple[str, str | None]]:
 
 
 def modal_receipt(before: Any, after: Any, slug: str, target_sha: str, artifact_hash: str) -> DeploymentReceipt:
-    if str(slug or "").strip() != MODAL_ALLOWED_SLUG:
-        raise AdapterError("invalid_production_target")
+    target = modal_target(slug)
     sha, artifact = _sha(target_sha), _hash(artifact_hash)
     before_history, after_history = modal_history_snapshot(before), modal_history_snapshot(after)
     before_match = [version for version, tag in before_history if tag == sha]
@@ -289,18 +339,25 @@ def modal_receipt(before: Any, after: Any, slug: str, target_sha: str, artifact_
         if after_history != before_history:
             raise AdapterError("production_readback_failed")
         return DeploymentReceipt(
-            "modal", MODAL_TARGET, MODAL_ENVIRONMENT, sha, artifact,
+            "modal", target, MODAL_ENVIRONMENT, sha, artifact,
             before_match[0], None, True, None,
         )
+    if not before_history:
+        if len(after_history) != 1 or after_history[0][1] != sha:
+            raise AdapterError("production_readback_failed")
+        return DeploymentReceipt(
+            "modal", target, MODAL_ENVIRONMENT, sha, artifact,
+            after_history[0][0], None, False, None,
+        )
     if (
-        not before_history or len(after_history) != len(before_history) + 1
+        len(after_history) != len(before_history) + 1
         or after_history[1:] != before_history or after_history[0][1] != sha
         or after_history[0][0] in {version for version, _ in before_history}
     ):
         raise AdapterError("production_readback_failed")
     version = after_history[0][0]
     previous = before_history[0][0]
-    return DeploymentReceipt("modal", MODAL_TARGET, MODAL_ENVIRONMENT, sha, artifact, version, previous, False, previous)
+    return DeploymentReceipt("modal", target, MODAL_ENVIRONMENT, sha, artifact, version, previous, False, previous)
 
 
 def _active_version(deployments: list[dict[str, Any]]) -> str:

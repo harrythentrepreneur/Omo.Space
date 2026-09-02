@@ -433,6 +433,11 @@ def _deployment_receipt(
         "cloudflare": (targets.cloudflare_target, targets.cloudflare_environment),
     }
     target, environment = expected[provider]
+    if provider == "modal" and target == "cognition-{slug}":
+        slug = str(getattr(claim, "slug", "") or "")
+        if not SAFE_SLUG_RE.fullmatch(slug) or len("cognition-" + slug) > 64:
+            raise FinalizerError("internal_finalizer_failed")
+        target = "cognition-" + slug
     required = {
         "status", "provider", "target", "environment", "target_sha", "artifact_hash",
         "version_id", "previous_version_id", "reused", "rollback_token",
@@ -451,7 +456,7 @@ def _deployment_receipt(
         or type(reused) is not bool
         or (previous is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", str(previous)))
         or value.get("rollback_token") != previous
-        or (reused is False and previous is None)
+        or (reused is False and provider == "cloudflare" and previous is None)
         or (reused is True and previous is not None)
     ):
         raise FinalizerError("internal_finalizer_failed")

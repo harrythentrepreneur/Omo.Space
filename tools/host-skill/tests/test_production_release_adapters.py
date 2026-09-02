@@ -86,6 +86,49 @@ def test_modal_commands_are_exact_main_target_and_sha(tmp_path):
     assert "CLOUDFLARE_API_TOKEN" not in deploy.allowed_env
 
 
+def test_modal_commands_derive_a_slug_locked_target_for_any_generated_app(tmp_path):
+    mod = load_module()
+    root = checkout(tmp_path)
+    slug = "creator-modal-workflow"
+    app = root / "containers" / slug / "modal_app.py"
+    app.parent.mkdir(parents=True)
+    app.write_text("# compiler generated fixture\n", encoding="utf-8")
+    target = "cognition-creator-modal-workflow"
+    assert mod.modal_target(slug) == target
+    assert mod.modal_history_call(root, slug).argv == (
+        sys.executable, "-m", "modal", "app", "history", target, "--env", "main", "--json",
+    )
+    assert mod.modal_deploy_call(root, slug, SHA).argv == (
+        sys.executable, "-m", "modal", "deploy", str(app),
+        "--env", "main", "--name", target, "--tag", SHA,
+    )
+    assert mod.modal_rollback_call(root, slug, "v2").argv == (
+        sys.executable, "-m", "modal", "app", "rollback", target, "v2", "--env", "main",
+    )
+    receipt = mod.modal_receipt(
+        [{"Version": "v1", "Tag": None}],
+        [{"Version": "v2", "Tag": SHA}, {"Version": "v1", "Tag": None}],
+        slug, SHA, ARTIFACT,
+    )
+    assert receipt.target == target
+    first = mod.modal_receipt(
+        [], [{"Version": "v1", "Tag": SHA}], slug, SHA, ARTIFACT,
+    )
+    assert first.reused is False and first.previous_version_id is None and first.rollback_token is None
+    assert mod.modal_stop_call(root, slug).argv == (
+        sys.executable, "-m", "modal", "app", "stop", target, "--env", "main",
+    )
+    assert mod.modal_apps_call(root, slug).argv == (
+        sys.executable, "-m", "modal", "app", "list", "--env", "main", "--json",
+    )
+    assert mod.modal_app_stopped([
+        {"Description": target, "State": "stopped", "Tasks": "0"},
+    ], slug) is True
+    assert mod.modal_app_stopped([
+        {"Description": target, "State": "deployed", "Tasks": "0"},
+    ], slug) is False
+
+
 def test_cloudflare_commands_are_exact_production_target_without_env_alias(tmp_path):
     mod = load_module()
     root = checkout(tmp_path)
@@ -177,7 +220,7 @@ def test_modal_readback_binds_sha_and_rollback_predecessor():
     recovered = mod.modal_receipt(duplicated, duplicated, SLUG, SHA, ARTIFACT)
     assert recovered.reused is True and recovered.version_id == "v5"
     with pytest.raises(mod.AdapterError):
-        mod.modal_receipt([], [{"Version": "v1", "Tag": SHA}], SLUG, SHA, ARTIFACT)
+        mod.modal_receipt([], [{"Version": "v1", "Tag": "c" * 40}], SLUG, SHA, ARTIFACT)
 
 
 @pytest.mark.parametrize(

@@ -215,12 +215,15 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-Activate the landed workflow release for submission
-`sub_206cb9e53f30a18112371f4ee6a2bef8`. Build dispatch completed, generated PR
-#323 merged as `32c47b622a4caed4993eca599c769a4867e1d436`, and exact-main CI passed. The
-first post-merge verifier correctly rejected a builder base from before that
-workflow landed. Rotate builder source, Worker selector, governed deployment
-checks, and tests to exact foundation commit `32c47b622a4caed4993eca599c769a4867e1d436`.
-Focused pin tests pass 80/80, full Python 553/553, Worker/router 317/317, and
-supporting Worker/API 69/69. Next: review/merge this activation PR, deploy both
-substrates, then use one narrow release-verification retry and prove the workflow Live.
+Release and prove the autonomous creator pipeline. Generic fair queue dispatch,
+creator-owned finalization, exact-main v2 target discovery, slug-derived Modal
+deployment/canaries, and protected exact-head machine review are locally complete.
+The stable builder trust root remains `32c47b622a4caed4993eca599c769a4867e1d436`;
+it does not rotate per workflow. Full Python passes 591/591, Worker/router 319/319,
+supporting Worker/API 69/69, the release and transport stack 203/203, Wrangler dry-run,
+syntax/config/diff checks, and a real read-only PR #323 reviewer replay all pass.
+The production scheduler is FIFO across eligible states and applies the reviewed
+`2026-09-02T16:37:18Z` cutoff, so historical queued rows remain untouched.
+Next: freeze and independently review this exact tree, PR/CI/separate approval/merge,
+deploy Worker and Modal builder, provision the protected reviewer token, then let
+the fresh pure-data and bounded single-LLM sources reach Live with no human action.
