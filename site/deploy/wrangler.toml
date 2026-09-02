@@ -79,7 +79,7 @@ OMO_SUPPORT_BROKER_URL = "https://cognition.cv/omo-support-api/v1/chat"
 OMO_BUILDER_ENABLED = "true"
 OMO_BUILDER_ALLOWED_SUBMISSION_ID = "sub_206cb9e53f30a18112371f4ee6a2bef8"
 OMO_BUILDER_MODAL_URL = "https://omo-space--omo-hermes-builder-dispatch.modal.run"
-OMO_BUILDER_BASE_REVISION = "a7891619c64203f6422a9b3c8eef105983e39cec"
+OMO_BUILDER_BASE_REVISION = "32c47b622a4caed4993eca599c769a4867e1d436"
 # Hosted Facebook Ads runtime in the phonicsmaker / OMOSpace Modal environment.
 FACEBOOK_ADS_MODAL_URL = "https://phonicsmaker-omospace--cognition-facebook-ads-copywriter-api.modal.run"
 
