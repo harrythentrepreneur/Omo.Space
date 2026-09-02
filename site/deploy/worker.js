@@ -584,6 +584,8 @@ function builderSchedulePhase(controller) {
 async function dispatchNextBuilderSubmission(env, phase = 'build') {
   if (!['build', 'verify_merged'].includes(phase)) throw new Error('invalid_builder_phase');
   if (env.OMO_BUILDER_ENABLED !== 'true') return { status: 'disabled', phase };
+  const allowedSubmissionId = safeSubmissionId(env.OMO_BUILDER_ALLOWED_SUBMISSION_ID);
+  if (!allowedSubmissionId) return { status: 'disabled', phase };
   const modalUrl = String(env.OMO_BUILDER_MODAL_URL || '').trim();
   const modalKey = String(env.OMO_BUILDER_MODAL_KEY || '').trim();
   const modalSecret = String(env.OMO_BUILDER_MODAL_SECRET || '').trim();
@@ -592,7 +594,7 @@ async function dispatchNextBuilderSubmission(env, phase = 'build') {
       !modalKey || !modalSecret || !/^[0-9a-f]{40}$/.test(baseRevision)) {
     throw new Error('builder_dispatch_not_configured');
   }
-  const candidate = await internalPeekBuilderSubmission(env, phase);
+  const candidate = await internalPeekBuilderSubmission(env, phase, allowedSubmissionId);
   if (!candidate) return { status: 'idle', phase };
   if ((phase === 'verify_merged') !== (candidate.status === 'ready_for_deploy')) {
     throw new Error('builder_phase_candidate_mismatch');
@@ -4411,30 +4413,32 @@ async function internalClaimSubmission(env, options) {
   };
 }
 
-async function internalPeekBuilderSubmission(env, phase = 'build') {
+async function internalPeekBuilderSubmission(env, phase = 'build', allowedSubmissionId = '') {
   if (!['build', 'verify_merged'].includes(phase)) throw new Error('invalid_builder_phase');
+  const scopedId = safeSubmissionId(allowedSubmissionId);
+  if (!scopedId) return null;
   const buildLane = phase === 'build';
   if (databaseKind(env) === 'neon') {
     const result = buildLane
       ? await getNeonPool(env).query(prepared(
-        'omo-internal-builder-peek-build-v1',
+        'omo-internal-builder-peek-build-scoped-v1',
         `SELECT id,slug,source_sha256,status
          FROM submissions
-         WHERE status IN ($1, $2)
+         WHERE status IN ($1, $2) AND id = $3
          ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC
          LIMIT 1`,
-        ['needs_review', 'queued']
+        ['needs_review', 'queued', scopedId]
       ))
       : await getNeonPool(env).query(prepared(
-        'omo-internal-builder-peek-verify-v1',
+        'omo-internal-builder-peek-verify-scoped-v1',
         `SELECT id,slug,source_sha256,status
          FROM submissions
          WHERE status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
            AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
-           AND release_artifact_hash IS NOT NULL
+           AND release_artifact_hash IS NOT NULL AND id = $1
          ORDER BY updated_at ASC
          LIMIT 1`,
-        []
+        [scopedId]
       ));
     return safeBuilderPeekRow(result.rows[0]);
   }
@@ -4442,26 +4446,26 @@ async function internalPeekBuilderSubmission(env, phase = 'build') {
     const row = buildLane
       ? await env.BALANCE_DB
         .prepare(`SELECT id,slug,source_sha256,status FROM submissions
-                  WHERE status IN (?, ?)
+                  WHERE status IN (?, ?) AND id = ?
                   ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`)
-        .bind('needs_review', 'queued').first()
+        .bind('needs_review', 'queued', scopedId).first()
       : await env.BALANCE_DB
         .prepare(`SELECT id,slug,source_sha256,status FROM submissions
                   WHERE status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
                     AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
-                    AND release_artifact_hash IS NOT NULL
+                    AND release_artifact_hash IS NOT NULL AND id = ?
                   ORDER BY updated_at ASC LIMIT 1`)
-        .first();
+        .bind(scopedId).first();
     return safeBuilderPeekRow(row);
   }
   const rows = Array.from(mockSubmissions.values());
   const row = buildLane
     ? rows
-      .filter((record) => ['needs_review', 'queued'].includes(record.status))
+      .filter((record) => record.id === scopedId && ['needs_review', 'queued'].includes(record.status))
       .sort((a, b) => ({ needs_review: 0, queued: 1 }[a.status] - { needs_review: 0, queued: 1 }[b.status]) ||
         String(a.created_at || '').localeCompare(String(b.created_at || '')))[0]
     : rows
-      .filter((record) => record.status === 'ready_for_deploy' &&
+      .filter((record) => record.id === scopedId && record.status === 'ready_for_deploy' &&
         ['pr_open', 'ci_passed'].includes(record.release_phase) &&
         record.release_pr_url && record.release_head_sha && record.release_artifact_hash)
       .sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')))[0];

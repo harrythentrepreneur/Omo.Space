@@ -663,14 +663,18 @@ const fairnessLeastRecent = {
 };
 workerTest.mockSubmissions.set(fairnessOlderCreated.id, fairnessOlderCreated);
 workerTest.mockSubmissions.set(fairnessLeastRecent.id, fairnessLeastRecent);
-const fairnessCandidate = await workerTest.internalPeekBuilderSubmission({}, 'verify_merged');
-check('post-merge verifier fairness: least recently updated ready row wins in mock ordering',
+const fairnessCandidate = await workerTest.internalPeekBuilderSubmission(
+  {}, 'verify_merged', fairnessLeastRecent.id
+);
+check('post-merge verifier scope: the configured ready row wins even when another row is older',
   fairnessCandidate.id === fairnessLeastRecent.id);
-check('post-merge verifier fairness: Neon and D1 use phase-specific oldest-update ordering',
-  (workerSrc.match(/ORDER BY updated_at ASC/g) || []).length >= 2 &&
-  workerSrc.includes("omo-internal-builder-peek-verify-v1") &&
-  workerSrc.includes("omo-internal-builder-peek-build-v1") &&
-  workerSrc.includes("String(a.updated_at || '').localeCompare(String(b.updated_at || ''))"));
+check('builder scope: Neon and D1 selectors bind the exact submission in both phases',
+  workerSrc.includes("omo-internal-builder-peek-verify-scoped-v1") &&
+  workerSrc.includes("omo-internal-builder-peek-build-scoped-v1") &&
+  workerSrc.includes("WHERE status IN ($1, $2) AND id = $3") &&
+  workerSrc.includes("release_artifact_hash IS NOT NULL AND id = $1") &&
+  workerSrc.includes("WHERE status IN (?, ?) AND id = ?") &&
+  workerSrc.includes("release_artifact_hash IS NOT NULL AND id = ?"));
 workerTest.mockSubmissions.delete(fairnessOlderCreated.id);
 workerTest.mockSubmissions.delete(fairnessLeastRecent.id);
 
@@ -5087,6 +5091,7 @@ check('webhook: unsigned demo works; real mode without secret fails closed', whN
 const builderEnv = {
   ...env,
   OMO_BUILDER_ENABLED: 'true',
+  OMO_BUILDER_ALLOWED_SUBMISSION_ID: 'sub_abcdefgh12345678',
   OMO_BUILDER_MODAL_URL: 'https://builder.modal.run',
   OMO_BUILDER_MODAL_KEY: 'modal-key-test',
   OMO_BUILDER_MODAL_SECRET: 'modal-secret-test',
@@ -5109,7 +5114,8 @@ check('builder cron: explicit default-off gate prevents Modal calls even when a 
   builderDispatchCalls.length === beforeDisabledDispatches &&
   workerTest.mockSubmissions.get('user_builder:disabled-candidate').status === 'queued' &&
   workerSrc.includes("if (env.OMO_BUILDER_ENABLED !== 'true') return { status: 'disabled', phase };") &&
-  wranglerSource.includes('OMO_BUILDER_ENABLED = "false"'));
+  wranglerSource.includes('OMO_BUILDER_ENABLED = "true"') &&
+  wranglerSource.includes('OMO_BUILDER_ALLOWED_SUBMISSION_ID = "sub_206cb9e53f30a18112371f4ee6a2bef8"'));
 workerTest.mockSubmissions.clear();
 const beforeIdleDispatches = builderDispatchCalls.length;
 let scheduledTask = null;
@@ -5127,6 +5133,17 @@ workerTest.mockSubmissions.set('user_builder:label-normalizer-canary', {
   requested_runtime: 'auto',
   status: 'needs_review',
   created_at: new Date().toISOString(),
+});
+workerTest.mockSubmissions.set('user_builder:older-nontarget', {
+  id: 'sub_oldernontarget123456',
+  user_id: 'user_builder',
+  name: 'Older Non Target',
+  slug: 'older-non-target',
+  content: 'PRIVATE_NON_TARGET_SOURCE',
+  source_sha256: '9'.repeat(64),
+  requested_runtime: 'auto',
+  status: 'needs_review',
+  created_at: '2026-01-01T00:00:00.000Z',
 });
 scheduledTask = null;
 await worker.scheduled({}, builderEnv, { waitUntil(task) { scheduledTask = task; } });
@@ -5146,7 +5163,11 @@ check('builder cron: dispatches identifiers only with Modal proxy auth',
   !JSON.stringify(builderCall.payload).includes('PRIVATE_SOURCE_MUST_NOT_LEAVE_WORKER') &&
   !('content' in builderCall.payload) && !('user_id' in builderCall.payload));
 check('builder cron: peek does not mutate authoritative queue state before Modal claims',
-  workerTest.mockSubmissions.get('user_builder:label-normalizer-canary').status === 'needs_review');
+  workerTest.mockSubmissions.get('user_builder:label-normalizer-canary').status === 'needs_review' &&
+  workerTest.mockSubmissions.get('user_builder:older-nontarget').status === 'needs_review');
+check('builder cron: exact submission scope skips an older eligible non-target row',
+  builderCall.payload.submission_id === builderEnv.OMO_BUILDER_ALLOWED_SUBMISSION_ID &&
+  !JSON.stringify(builderCall.payload).includes('sub_oldernontarget123456'));
 
 const buildDispatchId = builderCall.payload.dispatch_id;
 workerTest.mockSubmissions.clear();
@@ -5166,7 +5187,9 @@ workerTest.mockSubmissions.set('user_builder:v02-release-label-sorter', {
   created_at: new Date().toISOString(),
 });
 scheduledTask = null;
-await worker.scheduled({ scheduledTime: 60_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({ scheduledTime: 60_000 }, {
+  ...builderEnv, OMO_BUILDER_ALLOWED_SUBMISSION_ID: 'sub_mergedverify12345678',
+}, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const mergedVerifierCall = builderDispatchCalls.at(-1);
 check('builder cron: dispatches a distinct identifier-only post-merge verifier phase',
@@ -5254,16 +5277,20 @@ workerTest.mockSubmissions.set('user_builder:fresh-upload', {
   created_at: new Date().toISOString(),
 });
 scheduledTask = null;
-await worker.scheduled({ scheduledTime: 120_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({ scheduledTime: 120_000 }, {
+  ...builderEnv, OMO_BUILDER_ALLOWED_SUBMISSION_ID: 'sub_freshupload123456789',
+}, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const fairBuildCall = builderDispatchCalls.at(-1);
-check('builder cron fairness: build minute selects fresh upload despite eligible post-merge row',
+check('builder cron phase scheduling: build minute dispatches the scoped fresh upload',
   fairBuildCall.payload.submission_id === 'sub_freshupload123456789' && fairBuildCall.payload.phase === 'build');
 scheduledTask = null;
-await worker.scheduled({ scheduledTime: 180_000 }, builderEnv, { waitUntil(task) { scheduledTask = task; } });
+await worker.scheduled({ scheduledTime: 180_000 }, {
+  ...builderEnv, OMO_BUILDER_ALLOWED_SUBMISSION_ID: 'sub_mergedverify12345678',
+}, { waitUntil(task) { scheduledTask = task; } });
 if (scheduledTask) await scheduledTask;
 const fairVerifyCall = builderDispatchCalls.at(-1);
-check('builder cron fairness: verify minute selects eligible post-merge row despite fresh upload',
+check('builder cron phase scheduling: verify minute dispatches the same scoped release row',
   fairVerifyCall.payload.submission_id === 'sub_mergedverify12345678' && fairVerifyCall.payload.phase === 'verify_merged');
 
 console.log(`\n${pass} passed, ${fail} failed`);
