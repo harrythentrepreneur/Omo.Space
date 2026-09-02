@@ -5093,14 +5093,16 @@ async function internalClaimFinalization(env, targetSha, targets) {
   const claimedAt = now.toISOString();
   const leaseExpiresAt = new Date(now.getTime() + FINALIZATION_LEASE_SECONDS * 1000).toISOString();
   const finalizationId = `fin_${crypto.randomUUID().replace(/-/g, '')}`;
+  const canonicalOwner = 'user_prod_label_normalizer_canary_v1';
   const targetValues = targets.flatMap((target) => [target.slug, target.source_sha256]);
   if (databaseKind(env) === 'neon') {
-    const targetPairs = targets.map((_, index) => `($${index * 2 + 4}, $${index * 2 + 5})`).join(', ');
+    const targetPairs = targets.map((_, index) => `($${index * 2 + 5}, $${index * 2 + 6})`).join(', ');
     const result = await getNeonPool(env).query(prepared(
-      `omo-internal-finalization-claim-v2-${targets.length}`,
+      `omo-internal-finalization-claim-v3-${targets.length}`,
       `WITH candidate AS (
          SELECT id FROM submissions
-         WHERE status = 'ready_for_deploy'
+         WHERE user_id = $4
+           AND status = 'ready_for_deploy'
            AND release_phase = 'merged_verified'
            AND (published_slug, source_sha256) IN (${targetPairs})
            AND selected_runtime IN ('worker-native', 'modal-hosted')
@@ -5137,7 +5139,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
                  submission.finalization_source_sha256,submission.finalization_head_sha,
                  submission.finalization_merge_sha,submission.finalization_artifact_hash,
                  submission.finalization_lease_expires_at,submission.finalization_attempts`,
-      [finalizationId, targetSha, leaseExpiresAt, ...targetValues]
+      [finalizationId, targetSha, leaseExpiresAt, canonicalOwner, ...targetValues]
     ));
     return finalizationClaimRow(result.rows[0]);
   }
@@ -5149,7 +5151,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
               release_head_sha,release_merge_sha,release_artifact_hash,
               finalization_status,finalization_lease_expires_at,finalization_attempts
        FROM submissions
-       WHERE status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+       WHERE user_id = ? AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
          AND (${targetPairs})
          AND selected_runtime IN ('worker-native', 'modal-hosted')
          AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
@@ -5162,7 +5164,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
               (finalization_status IN ('claimed', 'deploying_modal', 'deploying_worker', 'verifying_public')
                AND finalization_lease_expires_at < ?))
        ORDER BY updated_at ASC, id ASC LIMIT 1`
-    ).bind(...targetValues, claimedAt).first();
+    ).bind(canonicalOwner, ...targetValues, claimedAt).first();
     if (!row) return null;
     const updated = await env.BALANCE_DB.prepare(
       `UPDATE submissions
@@ -5173,7 +5175,8 @@ async function internalClaimFinalization(env, targetSha, targets) {
            finalization_attempts = COALESCE(finalization_attempts, 0) + 1,
            finalization_failure_code = NULL, finalization_modal_receipt = NULL,
            finalization_worker_receipt = NULL, automation_updated_at = ?
-       WHERE id = ? AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+       WHERE id = ? AND user_id = ?
+         AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
          AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
          AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL
          AND release_issue_url IS NOT NULL AND release_pr_url IS NOT NULL
@@ -5189,7 +5192,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
     ).bind(
       finalizationId, targetSha, row.source_sha256, row.release_head_sha,
       row.release_merge_sha, row.release_artifact_hash, claimedAt, leaseExpiresAt, claimedAt, row.id,
-      row.selected_runtime, row.source_sha256, row.published_slug, row.workflow_version,
+      canonicalOwner, row.selected_runtime, row.source_sha256, row.published_slug, row.workflow_version,
       row.build_evidence, row.release_issue_url, row.release_pr_url, row.release_pr_number,
       row.release_branch, row.release_head_sha, row.release_merge_sha,
       row.release_artifact_hash, claimedAt,
@@ -5213,7 +5216,8 @@ async function internalClaimFinalization(env, targetSha, targets) {
     const claimable = record.finalization_status == null ||
       (['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public'].includes(record.finalization_status) &&
        Number.isFinite(expiry) && expiry < now.getTime());
-    if (targetMap.get(record.published_slug) === record.source_sha256 &&
+    if (record.user_id === canonicalOwner &&
+        targetMap.get(record.published_slug) === record.source_sha256 &&
         record.status === 'ready_for_deploy' && record.release_phase === 'merged_verified' &&
         safeRuntime(record.selected_runtime) && safeGitSha(record.release_head_sha) &&
         safeGitSha(record.release_merge_sha) && safeSha256(record.release_artifact_hash) &&

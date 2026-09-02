@@ -459,7 +459,7 @@ const sandbox = {
               : text.includes('SELECT id,published_slug,status,release_phase,selected_runtime') && text.includes('(published_slug, source_sha256) IN')
                 ? 'omo-internal-finalization-eligibility-v3'
               : text.includes('WITH candidate AS') && text.includes('finalization_id') && text.includes("finalization_status = 'claimed'")
-                ? 'omo-internal-finalization-claim-v2'
+                ? 'omo-internal-finalization-claim-v3'
               : text.includes('finalization_attempts = 1') && text.includes('LIMIT 32') && text.includes("finalization_status = 'failed'")
                 ? 'omo-internal-finalization-recovery-candidate-v1'
               : text.includes("status IN ('ready_for_publish', 'deployed')") && text.includes("finalization_status = 'completed'") && text.includes('SELECT')
@@ -512,7 +512,7 @@ const sandbox = {
       if (entry.name === 'omo-internal-submission-claim-v1') {
         return neonInternalClaimRow ? { rows: [neonInternalClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      if (entry.name === 'omo-internal-finalization-claim-v2') {
+      if (entry.name === 'omo-internal-finalization-claim-v3') {
         return neonFinalizationClaimRow ? { rows: [neonFinalizationClaimRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-internal-finalization-eligibility-v3') {
@@ -2324,8 +2324,9 @@ check('internal deployment: builder cannot bypass atomic finalization and promot
   !JSON.stringify(deployedRecord).includes('attacker-branch'));
 
 const finalizationCandidateId = 'sub_finalizationlease0001';
-workerTest.mockSubmissions.set(finalizationCandidateId, {
+const finalizationCandidateRecord = {
   id: finalizationCandidateId,
+  user_id: 'user_prod_label_normalizer_canary_v1',
   name: 'Lease Workflow',
   slug: 'lease-workflow',
   content: '# Lease Workflow\n',
@@ -2349,7 +2350,16 @@ workerTest.mockSubmissions.set(finalizationCandidateId, {
   finalization_status: null,
   finalization_lease_expires_at: null,
   finalization_attempts: 0,
+};
+const finalizationShadowId = 'sub_finalizationshadow0001';
+workerTest.mockSubmissions.set(finalizationShadowId, {
+  ...finalizationCandidateRecord,
+  id: finalizationShadowId,
+  user_id: 'user_private',
+  created_at: '2026-08-19T00:00:00Z',
+  release_branch: 'omo-release/' + finalizationShadowId + '-lease-workflow',
 });
+workerTest.mockSubmissions.set(finalizationCandidateId, finalizationCandidateRecord);
 const completedFinalizationId = 'sub_completedfinalization01';
 const completedFinalizationRecord = {
   id: completedFinalizationId,
@@ -3458,7 +3468,7 @@ check('internal finalization eligibility: Neon and D1 bind canonical owner plus 
     'user_prod_label_normalizer_canary_v1', 'v02-release-label-sorter', 'a'.repeat(64),
   ]) &&
   workerSrc.includes('`omo-internal-finalization-eligibility-v3-${targets.length}`') &&
-  workerSrc.includes('`omo-internal-finalization-claim-v2-${targets.length}`') &&
+  workerSrc.includes('`omo-internal-finalization-claim-v3-${targets.length}`') &&
   !neonEligibilityCall.text.includes('content'));
 const malformedEligibilityRecord = {
   ...backendEligibilityRow,
@@ -3501,12 +3511,14 @@ const neonFinalization = await workerTest.internalClaimFinalization(
   { NEON_DATABASE_URL: 'postgres://example' }, 'b'.repeat(40),
   [{ slug: 'neon-finalizer', source_sha256: '6'.repeat(64) }]
 );
-const neonFinalizationCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-claim-v2');
+const neonFinalizationCall = neonSqlCalls.find((call) => call.name === 'omo-internal-finalization-claim-v3');
 check('internal finalization claim Neon: one locked atomic update returns only finalizer fields',
   neonFinalization.id === 'fin_' + 'a'.repeat(32) &&
   neonFinalizationCall.text.includes('FOR UPDATE SKIP LOCKED') &&
-  neonFinalizationCall.text.includes('(published_slug, source_sha256) IN (($4, $5))') &&
-  neonFinalizationCall.values[3] === 'neon-finalizer' && neonFinalizationCall.values[4] === '6'.repeat(64) &&
+  neonFinalizationCall.text.includes('user_id = $4') &&
+  neonFinalizationCall.text.includes('(published_slug, source_sha256) IN (($5, $6))') &&
+  neonFinalizationCall.values[3] === 'user_prod_label_normalizer_canary_v1' &&
+  neonFinalizationCall.values[4] === 'neon-finalizer' && neonFinalizationCall.values[5] === '6'.repeat(64) &&
   neonFinalizationCall.text.includes("release_phase = 'merged_verified'") &&
   neonFinalizationCall.text.includes('release_pr_url IS NOT NULL') &&
   neonFinalizationCall.text.includes('build_evidence IS NOT NULL') &&
@@ -3830,7 +3842,7 @@ d1Claims.db.close();
 function d1DatabaseForFinalization(record) {
   const db = new DatabaseSync(':memory:');
   db.exec(`CREATE TABLE submissions (
-    id TEXT PRIMARY KEY, slug TEXT, source_sha256 TEXT, selected_runtime TEXT,
+    id TEXT PRIMARY KEY, user_id TEXT, slug TEXT, source_sha256 TEXT, selected_runtime TEXT,
     status TEXT, release_phase TEXT, published_slug TEXT, workflow_version TEXT,
     build_evidence TEXT, release_issue_url TEXT, release_pr_url TEXT,
     release_pr_number INTEGER, release_branch TEXT, release_head_sha TEXT,
@@ -3871,6 +3883,7 @@ function d1DatabaseForFinalization(record) {
 const d1FinalizerId = 'sub_d1finalizer01';
 const d1Finalizer = d1DatabaseForFinalization({
   id: d1FinalizerId,
+  user_id: 'user_prod_label_normalizer_canary_v1',
   slug: 'd1-finalizer',
   source_sha256: 'a'.repeat(64),
   selected_runtime: 'worker-native',
@@ -4013,7 +4026,8 @@ d1Completed.db.close();
 
 const d1FailedTarget = '7'.repeat(40);
 const d1Failed = d1DatabaseForFinalization({
-  id: 'sub_d1failedfinal01', slug: 'd1-failed-final', source_sha256: '8'.repeat(64),
+  id: 'sub_d1failedfinal01', user_id: 'user_prod_label_normalizer_canary_v1',
+  slug: 'd1-failed-final', source_sha256: '8'.repeat(64),
   selected_runtime: 'worker-native', status: 'failed',
   release_phase: 'merged_verified', published_slug: 'd1-failed-final',
   workflow_version: 'd1-failed-final@1.0.0',
@@ -4061,7 +4075,8 @@ check('internal failed finalization resume D1: real SQLite requeues once, then s
 d1Failed.db.close();
 
 const d1RecoveryRecord = {
-  ...rollbackRecord, status: 'failed', finalization_id: 'fin_' + '8'.repeat(32),
+  ...rollbackRecord, user_id: 'user_prod_label_normalizer_canary_v1',
+  status: 'failed', finalization_id: 'fin_' + '8'.repeat(32),
   finalization_status: 'failed', finalization_failure_code: 'worker_smoke_failed',
   finalization_target_sha: rollbackTarget, finalization_source_sha256: 'a'.repeat(64),
   finalization_head_sha: 'b'.repeat(40), finalization_merge_sha: 'c'.repeat(40),
