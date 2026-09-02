@@ -991,8 +991,9 @@ def test_process_row_with_deploy_prepares_git_release_without_production_side_ef
     assert not any("modal deploy" in command or "wrangler deploy" in command for command in flattened)
 
 
-def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_path: Path) -> None:
+def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_path: Path, monkeypatch) -> None:
     process = load_process_submissions()
+    monkeypatch.setattr(process.HOST_MODULE, "refresh_cumulative_registration", lambda _root: [])
     commands: list[tuple[tuple[str, ...], Path | None]] = []
     pushed = {"value": False}
 
@@ -1052,8 +1053,9 @@ def test_github_release_adapter_uses_fixed_repo_branch_and_allowlisted_adds(tmp_
     assert not any("/tmp/" in command and "SKILL.md" in command for command in flattened)
 
 
-def test_github_release_adapter_fast_forwards_existing_server_branch(tmp_path: Path) -> None:
+def test_github_release_adapter_fast_forwards_existing_server_branch(tmp_path: Path, monkeypatch) -> None:
     process = load_process_submissions()
+    monkeypatch.setattr(process.HOST_MODULE, "refresh_cumulative_registration", lambda _root: [])
     commands: list[tuple[tuple[str, ...], Path | None]] = []
     branch = "omo-release/sub_adapter000000000000000001-facebook-ads-copywriter"
     remote_head = "d" * 40
@@ -1324,8 +1326,39 @@ def test_release_allowlist_includes_reviewed_marketplace_slug_manifest(tmp_path:
     assert before != after
 
 
-def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path) -> None:
+def test_release_copy_boundary_never_overwrites_shared_control_plane(tmp_path):
     process = load_process_submissions()
+    slug = "creator-copy-boundary"
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    for root, worker_text in ((source, "stale worker"), (destination, "current worker")):
+        (root / f"containers/{slug}").mkdir(parents=True)
+        (root / f"containers/{slug}/manifest.json").write_text("{}", encoding="utf-8")
+        (root / "packages/skill-to-modal/profiles").mkdir(parents=True)
+        (root / f"packages/skill-to-modal/profiles/{slug}.json").write_text("{}", encoding="utf-8")
+        (root / "packages/skill-to-modal/profile-authoring-specs").mkdir(parents=True)
+        (root / f"packages/skill-to-modal/profile-authoring-specs/{slug}.json").write_text("{}", encoding="utf-8")
+        (root / "site/run-manifests").mkdir(parents=True)
+        (root / f"site/run-manifests/{slug}.json").write_text("{}", encoding="utf-8")
+        (root / "site/deploy").mkdir(parents=True)
+        (root / "site/deploy/worker.js").write_text(worker_text, encoding="utf-8")
+        (root / "site/catalog.js").write_text(worker_text, encoding="utf-8")
+        (root / "site/deploy/hosted-skills.generated.mjs").write_text(worker_text, encoding="utf-8")
+
+    copied = process.copy_allowlisted_release_paths(slug, destination, source_root=source)
+    assert set(copied) == {
+        f"containers/{slug}",
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
+        f"site/run-manifests/{slug}.json",
+    }
+    assert (destination / "site/deploy/worker.js").read_text() == "current worker"
+    assert (destination / "site/catalog.js").read_text() == "current worker"
+    assert (destination / "site/deploy/hosted-skills.generated.mjs").read_text() == "current worker"
+
+def test_github_release_adapter_reuses_existing_issue_and_pr(tmp_path: Path, monkeypatch) -> None:
+    process = load_process_submissions()
+    monkeypatch.setattr(process.HOST_MODULE, "refresh_cumulative_registration", lambda _root: [])
     create_commands: list[list[str]] = []
     pushed = {"value": False}
 

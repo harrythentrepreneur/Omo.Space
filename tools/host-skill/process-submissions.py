@@ -1473,6 +1473,13 @@ def release_allowlisted_paths(slug: str, root: Path = ROOT) -> list[str]:
 def copy_allowlisted_release_paths(slug: str, destination_root: Path, source_root: Path = ROOT) -> list[str]:
     copied: list[str] = []
     for rel in release_allowlisted_paths(slug, source_root):
+        if not (
+            rel == f"containers/{slug}"
+            or rel == f"packages/skill-to-modal/profiles/{slug}.json"
+            or rel == f"packages/skill-to-modal/profile-authoring-specs/{slug}.json"
+            or rel.startswith("site/run-manifests/")
+        ):
+            continue
         source = source_root / rel
         destination = destination_root / rel
         destination.parent.mkdir(parents=True, exist_ok=True)
