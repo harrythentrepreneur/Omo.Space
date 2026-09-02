@@ -1265,7 +1265,7 @@ def test_public_canary_seed_uses_canonical_and_fresh_autonomy_sources(monkeypatc
     mod = load_module()
     calls = []
     responses = iter([
-        (202, {"id": "sub_" + "1" * 32, "slug": "v02-release-label-sorter", "status": "failed", "duplicate": True, "changed": False}),
+        (200, {"id": "sub_" + "1" * 32, "slug": "v02-release-label-sorter", "status": "deployed", "duplicate": True, "changed": False}),
         (202, {"id": "sub_" + "2" * 32, "slug": "v02-support-urgency-classifier", "status": "queued", "duplicate": False, "changed": True}),
         (202, {"id": "sub_" + "3" * 32, "slug": "autonomous-priority-label-sorter", "status": "queued", "duplicate": False, "changed": True}),
         (202, {"id": "sub_" + "4" * 32, "slug": "autonomous-reply-urgency-classifier", "status": "queued", "duplicate": False, "changed": True}),
@@ -1282,7 +1282,7 @@ def test_public_canary_seed_uses_canonical_and_fresh_autonomy_sources(monkeypatc
         "omo_" + "1" * 32,
     )
     assert adapter.seed_submissions(ROOT) == [
-        {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "1" * 32, "submission_status": "failed"},
+        {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "1" * 32, "submission_status": "deployed"},
         {"slug": "v02-support-urgency-classifier", "submission_id": "sub_" + "2" * 32, "submission_status": "queued"},
         {"slug": "autonomous-priority-label-sorter", "submission_id": "sub_" + "3" * 32, "submission_status": "queued"},
         {"slug": "autonomous-reply-urgency-classifier", "submission_id": "sub_" + "4" * 32, "submission_status": "queued"},

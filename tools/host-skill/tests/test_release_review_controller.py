@@ -258,6 +258,7 @@ def test_approval_readback_must_match_actor_and_exact_head(tmp_path: Path) -> No
 def test_workflow_uses_protected_main_and_production_reviewer_secret() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "workflow_run:" in workflow and "generated-workflow-contracts" in workflow
+    assert "github.event.workflow_run.event == 'pull_request'" in workflow
     assert "cron: '*/15 * * * *'" in workflow
     assert "environment: Production" in workflow
     assert "TRUSTED_RELEASE_REVIEW_TOKEN" in workflow
