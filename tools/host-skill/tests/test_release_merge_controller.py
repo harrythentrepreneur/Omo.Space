@@ -117,6 +117,15 @@ def test_merges_only_exact_head_after_kaviru2_review_and_actions_check() -> None
     assert not any("deploy" in " ".join(command).lower() for command in calls)
 
 
+def test_real_github_review_ids_above_signed_32_bit_are_valid() -> None:
+    module = load_module()
+    result = module.merge_release_pr(
+        42,
+        runner=successful_runner([], reviews=[[review(review_id=5_095_757_861)]]),
+    )
+    assert result["status"] == "merged"
+
+
 def test_latest_matching_contracts_check_must_be_successful_and_well_typed() -> None:
     module = load_module()
     older = check_runs(run_id=7)["check_runs"][0]
