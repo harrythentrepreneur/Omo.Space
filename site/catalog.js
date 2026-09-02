@@ -4486,6 +4486,55 @@ window.OMO_CATALOG = [
   }
   // host-skill:generated:start
   ,{
+    "category": "ops",
+    "cover": null,
+    "demoCap": "Run reviewed example",
+    "desc": "Clean and sort a bounded list of priority labels as an unattended production pipeline proof.",
+    "emoji": "\ud83d\udd24",
+    "exampleIn": "{\n  \"labels\": [\n    \" Urgent \",\n    \"backlog\",\n    \"Active\"\n  ]\n}",
+    "exampleOut": [
+      "cleaned sorted labels"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "labels: 1 to 10 bounded strings"
+    ],
+    "maker": "Submitted skill",
+    "makerName": "Submitted skill",
+    "name": "Autonomous Priority Label Sorter",
+    "niche": "productivity",
+    "outputs": [
+      "cleaned sorted labels"
+    ],
+    "priceMaintain": 0.0,
+    "priceOwn": 0.0,
+    "promise": "Return a deterministic sorted label list.",
+    "runManifest": "run-manifests/autonomous-priority-label-sorter.json",
+    "runPrice": 0.1,
+    "slug": "autonomous-priority-label-sorter",
+    "tags": [
+      "text",
+      "deterministic"
+    ],
+    "upvotes": 0,
+    "version": "1.0.0",
+    "workflow": {
+      "steps": [
+        {
+          "label": "pure_data.execute",
+          "role": "execute",
+          "type": "pipeline"
+        },
+        {
+          "label": "Running the workflow",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  }
+  ,{
     "category": "business",
     "cover": "covers/meta-ads-analyser.svg",
     "demoCap": "Hosted run: evidence-backed feedback themes and actions",
@@ -8016,6 +8065,7 @@ window.OMO_CATALOG = [
 // every listing can be restored without changing or deleting catalog data.
 window.OMO_VISIBLE_SLUGS = [
   // host-skill:visible:start
+  'autonomous-priority-label-sorter',
   'dummy-word-list-organizer',
   'gemini-ticket-priority-canary',
   'incident-route-classifier-canary',

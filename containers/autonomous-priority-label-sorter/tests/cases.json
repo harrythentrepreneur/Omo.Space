@@ -1,0 +1,30 @@
+{
+  "happy_path": {
+    "input": {
+      "labels": [
+        " Urgent ",
+        "backlog",
+        "Active"
+      ]
+    },
+    "output": {
+      "sorted_labels": [
+        "Active",
+        "backlog",
+        "Urgent"
+      ],
+      "status": "completed"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "empty",
+      "input": {
+        "labels": [
+          " "
+        ]
+      },
+      "reason": "INVALID_VALUE"
+    }
+  ]
+}

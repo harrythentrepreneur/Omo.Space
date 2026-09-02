@@ -2,6 +2,176 @@
 // Contains public contracts and environment-variable names only.
 export const HOSTED_WORKER_SKILL_ROWS = [
   [
+    "autonomous-priority-label-sorter",
+    {
+      "artifact": null,
+      "container_slug": "autonomous-priority-label-sorter",
+      "executor": {
+        "execution_kind": "pure_data",
+        "operation": "pure_data.execute",
+        "program": {
+          "limits": {
+            "max_input_bytes": 8192,
+            "max_list_items": 10,
+            "max_output_bytes": 8192,
+            "max_steps": 16,
+            "max_text_bytes": 50
+          },
+          "result": "result",
+          "spec_version": "omo.pure-data/v1",
+          "steps": [
+            {
+              "id": "labels",
+              "op": "input.get",
+              "path": "/labels"
+            },
+            {
+              "id": "clean",
+              "input": "labels",
+              "op": "text_list.normalize_ascii",
+              "reject_control_characters": true,
+              "reject_empty": true,
+              "trim_ascii_whitespace": true
+            },
+            {
+              "id": "sorted",
+              "input": "clean",
+              "key": "ascii_case_insensitive",
+              "op": "text_list.sort_ascii",
+              "tie_break": "ascii_bytes"
+            },
+            {
+              "fields": {
+                "sorted_labels": {
+                  "ref": "sorted"
+                },
+                "status": {
+                  "const": "completed"
+                }
+              },
+              "id": "result",
+              "op": "result.object"
+            }
+          ]
+        },
+        "program_digest": "sha256:ef4e469732f3a529f73da1ad0c1a76e03314a50c8f78cb09f8f8cafc56985407",
+        "spec_version": "omo.worker-pure-data/v1",
+        "workflow_version": "1.0.0"
+      },
+      "input_adapters": [],
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "labels": {
+            "items": {
+              "maxLength": 50,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "labels"
+        ],
+        "type": "object"
+      },
+      "kind": "worker-native",
+      "model_output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "sorted_labels": {
+            "items": {
+              "maxLength": 50,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          },
+          "status": {
+            "const": "completed"
+          }
+        },
+        "required": [
+          "sorted_labels",
+          "status"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "sorted_labels": {
+            "items": {
+              "maxLength": 50,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          },
+          "status": {
+            "const": "completed"
+          },
+          "usage": {
+            "additionalProperties": false,
+            "properties": {
+              "completion_tokens": {
+                "const": 0
+              },
+              "estimated_cost_usd": {
+                "const": 0
+              },
+              "llm_calls": {
+                "const": 0
+              },
+              "model": {
+                "const": "omo.pure-data/v1"
+              },
+              "prompt_tokens": {
+                "const": 0
+              },
+              "provider": {
+                "const": "worker-pure-data"
+              }
+            },
+            "required": [
+              "provider",
+              "model",
+              "llm_calls",
+              "prompt_tokens",
+              "completion_tokens",
+              "estimated_cost_usd"
+            ],
+            "type": "object"
+          },
+          "workflow_version": {
+            "const": "autonomous-priority-label-sorter@1.0.0"
+          }
+        },
+        "required": [
+          "sorted_labels",
+          "status",
+          "run_id",
+          "workflow_version",
+          "usage"
+        ],
+        "type": "object"
+      },
+      "reviewed_source_sha256": "fbaa1cbb1eff8232bb8538d1350ee97132fac9f1cd32c125e69be4ee51dc8d66",
+      "run_price_cents": 10,
+      "slug": "autonomous-priority-label-sorter"
+    }
+  ],
+  [
     "dummy-word-list-organizer",
     {
       "artifact": null,
@@ -6346,6 +6516,15 @@ export const HOSTED_MODAL_SKILL_ROWS = [
 ];
 
 export const HOSTED_SERVER_CATALOG_ROWS = [
+  [
+    "autonomous-priority-label-sorter",
+    "Autonomous Priority Label Sorter",
+    0.0,
+    0.1,
+    "pure-data",
+    0,
+    "Execute the reviewed deterministic pure-data pipeline."
+  ],
   [
     "customer-feedback-theme-finder",
     "Customer Feedback Theme Finder",
