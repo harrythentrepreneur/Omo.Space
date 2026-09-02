@@ -583,6 +583,7 @@ function builderSchedulePhase(controller) {
 
 async function dispatchNextBuilderSubmission(env, phase = 'build') {
   if (!['build', 'verify_merged'].includes(phase)) throw new Error('invalid_builder_phase');
+  if (env.OMO_BUILDER_ENABLED !== 'true') return { status: 'disabled', phase };
   const modalUrl = String(env.OMO_BUILDER_MODAL_URL || '').trim();
   const modalKey = String(env.OMO_BUILDER_MODAL_KEY || '').trim();
   const modalSecret = String(env.OMO_BUILDER_MODAL_SECRET || '').trim();
@@ -2162,11 +2163,60 @@ async function handleWaitlist(request, env) {
 }
 
 // ── Route: creator workflow intake ──────────────────────────────────────
-// The Worker stores Markdown as untrusted data. It does not compile or execute
-// it. The agent-side processor owns the reviewed profile and deployment gates.
+// The Worker stores Markdown as untrusted data and never compiles or executes it.
+// One exact allowlisted source may adopt its already-reviewed Worker artifact;
+// every other upload remains owned by the guarded external build/release path.
 
 function submissionSlug(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+const REVIEWED_ARTIFACT_ADOPTION_SLUGS = new Set(['v02-release-label-sorter']);
+
+function reviewedWorkerArtifactForSubmission(sourceSha256, slug, requestedRuntime) {
+  if (requestedRuntime === 'modal-hosted' || !REVIEWED_ARTIFACT_ADOPTION_SLUGS.has(slug)) return null;
+  const matches = HOSTED_WORKER_SKILL_ROWS.filter(([runtimeSlug, runtime]) =>
+    runtimeSlug === slug &&
+    runtime && runtime.slug === slug && runtime.container_slug === slug &&
+    runtime.kind === 'worker-native' && Number.isSafeInteger(runtime.run_price_cents) && runtime.run_price_cents > 0 &&
+    runtime.input_schema && typeof runtime.input_schema === 'object' &&
+    runtime.output_schema && typeof runtime.output_schema === 'object' &&
+    Array.isArray(runtime.input_adapters) && runtime.input_adapters.length === 0 &&
+    runtime.reviewed_source_sha256 === sourceSha256 &&
+    runtime.executor && runtime.executor.execution_kind === 'pure_data' &&
+    runtime.executor.operation === 'pure_data.execute' &&
+    runtime.executor.spec_version === 'omo.worker-pure-data/v1' &&
+    /^sha256:[0-9a-f]{64}$/.test(String(runtime.executor.program_digest || '')) &&
+    typeof runtime.executor.workflow_version === 'string' && runtime.executor.workflow_version.trim()
+  );
+  if (matches.length !== 1) return null;
+  const runtime = matches[0][1];
+  return {
+    selected_runtime: 'worker-native',
+    runtime_policy: 'reviewed_worker_artifact_reuse_v1',
+    runtime_compatibility: JSON.stringify({
+      requested: requestedRuntime,
+      recommended: 'worker-native',
+      effective: 'worker-native',
+      compatible: true,
+      reason: 'exact_reviewed_artifact_reused',
+    }),
+    workflow_version: `${slug}@${runtime.executor.workflow_version.trim()}`,
+    published_slug: slug,
+    build_evidence: JSON.stringify({
+      checks: ['reviewed_source_hash', 'existing_worker_runtime', 'runtime_contract'],
+      source_sha256: sourceSha256,
+    }),
+    deployment_metadata: JSON.stringify({
+      kind: 'worker-native', reused_reviewed_artifact: true,
+      program_digest: runtime.executor.program_digest,
+    }),
+    release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/287',
+    release_pr_number: 287,
+    release_head_sha: '1c64eaa55c68fdf4a812bc74a536899b5d8ce772',
+    release_merge_sha: '11409169ac747c5b9ac84fdb26b4096572c74a2b',
+    release_phase: 'promoted',
+  };
 }
 
 function parseSubmissionMarkdown(content) {
@@ -2260,9 +2310,12 @@ async function handleSubmission(request, env) {
 
   const sourceSha256 = await sha256Hex(parsed.content);
   const id = `sub_${(await sha256Hex(`${userId}\u0000${sourceSha256}`)).slice(0, 32)}`;
+  const reviewedArtifact = reviewedWorkerArtifactForSubmission(
+    sourceSha256, parsed.slug, requestedRuntime
+  );
   const stored = await insertSubmission(env, {
     id, userId, name: parsed.name, slug: parsed.slug, content: parsed.content, sourceSha256,
-    requestedRuntime,
+    requestedRuntime, reviewedArtifact,
   });
   if (stored.preference_conflict) {
     return json({
@@ -2275,16 +2328,25 @@ async function handleSubmission(request, env) {
       message: 'This workflow source is already queued with a different runtime preference.',
     }, 409, cors());
   }
+  const reusedReviewedArtifact = stored.reused_reviewed_artifact === true;
   return json({
     ok: true,
     id: stored.id,
     slug: parsed.slug,
     status: stored.status,
     runtime_preference: stored.requested_runtime || requestedRuntime,
-    compatibility: 'pending_review',
+    compatibility: reusedReviewedArtifact ? 'reviewed_artifact_reused' : 'pending_review',
+    ...(reusedReviewedArtifact ? {
+      selected_runtime: stored.selected_runtime,
+      published_slug: stored.published_slug,
+      workflow_version: stored.workflow_version,
+      reused_reviewed_artifact: true,
+    } : {}),
     changed: !stored.duplicate,
     duplicate: stored.duplicate,
-    message: stored.duplicate ? 'This workflow is already in your queue.' : 'Queued for Omo review and hosting.',
+    message: reusedReviewedArtifact
+      ? 'Exact reviewed workflow matched and is ready to run.'
+      : (stored.duplicate ? 'This workflow is already in your queue.' : 'Queued for Omo review and hosting.'),
   }, 202, cors());
 }
 
@@ -4099,6 +4161,102 @@ async function insertWaitlistEntry(env, email, source) {
 async function insertSubmission(env, submission) {
   const now = new Date().toISOString();
   const requestedRuntime = normalizeRequestedRuntime(submission.requestedRuntime || 'auto');
+  const reviewedArtifact = submission.reviewedArtifact;
+  if (reviewedArtifact) {
+    const reviewedValues = [
+      submission.id, submission.userId, submission.name, submission.slug,
+      submission.content, submission.sourceSha256, requestedRuntime,
+      reviewedArtifact.selected_runtime, reviewedArtifact.runtime_policy,
+      reviewedArtifact.runtime_compatibility, reviewedArtifact.workflow_version,
+      reviewedArtifact.published_slug, reviewedArtifact.build_evidence,
+      reviewedArtifact.deployment_metadata, reviewedArtifact.release_pr_url,
+      reviewedArtifact.release_pr_number, reviewedArtifact.release_head_sha,
+      reviewedArtifact.release_merge_sha, reviewedArtifact.release_phase,
+      'deployed', now, now, now,
+    ];
+    const isReusedArtifact = (row) => Boolean(
+      row && row.status === 'deployed' && row.selected_runtime === 'worker-native' &&
+      row.workflow_version === reviewedArtifact.workflow_version &&
+      row.published_slug === reviewedArtifact.published_slug
+    );
+    if (databaseKind(env) === 'neon') {
+      const result = await getNeonPool(env).query(prepared(
+        'omo-submission-insert-reviewed-artifact-v1',
+        `INSERT INTO submissions
+           (id,user_id,name,slug,content,source_sha256,requested_runtime,selected_runtime,
+            runtime_policy,runtime_compatibility,workflow_version,published_slug,build_evidence,
+            deployment_metadata,release_pr_url,release_pr_number,release_head_sha,release_merge_sha,
+            release_phase,status,created_at,updated_at,deployed_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+         ON CONFLICT (user_id,source_sha256) DO NOTHING
+         RETURNING id,status,requested_runtime,selected_runtime,workflow_version,published_slug`,
+        reviewedValues
+      ));
+      if (result.rowCount === 1) {
+        return {
+          ...result.rows[0], duplicate: false, preference_conflict: false,
+          reused_reviewed_artifact: true,
+        };
+      }
+      const existing = await getNeonPool(env).query(prepared(
+        'omo-submission-existing-reviewed-artifact-v1',
+        `SELECT id,status,requested_runtime,selected_runtime,workflow_version,published_slug
+         FROM submissions WHERE user_id = $1 AND source_sha256 = $2`,
+        [submission.userId, submission.sourceSha256]
+      ));
+      if (!existing.rows[0]) throw new Error('submission insert conflict could not be resolved');
+      return {
+        ...existing.rows[0], duplicate: true,
+        preference_conflict: existing.rows[0].requested_runtime !== requestedRuntime,
+        reused_reviewed_artifact: isReusedArtifact(existing.rows[0]),
+      };
+    }
+    if (databaseKind(env) === 'd1') {
+      const result = await env.BALANCE_DB.prepare(
+        `INSERT OR IGNORE INTO submissions
+           (id,user_id,name,slug,content,source_sha256,requested_runtime,selected_runtime,
+            runtime_policy,runtime_compatibility,workflow_version,published_slug,build_evidence,
+            deployment_metadata,release_pr_url,release_pr_number,release_head_sha,release_merge_sha,
+            release_phase,status,created_at,updated_at,deployed_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ).bind(...reviewedValues).run();
+      const existing = await env.BALANCE_DB.prepare(
+        `SELECT id,status,requested_runtime,selected_runtime,workflow_version,published_slug
+         FROM submissions WHERE user_id = ? AND source_sha256 = ?`
+      ).bind(submission.userId, submission.sourceSha256).first();
+      if (!existing) throw new Error('submission insert conflict could not be resolved');
+      const duplicate = Number(result && result.meta && result.meta.changes) !== 1;
+      return {
+        ...existing, duplicate,
+        preference_conflict: duplicate && existing.requested_runtime !== requestedRuntime,
+        reused_reviewed_artifact: isReusedArtifact(existing),
+      };
+    }
+    const key = `${submission.userId}\u0000${submission.sourceSha256}`;
+    if (mockSubmissions.has(key)) {
+      const existing = mockSubmissions.get(key);
+      return {
+        ...existing, duplicate: true,
+        preference_conflict: existing.requested_runtime !== requestedRuntime,
+        reused_reviewed_artifact: isReusedArtifact(existing),
+      };
+    }
+    const record = {
+      ...submission,
+      user_id: submission.userId,
+      source_sha256: submission.sourceSha256,
+      requested_runtime: requestedRuntime,
+      ...reviewedArtifact,
+      status: 'deployed', created_at: now, updated_at: now, deployed_at: now,
+    };
+    mockSubmissions.set(key, record);
+    return {
+      id: record.id, status: record.status, requested_runtime: record.requested_runtime,
+      selected_runtime: record.selected_runtime, workflow_version: record.workflow_version,
+      published_slug: record.published_slug, duplicate: false, preference_conflict: false,
+      reused_reviewed_artifact: true,
+    };
+  }
   const values = [
     submission.id, submission.userId, submission.name, submission.slug,
     submission.content, submission.sourceSha256, requestedRuntime, 'queued', now, now,
