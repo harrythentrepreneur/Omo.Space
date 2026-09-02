@@ -189,6 +189,20 @@
       .replace(/^\w/, function (letter) { return letter.toUpperCase(); });
   }
 
+  function submissionNameFromMarkdown(content) {
+    var lines = String(content || '').split(/\r?\n/);
+    if (!lines.length || lines[0].trim() !== '---') return '';
+    for (var index = 1; index < lines.length; index += 1) {
+      if (lines[index].trim() === '---') break;
+      var match = /^name:\s*(.*?)\s*$/.exec(lines[index]);
+      if (!match || !match[1] || match[1] === '|' || match[1] === '>') continue;
+      return match[1].replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, function (_all, double, single) {
+        return double == null ? single : double;
+      }).trim().slice(0, 120);
+    }
+    return '';
+  }
+
   function setSelectedFile(file) {
     selectedFile = file || null;
     fileError.textContent = '';
@@ -527,7 +541,7 @@
           unavailable.code = 'queue_unavailable';
           throw unavailable;
         }
-        if (!response.ok || response.status !== 202 || body.status !== 'queued') {
+        if (!response.ok || response.status !== 202 || !['queued', 'deployed'].includes(body.status)) {
           throw new Error(body.message || body.error || 'Omo could not queue this workflow. Try again.');
         }
         return body;
@@ -598,7 +612,9 @@
     try {
       var content = await selectedFile.text();
       if (new TextEncoder().encode(content).length > MAX_BYTES) throw new Error('Markdown files must be 200 KB or smaller.');
-      var payload = { name: nameInput.value.trim(), content: content, visibility: 'public' };
+      var sourceName = submissionNameFromMarkdown(content);
+      if (sourceName) nameInput.value = sourceName;
+      var payload = { name: sourceName || nameInput.value.trim(), content: content, visibility: 'public' };
       var result;
       if (isFilePreview()) {
         result = { id: 'preview-' + Date.now(), name: payload.name, slug: '', status: 'queued' };
@@ -609,11 +625,12 @@
         var detail = await fetchSubmissionDetail(result.id).catch(function () {
           return { id: result.id, name: payload.name, slug: result.slug, status: result.status };
         });
-        updateProgress(detail, 'queued');
+        updateProgress(detail, detail.status === 'deployed' ? 'deployed' : 'queued');
         await refreshSubmissions(result.id);
-        pollSubmission(result.id);
+        if (detail.status !== 'deployed') pollSubmission(result.id);
       }
-      submitButton.textContent = result.duplicate ? 'Already queued ✓' : 'Queued for review ✓';
+      submitButton.textContent = result.status === 'deployed' ? 'Live ✓'
+        : (result.duplicate ? 'Already queued ✓' : 'Queued for review ✓');
     } catch (error) {
       if (error && error.code === 'queue_unavailable') {
         updateProgress({ id: 'waiting-' + Date.now(), name: nameInput.value.trim(), slug: '', status: 'local_waiting' }, 'waiting');

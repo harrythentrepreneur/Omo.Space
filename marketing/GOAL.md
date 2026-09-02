@@ -215,13 +215,13 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-Finish v0.2 zero-touch demo closure. The canonical finalization claim now uses
-the same fixed canary owner as eligibility across Neon, D1, and mock, preventing
-a historical shadow-owner row with the same slug/source from being claimed and
-then rejected at provenance. The exact two-file patch passed independent review,
-308 Worker/router tests, 170 focused release tests, 553 full host/compiler/render
-tests, all supporting Worker/API contracts, syntax, diff, and security scans.
-Next: merge and deploy this non-Modal control-plane fix, then implement the
-exact-reviewed Worker-native artifact-adoption path for the recovered V02 Label
-Sorter `SKILL.md`; prove one authenticated upload becomes a usable workflow with
-no Retry, manual approval, model call, Modal execution, or database edit.
+Ship and prove the zero-touch demo path. One exact reviewed V02 Label Sorter
+`SKILL.md` now atomically adopts its existing Worker-native pure-data runtime,
+the browser derives its authoritative frontmatter name and renders immediate
+deployment as Live, and modified/unknown/explicit-Modal submissions remain on
+the guarded queue. Automatic Modal builder dispatch is explicit/default-off in
+both Worker source and Wrangler config. The frozen five-file code/config patch
+passed independent review with no blockers, router 316/316, full Python 553/553,
+supporting Worker/API 69/69, security scans, and pinned Wrangler dry-run. Next:
+PR/CI/merge/deploy, stop the dormant builder app, then one authenticated browser
+upload/readback/run proof using the exact demo file.

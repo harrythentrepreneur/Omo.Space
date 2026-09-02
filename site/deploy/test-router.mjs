@@ -199,6 +199,8 @@ let neonQueryFailureFragment = '';
 let neonInfoSchemaTableExists = false;
 let neonInfoSchemaColumns = [];
 let neonApprovalRow = null;
+let neonReviewedArtifactInsertRow = null;
+let neonReviewedArtifactExistingRow = null;
 let neonReleaseVerificationSourceRow = null;
 let neonReleaseVerificationRetryRow = null;
 let neonInternalClaimRow = null;
@@ -444,8 +446,12 @@ const sandbox = {
       const entry = {
         text,
         values,
-        name: text.includes('WITH updated AS') && text.includes("failure_code = 'slug_collision'")
-          ? 'omo-submission-approve-v1'
+        name: text.includes('INSERT INTO submissions') && text.includes('runtime_policy,runtime_compatibility') && text.includes('ON CONFLICT (user_id,source_sha256) DO NOTHING')
+          ? 'omo-submission-insert-reviewed-artifact-v1'
+          : text.includes('SELECT id,status,requested_runtime,selected_runtime,workflow_version,published_slug') && text.includes('WHERE user_id = $1 AND source_sha256 = $2')
+            ? 'omo-submission-existing-reviewed-artifact-v1'
+          : text.includes('WITH updated AS') && text.includes("failure_code = 'slug_collision'")
+            ? 'omo-submission-approve-v1'
           : text.includes("SET status = 'ready_for_deploy'") && text.includes('release_phase = $3')
             ? 'omo-submission-retry-release-verification-v2'
           : text.includes('SELECT id,name,slug,status') && text.includes('FROM submissions WHERE id = $1 AND user_id = $2')
@@ -498,6 +504,16 @@ const sandbox = {
       if (entry.name === 'omo-submission-retry-release-verification-v2') {
         return neonReleaseVerificationRetryRow
           ? { rows: [neonReleaseVerificationRetryRow], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+      if (entry.name === 'omo-submission-insert-reviewed-artifact-v1') {
+        return neonReviewedArtifactInsertRow
+          ? { rows: [neonReviewedArtifactInsertRow], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+      if (entry.name === 'omo-submission-existing-reviewed-artifact-v1') {
+        return neonReviewedArtifactExistingRow
+          ? { rows: [neonReviewedArtifactExistingRow], rowCount: 1 }
           : { rows: [], rowCount: 0 };
       }
       if (entry.name === 'omo-submission-approval-state-v1') {
@@ -561,7 +577,7 @@ const sandbox = {
   }),
 };
 vm.createContext(sandbox);
-vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, internalPeekBuilderSubmission, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalFinalizationEligibility, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
+vm.runInContext(`${cjs}\n;globalThis.__workerExport = __workerExport;globalThis.__workerTest = { hostedWorkerPrompt, validateSchemaValue, mockSubmissions, mockRunRequests, constantTimeEquals, claimRunRequest, getRunRequestById, putRunProgress, getRunProgress, refreshHostedModalRun, HOSTED_MODAL_SKILLS, HOSTED_WORKER_SKILLS, SUBMISSIONS_SCHEMA_MIGRATIONS, REQUIRED_SUBMISSIONS_COLUMNS, reviewedSourceApprovalAllowlist, reviewedWorkerArtifactForSubmission, insertSubmission, internalPeekBuilderSubmission, internalClaimSubmission, internalClaimRow, internalClaimFinalization, internalFinalizationEligibility, internalResumeCompletedFinalization, completedFinalizationRow, internalInspectFailedFinalization, failedFinalizationRow, internalResumeFailedFinalization, internalAutomaticRecoveryCandidate, internalRecoverRolledBackFinalization, internalSetFinalizationStatus, internalPromoteFinalization, internalRequiredRegistrySlugs, safeDeploymentReceipt, finalizationGenerationAllowsEffect, internalRecordFinalizationEffect, authenticateAccount, activeGeneratedCanaryClaim, mockApiKeys, ensureProductionCanaryIdentity, userIdForApiKey, internalResumeMergedRelease };`, sandbox, { filename: 'worker.js' });
 const worker = sandbox.__workerExport;
 const workerTest = sandbox.__workerTest;
 
@@ -669,6 +685,7 @@ const signupModalSource = fs.readFileSync(path.join(here, '..', 'signup-modal.js
 const sellSource = fs.readFileSync(path.join(here, '..', 'sell.html'), 'utf8');
 const hostSource = fs.readFileSync(path.join(here, '..', 'host.html'), 'utf8');
 const uploadSource = fs.readFileSync(path.join(here, '..', 'upload.js'), 'utf8');
+const wranglerSource = fs.readFileSync(path.join(here, 'wrangler.toml'), 'utf8');
 const navSource = fs.readFileSync(path.join(here, '..', 'nav.js'), 'utf8');
 const submissionsPagePath = path.join(here, '..', 'submissions.html');
 const submissionsClientPath = path.join(here, '..', 'submissions.js');
@@ -771,6 +788,16 @@ check('creator upload: lifecycle UI is honest and opens workflow only after depl
   uploadSource.includes('Queued for review') &&
   uploadSource.includes('Build gates running') &&
   !uploadSource.includes('automated research'));
+check('creator upload: immediate reviewed deployment is accepted, rendered live, and never polled as queued',
+  uploadSource.includes("!['queued', 'deployed'].includes(body.status)") &&
+  uploadSource.includes("if (detail.status !== 'deployed') pollSubmission(result.id);") &&
+  uploadSource.includes("result.status === 'deployed' ? 'Live ✓'") &&
+  uploadSource.includes("updateProgress(detail, detail.status === 'deployed' ? 'deployed' : 'queued')"));
+check('creator upload: frontmatter name is authoritative so a SKILL.md filename needs no manual title repair',
+  uploadSource.includes('function submissionNameFromMarkdown(content)') &&
+  uploadSource.includes('var sourceName = submissionNameFromMarkdown(content);') &&
+  uploadSource.includes("if (sourceName) nameInput.value = sourceName;") &&
+  uploadSource.includes("name: sourceName || nameInput.value.trim()"));
 check('creator upload: exact-match slug collision approval is visible, confirmed, disabled while pending, refreshed, and error-rendered',
   uploadSource.includes('Approve exact-match update') &&
   uploadSource.includes('approval sends it back through build/test/deploy gates and does not instantly publish') &&
@@ -960,6 +987,7 @@ check('waitlist: duplicate email returns already without error', waitlistDuplica
 // Authenticated creator submission: bounded Markdown, canonical metadata, and
 // owner/content idempotency. It queues data but never executes the upload.
 const submissionContent = '---\nname: sample-workflow\ndescription: A safe sample creator workflow.\n---\n\n## Workflow\n\n1. **Read:** Read the brief.\n';
+const reviewedDemoSource = fs.readFileSync(path.join(here, '..', 'demo', 'v02-release-label-sorter-SKILL.md'), 'utf8');
 const submitMissingAuth = await worker.fetch(mkReq('POST', '/api/submit', {
   name: 'Sample workflow', content: submissionContent,
 }), realEnv);
@@ -1011,6 +1039,136 @@ const submitDuplicateConflict = await worker.fetch(mkReq('POST', '/api/submit', 
   name: 'Sample workflow', content: submissionContent, runtime_preference: 'modal-hosted',
 }, creatorHeaders), realEnv);
 check('submit: same owner and content with different runtime preference conflicts', submitDuplicateConflict.status === 409);
+
+const reviewedDemoResponse = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'V02 Release Label Sorter', content: reviewedDemoSource, runtime_preference: 'auto',
+}, creatorHeaders), realEnv);
+const reviewedDemo = await reviewedDemoResponse.json();
+const reviewedDemoDetailResponse = await worker.fetch(
+  mkReq('GET', `/api/submissions/${reviewedDemo.id}`, {}, creatorHeaders), realEnv
+);
+const reviewedDemoDetail = await reviewedDemoDetailResponse.json();
+const reviewedDemoReplay = await (await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'V02 Release Label Sorter', content: reviewedDemoSource, runtime_preference: 'auto',
+}, creatorHeaders), realEnv)).json();
+check('submit: exact reviewed pure-data source atomically adopts the existing deployed Worker workflow',
+  reviewedDemoResponse.status === 202 && reviewedDemo.ok === true &&
+  reviewedDemo.status === 'deployed' && reviewedDemo.selected_runtime === 'worker-native' &&
+  reviewedDemo.published_slug === 'v02-release-label-sorter' &&
+  reviewedDemo.workflow_version === 'v02-release-label-sorter@1.0.0' &&
+  reviewedDemo.compatibility === 'reviewed_artifact_reused' && reviewedDemo.reused_reviewed_artifact === true &&
+  reviewedDemo.changed === true && reviewedDemo.duplicate === false &&
+  reviewedDemoDetailResponse.status === 200 &&
+  reviewedDemoDetail.submission.status === 'deployed' &&
+  reviewedDemoDetail.submission.selected_runtime === 'worker-native' &&
+  reviewedDemoDetail.submission.published_slug === 'v02-release-label-sorter' &&
+  reviewedDemoDetail.submission.release.phase === 'promoted' &&
+  reviewedDemoDetail.submission.release.pr_url === 'https://github.com/harrythentrepreneur/Omo.Space/pull/287' &&
+  reviewedDemoDetail.submission.release.merge_sha === '11409169ac747c5b9ac84fdb26b4096572c74a2b' &&
+  reviewedDemoReplay.status === 'deployed' && reviewedDemoReplay.duplicate === true &&
+  reviewedDemoReplay.changed === false && reviewedDemoReplay.reused_reviewed_artifact === true);
+
+const reviewedDemoSha = 'd52e7984117e3986f0ce2a1a765c01b57d9f9b2b029a2c493571641c5ac605e9';
+const reviewedDemoArtifact = workerTest.reviewedWorkerArtifactForSubmission(
+  reviewedDemoSha, 'v02-release-label-sorter', 'auto'
+);
+neonSqlCalls.length = 0;
+neonReviewedArtifactInsertRow = {
+  id: 'sub_neonreviewedadoption00000001', status: 'deployed', requested_runtime: 'auto',
+  selected_runtime: 'worker-native', workflow_version: 'v02-release-label-sorter@1.0.0',
+  published_slug: 'v02-release-label-sorter',
+};
+const reviewedNeonStored = await workerTest.insertSubmission({ NEON_DATABASE_URL: 'postgres://example' }, {
+  id: neonReviewedArtifactInsertRow.id, userId: 'user_neon_reviewed',
+  name: 'V02 Release Label Sorter', slug: 'v02-release-label-sorter',
+  content: reviewedDemoSource, sourceSha256: reviewedDemoSha,
+  requestedRuntime: 'auto', reviewedArtifact: reviewedDemoArtifact,
+});
+const reviewedNeonCall = neonSqlCalls.find((call) => call.name === 'omo-submission-insert-reviewed-artifact-v1');
+check('submit reviewed artifact Neon: one atomic insert binds deployed Worker provenance without returning content',
+  reviewedNeonStored.reused_reviewed_artifact === true && reviewedNeonStored.duplicate === false &&
+  reviewedNeonCall.text.includes('ON CONFLICT (user_id,source_sha256) DO NOTHING') &&
+  reviewedNeonCall.text.includes('deployment_metadata,release_pr_url,release_pr_number,release_head_sha,release_merge_sha') &&
+  reviewedNeonCall.values.length === 23 &&
+  reviewedNeonCall.values[5] === reviewedDemoSha && reviewedNeonCall.values[7] === 'worker-native' &&
+  reviewedNeonCall.values[10] === 'v02-release-label-sorter@1.0.0' &&
+  reviewedNeonCall.values[11] === 'v02-release-label-sorter' && reviewedNeonCall.values[14] === 'https://github.com/harrythentrepreneur/Omo.Space/pull/287' &&
+  reviewedNeonCall.values[15] === 287 && reviewedNeonCall.values[17] === '11409169ac747c5b9ac84fdb26b4096572c74a2b' &&
+  reviewedNeonCall.values[18] === 'promoted' && reviewedNeonCall.values[19] === 'deployed' &&
+  !reviewedNeonCall.text.split('RETURNING', 2).at(-1).includes('content') &&
+  !reviewedNeonCall.text.split('RETURNING', 2).at(-1).includes('user_id'));
+neonReviewedArtifactInsertRow = null;
+
+const reviewedD1 = new DatabaseSync(':memory:');
+reviewedD1.exec(`CREATE TABLE submissions (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL,
+  content TEXT NOT NULL, source_sha256 TEXT NOT NULL, requested_runtime TEXT NOT NULL,
+  selected_runtime TEXT, runtime_policy TEXT, runtime_compatibility TEXT, workflow_version TEXT,
+  published_slug TEXT, build_evidence TEXT, deployment_metadata TEXT,
+  release_pr_url TEXT, release_pr_number INTEGER, release_head_sha TEXT, release_merge_sha TEXT,
+  release_phase TEXT, status TEXT NOT NULL,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deployed_at TEXT,
+  UNIQUE (user_id, source_sha256)
+)`);
+const reviewedD1Binding = {
+  prepare(sql) {
+    return {
+      bind(...values) {
+        return {
+          run: async () => {
+            const result = reviewedD1.prepare(sql).run(...values);
+            return { meta: { changes: Number(result.changes) } };
+          },
+          first: async () => reviewedD1.prepare(sql).get(...values) || null,
+        };
+      },
+    };
+  },
+};
+const reviewedD1Submission = {
+  id: 'sub_d1reviewedadoption0000000001', userId: 'user_d1_reviewed',
+  name: 'V02 Release Label Sorter', slug: 'v02-release-label-sorter',
+  content: reviewedDemoSource, sourceSha256: reviewedDemoSha,
+  requestedRuntime: 'worker-native',
+  reviewedArtifact: workerTest.reviewedWorkerArtifactForSubmission(
+    reviewedDemoSha, 'v02-release-label-sorter', 'worker-native'
+  ),
+};
+const reviewedD1First = await workerTest.insertSubmission({ BALANCE_DB: reviewedD1Binding }, reviewedD1Submission);
+const reviewedD1Replay = await workerTest.insertSubmission({ BALANCE_DB: reviewedD1Binding }, reviewedD1Submission);
+const reviewedD1Row = reviewedD1.prepare('SELECT * FROM submissions WHERE id = ?').get(reviewedD1Submission.id);
+check('submit reviewed artifact D1: real SQLite inserts terminal provenance once and replays idempotently',
+  reviewedD1First.reused_reviewed_artifact === true && reviewedD1First.duplicate === false &&
+  reviewedD1Replay.reused_reviewed_artifact === true && reviewedD1Replay.duplicate === true &&
+  reviewedD1Row.status === 'deployed' && reviewedD1Row.selected_runtime === 'worker-native' &&
+  reviewedD1Row.release_phase === 'promoted' && reviewedD1Row.deployed_at &&
+  reviewedD1Row.workflow_version === 'v02-release-label-sorter@1.0.0' &&
+  reviewedD1Row.release_pr_number === 287 &&
+  reviewedD1Row.release_merge_sha === '11409169ac747c5b9ac84fdb26b4096572c74a2b' &&
+  JSON.parse(reviewedD1Row.build_evidence).source_sha256 === reviewedDemoSha &&
+  JSON.parse(reviewedD1Row.deployment_metadata).program_digest === 'sha256:c82597c542b2dd9142f2f0bc8be28c3cc8133f832c3b502568d13284e9318ad6' &&
+  JSON.parse(reviewedD1Row.runtime_compatibility).reason === 'exact_reviewed_artifact_reused');
+reviewedD1.close();
+
+const modalPreferenceToken = await clerkToken('user_demo_modal');
+const reviewedDemoModalResponse = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'V02 Release Label Sorter', content: reviewedDemoSource, runtime_preference: 'modal-hosted',
+}, { Authorization: `Bearer ${modalPreferenceToken}`, Origin: 'https://omo.space' }), realEnv);
+const reviewedDemoModal = await reviewedDemoModalResponse.json();
+check('submit: explicit Modal preference never silently adopts a reviewed Worker artifact',
+  reviewedDemoModalResponse.status === 202 && reviewedDemoModal.status === 'queued' &&
+  reviewedDemoModal.compatibility === 'pending_review' && !('selected_runtime' in reviewedDemoModal) &&
+  !('reused_reviewed_artifact' in reviewedDemoModal));
+
+const modifiedDemoToken = await clerkToken('user_demo_modified');
+const reviewedDemoModifiedResponse = await worker.fetch(mkReq('POST', '/api/submit', {
+  name: 'V02 Release Label Sorter', content: reviewedDemoSource + '\nModified.\n', runtime_preference: 'auto',
+}, { Authorization: `Bearer ${modifiedDemoToken}`, Origin: 'https://omo.space' }), realEnv);
+const reviewedDemoModified = await reviewedDemoModifiedResponse.json();
+check('submit: modified source stays in the guarded review queue',
+  reviewedDemoModifiedResponse.status === 202 && reviewedDemoModified.status === 'queued' &&
+  reviewedDemoModified.compatibility === 'pending_review' && !('selected_runtime' in reviewedDemoModified) &&
+  !('reused_reviewed_artifact' in reviewedDemoModified));
 
 const autoSubmissionContent = '---\nname: auto-workflow\ndescription: Another safe sample creator workflow.\n---\n\n## Workflow\n\n1. **Read:** Read the brief.\n';
 const submitAutoResponse = await worker.fetch(mkReq('POST', '/api/submit', {
@@ -4928,11 +5086,30 @@ check('webhook: unsigned demo works; real mode without secret fails closed', whN
 // ── Cloudflare cron → protected Modal Hermes dispatch ─────────────────────
 const builderEnv = {
   ...env,
+  OMO_BUILDER_ENABLED: 'true',
   OMO_BUILDER_MODAL_URL: 'https://builder.modal.run',
   OMO_BUILDER_MODAL_KEY: 'modal-key-test',
   OMO_BUILDER_MODAL_SECRET: 'modal-secret-test',
   OMO_BUILDER_BASE_REVISION: 'c'.repeat(40),
 };
+workerTest.mockSubmissions.clear();
+workerTest.mockSubmissions.set('user_builder:disabled-candidate', {
+  id: 'sub_disabledbuilder12345678', user_id: 'user_builder',
+  name: 'Disabled Builder Candidate', slug: 'disabled-builder-candidate',
+  content: 'PRIVATE_SOURCE_MUST_NOT_LEAVE_WORKER', source_sha256: 'f'.repeat(64),
+  requested_runtime: 'auto', status: 'queued', created_at: new Date().toISOString(),
+});
+const beforeDisabledDispatches = builderDispatchCalls.length;
+let disabledScheduledTask = null;
+await worker.scheduled({}, { ...builderEnv, OMO_BUILDER_ENABLED: 'false' }, {
+  waitUntil(task) { disabledScheduledTask = task; },
+});
+if (disabledScheduledTask) await disabledScheduledTask;
+check('builder cron: explicit default-off gate prevents Modal calls even when a candidate and credentials exist',
+  builderDispatchCalls.length === beforeDisabledDispatches &&
+  workerTest.mockSubmissions.get('user_builder:disabled-candidate').status === 'queued' &&
+  workerSrc.includes("if (env.OMO_BUILDER_ENABLED !== 'true') return { status: 'disabled', phase };") &&
+  wranglerSource.includes('OMO_BUILDER_ENABLED = "false"'));
 workerTest.mockSubmissions.clear();
 const beforeIdleDispatches = builderDispatchCalls.length;
 let scheduledTask = null;
