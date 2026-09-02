@@ -814,6 +814,8 @@ def test_adapter_failure_receipts_are_typed(runtime, adapter_name, operation, co
     with pytest.raises(mod.FinalizerError) as caught:
         mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
     assert caught.value.code == code
+    if operation == "registry":
+        assert caught.value.stage == "verify_registry"
     assert "SENTINEL" not in str(caught.value)
     assert store.events[-1] == ("advance", "failed", code)
 
@@ -977,13 +979,17 @@ def test_every_preflight_failure_is_persisted_before_provider_effect(adapter_nam
     assert "verify_public" not in vercel.events
 
 
-@pytest.mark.parametrize("boundary", ["advance:deploying_worker", "promote", "deployed"])
-def test_lifecycle_write_failures_are_typed_and_never_leak(boundary):
+@pytest.mark.parametrize(
+    ("boundary", "expected_stage"),
+    [("advance:deploying_worker", "advance_worker"), ("promote", "promote"), ("deployed", "mark_deployed")],
+)
+def test_lifecycle_write_failures_are_typed_and_never_leak(boundary, expected_stage):
     mod, mainline, store, modal, cloudflare, vercel = components()
     store.fail_on = boundary
     with pytest.raises(mod.FinalizerError) as caught:
         mod.run_finalizer(mainline, store, modal, cloudflare, vercel)
     assert caught.value.code == "internal_finalizer_failed"
+    assert caught.value.stage == expected_stage
     assert "SENTINEL" not in str(caught.value)
     if boundary != "deployed":
         assert store.events[-1] == ("advance", "failed", "internal_finalizer_failed")

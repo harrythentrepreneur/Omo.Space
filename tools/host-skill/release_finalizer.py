@@ -39,11 +39,21 @@ TRUSTED_LEGACY_PROFILE_DIGESTS = {
 }
 
 
+SAFE_FINALIZER_STAGES = frozenset({
+    "provenance", "supersession_check", "modal_preflight", "worker_preflight", "public_preflight",
+    "advance_modal", "deploy_modal", "record_modal_effect", "modal_canary", "advance_worker",
+    "verify_registry", "deploy_worker", "record_worker_effect", "worker_smoke", "advance_public",
+    "verify_public", "verify_publication", "promote", "promotion_readback", "mark_deployed",
+    "deployed_readback",
+})
+
+
 class FinalizerError(RuntimeError):
     """A typed, secret-free finalization failure."""
 
-    def __init__(self, code: str):
+    def __init__(self, code: str, stage: str | None = None):
         self.code = code
+        self.stage = stage if stage in SAFE_FINALIZER_STAGES else None
         super().__init__(code)
 
 
@@ -497,11 +507,13 @@ def run_finalizer(
     promoted = False
     modal_receipt = None
     worker_receipt = None
+    stage = "provenance"
     try:
         checkout = _verify_provenance(
             mainline, claim, green.target_sha, store.required_registry_slugs()
         )
 
+        stage = "supersession_check"
         latest = mainline.latest_green()
         _validate_green(latest)
         if latest.target_sha != green.target_sha or latest.trigger_sha != latest.target_sha:
@@ -510,41 +522,56 @@ def run_finalizer(
         # All identity/config preflights happen after supersession checks and before
         # the first provider effect or lifecycle advance.
         if claim.runtime == "modal-hosted":
+            stage = "modal_preflight"
             try:
                 modal.preflight(claim, checkout)
             except Exception as error:
                 raise FinalizerError("modal_preflight_failed") from error
+        stage = "worker_preflight"
         try:
             cloudflare.preflight(claim, checkout)
         except Exception as error:
             raise FinalizerError("worker_preflight_failed") from error
+        stage = "public_preflight"
         try:
             vercel.preflight(claim)
         except Exception as error:
             raise FinalizerError("public_preflight_failed") from error
 
         if claim.runtime == "modal-hosted":
+            stage = "advance_modal"
             store.advance(claim, "deploying_modal")
+            stage = "deploy_modal"
             modal_receipt = modal.deploy(claim, checkout)
             _require_passed(modal_receipt, "modal_deploy_failed")
             modal_receipt = _deployment_receipt(modal_receipt, claim, "modal", targets)
+            stage = "record_modal_effect"
             store.record_effect(claim, "modal_deploy", modal_receipt)
+            stage = "modal_canary"
             _require_passed(modal.canary(claim, checkout, modal_receipt), "modal_canary_failed")
+        stage = "advance_worker"
         store.advance(claim, "deploying_worker")
+        stage = "verify_registry"
         r1 = cloudflare.verify_registry(claim, checkout)
         _require_passed(r1, "internal_finalizer_failed")
+        stage = "deploy_worker"
         try:
             worker_receipt = cloudflare.deploy_worker(claim, checkout)
         except Exception as error:
             raise FinalizerError("worker_deploy_failed") from error
         _require_passed(worker_receipt, "worker_deploy_failed")
         worker_receipt = _deployment_receipt(worker_receipt, claim, "cloudflare", targets)
+        stage = "record_worker_effect"
         store.record_effect(claim, "worker_deploy", worker_receipt)
+        stage = "worker_smoke"
         r3 = cloudflare.smoke_worker(claim, worker_receipt)
         _require_passed(r3, "worker_smoke_failed")
 
+        stage = "advance_public"
         store.advance(claim, "verifying_public")
+        stage = "verify_public"
         public = _public_canary_receipt(vercel.verify_public(claim, checkout), claim)
+        stage = "verify_publication"
         publication = vercel.verify_publication(claim, checkout)
         r4_status = publication.get("status") if isinstance(publication, dict) else None
         if r4_status not in {"published", "excluded_premium"}:
@@ -557,8 +584,10 @@ def run_finalizer(
             "R3": {"status": "passed"},
             "R4": {"status": r4_status},
         }
+        stage = "promote"
         store.promote(claim, gates)
         promoted = True
+        stage = "promotion_readback"
         finalization = store.finalization_detail(claim.id)
         submission = store.submission_detail(claim.submission_id)
         if (
@@ -567,7 +596,9 @@ def run_finalizer(
             or submission.get("release_phase") != "promoted"
         ):
             raise FinalizerError("promotion_readback_mismatch")
+        stage = "mark_deployed"
         store.mark_deployed(claim.submission_id)
+        stage = "deployed_readback"
         deployed = store.submission_detail(claim.submission_id)
         if deployed.get("status") != "deployed" or deployed.get("release_phase") != "promoted":
             raise FinalizerError("deployed_readback_mismatch")
@@ -582,6 +613,8 @@ def run_finalizer(
             safe_code = _record_failure(store, claim, error.code)
             if safe_code != error.code:
                 raise FinalizerError(safe_code) from error
+        if error.code == "internal_finalizer_failed" and error.stage is None:
+            raise FinalizerError(error.code, stage=stage) from error
         raise
     except Exception as error:
         if not promoted:
@@ -591,7 +624,7 @@ def run_finalizer(
                 _record_failure(store, claim, rollback_error.code)
                 raise rollback_error from error
             _record_failure(store, claim, "internal_finalizer_failed")
-        raise FinalizerError("internal_finalizer_failed") from error
+        raise FinalizerError("internal_finalizer_failed", stage=stage) from error
 
 
 class EffectJournal:

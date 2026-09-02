@@ -1343,7 +1343,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(run_once(args), separators=(",", ":"), sort_keys=True))
         return 0
     except (ControllerError, FinalizerError) as error:
-        print(json.dumps({"error": getattr(error, "code", "controller_failed")}, separators=(",", ":")))
+        payload = {"error": getattr(error, "code", "controller_failed")}
+        stage = getattr(error, "stage", None)
+        if stage:
+            payload["stage"] = stage
+        print(json.dumps(payload, separators=(",", ":")))
         return 1
     except Exception:
         print('{"error":"controller_failed"}')
