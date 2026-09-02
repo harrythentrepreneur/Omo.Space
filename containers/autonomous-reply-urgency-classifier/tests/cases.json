@@ -1,0 +1,22 @@
+{
+  "happy_path": {
+    "input": {
+      "blocked": true,
+      "message": "My account is locked and I cannot continue preparing the lesson."
+    },
+    "output": {
+      "reason": "The customer's account is locked and they cannot continue, indicating a critical blocker.",
+      "urgency": "high"
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "message_too_short",
+      "input": {
+        "blocked": false,
+        "message": "hi"
+      },
+      "reason": "INVALID_INPUT"
+    }
+  ]
+}

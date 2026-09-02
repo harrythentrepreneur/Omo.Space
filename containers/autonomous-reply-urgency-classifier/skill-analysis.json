@@ -1,0 +1,32 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.7.0",
+  "cost_drivers": [
+    "exactly one bounded schema-validated Gemini 2.5 Flash call"
+  ],
+  "description": "Classify one bounded customer message into low, medium or high urgency as an unattended production pipeline proof.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "Autonomous Reply Urgency Classifier",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "GEMINI_API_KEY"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "system.txt",
+      "provider": "gemini",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "autonomous-reply-urgency-classifier",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "e518520523e3d9cef7c487c5646cff47447252659497acd28151b7478f980859"
+  },
+  "unresolved": []
+}

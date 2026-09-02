@@ -163,8 +163,6 @@ const PRODUCTION_CANARY_RUN_SLUGS = new Set([
 const PRODUCTION_CANARY_SUBMISSION_SLUGS = new Set([
   'v02-release-label-sorter',
   'v02-support-urgency-classifier',
-  'autonomous-priority-label-sorter',
-  'autonomous-reply-urgency-classifier',
 ]);
 const DEMELLO_STYLE = 'sumi-e-awake-v3';
 const DEMELLO_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--omo-demello-awake-245304c8f988-api.modal.run';
@@ -583,23 +581,11 @@ function builderSchedulePhase(controller) {
   return Math.floor(scheduledTime / 60_000) % 2 === 0 ? 'build' : 'verify_merged';
 }
 
-function builderAutonomyCutoff(env) {
-  const value = String(env && env.OMO_BUILDER_AUTONOMY_AFTER || '').trim();
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value) && Number.isFinite(Date.parse(value))
-    ? value : null;
-}
-
-function afterBuilderAutonomyCutoff(record, env) {
-  const cutoff = builderAutonomyCutoff(env);
-  const created = Date.parse(String(record && record.created_at || ''));
-  return Boolean(cutoff && Number.isFinite(created) && created >= Date.parse(cutoff));
-}
-
 async function dispatchNextBuilderSubmission(env, phase = 'build') {
   if (!['build', 'verify_merged'].includes(phase)) throw new Error('invalid_builder_phase');
   if (env.OMO_BUILDER_ENABLED !== 'true') return { status: 'disabled', phase };
-  const autonomyAfter = builderAutonomyCutoff(env);
-  if (!autonomyAfter) return { status: 'disabled', phase };
+  const allowedSubmissionId = safeSubmissionId(env.OMO_BUILDER_ALLOWED_SUBMISSION_ID);
+  if (!allowedSubmissionId) return { status: 'disabled', phase };
   const modalUrl = String(env.OMO_BUILDER_MODAL_URL || '').trim();
   const modalKey = String(env.OMO_BUILDER_MODAL_KEY || '').trim();
   const modalSecret = String(env.OMO_BUILDER_MODAL_SECRET || '').trim();
@@ -608,7 +594,7 @@ async function dispatchNextBuilderSubmission(env, phase = 'build') {
       !modalKey || !modalSecret || !/^[0-9a-f]{40}$/.test(baseRevision)) {
     throw new Error('builder_dispatch_not_configured');
   }
-  const candidate = await internalPeekBuilderSubmission(env, phase, autonomyAfter);
+  const candidate = await internalPeekBuilderSubmission(env, phase, allowedSubmissionId);
   if (!candidate) return { status: 'idle', phase };
   if ((phase === 'verify_merged') !== (candidate.status === 'ready_for_deploy')) {
     throw new Error('builder_phase_candidate_mismatch');
@@ -762,14 +748,10 @@ function validFinalizationLease(value, now = Date.now()) {
 }
 
 async function activeGeneratedCanaryClaim(request, env, slug) {
-  const hostedWorker = HOSTED_WORKER_SKILLS.get(slug) || null;
-  const hostedModal = HOSTED_MODAL_SKILLS.get(slug) || null;
-  const hosted = hostedWorker || hostedModal;
-  const selectedRuntime = hostedWorker ? 'worker-native' : 'modal-hosted';
-  const executionKind = String(hostedWorker && hostedWorker.executor && hostedWorker.executor.execution_kind || '');
+  const hosted = HOSTED_WORKER_SKILLS.get(slug);
+  const executionKind = String(hosted && hosted.executor && hosted.executor.execution_kind || '');
   const runPriceCents = Number(hosted && hosted.run_price_cents);
-  if (!hosted || (hostedWorker && !['pure_data', 'single_llm'].includes(executionKind))
-      || (hostedModal && hostedModal.kind !== 'modal-hosted')
+  if (!hosted || !['pure_data', 'single_llm'].includes(executionKind)
       || !Number.isInteger(runPriceCents) || runPriceCents < 1 || runPriceCents > 10) {
     return false;
   }
@@ -781,9 +763,9 @@ async function activeGeneratedCanaryClaim(request, env, slug) {
 
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
-      'omo-production-canary-active-claim-v2',
+      'omo-production-canary-active-claim-v1',
       `SELECT 1 AS ok FROM submissions
-       WHERE published_slug = $1 AND selected_runtime = $5
+       WHERE published_slug = $1 AND selected_runtime = 'worker-native'
          AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
          AND release_artifact_hash = $2 AND finalization_artifact_hash = $2
          AND finalization_target_sha = $3 AND finalization_status = 'verifying_public'
@@ -792,14 +774,14 @@ async function activeGeneratedCanaryClaim(request, env, slug) {
            THEN finalization_lease_expires_at > to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
            ELSE FALSE END
        LIMIT 1`,
-      [slug, artifactHash, targetSha, finalizationId, selectedRuntime]
+      [slug, artifactHash, targetSha, finalizationId]
     ));
     return Boolean(result.rows && result.rows[0] && Number(result.rows[0].ok) === 1);
   }
   if (databaseKind(env) === 'd1') {
     const row = await env.BALANCE_DB.prepare(
       `SELECT 1 AS ok FROM submissions
-       WHERE published_slug = ? AND selected_runtime = ?
+       WHERE published_slug = ? AND selected_runtime = 'worker-native'
          AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
          AND release_artifact_hash = ? AND finalization_artifact_hash = ?
          AND finalization_target_sha = ? AND finalization_status = 'verifying_public'
@@ -808,12 +790,12 @@ async function activeGeneratedCanaryClaim(request, env, slug) {
          AND julianday(finalization_lease_expires_at) IS NOT NULL
          AND finalization_lease_expires_at > ?
        LIMIT 1`
-    ).bind(slug, selectedRuntime, artifactHash, artifactHash, targetSha, finalizationId, new Date().toISOString()).first();
+    ).bind(slug, artifactHash, artifactHash, targetSha, finalizationId, new Date().toISOString()).first();
     return Boolean(row && Number(row.ok) === 1);
   }
   const now = Date.now();
   return [...mockSubmissions.values()].some((row) =>
-    row && row.published_slug === slug && row.selected_runtime === selectedRuntime
+    row && row.published_slug === slug && row.selected_runtime === 'worker-native'
     && row.status === 'ready_for_deploy' && row.release_phase === 'merged_verified'
     && row.release_artifact_hash === artifactHash && row.finalization_artifact_hash === artifactHash
     && row.finalization_target_sha === targetSha && row.finalization_status === 'verifying_public'
@@ -3158,7 +3140,7 @@ async function handleInternalFinalizationEligibility(request, env) {
 }
 
 function safeFinalizationTargets(value) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 1000) return null;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 20) return null;
   const targets = [];
   const seen = new Set();
   for (const item of value) {
@@ -4431,32 +4413,32 @@ async function internalClaimSubmission(env, options) {
   };
 }
 
-async function internalPeekBuilderSubmission(env, phase = 'build', autonomyAfter = '') {
+async function internalPeekBuilderSubmission(env, phase = 'build', allowedSubmissionId = '') {
   if (!['build', 'verify_merged'].includes(phase)) throw new Error('invalid_builder_phase');
-  const cutoff = autonomyAfter && Number.isFinite(Date.parse(autonomyAfter)) ? autonomyAfter : null;
+  const scopedId = safeSubmissionId(allowedSubmissionId);
+  if (!scopedId) return null;
   const buildLane = phase === 'build';
   if (databaseKind(env) === 'neon') {
     const result = buildLane
       ? await getNeonPool(env).query(prepared(
-        'omo-internal-builder-peek-build-v1',
+        'omo-internal-builder-peek-build-scoped-v1',
         `SELECT id,slug,source_sha256,status
          FROM submissions
-         WHERE status IN ($1, $2) AND ($3::timestamptz IS NULL OR created_at::timestamptz >= $3::timestamptz)
-         ORDER BY COALESCE(updated_at, created_at) ASC, id ASC
+         WHERE status IN ($1, $2) AND id = $3
+         ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC
          LIMIT 1`,
-        ['needs_review', 'queued', cutoff]
+        ['needs_review', 'queued', scopedId]
       ))
       : await getNeonPool(env).query(prepared(
-        'omo-internal-builder-peek-verify-v1',
+        'omo-internal-builder-peek-verify-scoped-v1',
         `SELECT id,slug,source_sha256,status
          FROM submissions
          WHERE status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
            AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
-           AND release_artifact_hash IS NOT NULL
-           AND ($1::timestamptz IS NULL OR created_at::timestamptz >= $1::timestamptz)
+           AND release_artifact_hash IS NOT NULL AND id = $1
          ORDER BY updated_at ASC
          LIMIT 1`,
-        [cutoff]
+        [scopedId]
       ));
     return safeBuilderPeekRow(result.rows[0]);
   }
@@ -4464,30 +4446,26 @@ async function internalPeekBuilderSubmission(env, phase = 'build', autonomyAfter
     const row = buildLane
       ? await env.BALANCE_DB
         .prepare(`SELECT id,slug,source_sha256,status FROM submissions
-                  WHERE status IN (?, ?) AND (? IS NULL OR created_at >= ?)
-                  ORDER BY COALESCE(updated_at, created_at) ASC, id ASC LIMIT 1`)
-        .bind('needs_review', 'queued', cutoff, cutoff).first()
+                  WHERE status IN (?, ?) AND id = ?
+                  ORDER BY CASE WHEN status = 'needs_review' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`)
+        .bind('needs_review', 'queued', scopedId).first()
       : await env.BALANCE_DB
         .prepare(`SELECT id,slug,source_sha256,status FROM submissions
                   WHERE status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
                     AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
-                    AND release_artifact_hash IS NOT NULL
-                    AND (? IS NULL OR created_at >= ?)
+                    AND release_artifact_hash IS NOT NULL AND id = ?
                   ORDER BY updated_at ASC LIMIT 1`)
-        .bind(cutoff, cutoff).first();
+        .bind(scopedId).first();
     return safeBuilderPeekRow(row);
   }
   const rows = Array.from(mockSubmissions.values());
   const row = buildLane
     ? rows
-      .filter((record) => ['needs_review', 'queued'].includes(record.status) &&
-        (!cutoff || Date.parse(String(record.created_at || '')) >= Date.parse(cutoff)))
-      .sort((a, b) => String(a.updated_at || a.created_at || '').localeCompare(
-        String(b.updated_at || b.created_at || '')
-      ) || String(a.id || '').localeCompare(String(b.id || '')))[0]
+      .filter((record) => record.id === scopedId && ['needs_review', 'queued'].includes(record.status))
+      .sort((a, b) => ({ needs_review: 0, queued: 1 }[a.status] - { needs_review: 0, queued: 1 }[b.status]) ||
+        String(a.created_at || '').localeCompare(String(b.created_at || '')))[0]
     : rows
-      .filter((record) => record.status === 'ready_for_deploy' &&
-        (!cutoff || Date.parse(String(record.created_at || '')) >= Date.parse(cutoff)) &&
+      .filter((record) => record.id === scopedId && record.status === 'ready_for_deploy' &&
         ['pr_open', 'ci_passed'].includes(record.release_phase) &&
         record.release_pr_url && record.release_head_sha && record.release_artifact_hash)
       .sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')))[0];
@@ -4570,7 +4548,7 @@ function safeDeploymentReceipt(value, operation, targetSha) {
   if ((operation === 'modal_deploy' && provider !== 'modal') ||
       (operation === 'worker_deploy' && provider !== 'cloudflare') ||
       status !== 'passed' || rollbackToken !== previousVersionId ||
-      (value.reused === false && operation === 'worker_deploy' && previousVersionId === null) ||
+      (value.reused === false && previousVersionId === null) ||
       (value.reused === true && (previousVersionId !== null || rollbackToken !== null))) return null;
   return {
     provider, target, environment, target_sha: receiptTargetSha, artifact_hash: artifactHash,
@@ -4833,8 +4811,6 @@ async function internalAutomaticRecoveryCandidate(env) {
     (finalization_modal_receipt IS NOT NULL) AS modal_receipt_present,
     (finalization_worker_receipt IS NOT NULL) AS worker_receipt_present`;
   const effectCodes = ['worker_smoke_failed', 'internal_finalizer_failed', 'public_verification_failed'];
-  const cutoff = builderAutonomyCutoff(env);
-  if (!cutoff) return null;
   let rows;
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
@@ -4851,9 +4827,8 @@ async function internalAutomaticRecoveryCandidate(env) {
                AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL)
            OR (selected_runtime = 'modal-hosted' AND finalization_failure_code = ANY($2::text[])
                AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NOT NULL))
-         AND created_at::timestamptz >= $3::timestamptz
        ORDER BY automation_updated_at ASC, id ASC LIMIT 32`,
-      [Array.from(AUTO_RECOVERY_NO_EFFECT_CODES), effectCodes, cutoff]
+      [Array.from(AUTO_RECOVERY_NO_EFFECT_CODES), effectCodes]
     ));
     rows = result.rows || [];
   } else if (databaseKind(env) === 'd1') {
@@ -4870,12 +4845,11 @@ async function internalAutomaticRecoveryCandidate(env) {
                AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL)
            OR (selected_runtime = 'modal-hosted' AND finalization_failure_code IN (?, ?, ?)
                AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NOT NULL))
-         AND created_at >= ?
        ORDER BY automation_updated_at ASC, id ASC LIMIT 32`
-    ).bind(...AUTO_RECOVERY_NO_EFFECT_CODES, ...effectCodes, cutoff).all();
+    ).bind(...AUTO_RECOVERY_NO_EFFECT_CODES, ...effectCodes).all();
     rows = result.results || [];
   } else {
-    rows = Array.from(mockSubmissions.values()).filter((row) => afterBuilderAutonomyCutoff(row, env)).sort((left, right) =>
+    rows = Array.from(mockSubmissions.values()).sort((left, right) =>
       String(left.automation_updated_at || '').localeCompare(String(right.automation_updated_at || '')) ||
       String(left.id || '').localeCompare(String(right.id || ''))
     );
@@ -4919,17 +4893,13 @@ async function internalInspectFailedFinalization(env, targetSha, finalizationId 
     (finalization_modal_receipt IS NOT NULL) AS modal_receipt_present,
     (finalization_worker_receipt IS NOT NULL) AS worker_receipt_present`;
   const generationFilter = finalizationId ? ' AND finalization_id = $2' : '';
-  const cutoff = builderAutonomyCutoff(env);
-  if (!cutoff) return null;
-  const cutoffParam = finalizationId ? '$3' : '$2';
   const filters = `finalization_status = 'failed' AND finalization_target_sha = $1${generationFilter}
     AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
-    AND created_at::timestamptz >= ${cutoffParam}::timestamptz
     AND source_sha256 = finalization_source_sha256
     AND release_head_sha = finalization_head_sha
     AND release_merge_sha = finalization_merge_sha
     AND release_artifact_hash = finalization_artifact_hash`;
-  const values = finalizationId ? [targetSha, finalizationId, cutoff] : [targetSha, cutoff];
+  const values = finalizationId ? [targetSha, finalizationId] : [targetSha];
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       finalizationId
@@ -4944,13 +4914,12 @@ async function internalInspectFailedFinalization(env, targetSha, finalizationId 
   if (databaseKind(env) === 'd1') {
     return await env.BALANCE_DB.prepare(
       `SELECT ${columns.replaceAll('$1', '?')} FROM submissions
-       WHERE ${filters.replaceAll('$1', '?').replaceAll('$2', '?').replaceAll('$3', '?').replaceAll('::timestamptz', '')}
+       WHERE ${filters.replaceAll('$1', '?').replaceAll('$2', '?')}
        ORDER BY automation_updated_at DESC, id ASC LIMIT 1`
     ).bind(...values).first();
   }
   return Array.from(mockSubmissions.values())
     .filter((record) => record.finalization_status === 'failed' &&
-      afterBuilderAutonomyCutoff(record, env) &&
       record.finalization_target_sha === targetSha && (!finalizationId || record.finalization_id === finalizationId) &&
       ['ready_for_deploy', 'failed'].includes(record.status) && record.release_phase === 'merged_verified')
     .sort((a, b) => String(b.automation_updated_at || '').localeCompare(String(a.automation_updated_at || '')) ||
@@ -4959,8 +4928,6 @@ async function internalInspectFailedFinalization(env, targetSha, finalizationId 
 
 async function internalRecoverRolledBackFinalization(env, targetSha, finalizationId) {
   if (!/^fin_[0-9a-f]{32}$/.test(String(finalizationId || ''))) return false;
-  const cutoff = builderAutonomyCutoff(env);
-  if (!cutoff) return false;
   const candidate = recoveryCandidate(await internalInspectFailedFinalization(env, targetSha, finalizationId));
   if (!candidate) return false;
   const { failed, row } = candidate;
@@ -4988,11 +4955,10 @@ async function internalRecoverRolledBackFinalization(env, targetSha, finalizatio
 +         AND release_merge_sha = $7 AND finalization_merge_sha = $7
 +         AND release_artifact_hash = $8 AND finalization_artifact_hash = $8
 +         AND finalization_modal_receipt = $9 AND finalization_worker_receipt = $10
-          AND created_at::timestamptz >= $12::timestamptz
 +       RETURNING id`.replace(/^\+/gm, ''),
       [snapshot, failed.submission_id, finalizationId, targetSha, failed.source_sha256, failed.head_sha,
         failed.merge_sha, failed.artifact_hash, row.finalization_modal_receipt, row.finalization_worker_receipt,
-        row.finalization_recovery_receipt, cutoff]
+        row.finalization_recovery_receipt]
     ));
     return result.rowCount === 1;
   }
@@ -5012,13 +4978,12 @@ async function internalRecoverRolledBackFinalization(env, targetSha, finalizatio
 +         AND release_head_sha = ? AND finalization_head_sha = ?
 +         AND release_merge_sha = ? AND finalization_merge_sha = ?
 +         AND release_artifact_hash = ? AND finalization_artifact_hash = ?
-+         AND finalization_modal_receipt = ? AND finalization_worker_receipt = ?
-+         AND created_at >= ?`.replace(/^\+/gm, '')
++         AND finalization_modal_receipt = ? AND finalization_worker_receipt = ?`.replace(/^\+/gm, '')
     ).bind(snapshot, recoveredAt, failed.submission_id, finalizationId, targetSha,
       row.finalization_recovery_receipt,
       failed.source_sha256, failed.source_sha256, failed.head_sha, failed.head_sha,
       failed.merge_sha, failed.merge_sha, failed.artifact_hash, failed.artifact_hash,
-      row.finalization_modal_receipt, row.finalization_worker_receipt, cutoff).run();
+      row.finalization_modal_receipt, row.finalization_worker_receipt).run();
     return Boolean(result.meta && result.meta.changes);
   }
   if (recoveryCandidate(row) == null) return false;
@@ -5035,8 +5000,6 @@ async function internalRecoverRolledBackFinalization(env, targetSha, finalizatio
 async function internalResumeFailedFinalization(env, targetSha, finalizationId) {
   if (!/^fin_[0-9a-f]{32}$/.test(String(finalizationId || ''))) return false;
   const now = new Date().toISOString();
-  const cutoff = builderAutonomyCutoff(env);
-  if (!cutoff) return false;
   if (databaseKind(env) === 'neon') {
     const result = await getNeonPool(env).query(prepared(
       'omo-internal-finalization-resume-failed-v1',
@@ -5047,7 +5010,6 @@ async function internalResumeFailedFinalization(env, targetSha, finalizationId) 
            AND finalization_status = 'failed'
            AND finalization_failure_code = ANY($3::text[])
            AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
-           AND created_at::timestamptz >= $4::timestamptz
            AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL
            AND source_sha256 = finalization_source_sha256
            AND release_head_sha = finalization_head_sha
@@ -5071,7 +5033,7 @@ async function internalResumeFailedFinalization(env, targetSha, finalizationId) 
          AND submission.finalization_target_sha = $1
          AND submission.finalization_status = 'failed'
        RETURNING submission.id`,
-      [targetSha, finalizationId, Array.from(FINALIZATION_FAILURE_CODES), cutoff]
+      [targetSha, finalizationId, Array.from(FINALIZATION_FAILURE_CODES)]
     ));
     return result.rowCount === 1;
   }
@@ -5091,14 +5053,13 @@ async function internalResumeFailedFinalization(env, targetSha, finalizationId) 
        WHERE id = ? AND finalization_id = ? AND finalization_target_sha = ?
          AND finalization_status = 'failed' AND status IN ('ready_for_deploy', 'failed')
          AND release_phase = 'merged_verified'
-         AND created_at >= ?
          AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL
          AND source_sha256 = ? AND finalization_source_sha256 = ?
          AND release_head_sha = ? AND finalization_head_sha = ?
          AND release_merge_sha = ? AND finalization_merge_sha = ?
          AND release_artifact_hash = ? AND finalization_artifact_hash = ?`
     ).bind(
-      now, failed.submission_id, failed.id, targetSha, cutoff,
+      now, failed.submission_id, failed.id, targetSha,
       failed.source_sha256, failed.source_sha256, failed.head_sha, failed.head_sha,
       failed.merge_sha, failed.merge_sha, failed.artifact_hash, failed.artifact_hash,
     ).run();
@@ -5166,8 +5127,6 @@ async function internalResumeCompletedFinalization(env, targetSha) {
     finalization_id,finalization_status,finalization_target_sha,
     finalization_source_sha256,finalization_head_sha,finalization_merge_sha,
     finalization_artifact_hash,finalization_lease_expires_at,finalization_attempts`;
-  const cutoff = builderAutonomyCutoff(env);
-  if (!cutoff) return null;
   if (databaseKind(env) === 'neon') {
     const client = await getNeonPool(env).connect();
     try {
@@ -5181,11 +5140,10 @@ async function internalResumeCompletedFinalization(env, targetSha) {
            AND release_head_sha = finalization_head_sha
            AND release_merge_sha = finalization_merge_sha
            AND release_artifact_hash = finalization_artifact_hash
-           AND created_at::timestamptz >= $2::timestamptz
          ORDER BY CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END,
                   automation_updated_at ASC, id ASC
          LIMIT 1`,
-        [targetSha, cutoff]
+        [targetSha]
       ));
       return result.rows[0] || null;
     } finally {
@@ -5202,15 +5160,13 @@ async function internalResumeCompletedFinalization(env, targetSha) {
          AND release_head_sha = finalization_head_sha
          AND release_merge_sha = finalization_merge_sha
          AND release_artifact_hash = finalization_artifact_hash
-         AND created_at >= ?
        ORDER BY CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END,
                 automation_updated_at ASC, id ASC
        LIMIT 1`
-    ).bind(targetSha, cutoff).first();
+    ).bind(targetSha).first();
   }
   return Array.from(mockSubmissions.values())
     .filter((record) => ['ready_for_publish', 'deployed'].includes(record.status) &&
-      afterBuilderAutonomyCutoff(record, env) &&
       record.release_phase === 'promoted' && record.finalization_status === 'completed' &&
       record.finalization_target_sha === targetSha)
     .sort((a, b) => Number(a.status === 'deployed') - Number(b.status === 'deployed') ||
@@ -5223,34 +5179,30 @@ async function internalFinalizationEligibility(env, targetSha, targets) {
     build_evidence,release_issue_url,release_pr_url,release_pr_number,release_branch,release_head_sha,
     release_merge_sha,release_artifact_hash,finalization_status,finalization_target_sha,
     finalization_lease_expires_at`;
-  const cutoff = builderAutonomyCutoff(env);
-  if (!cutoff) return [];
+  const canonicalOwner = 'user_prod_label_normalizer_canary_v1';
   const values = targets.flatMap((target) => [target.slug, target.source_sha256]);
   let rows;
   if (databaseKind(env) === 'neon') {
     const pairs = targets.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ');
+    const ownerParam = `$${values.length + 1}`;
     const result = await getNeonPool(env).query(prepared(
       `omo-internal-finalization-eligibility-v3-${targets.length}`,
-      `SELECT ${columns} FROM submissions
-       WHERE (published_slug, source_sha256) IN (${pairs}) AND created_at::timestamptz >= $${values.length + 1}::timestamptz
-       ORDER BY updated_at ASC, id ASC LIMIT 100`,
-      [...values, cutoff]
+      `SELECT ${columns} FROM submissions WHERE user_id = ${ownerParam} AND (published_slug, source_sha256) IN (${pairs}) ORDER BY published_slug ASC`,
+      [...values, canonicalOwner]
     ));
     rows = result.rows || [];
   } else if (databaseKind(env) === 'd1') {
     const pairs = targets.map(() => '(published_slug = ? AND source_sha256 = ?)').join(' OR ');
     const result = await env.BALANCE_DB.prepare(
-      `SELECT ${columns} FROM submissions WHERE (${pairs}) AND created_at >= ? ORDER BY updated_at ASC, id ASC LIMIT 100`
-    ).bind(...values, cutoff).all();
+      `SELECT ${columns} FROM submissions WHERE user_id = ? AND (${pairs}) ORDER BY published_slug ASC`
+    ).bind(canonicalOwner, ...values).all();
     rows = result.results || [];
   } else {
     const targetMap = new Map(targets.map((target) => [target.slug, target.source_sha256]));
     rows = Array.from(mockSubmissions.values())
-      .filter((row) => row && afterBuilderAutonomyCutoff(row, env) && targetMap.has(row.published_slug)
+      .filter((row) => row && row.user_id === canonicalOwner && targetMap.has(row.published_slug)
         && targetMap.get(row.published_slug) === row.source_sha256)
-      .sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')) ||
-        String(a.id || '').localeCompare(String(b.id || '')))
-      .slice(0, 100);
+      .sort((a, b) => String(a.published_slug).localeCompare(String(b.published_slug)));
   }
   const now = Date.now();
   return rows.map((row) => finalizationEligibilityRow(row, targetSha, now));
@@ -5303,16 +5255,16 @@ async function internalClaimFinalization(env, targetSha, targets) {
   const claimedAt = now.toISOString();
   const leaseExpiresAt = new Date(now.getTime() + FINALIZATION_LEASE_SECONDS * 1000).toISOString();
   const finalizationId = `fin_${crypto.randomUUID().replace(/-/g, '')}`;
-  const cutoff = builderAutonomyCutoff(env);
-  if (!cutoff) return null;
+  const canonicalOwner = 'user_prod_label_normalizer_canary_v1';
   const targetValues = targets.flatMap((target) => [target.slug, target.source_sha256]);
   if (databaseKind(env) === 'neon') {
-    const targetPairs = targets.map((_, index) => `($${index * 2 + 4}, $${index * 2 + 5})`).join(', ');
+    const targetPairs = targets.map((_, index) => `($${index * 2 + 5}, $${index * 2 + 6})`).join(', ');
     const result = await getNeonPool(env).query(prepared(
       `omo-internal-finalization-claim-v3-${targets.length}`,
       `WITH candidate AS (
          SELECT id FROM submissions
-         WHERE status = 'ready_for_deploy'
+         WHERE user_id = $4
+           AND status = 'ready_for_deploy'
            AND release_phase = 'merged_verified'
            AND (published_slug, source_sha256) IN (${targetPairs})
            AND selected_runtime IN ('worker-native', 'modal-hosted')
@@ -5327,7 +5279,6 @@ async function internalClaimFinalization(env, targetSha, targets) {
            AND release_head_sha IS NOT NULL
            AND release_merge_sha IS NOT NULL
            AND release_artifact_hash IS NOT NULL
-           AND created_at::timestamptz >= $${targetValues.length + 4}::timestamptz
            AND (finalization_status IS NULL OR
                 (finalization_status IN ('claimed', 'deploying_modal', 'deploying_worker', 'verifying_public')
                  AND finalization_lease_expires_at::timestamptz < CURRENT_TIMESTAMP))
@@ -5350,7 +5301,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
                  submission.finalization_source_sha256,submission.finalization_head_sha,
                  submission.finalization_merge_sha,submission.finalization_artifact_hash,
                  submission.finalization_lease_expires_at,submission.finalization_attempts`,
-      [finalizationId, targetSha, leaseExpiresAt, ...targetValues, cutoff]
+      [finalizationId, targetSha, leaseExpiresAt, canonicalOwner, ...targetValues]
     ));
     return finalizationClaimRow(result.rows[0]);
   }
@@ -5362,7 +5313,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
               release_head_sha,release_merge_sha,release_artifact_hash,
               finalization_status,finalization_lease_expires_at,finalization_attempts
        FROM submissions
-       WHERE status = 'ready_for_deploy' AND release_phase = 'merged_verified'
+       WHERE user_id = ? AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
          AND (${targetPairs})
          AND selected_runtime IN ('worker-native', 'modal-hosted')
          AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
@@ -5371,12 +5322,11 @@ async function internalClaimFinalization(env, targetSha, targets) {
          AND release_pr_number IS NOT NULL AND release_branch IS NOT NULL
          AND release_head_sha IS NOT NULL AND release_merge_sha IS NOT NULL
          AND release_artifact_hash IS NOT NULL
-         AND created_at >= ?
          AND (finalization_status IS NULL OR
               (finalization_status IN ('claimed', 'deploying_modal', 'deploying_worker', 'verifying_public')
                AND finalization_lease_expires_at < ?))
        ORDER BY updated_at ASC, id ASC LIMIT 1`
-    ).bind(...targetValues, cutoff, claimedAt).first();
+    ).bind(canonicalOwner, ...targetValues, claimedAt).first();
     if (!row) return null;
     const updated = await env.BALANCE_DB.prepare(
       `UPDATE submissions
@@ -5387,7 +5337,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
            finalization_attempts = COALESCE(finalization_attempts, 0) + 1,
            finalization_failure_code = NULL, finalization_modal_receipt = NULL,
            finalization_worker_receipt = NULL, automation_updated_at = ?
-       WHERE id = ? AND created_at >= ?
+       WHERE id = ? AND user_id = ?
          AND status = 'ready_for_deploy' AND release_phase = 'merged_verified'
          AND source_sha256 IS NOT NULL AND published_slug IS NOT NULL
          AND workflow_version IS NOT NULL AND build_evidence IS NOT NULL
@@ -5403,8 +5353,8 @@ async function internalClaimFinalization(env, targetSha, targets) {
                AND finalization_lease_expires_at < ?))`
     ).bind(
       finalizationId, targetSha, row.source_sha256, row.release_head_sha,
-      row.release_merge_sha, row.release_artifact_hash, claimedAt, leaseExpiresAt, claimedAt, row.id, cutoff,
-      row.selected_runtime, row.source_sha256, row.published_slug, row.workflow_version,
+      row.release_merge_sha, row.release_artifact_hash, claimedAt, leaseExpiresAt, claimedAt, row.id,
+      canonicalOwner, row.selected_runtime, row.source_sha256, row.published_slug, row.workflow_version,
       row.build_evidence, row.release_issue_url, row.release_pr_url, row.release_pr_number,
       row.release_branch, row.release_head_sha, row.release_merge_sha,
       row.release_artifact_hash, claimedAt,
@@ -5423,16 +5373,12 @@ async function internalClaimFinalization(env, targetSha, targets) {
     });
   }
   const targetMap = new Map(targets.map((target) => [target.slug, target.source_sha256]));
-  const candidates = Array.from(mockSubmissions.values()).sort((a, b) =>
-    String(a.updated_at || a.created_at || '').localeCompare(String(b.updated_at || b.created_at || '')) ||
-    String(a.id || '').localeCompare(String(b.id || ''))
-  );
-  for (const record of candidates) {
+  for (const record of mockSubmissions.values()) {
     const expiry = Date.parse(String(record.finalization_lease_expires_at || ''));
     const claimable = record.finalization_status == null ||
       (['claimed', 'deploying_modal', 'deploying_worker', 'verifying_public'].includes(record.finalization_status) &&
        Number.isFinite(expiry) && expiry < now.getTime());
-    if (afterBuilderAutonomyCutoff(record, env) &&
+    if (record.user_id === canonicalOwner &&
         targetMap.get(record.published_slug) === record.source_sha256 &&
         record.status === 'ready_for_deploy' && record.release_phase === 'merged_verified' &&
         safeRuntime(record.selected_runtime) && safeGitSha(record.release_head_sha) &&

@@ -1,0 +1,18 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "blocked": {
+      "type": "boolean"
+    },
+    "message": {
+      "maxLength": 500,
+      "minLength": 10,
+      "type": "string"
+    }
+  },
+  "required": [
+    "blocked",
+    "message"
+  ],
+  "type": "object"
+}
