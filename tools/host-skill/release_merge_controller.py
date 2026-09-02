@@ -20,6 +20,7 @@ BRANCH_RE = re.compile(r"^omo-release/sub_[A-Za-z0-9_-]{8,100}-[a-z0-9]+(?:-[a-z
 MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_CANDIDATES = 100
 MAX_REVIEWS = 1000
+MAX_GITHUB_ID = 9_007_199_254_740_991
 
 
 class MergeControllerError(RuntimeError):
@@ -209,7 +210,7 @@ def _review_pages(number: int, runner: Callable[[list[str]], str]) -> list[dict[
             user_type = user.get("type") if isinstance(user, dict) else None
             if (
                 type(review_id) is not int
-                or not 1 <= review_id <= 2_147_483_647
+                or not 1 <= review_id <= MAX_GITHUB_ID
                 or state not in {"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING"}
                 or not isinstance(login, str)
                 or not 1 <= len(login) <= 100
