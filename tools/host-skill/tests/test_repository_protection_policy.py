@@ -68,6 +68,13 @@ def test_workflows_have_minimal_permissions_and_no_pr_target():
                 "contents": "write",
                 "pull-requests": "write",
             }
+        elif workflow.name == "trusted-release-review.yml":
+            expected = {
+                "actions": "read",
+                "checks": "read",
+                "contents": "read",
+                "pull-requests": "write",
+            }
         assert parsed.get("permissions") == expected
         assert all("permissions" not in job for job in parsed.get("jobs", {}).values())
     trigger = (WORKFLOWS / "trusted-release-trigger.yml").read_text(encoding="utf-8")

@@ -33,6 +33,61 @@ def load_module():
     return module
 
 
+def generated_target_tree(slug="creator-workflow", source=b"---\nname: creator-workflow\n---\n"):
+    digest = __import__("hashlib").sha256(source).hexdigest()
+    run_manifest = {"slug": slug, "container_slug": slug, "ready": True, "chargeable": True}
+    return {
+        f"containers/{slug}/source/SKILL.md": source,
+        f"containers/{slug}/manifest.json": json.dumps({
+            "schema_version": "cognition.workflow-manifest/v1", "slug": slug, "source_sha256": digest,
+        }).encode(),
+        f"containers/{slug}/hosted-profile.json": json.dumps({
+            "schema_version": "omo.hosted-profile/v1", "generator": "tools/host-skill/1.0.0",
+            "runtime": {"container_slug": slug, "slug": slug}, "run_manifest": run_manifest,
+        }).encode(),
+        f"packages/skill-to-modal/profiles/{slug}.json": json.dumps({
+            "slug": slug, "reviewed_source_sha256": digest,
+            "authoring_spec_version": "omo.profile-authoring-spec/v2",
+        }).encode(),
+        f"site/run-manifests/{slug}.json": json.dumps(run_manifest).encode(),
+    }, digest
+
+
+def test_finalization_targets_derive_from_exact_trusted_tree_without_canary_scope():
+    mod = load_module()
+    tree, digest = generated_target_tree()
+    mainline = SimpleNamespace(list_tree=lambda sha, prefix: {
+        path: raw for path, raw in tree.items() if path.startswith(prefix)
+    })
+    assert mod.derive_finalization_targets(mainline, SHA) == [
+        {"slug": "creator-workflow", "source_sha256": digest}
+    ]
+    assert "creator-workflow" not in mod.CANARY_SOURCE_SLUGS
+
+
+@pytest.mark.parametrize("mutation", ["source_hash", "profile", "hosted", "manifest", "run_manifest"])
+def test_finalization_target_derivation_fails_closed_on_malformed_provenance(mutation):
+    mod = load_module()
+    tree, _ = generated_target_tree()
+    slug = "creator-workflow"
+    paths = {
+        "profile": f"packages/skill-to-modal/profiles/{slug}.json",
+        "hosted": f"containers/{slug}/hosted-profile.json",
+        "manifest": f"containers/{slug}/manifest.json",
+        "run_manifest": f"site/run-manifests/{slug}.json",
+    }
+    if mutation == "source_hash":
+        value = json.loads(tree[paths["profile"]]); value["reviewed_source_sha256"] = "0" * 64
+        tree[paths["profile"]] = json.dumps(value).encode()
+    else:
+        tree[paths[mutation]] = b"{}"
+    mainline = SimpleNamespace(list_tree=lambda sha, prefix: {
+        path: raw for path, raw in tree.items() if path.startswith(prefix)
+    })
+    with pytest.raises(mod.ControllerError, match="finalization_target_tree_invalid"):
+        mod.derive_finalization_targets(mainline, SHA)
+
+
 class Response:
     def __init__(self, body, status=200):
         self.status = status
@@ -117,10 +172,7 @@ def test_finalization_store_uses_only_fixed_finalizer_routes_and_redacts_token()
         "artifact_hash": ARTIFACT, "lease_expires_at": "2099-01-01T00:00:00Z", "attempts": 1,
     }
 
-    expected_targets = [
-        {"slug": item["slug"], "source_sha256": item["sha256"]}
-        for item in mod.CANARY_SOURCES
-    ]
+    expected_targets = [{"slug": "creator-workflow", "source_sha256": "e" * 64}]
 
     def opener(request, timeout):
         requests.append(request)
@@ -139,7 +191,7 @@ def test_finalization_store_uses_only_fixed_finalizer_routes_and_redacts_token()
             }})
         return Response({"ok": True})
 
-    store = mod.HttpFinalizationStore("finalizer-secret", opener=opener)
+    store = mod.HttpFinalizationStore("finalizer-secret", targets=expected_targets, opener=opener)
     claim = store.claim(SHA)
     assert claim and store.required_registry_slugs() == {"label-normalizer-canary"}
     store.provision_canary_identity()
@@ -189,10 +241,10 @@ def test_finalization_eligibility_is_exact_bounded_and_fail_closed():
 
     result = mod.HttpFinalizationStore("token", opener=opener).eligibility(SHA)
     assert result == [row]
-    expected_targets = [
+    expected_targets = sorted([
         {"slug": item["slug"], "source_sha256": item["sha256"]}
         for item in mod.CANARY_SOURCES
-    ]
+    ], key=lambda item: item["slug"])
     assert json.loads(requests[0].data) == {"target_sha": SHA, "targets": expected_targets}
     assert requests[0].full_url.endswith("/api/internal/finalizations/eligibility")
 
@@ -205,6 +257,29 @@ def test_finalization_eligibility_is_exact_bounded_and_fail_closed():
             mod.HttpFinalizationStore(
                 "token", opener=lambda request, timeout, value=malformed: Response({"ok": True, "eligibility": [value]})
             ).eligibility(SHA)
+
+
+def test_finalization_eligibility_accepts_only_configured_creator_targets():
+    mod = load_module()
+    boolean_fields = {
+        "source_sha256_present", "published_slug_present", "workflow_version_present",
+        "build_evidence_present", "release_issue_url_present", "release_pr_url_present",
+        "release_pr_number_present", "release_branch_present", "release_head_sha_present",
+        "release_merge_sha_present", "release_artifact_hash_present",
+        "finalization_target_matches", "finalization_lease_expired", "finalization_available", "claimable",
+    }
+    row = {
+        "submission_id": "sub_" + "7" * 32, "slug": "creator-workflow",
+        "status": "ready_for_deploy", "release_phase": "merged_verified",
+        "selected_runtime": "worker-native", "finalization_status": None,
+        **{field: True for field in boolean_fields},
+    }
+    target = {"slug": "creator-workflow", "source_sha256": "e" * 64}
+    store = mod.HttpFinalizationStore(
+        "token", targets=[target],
+        opener=lambda request, timeout: Response({"ok": True, "eligibility": [row]}),
+    )
+    assert store.eligibility(SHA) == [row]
 
 
 def test_finalization_eligibility_reports_only_bounded_failure_classes():
@@ -228,17 +303,21 @@ def test_finalization_eligibility_reports_only_bounded_failure_classes():
         "submission_id": "sub_" + "2" * 32,
         "slug": "v02-support-urgency-classifier",
     }
+    too_many = [
+        {**row, "submission_id": "sub_" + f"{index:032d}"}
+        for index in range(101)
+    ]
     cases = (
         (Response({}, status=500), "finalizer_eligibility_http_500"),
         (Response({"ok": False, "eligibility": []}), "invalid_finalizer_eligibility_envelope"),
         (Response({"ok": True, "eligibility": {}}), "invalid_finalizer_eligibility_rows"),
-        (Response({"ok": True, "eligibility": [row, row, row]}), "invalid_finalizer_eligibility_count"),
+        (Response({"ok": True, "eligibility": too_many}), "invalid_finalizer_eligibility_count"),
         (Response({"ok": True, "eligibility": [{**row, "private": True}]}), "invalid_finalizer_eligibility_shape"),
         (Response({"ok": True, "eligibility": [{**row, "submission_id": "bad"}]}), "invalid_finalizer_eligibility_identity"),
         (Response({"ok": True, "eligibility": [{**row, "slug": "unrelated"}]}), "invalid_finalizer_eligibility_slug"),
         (Response({"ok": True, "eligibility": [{**row, "status": "unknown"}]}), "invalid_finalizer_eligibility_enum"),
         (Response({"ok": True, "eligibility": [{**row, "claimable": 1}]}), "invalid_finalizer_eligibility_boolean"),
-        (Response({"ok": True, "eligibility": [row_two, row]}), "invalid_finalizer_eligibility_order"),
+        (Response({"ok": True, "eligibility": [row, row]}), "invalid_finalizer_eligibility_identity"),
     )
     for response, code in cases:
         with pytest.raises(mod.ControllerError) as caught:
@@ -465,7 +544,7 @@ def test_receipt_aware_recovery_verifies_ancestry_and_exact_provider_state_witho
         recovery_plan=lambda target, fid: events.append(("plan", target, fid)) or plan,
         recover_rolled_back=lambda target, fid: events.append(("recover", target, fid)) or True,
     )
-    modal = SimpleNamespace(active_version=lambda checkout, sha: events.append(("modal_read", checkout, sha)) or "modal-v7")
+    modal = SimpleNamespace(active_version=lambda checkout, sha, slug: events.append(("modal_read", checkout, sha, slug)) or "modal-v7")
     cloudflare = SimpleNamespace(active_version=lambda checkout, sha: events.append(("cloudflare_read", checkout, sha)) or "cf-v8")
 
     assert mod.recover_rolled_back_finalization(
@@ -475,7 +554,8 @@ def test_receipt_aware_recovery_verifies_ancestry_and_exact_provider_state_witho
     }
     assert events == [
         ("ancestor", OLD_TARGET, LATEST_GREEN), ("plan", OLD_TARGET, FINALIZATION_ID), ("checkout", LATEST_GREEN),
-        ("modal_read", ROOT, LATEST_GREEN), ("cloudflare_read", ROOT, LATEST_GREEN), ("recover", OLD_TARGET, FINALIZATION_ID),
+        ("modal_read", ROOT, LATEST_GREEN, "label-normalizer-canary"),
+        ("cloudflare_read", ROOT, LATEST_GREEN), ("recover", OLD_TARGET, FINALIZATION_ID),
     ]
 
 
@@ -497,7 +577,7 @@ def test_receipt_aware_recovery_mismatch_never_posts(failure, code):
         recovery_plan=lambda target, fid: plan,
         recover_rolled_back=lambda target, fid: posts.append((target, fid)) or True,
     )
-    modal = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "modal" else "modal-v7")
+    modal = SimpleNamespace(active_version=lambda checkout, sha, slug: "wrong" if failure == "modal" else "modal-v7")
     cloudflare = SimpleNamespace(active_version=lambda checkout, sha: "wrong" if failure == "cloudflare" else "cf-v8")
     with pytest.raises(mod.ControllerError) as caught:
         mod.recover_rolled_back_finalization(
@@ -565,16 +645,16 @@ def test_http_status_is_preserved_without_reading_or_retaining_error_body():
 
 def test_modal_canary_requires_exact_terminal_fixture(monkeypatch):
     mod = load_module()
-    claim = SimpleNamespace(submission_id="sub_12345678")
+    claim = SimpleNamespace(submission_id="sub_12345678", slug="label-normalizer-canary")
     calls = []
     responses = [
         (202, {"result_url": "/v1/runs/run-" + "1" * 32 + "?call_id=fc-test&access_token=" + "x" * 32}),
         (202, {"status": "running"}),
         (200, {
             "items": [
-                {"identifier": "ITEM_GREEN_APPLE"},
-                {"identifier": "ITEM_GREEN_APPLE"},
-                {"identifier": "ITEM_CLASS_2B"},
+                {"identifier": "ITEM_GREEN_APPLE", "index": 0, "original": "  Green Apple  ", "duplicate_of": None},
+                {"identifier": "ITEM_GREEN_APPLE", "index": 1, "original": "green-apple", "duplicate_of": 0},
+                {"identifier": "ITEM_CLASS_2B", "index": 2, "original": "Class 2B", "duplicate_of": None},
             ],
             "input_count": 3, "unique_count": 2, "duplicate_count": 1,
         }),
@@ -595,6 +675,40 @@ def test_modal_canary_requires_exact_terminal_fixture(monkeypatch):
     assert calls[1][0].startswith("https://omo-space--cognition-label-normalizer-canary-api.modal.run/v1/runs/")
 
 
+def test_modal_single_llm_canary_accepts_schema_valid_variation_and_rejects_extra_fields(monkeypatch):
+    mod = load_module()
+    claim = SimpleNamespace(submission_id="sub_12345678", slug="creator-single-llm")
+    contract = {
+        "slug": claim.slug, "execution_kind": "single_llm",
+        "input": {"message": "Account is locked", "blocked": True},
+        "expected_output": {"urgency": "high", "reason": "Expected fixture wording."},
+        "output_schema": {
+            "type": "object", "additionalProperties": False,
+            "properties": {
+                "urgency": {"enum": ["low", "medium", "high"]},
+                "reason": {"type": "string", "minLength": 10, "maxLength": 200},
+            },
+            "required": ["urgency", "reason"],
+        },
+    }
+    monkeypatch.setattr(mod, "_claim_canary_contract", lambda value, checkout: contract)
+    monkeypatch.setattr(mod.time, "sleep", lambda _: None)
+    adapter = mod.ProductionModalAdapter({
+        "HOSTED_MODAL_PROXY_TOKEN_ID": "id", "HOSTED_MODAL_PROXY_TOKEN_SECRET": "secret",
+    })
+
+    def run(result):
+        responses = [
+            (202, {"result_url": "/v1/runs/run-" + "1" * 32 + "?call_id=fc-test&access_token=" + "x" * 32}),
+            (200, result),
+        ]
+        monkeypatch.setattr(mod, "_request_json", lambda url, **kwargs: responses.pop(0))
+        return adapter.canary(claim, ROOT, {})
+
+    assert run({"urgency": "high", "reason": "Account access is blocked and requires urgent help."}) == {"status": "passed"}
+    assert run({"urgency": "high", "reason": "Account access is blocked and requires urgent help.", "extra": True}) == {"status": "failed"}
+
+
 def test_modal_canary_rejects_cross_origin_result_url_before_credentialed_poll(monkeypatch):
     mod = load_module()
     calls = []
@@ -607,7 +721,7 @@ def test_modal_canary_rejects_cross_origin_result_url_before_credentialed_poll(m
     adapter = mod.ProductionModalAdapter({
         "HOSTED_MODAL_PROXY_TOKEN_ID": "id", "HOSTED_MODAL_PROXY_TOKEN_SECRET": "secret",
     })
-    claim = SimpleNamespace(submission_id="sub_12345678")
+    claim = SimpleNamespace(submission_id="sub_12345678", slug="label-normalizer-canary")
     assert adapter.canary(claim, ROOT, {}) == {"status": "failed"}
     assert len(calls) == 1 and calls[0][0].startswith(mod.MODAL_CANARY_ORIGIN)
     assert calls[0][1]["opener"] == mod.MODAL_OPENER
@@ -629,13 +743,41 @@ def test_worker_smoke_reaches_worker_with_trusted_user_agent(monkeypatch):
     assert requests[0].get_header("Accept") == "application/json"
 
 
-def test_modal_failure_recovery_retains_exact_deployed_version_without_plan_rollback(monkeypatch):
+def test_modal_failure_recovery_rolls_back_and_reads_previous_version(monkeypatch):
     mod = load_module()
     adapter = mod.ProductionModalAdapter({})
-    claim = SimpleNamespace(id="fin_" + "1" * 32, target_sha=SHA)
+    claim = SimpleNamespace(id="fin_" + "1" * 32, target_sha=SHA, slug="label-normalizer-canary")
     adapter.checkouts[claim.id] = ROOT
-    monkeypatch.setattr(adapter, "active_version", lambda checkout, sha: "v7")
+    monkeypatch.setattr(adapter, "active_version", lambda checkout, sha, slug: "v7")
+    calls = []
+    transport = SimpleNamespace(
+        run=lambda call: calls.append(("write", call.argv)),
+        run_json=lambda call: calls.append(("read", call.argv)) or [{"Version": "v6", "Tag": None}],
+    )
+    monkeypatch.setattr(adapter, "_transport", lambda claim, checkout, mutate=False: transport)
     assert adapter.rollback(claim, {"version_id": "v7", "rollback_token": "v6"}) == {"status": "passed"}
+    assert [kind for kind, _ in calls] == ["write", "read"]
+
+
+def test_first_modal_deployment_recovery_stops_app_and_reads_back_zero_tasks(monkeypatch, tmp_path):
+    mod = load_module()
+    app = tmp_path / "containers/creator-modal-workflow/modal_app.py"
+    app.parent.mkdir(parents=True)
+    app.write_text("# generated fixture\n", encoding="utf-8")
+    adapter = mod.ProductionModalAdapter({})
+    claim = SimpleNamespace(id="fin_" + "1" * 32, target_sha=SHA, slug="creator-modal-workflow")
+    adapter.checkouts[claim.id] = tmp_path
+    monkeypatch.setattr(adapter, "active_version", lambda checkout, sha, slug: "v1")
+    calls = []
+    transport = SimpleNamespace(
+        run=lambda call: calls.append(("write", call.argv)),
+        run_json=lambda call: calls.append(("read", call.argv)) or [{
+            "Description": "cognition-creator-modal-workflow", "State": "stopped", "Tasks": "0",
+        }],
+    )
+    monkeypatch.setattr(adapter, "_transport", lambda claim, checkout, mutate=False: transport)
+    assert adapter.rollback(claim, {"version_id": "v1", "rollback_token": None}) == {"status": "passed"}
+    assert [kind for kind, _ in calls] == ["write", "read"]
 
 
 def test_modal_deploy_reuses_existing_exact_tag_without_mutation(monkeypatch):
@@ -650,6 +792,8 @@ def test_modal_deploy_reuses_existing_exact_tag_without_mutation(monkeypatch):
     class Transport:
         def run_json(self, call):
             calls.append(("read", call.argv))
+            if call.argv[3:5] == ("app", "list"):
+                return [{"Description": "cognition-label-normalizer-canary", "State": "deployed", "Tasks": "0"}]
             return rows
 
         def run(self, call):
@@ -665,7 +809,7 @@ def test_modal_deploy_reuses_existing_exact_tag_without_mutation(monkeypatch):
     receipt = adapter.deploy(claim, ROOT)
     assert receipt["status"] == "passed" and receipt["reused"] is True
     assert receipt["version_id"] == "v5"
-    assert [kind for kind, _ in calls] == ["read", "read"]
+    assert [kind for kind, _ in calls] == ["read", "read", "read"]
 
 
 def test_modal_deploy_rejects_changed_reuse_history_without_mutation(monkeypatch):
@@ -677,6 +821,8 @@ def test_modal_deploy_rejects_changed_reuse_history_without_mutation(monkeypatch
     class Transport:
         def run_json(self, call):
             calls.append("read")
+            if call.argv[3:5] == ("app", "list"):
+                return [{"Description": "cognition-label-normalizer-canary", "State": "deployed", "Tasks": "0"}]
             return reads.pop(0)
 
         def run(self, call):
@@ -691,10 +837,10 @@ def test_modal_deploy_rejects_changed_reuse_history_without_mutation(monkeypatch
     )
     with pytest.raises(RuntimeError, match="production_readback_failed"):
         adapter.deploy(claim, ROOT)
-    assert calls == ["read", "read"]
+    assert calls == ["read", "read", "read"]
 
 
-@pytest.mark.parametrize("baseline", [[], [{"Version": "v2"}]])
+@pytest.mark.parametrize("baseline", [[{"Version": "v2"}]])
 def test_modal_deploy_validates_baseline_before_mutation(monkeypatch, baseline):
     mod = load_module()
     calls = []
@@ -702,6 +848,8 @@ def test_modal_deploy_validates_baseline_before_mutation(monkeypatch, baseline):
     class Transport:
         def run_json(self, call):
             calls.append("read")
+            if call.argv[3:5] == ("app", "list"):
+                return [{"Description": "cognition-label-normalizer-canary", "State": "deployed", "Tasks": "0"}]
             return baseline
 
         def run(self, call):
@@ -716,7 +864,31 @@ def test_modal_deploy_validates_baseline_before_mutation(monkeypatch, baseline):
     )
     with pytest.raises(RuntimeError, match="production_readback_failed"):
         adapter.deploy(claim, ROOT)
-    assert calls == ["read"]
+    assert calls == ["read", "read"]
+
+
+def test_modal_deploy_accepts_empty_history_only_with_one_exact_tagged_version(monkeypatch):
+    mod = load_module()
+    reads = [
+        [],
+        [{"Version": "v1", "Tag": SHA}],
+        [{"Description": "cognition-label-normalizer-canary", "State": "deployed", "Tasks": "0"}],
+    ]
+    writes = []
+    transport = SimpleNamespace(
+        run_json=lambda call: reads.pop(0),
+        run=lambda call: writes.append(call.argv),
+    )
+    adapter = mod.ProductionModalAdapter({})
+    monkeypatch.setattr(adapter, "_transport", lambda claim, checkout, mutate=False: transport)
+    claim = SimpleNamespace(
+        id="fin_" + "1" * 32, slug="label-normalizer-canary",
+        target_sha=SHA, artifact_hash=ARTIFACT,
+    )
+    receipt = adapter.deploy(claim, ROOT)
+    assert receipt["status"] == "passed" and receipt["reused"] is False
+    assert receipt["previous_version_id"] is None and receipt["rollback_token"] is None
+    assert len(writes) == 1
 
 
 def test_public_canary_dispatch_poll_and_exact_replay(monkeypatch):
@@ -817,7 +989,7 @@ def test_legacy_public_canary_replay_must_match_terminal_billing(monkeypatch):
     assert adapter.verify_public(claim, ROOT) == {"status": "failed"}
 
 
-def test_public_canary_preflight_rejects_new_modal_claim_before_provisioning():
+def test_public_canary_preflight_accepts_valid_generic_modal_claim_and_provisions_identity():
     mod = load_module()
     calls = []
     adapter = mod.ProductionPublicAdapter(
@@ -829,11 +1001,8 @@ def test_public_canary_preflight_rejects_new_modal_claim_before_provisioning():
         target_sha=SHA, artifact_hash=ARTIFACT,
     )
 
-    with pytest.raises(mod.ControllerError) as caught:
-        adapter.preflight(claim)
-
-    assert caught.value.code == "public_canary_contract_invalid"
-    assert calls == []
+    adapter.preflight(claim)
+    assert calls == ["provision"]
 
 
 def test_public_canary_uses_exact_claim_fixture_schema_and_price(monkeypatch):
@@ -1092,12 +1261,14 @@ def test_publication_verifies_canonical_run_redirect_and_title(monkeypatch):
     assert adapter.verify_publication(claim, ROOT) == {"status": "published"}
 
 
-def test_public_canary_seed_uses_two_canonical_exact_checkout_sources(monkeypatch):
+def test_public_canary_seed_uses_canonical_and_fresh_autonomy_sources(monkeypatch):
     mod = load_module()
     calls = []
     responses = iter([
         (202, {"id": "sub_" + "1" * 32, "slug": "v02-release-label-sorter", "status": "failed", "duplicate": True, "changed": False}),
         (202, {"id": "sub_" + "2" * 32, "slug": "v02-support-urgency-classifier", "status": "queued", "duplicate": False, "changed": True}),
+        (202, {"id": "sub_" + "3" * 32, "slug": "autonomous-priority-label-sorter", "status": "queued", "duplicate": False, "changed": True}),
+        (202, {"id": "sub_" + "4" * 32, "slug": "autonomous-reply-urgency-classifier", "status": "queued", "duplicate": False, "changed": True}),
     ])
 
     def request_json_stage(stage, url, **kwargs):
@@ -1113,15 +1284,20 @@ def test_public_canary_seed_uses_two_canonical_exact_checkout_sources(monkeypatc
     assert adapter.seed_submissions(ROOT) == [
         {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "1" * 32, "submission_status": "failed"},
         {"slug": "v02-support-urgency-classifier", "submission_id": "sub_" + "2" * 32, "submission_status": "queued"},
+        {"slug": "autonomous-priority-label-sorter", "submission_id": "sub_" + "3" * 32, "submission_status": "queued"},
+        {"slug": "autonomous-reply-urgency-classifier", "submission_id": "sub_" + "4" * 32, "submission_status": "queued"},
     ]
     assert provisioned == [True]
-    assert [call[2]["payload"]["runtime_preference"] for call in calls] == ["worker-native", "worker-native"]
+    assert [call[2]["payload"]["runtime_preference"] for call in calls] == ["worker-native"] * 4
     assert [call[2]["payload"]["name"] for call in calls] == [
         "V02 Release Label Sorter", "V02 Support Urgency Classifier",
+        "Autonomous Priority Label Sorter", "Autonomous Reply Urgency Classifier",
     ]
     assert [call[2]["payload"]["content"] for call in calls] == [
         (ROOT / "tools/host-skill/canaries/v02-release-label-sorter/SKILL.md").read_text(),
         (ROOT / "tools/host-skill/canaries/v02-support-urgency-classifier/SKILL.md").read_text(),
+        (ROOT / "tools/host-skill/canaries/autonomous-priority-label-sorter/SKILL.md").read_text(),
+        (ROOT / "tools/host-skill/canaries/autonomous-reply-urgency-classifier/SKILL.md").read_text(),
     ]
     assert all(call[0] == "public_canary_http_failed" and call[1] == mod.PUBLIC_ORIGIN + "/api/submit" for call in calls)
 
@@ -1147,6 +1323,20 @@ def test_public_canary_retry_is_exact_owner_submission_only(monkeypatch):
         "headers": {"X-API-Key": "omo_" + "1" * 32, "Content-Type": "application/json"},
         "timeout": 30,
     })]
+
+
+def test_fresh_autonomy_canary_failed_duplicate_is_retryable_without_owner_action(monkeypatch):
+    mod = load_module()
+    submission_id = "sub_" + "4" * 32
+    slug = "autonomous-priority-label-sorter"
+    monkeypatch.setattr(mod, "_request_json_stage", lambda *args, **kwargs: (200, {
+        "ok": True, "retried": True,
+        "submission": {"id": submission_id, "slug": slug, "status": "queued"},
+    }))
+    adapter = mod.ProductionPublicAdapter(SimpleNamespace(), "omo_" + "1" * 32)
+    assert adapter.retry_submission(submission_id, slug) == {
+        "status": "retried", "slug": slug, "submission_id": submission_id,
+    }
 
 
 def test_public_canary_failed_seed_requires_idempotent_replay_evidence(monkeypatch):
@@ -1214,6 +1404,8 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
             return [
                 {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "2" * 32, "submission_status": status},
                 {"slug": "v02-support-urgency-classifier", "submission_id": "sub_" + "3" * 32, "submission_status": status},
+                {"slug": "autonomous-priority-label-sorter", "submission_id": "sub_" + "4" * 32, "submission_status": status},
+                {"slug": "autonomous-reply-urgency-classifier", "submission_id": "sub_" + "5" * 32, "submission_status": status},
             ]
 
         def verify_balance_snapshot(self, checkout):
@@ -1241,8 +1433,10 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         "selected_runtime": "worker-native",
         "claimable": False,
     }])
+    discovered = [{"slug": "creator-workflow", "source_sha256": "4" * 64}]
     monkeypatch.setattr(mod, "GitHubMainlineAdapter", Mainline)
-    monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token: store)
+    monkeypatch.setattr(mod, "derive_finalization_targets", lambda mainline, sha: discovered if sha == SHA else None)
+    monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token, targets: store if targets == discovered else None)
     monkeypatch.setattr(mod, "ProductionModalAdapter", lambda env: object())
     monkeypatch.setattr(mod, "ProductionCloudflareAdapter", Cloudflare)
     monkeypatch.setattr(mod, "ProductionPublicAdapter", Public)
@@ -1272,6 +1466,8 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         "submissions": [
             {"slug": "v02-release-label-sorter", "submission_id": "sub_" + "2" * 32, "submission_status": "queued"},
             {"slug": "v02-support-urgency-classifier", "submission_id": "sub_" + "3" * 32, "submission_status": "queued"},
+            {"slug": "autonomous-priority-label-sorter", "submission_id": "sub_" + "4" * 32, "submission_status": "queued"},
+            {"slug": "autonomous-reply-urgency-classifier", "submission_id": "sub_" + "5" * 32, "submission_status": "queued"},
         ],
     }
 
@@ -1286,7 +1482,7 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         ("schedule", target, SHA), ("seed", target), ("balance", target),
     ]
     assert deployed_result["status"] == "seeded"
-    assert [item["submission_status"] for item in deployed_result["submissions"]] == ["deployed", "deployed"]
+    assert [item["submission_status"] for item in deployed_result["submissions"]] == ["deployed"] * 4
     assert deployed_result["balance_readback"] == {
         "status": "passed", "currency": "usd", "balance_cents": 480,
         "usage": [
@@ -1318,8 +1514,10 @@ def test_run_once_deployed_includes_bounded_eligibility_snapshot(monkeypatch, tm
         ],
     }
     public = SimpleNamespace(verify_balance_snapshot=lambda value: balance if value == checkout else None)
+    discovered = [{"slug": "creator-workflow", "source_sha256": "4" * 64}]
     monkeypatch.setattr(mod, "GitHubMainlineAdapter", lambda *args: mainline)
-    monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token: store)
+    monkeypatch.setattr(mod, "derive_finalization_targets", lambda value, sha: discovered if sha == SHA else None)
+    monkeypatch.setattr(mod, "HttpFinalizationStore", lambda token, targets: store if targets == discovered else None)
     monkeypatch.setattr(mod, "ProductionModalAdapter", lambda env: object())
     monkeypatch.setattr(mod, "ProductionCloudflareAdapter", lambda env: object())
     monkeypatch.setattr(mod, "ProductionPublicAdapter", lambda store, key: public)

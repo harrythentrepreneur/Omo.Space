@@ -7,6 +7,7 @@ import json
 import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -621,6 +622,26 @@ def test_explicit_production_targets_accept_only_production_receipts():
     bad = dict(store.effects["worker_deploy"], target="cognition-demos-staging")
     with pytest.raises(mod.FinalizerError):
         mod._deployment_receipt(bad, store.claim_value, "cloudflare", targets)
+
+
+def test_production_modal_target_template_is_bound_to_validated_claim_slug():
+    mod = load_finalizer()
+    claim = SimpleNamespace(
+        slug="creator-modal-workflow", target_sha=TARGET, artifact_hash="f" * 64,
+    )
+    targets = mod.DeploymentTargets(
+        "cognition-{slug}", "main", "cognition-demos", "production"
+    )
+    receipt = {
+        "status": "passed", "provider": "modal",
+        "target": "cognition-creator-modal-workflow", "environment": "main",
+        "target_sha": TARGET, "artifact_hash": "f" * 64,
+        "version_id": "v2", "previous_version_id": "v1",
+        "reused": False, "rollback_token": "v1",
+    }
+    assert mod._deployment_receipt(receipt, claim, "modal", targets) == receipt
+    with pytest.raises(mod.FinalizerError):
+        mod._deployment_receipt({**receipt, "target": "cognition-other"}, claim, "modal", targets)
 
 
 def test_superseded_trigger_exits_before_claim_or_provider_effect():

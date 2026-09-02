@@ -1,0 +1,99 @@
+name: trusted-release-review
+
+on:
+  workflow_run:
+    workflows: [generated-workflow-contracts]
+    types: [completed]
+  schedule:
+    - cron: '*/15 * * * *'
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: trusted-release-review
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    if: >-
+      github.repository == 'harrythentrepreneur/Omo.Space' &&
+      (github.event_name == 'schedule' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    outputs:
+      candidates: ${{ steps.candidates.outputs.candidates }}
+    steps:
+      - name: Check out protected review controller from main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+          path: controller
+      - name: Discover bounded candidate PR numbers
+        id: candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          result="$(python3 controller/tools/host-skill/release_review_controller.py \
+            --discover --event "$GITHUB_EVENT_PATH")"
+          python3 -c 'import json,sys; print("candidates=" + json.dumps(json.loads(sys.argv[1])["candidates"], separators=(",", ":")))' \
+            "$result" >> "$GITHUB_OUTPUT"
+
+  review:
+    needs: discover
+    if: needs.discover.outputs.candidates != '[]'
+    environment: Production
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        pr: ${{ fromJSON(needs.discover.outputs.candidates) }}
+    steps:
+      - name: Check out protected review controller from main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+          path: controller
+      - name: Live-fetch exact current PR head
+        id: head
+        env:
+          GH_TOKEN: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}
+          PR_NUMBER: ${{ matrix.pr }}
+        run: |
+          head="$(gh pr view "$PR_NUMBER" \
+            --repo harrythentrepreneur/Omo.Space \
+            --json headRefOid --jq .headRefOid)"
+          case "$head" in
+            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+            *) echo "invalid live PR head" >&2; exit 1 ;;
+          esac
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+      - name: Check out exact candidate head as untrusted data
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: harrythentrepreneur/Omo.Space
+          ref: ${{ steps.head.outputs.head }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: candidate
+      - name: Fetch protected base for no-rename diff
+        run: >-
+          git -C candidate fetch --no-tags origin
+          refs/heads/main:refs/remotes/origin/main
+      - name: Validate and approve exact generated release head
+        env:
+          GH_TOKEN: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}
+          PR_NUMBER: ${{ matrix.pr }}
+          CANDIDATE_HEAD: ${{ steps.head.outputs.head }}
+        run: |
+          python3 controller/tools/host-skill/release_review_controller.py \
+            --review \
+            --pr "$PR_NUMBER" \
+            --candidate "$GITHUB_WORKSPACE/candidate" \
+            --head "$CANDIDATE_HEAD"
