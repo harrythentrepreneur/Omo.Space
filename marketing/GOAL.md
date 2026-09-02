@@ -215,13 +215,12 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-Ship and prove the zero-touch demo path. One exact reviewed V02 Label Sorter
-`SKILL.md` now atomically adopts its existing Worker-native pure-data runtime,
-the browser derives its authoritative frontmatter name and renders immediate
-deployment as Live, and modified/unknown/explicit-Modal submissions remain on
-the guarded queue. Automatic Modal builder dispatch is explicit/default-off in
-both Worker source and Wrangler config. The frozen five-file code/config patch
-passed independent review with no blockers, router 316/316, full Python 553/553,
-supporting Worker/API 69/69, security scans, and pinned Wrangler dry-run. Next:
-PR/CI/merge/deploy, stop the dormant builder app, then one authenticated browser
-upload/readback/run proof using the exact demo file.
+Finish one explicitly authorized scoped Modal build for submission
+`sub_206cb9e53f30a18112371f4ee6a2bef8`. The scheduler now requires both exact
+`OMO_BUILDER_ENABLED=true` and a valid `OMO_BUILDER_ALLOWED_SUBMISSION_ID`, and
+Neon, D1, and mock selectors bind both build and post-merge verification to that
+ID. All other queued rows remain untouched. TDD moved the focused suite from the
+expected scoped failures to 317/317; full host/compiler/render is 553/553 and
+supporting Worker/API is 69/69 with syntax, TOML, and diff checks green. Next:
+one final scope/security review, PR/CI/protected merge, governed Worker deploy,
+then correlate this exact submission through Modal dispatch and terminal state.
