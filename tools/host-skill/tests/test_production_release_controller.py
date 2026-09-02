@@ -1384,3 +1384,16 @@ def test_controller_cli_rejects_every_user_selectable_or_malformed_identity(caps
     assert "invalid_controller_input" in capsys.readouterr().out
     with pytest.raises(SystemExit):
         mod.main(["--trigger-sha", SHA, "--run-id", "1", "--run-attempt", "1", "--target", "evil"])
+
+
+def test_controller_cli_reports_only_allowlisted_internal_failure_stage(monkeypatch, capsys):
+    mod = load_module()
+
+    def fail(_args):
+        raise mod.FinalizerError("internal_finalizer_failed", stage="advance_worker")
+
+    monkeypatch.setattr(mod, "run_once", fail)
+    assert mod.main(["--trigger-sha", SHA, "--run-id", "1", "--run-attempt", "1"]) == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "error": "internal_finalizer_failed", "stage": "advance_worker",
+    }
