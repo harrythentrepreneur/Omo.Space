@@ -1,0 +1,35 @@
+{
+  "allowlist": [
+    "pure_data",
+    "sample_media_pipeline",
+    "single_llm",
+    "skill_builder"
+  ],
+  "approved": [],
+  "blockers": [],
+  "contract_digest": "sha256:c00d99635b6103e393c747e095569cfef46587c5491528997b08721097e159e7",
+  "decision": "approved",
+  "execution_kind": "pure_data",
+  "generated": {
+    "dependencies": [],
+    "files": [],
+    "honest_limits": [],
+    "packages": [],
+    "policy": [],
+    "resources": {},
+    "runtime_steps": [],
+    "tests": [],
+    "tool_bindings": []
+  },
+  "needs": [],
+  "registry_digest": "sha256:41300071985536b792b9e3fae4916016d2a46f5cff5a4aa8f79c07b29e47c041",
+  "registry_version": "1.4.0",
+  "requested": [],
+  "resolver_version": "1.0.0",
+  "schema_version": "cognition.capabilities/v2",
+  "selected": [],
+  "skill_owned_resources": [],
+  "slug": "v02-release-label-sorter-test",
+  "source_sha256": "fe59ced44b15bf574dd6df387b8f4f08554f54b2bf2d878ff60e05faeee5578f",
+  "workflow_blockers": []
+}
