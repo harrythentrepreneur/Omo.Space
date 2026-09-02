@@ -1,0 +1,87 @@
+{
+  "artifacts": [],
+  "description": "Classify one bounded customer message into low, medium or high urgency as an unattended production pipeline proof.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "blocked",
+      "widget": "text"
+    },
+    {
+      "field": "message",
+      "widget": "text"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "blocked": {
+        "type": "boolean"
+      },
+      "message": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "blocked",
+      "message"
+    ],
+    "type": "object"
+  },
+  "name": "Autonomous Reply Urgency Classifier",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "reason": {
+        "maxLength": 180,
+        "minLength": 10,
+        "type": "string"
+      },
+      "urgency": {
+        "enum": [
+          "high",
+          "low",
+          "medium"
+        ],
+        "maxLength": 6,
+        "minLength": 3,
+        "type": "string"
+      }
+    },
+    "required": [
+      "reason",
+      "urgency"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "cost_model",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "c46ced79b1e9cad83a09e29976ffc6ec03e9a9f34a8388e2d14deaf845ece78c",
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "GEMINI_API_KEY"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "autonomous-reply-urgency-classifier",
+  "source_sha256": "4c262016815710b8a2a7cd48989ef28c0fc02f48290f9222a8ccf2301e70cb1a",
+  "version": "1.0.0"
+}
