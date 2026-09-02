@@ -48,7 +48,7 @@ jobs:
               raise SystemExit(1)
           print(match.group(1))
           PY
-          )" = "b1c726f2d91115b3540934f5c7337199b0d3e675"
+          )" = "a7891619c64203f6422a9b3c8eef105983e39cec"
           npx --no-install wrangler deploy --dry-run --keep-vars --env=""
       - name: Deploy reviewed Worker
         working-directory: site/deploy
@@ -78,4 +78,4 @@ jobs:
             --deployment "$RUNNER_TEMP/deployment.json" \
             --version "$RUNNER_TEMP/version.json" \
             --expected-sha "$GITHUB_SHA" \
-            --expected-selector "b1c726f2d91115b3540934f5c7337199b0d3e675"
+            --expected-selector "a7891619c64203f6422a9b3c8eef105983e39cec"

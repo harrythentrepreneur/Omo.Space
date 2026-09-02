@@ -215,12 +215,12 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-Finish one explicitly authorized scoped Modal build for submission
-`sub_206cb9e53f30a18112371f4ee6a2bef8`. The scheduler now requires both exact
-`OMO_BUILDER_ENABLED=true` and a valid `OMO_BUILDER_ALLOWED_SUBMISSION_ID`, and
-Neon, D1, and mock selectors bind both build and post-merge verification to that
-ID. All other queued rows remain untouched. TDD moved the focused suite from the
-expected scoped failures to 317/317; full host/compiler/render is 553/553 and
-supporting Worker/API is 69/69 with syntax, TOML, and diff checks green. Next:
-one final scope/security review, PR/CI/protected merge, governed Worker deploy,
-then correlate this exact submission through Modal dispatch and terminal state.
+Repair and retry the explicitly authorized submission
+`sub_206cb9e53f30a18112371f4ee6a2bef8` once. Its first scoped dispatch proved the
+one-ID Worker boundary but failed inside a Modal builder pinned six commits behind
+current release fixes. Align builder source, Worker selector, governed deployment
+workflow, and verification tests to trusted base `a7891619c64203f6422a9b3c8eef105983e39cec`.
+Focused pin/deploy tests pass 80/80, full host/compiler/render 553/553,
+Worker/router 317/317, supporting Worker/API 69/69, with config and syntax clean.
+Next: one final immutable-pin review, PR/CI/protected merge, deploy Worker and
+Modal builder from the merged tree, then perform exactly one owner-authorized retry.
