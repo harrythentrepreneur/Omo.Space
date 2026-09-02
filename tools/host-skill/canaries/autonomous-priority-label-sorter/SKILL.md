@@ -5,7 +5,7 @@ description: Clean and sort a bounded list of priority labels as an unattended p
 
 # Autonomous Priority Label Sorter
 
-Build a `pure_data` workflow for a bounded list of priority labels.
+Build a `pure_data` workflow for a bounded list of priority labels. This is the second-generation unattended production proof.
 
 ## Input
 
