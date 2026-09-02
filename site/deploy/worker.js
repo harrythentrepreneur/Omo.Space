@@ -4439,7 +4439,7 @@ async function internalPeekBuilderSubmission(env, phase = 'build', autonomyAfter
         'omo-internal-builder-peek-build-v1',
         `SELECT id,slug,source_sha256,status
          FROM submissions
-         WHERE status IN ($1, $2) AND ($3::timestamptz IS NULL OR created_at >= $3::timestamptz)
+         WHERE status IN ($1, $2) AND ($3::timestamptz IS NULL OR created_at::timestamptz >= $3::timestamptz)
          ORDER BY COALESCE(updated_at, created_at) ASC, id ASC
          LIMIT 1`,
         ['needs_review', 'queued', cutoff]
@@ -4451,7 +4451,7 @@ async function internalPeekBuilderSubmission(env, phase = 'build', autonomyAfter
          WHERE status = 'ready_for_deploy' AND release_phase IN ('pr_open', 'ci_passed')
            AND release_pr_url IS NOT NULL AND release_head_sha IS NOT NULL
            AND release_artifact_hash IS NOT NULL
-           AND ($1::timestamptz IS NULL OR created_at >= $1::timestamptz)
+           AND ($1::timestamptz IS NULL OR created_at::timestamptz >= $1::timestamptz)
          ORDER BY updated_at ASC
          LIMIT 1`,
         [cutoff]
@@ -4849,7 +4849,7 @@ async function internalAutomaticRecoveryCandidate(env) {
                AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL)
            OR (selected_runtime = 'modal-hosted' AND finalization_failure_code = ANY($2::text[])
                AND finalization_modal_receipt IS NOT NULL AND finalization_worker_receipt IS NOT NULL))
-         AND created_at >= $3::timestamptz
+         AND created_at::timestamptz >= $3::timestamptz
        ORDER BY automation_updated_at ASC, id ASC LIMIT 32`,
       [Array.from(AUTO_RECOVERY_NO_EFFECT_CODES), effectCodes, cutoff]
     ));
@@ -4922,7 +4922,7 @@ async function internalInspectFailedFinalization(env, targetSha, finalizationId 
   const cutoffParam = finalizationId ? '$3' : '$2';
   const filters = `finalization_status = 'failed' AND finalization_target_sha = $1${generationFilter}
     AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
-    AND created_at >= ${cutoffParam}::timestamptz
+    AND created_at::timestamptz >= ${cutoffParam}::timestamptz
     AND source_sha256 = finalization_source_sha256
     AND release_head_sha = finalization_head_sha
     AND release_merge_sha = finalization_merge_sha
@@ -4986,7 +4986,7 @@ async function internalRecoverRolledBackFinalization(env, targetSha, finalizatio
 +         AND release_merge_sha = $7 AND finalization_merge_sha = $7
 +         AND release_artifact_hash = $8 AND finalization_artifact_hash = $8
 +         AND finalization_modal_receipt = $9 AND finalization_worker_receipt = $10
-          AND created_at >= $12::timestamptz
+          AND created_at::timestamptz >= $12::timestamptz
 +       RETURNING id`.replace(/^\+/gm, ''),
       [snapshot, failed.submission_id, finalizationId, targetSha, failed.source_sha256, failed.head_sha,
         failed.merge_sha, failed.artifact_hash, row.finalization_modal_receipt, row.finalization_worker_receipt,
@@ -5045,7 +5045,7 @@ async function internalResumeFailedFinalization(env, targetSha, finalizationId) 
            AND finalization_status = 'failed'
            AND finalization_failure_code = ANY($3::text[])
            AND status IN ('ready_for_deploy', 'failed') AND release_phase = 'merged_verified'
-           AND created_at >= $4::timestamptz
+           AND created_at::timestamptz >= $4::timestamptz
            AND finalization_modal_receipt IS NULL AND finalization_worker_receipt IS NULL
            AND source_sha256 = finalization_source_sha256
            AND release_head_sha = finalization_head_sha
@@ -5179,7 +5179,7 @@ async function internalResumeCompletedFinalization(env, targetSha) {
            AND release_head_sha = finalization_head_sha
            AND release_merge_sha = finalization_merge_sha
            AND release_artifact_hash = finalization_artifact_hash
-           AND created_at >= $2::timestamptz
+           AND created_at::timestamptz >= $2::timestamptz
          ORDER BY CASE WHEN status = 'ready_for_publish' THEN 0 ELSE 1 END,
                   automation_updated_at ASC, id ASC
          LIMIT 1`,
@@ -5230,7 +5230,7 @@ async function internalFinalizationEligibility(env, targetSha, targets) {
     const result = await getNeonPool(env).query(prepared(
       `omo-internal-finalization-eligibility-v3-${targets.length}`,
       `SELECT ${columns} FROM submissions
-       WHERE (published_slug, source_sha256) IN (${pairs}) AND created_at >= $${values.length + 1}::timestamptz
+       WHERE (published_slug, source_sha256) IN (${pairs}) AND created_at::timestamptz >= $${values.length + 1}::timestamptz
        ORDER BY updated_at ASC, id ASC LIMIT 100`,
       [...values, cutoff]
     ));
@@ -5325,7 +5325,7 @@ async function internalClaimFinalization(env, targetSha, targets) {
            AND release_head_sha IS NOT NULL
            AND release_merge_sha IS NOT NULL
            AND release_artifact_hash IS NOT NULL
-           AND created_at >= $${targetValues.length + 4}::timestamptz
+           AND created_at::timestamptz >= $${targetValues.length + 4}::timestamptz
            AND (finalization_status IS NULL OR
                 (finalization_status IN ('claimed', 'deploying_modal', 'deploying_worker', 'verifying_public')
                  AND finalization_lease_expires_at::timestamptz < CURRENT_TIMESTAMP))
