@@ -215,12 +215,12 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-Repair and retry the explicitly authorized submission
-`sub_206cb9e53f30a18112371f4ee6a2bef8` once. Its first scoped dispatch proved the
-one-ID Worker boundary but failed inside a Modal builder pinned six commits behind
-current release fixes. Align builder source, Worker selector, governed deployment
-workflow, and verification tests to trusted base `a7891619c64203f6422a9b3c8eef105983e39cec`.
-Focused pin/deploy tests pass 80/80, full host/compiler/render 553/553,
-Worker/router 317/317, supporting Worker/API 69/69, with config and syntax clean.
-Next: one final immutable-pin review, PR/CI/protected merge, deploy Worker and
-Modal builder from the merged tree, then perform exactly one owner-authorized retry.
+Activate the landed workflow release for submission
+`sub_206cb9e53f30a18112371f4ee6a2bef8`. Build dispatch completed, generated PR
+#323 merged as `32c47b622a4caed4993eca599c769a4867e1d436`, and exact-main CI passed. The
+first post-merge verifier correctly rejected a builder base from before that
+workflow landed. Rotate builder source, Worker selector, governed deployment
+checks, and tests to exact foundation commit `32c47b622a4caed4993eca599c769a4867e1d436`.
+Focused pin tests pass 80/80, full Python 553/553, Worker/router 317/317, and
+supporting Worker/API 69/69. Next: review/merge this activation PR, deploy both
+substrates, then use one narrow release-verification retry and prove the workflow Live.
