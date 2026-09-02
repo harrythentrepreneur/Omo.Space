@@ -21,7 +21,8 @@ jobs:
   discover:
     if: >-
       github.repository == 'harrythentrepreneur/Omo.Space' &&
-      (github.event_name == 'schedule' || github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'schedule' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'))
     runs-on: ubuntu-latest
     outputs:
       candidates: ${{ steps.candidates.outputs.candidates }}

@@ -1210,7 +1210,7 @@ class ProductionPublicAdapter:
             )
             submission_id = str((body or {}).get("id") or "")
             submission_status = str((body or {}).get("status") or "")
-            if status != 202 or (body or {}).get("slug") != spec["slug"] or not re.fullmatch(
+            if status not in {200, 202} or (body or {}).get("slug") != spec["slug"] or not re.fullmatch(
                 r"sub_[0-9a-f]{32}", submission_id
             ) or submission_status not in {
                 "queued", "processing", "needs_review", "ready_for_merge", "ready_for_deploy",
