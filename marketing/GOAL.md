@@ -215,16 +215,13 @@ catalog change, external message, or production mutation occurred.
 
 ## Next tick
 
-Finish v0.2 zero-touch closure. Claim-specific production canaries merged through
-PR #263 with exact reviewed-head/merge-tree equality. The next local slice now
-adds a five-minute source-owned scheduled trigger that resolves a real successful
-`contracts` run for exact current `main`, plus a finalizer-only bounded recovery
-candidate across mock/D1/Neon. Every discovery, plan, provider readback and CAS
-mutation is bound to both exact `target_sha` and exact `finalization_id`, including
-the explicit manual-resume path and direct helper boundaries. Receipt-free
-preflight failures receive one CAS resume; receipt-bearing failures receive one
-provider-readback recovery; further failures remain terminal. Current protected
-gates pass 530 Python and 275 Worker tests plus all supporting Worker/API
-contracts. Next: fresh exact-diff review and focused PR/CI/merge, then equal-tree
-squash reconciliation, durable typed diagnostics, exact selector deployment and
-two new no-human production canaries.
+Finish v0.2 zero-touch demo closure. The canonical finalization claim now uses
+the same fixed canary owner as eligibility across Neon, D1, and mock, preventing
+a historical shadow-owner row with the same slug/source from being claimed and
+then rejected at provenance. The exact two-file patch passed independent review,
+308 Worker/router tests, 170 focused release tests, 553 full host/compiler/render
+tests, all supporting Worker/API contracts, syntax, diff, and security scans.
+Next: merge and deploy this non-Modal control-plane fix, then implement the
+exact-reviewed Worker-native artifact-adoption path for the recovered V02 Label
+Sorter `SKILL.md`; prove one authenticated upload becomes a usable workflow with
+no Retry, manual approval, model call, Modal execution, or database edit.
