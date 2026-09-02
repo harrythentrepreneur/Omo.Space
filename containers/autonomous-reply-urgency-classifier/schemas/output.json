@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "reason": {
+      "maxLength": 180,
+      "minLength": 10,
+      "type": "string"
+    },
+    "urgency": {
+      "enum": [
+        "high",
+        "low",
+        "medium"
+      ],
+      "maxLength": 6,
+      "minLength": 3,
+      "type": "string"
+    }
+  },
+  "required": [
+    "reason",
+    "urgency"
+  ],
+  "type": "object"
+}
