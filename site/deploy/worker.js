@@ -163,6 +163,8 @@ const PRODUCTION_CANARY_RUN_SLUGS = new Set([
 const PRODUCTION_CANARY_SUBMISSION_SLUGS = new Set([
   'v02-release-label-sorter',
   'v02-support-urgency-classifier',
+  'autonomous-priority-label-sorter',
+  'autonomous-reply-urgency-classifier',
 ]);
 const DEMELLO_STYLE = 'sumi-e-awake-v3';
 const DEMELLO_DEFAULT_ENDPOINT = 'https://harrythentrepreneur--omo-demello-awake-245304c8f988-api.modal.run';

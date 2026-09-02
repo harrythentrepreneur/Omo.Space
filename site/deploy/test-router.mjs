@@ -3509,6 +3509,10 @@ check('production canary identity: unrelated owned run status remains hidden',
   productionCanaryUnrelatedStatus.status === 404);
 check('production canary identity: unrelated owned submission retry remains hidden and unmodified',
   productionCanaryUnrelatedRetry.status === 404 && productionCanaryUnrelatedRetryRecord.status === 'failed');
+check('production canary identity: fresh autonomous proof slugs are exact-scope allowlisted',
+  workerSrc.includes("'autonomous-priority-label-sorter'") &&
+  workerSrc.includes("'autonomous-reply-urgency-classifier'") &&
+  workerSrc.includes('const PRODUCTION_CANARY_SUBMISSION_SLUGS = new Set(['));
 const scopedRetrySource = /async function retryReviewedGatedBuildFailure[\s\S]*?(?=async function listSubmissions)/.exec(workerSrc)?.[0] || '';
 check('production canary identity: D1 and Neon retry fallback reads preserve exact slug hiding',
   scopedRetrySource.includes("getSubmissionApprovalState(env, userId, submissionId, exactSlug)") &&
