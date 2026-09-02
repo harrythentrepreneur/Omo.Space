@@ -5,7 +5,7 @@ description: Classify one bounded customer message into low, medium or high urge
 
 # Autonomous Reply Urgency Classifier
 
-Build a bounded `single_llm` workflow using the platform-owned Gemini provider for one customer message.
+Build a bounded `single_llm` workflow using the platform-owned Gemini provider for one customer message. This is the second-generation unattended production proof.
 
 ## Input
 

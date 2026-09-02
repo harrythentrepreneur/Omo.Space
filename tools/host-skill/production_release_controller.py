@@ -95,13 +95,13 @@ AUTONOMY_PROOF_SOURCES = (
         "name": "Autonomous Priority Label Sorter",
         "slug": "autonomous-priority-label-sorter",
         "path": "tools/host-skill/canaries/autonomous-priority-label-sorter/SKILL.md",
-        "sha256": "e8fab8c62f53ecb0df2ad8c08058a3a5c223fff4b524b8c939fce987d0345861",
+        "sha256": "fbaa1cbb1eff8232bb8538d1350ee97132fac9f1cd32c125e69be4ee51dc8d66",
     },
     {
         "name": "Autonomous Reply Urgency Classifier",
         "slug": "autonomous-reply-urgency-classifier",
         "path": "tools/host-skill/canaries/autonomous-reply-urgency-classifier/SKILL.md",
-        "sha256": "e518520523e3d9cef7c487c5646cff47447252659497acd28151b7478f980859",
+        "sha256": "4c262016815710b8a2a7cd48989ef28c0fc02f48290f9222a8ccf2301e70cb1a",
     },
 )
 SUBMISSION_SEED_SOURCES = CANARY_SOURCES + AUTONOMY_PROOF_SOURCES
