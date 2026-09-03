@@ -36,6 +36,7 @@ SHARED_GENERATED_PATHS = {
     "site/catalog.js",
     "site/deploy/hosted-skills.generated.mjs",
 }
+CONTRACT_RECHECK_LABEL = "omo-release-recheck"
 
 
 class MergeControllerError(RuntimeError):
@@ -307,7 +308,7 @@ def _pr_view(number: int, runner: Callable[[list[str]], str]) -> dict[str, Any]:
     value = _json_command([
         "gh", "pr", "view", str(number), "--repo", REPOSITORY,
         "--json",
-        "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author,reviewDecision,mergeStateStatus,mergeCommit",
+        "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author,reviewDecision,mergeStateStatus,mergeCommit,labels",
     ], runner)
     if not isinstance(value, dict):
         raise MergeControllerError("github_response_invalid")
@@ -556,6 +557,45 @@ def _worktree_status_paths(worktree: Path) -> set[str]:
     return paths
 
 
+def _validated_label_names(value: Any) -> set[str]:
+    if not isinstance(value, list) or len(value) > 100:
+        raise MergeControllerError("github_response_invalid")
+    names: set[str] = set()
+    for item in value:
+        name = item.get("name") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not 1 <= len(name) <= 100:
+            raise MergeControllerError("github_response_invalid")
+        names.add(name)
+    return names
+
+
+def _trigger_contracts_recheck(
+    number: int, pr: dict[str, Any], head_sha: str,
+    runner: Callable[[list[str]], str],
+) -> None:
+    labels = _validated_label_names(pr.get("labels"))
+    endpoint = f"repos/{REPOSITORY}/issues/{number}/labels"
+    if CONTRACT_RECHECK_LABEL in labels:
+        remaining = _json_command([
+            "gh", "api", "--method", "DELETE",
+            f"{endpoint}/{CONTRACT_RECHECK_LABEL}",
+        ], runner)
+        if CONTRACT_RECHECK_LABEL in _validated_label_names(remaining):
+            raise MergeControllerError("contracts_recheck_failed")
+    applied = _json_command([
+        "gh", "api", "--method", "POST", endpoint,
+        "-f", f"labels[]={CONTRACT_RECHECK_LABEL}",
+    ], runner)
+    if CONTRACT_RECHECK_LABEL not in _validated_label_names(applied):
+        raise MergeControllerError("contracts_recheck_failed")
+    refreshed = _pr_view(number, runner)
+    refreshed_head, _author, _state = _validate_pr(refreshed, number)
+    if refreshed_head != head_sha or refreshed.get("headRefName") != pr.get("headRefName"):
+        raise MergeControllerError("release_branch_moved")
+    if CONTRACT_RECHECK_LABEL not in _validated_label_names(refreshed.get("labels")):
+        raise MergeControllerError("contracts_recheck_failed")
+
+
 def _run_trusted_registration(worktree: Path) -> None:
     script = (
         "import importlib.util, pathlib, sys\n"
@@ -714,6 +754,7 @@ def _regenerate_dirty_release(
             raise MergeControllerError("release_branch_moved")
         if updated_head == new_head:
             _validate_latest_release_for_slug(updated, gh_runner)
+            _trigger_contracts_recheck(number, updated, new_head, gh_runner)
             return new_head
         if updated_head != old_head:
             raise MergeControllerError("release_branch_moved")

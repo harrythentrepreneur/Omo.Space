@@ -28,7 +28,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}
+          token: ${{ github.token }}
           persist-credentials: true
           path: controller
       - name: Evaluate protected release PRs and merge exact approved heads
