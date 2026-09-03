@@ -2,7 +2,7 @@ name: trusted-release-merge
 
 on:
   workflow_run:
-    workflows: [generated-workflow-contracts]
+    workflows: [generated-workflow-contracts, trusted-release-review]
     types: [completed]
   schedule:
     - cron: '*/5 * * * *'
