@@ -653,6 +653,7 @@ def _regenerate_dirty_release(
     manifest = _candidate_blob_manifest(repo, main_sha, old_head, slug)
     allowed_paths = set(manifest) | SHARED_GENERATED_PATHS
 
+    reconciliation_head = ""
     new_head = ""
     with tempfile.TemporaryDirectory(prefix="omo-release-reconcile-") as temporary:
         worktree = Path(temporary) / "tree"
@@ -693,7 +694,7 @@ def _regenerate_dirty_release(
                 "GIT_COMMITTER_NAME": "Omo Trusted Release Controller",
                 "GIT_COMMITTER_EMAIL": "actions@users.noreply.github.com",
             }
-            new_head = _git(
+            reconciliation_head = _git(
                 worktree,
                 "commit-tree", tree_sha,
                 "-p", main_sha,
@@ -702,13 +703,26 @@ def _regenerate_dirty_release(
                 error="release_regeneration_failed",
                 env=identity,
             )
+            new_head = _git(
+                worktree,
+                "commit-tree", tree_sha,
+                "-p", reconciliation_head,
+                "-m", f"Seal regenerated release {slug}",
+                error="release_regeneration_failed",
+                env=identity,
+            )
         finally:
             _git(repo, "worktree", "remove", "--force", str(worktree), error="release_regeneration_failed")
 
-    if not SHA_RE.fullmatch(new_head):
+    if not SHA_RE.fullmatch(reconciliation_head) or not SHA_RE.fullmatch(new_head):
         raise MergeControllerError("release_regeneration_failed")
-    parents = _git(repo, "show", "-s", "--format=%P", new_head).split()
-    if parents != [main_sha, old_head]:
+    if _git(repo, "show", "-s", "--format=%P", new_head).split() != [reconciliation_head]:
+        raise MergeControllerError("release_regeneration_failed")
+    if _git(repo, "show", "-s", "--format=%P", reconciliation_head).split() != [main_sha, old_head]:
+        raise MergeControllerError("release_regeneration_failed")
+    if _git(repo, "rev-parse", f"{new_head}^{{tree}}") != _git(
+        repo, "rev-parse", f"{reconciliation_head}^{{tree}}"
+    ):
         raise MergeControllerError("release_regeneration_failed")
     for ancestor in (main_sha, old_head):
         _git(repo, "merge-base", "--is-ancestor", ancestor, new_head, error="release_regeneration_failed")
