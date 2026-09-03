@@ -821,8 +821,6 @@ def merge_release_pr(
             "status": "regenerated", "pr_number": number,
             "previous_head_sha": head_sha, "head_sha": regenerated_head,
         }
-    if pr.get("reviewDecision") != "APPROVED":
-        raise MergeControllerError("separate_review_required")
     if merge_state != "CLEAN":
         raise MergeControllerError("release_pr_not_mergeable")
     _validate_separate_review(_review_pages(number, runner), head_sha=head_sha, author_login=author_login)
@@ -832,8 +830,6 @@ def merge_release_pr(
     if current_head != head_sha or current_author != author_login:
         raise MergeControllerError("exact_head_review_required")
     _validate_latest_release_for_slug(current, runner)
-    if current.get("reviewDecision") != "APPROVED":
-        raise MergeControllerError("separate_review_required")
     if current_state != "CLEAN":
         raise MergeControllerError("release_pr_not_mergeable")
     api_merge_sha = _merge_exact_head(number, head_sha, runner)
