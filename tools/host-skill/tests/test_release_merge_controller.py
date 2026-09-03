@@ -867,6 +867,44 @@ def test_uncertain_close_receipt_still_reopens_if_live_pr_is_closed() -> None:
     assert state == "open"
 
 
+def test_uncertain_reopen_never_reopens_a_later_user_close() -> None:
+    module = load_module()
+    head = "d" * 40
+    branch = open_pr()["headRefName"]
+    attempts = 0
+
+    def pr_receipt(state):
+        return {
+            "number": 42, "state": state, "draft": False,
+            "base": {"ref": "main"},
+            "head": {"ref": branch, "sha": head, "repo": {"full_name": module.REPOSITORY}},
+            "user": {"login": module.TRUSTED_RELEASE_AUTHOR},
+        }
+
+    def runner(command):
+        nonlocal attempts
+        joined = " ".join(command)
+        if command[:4] == ["gh", "api", "--method", "PATCH"]:
+            attempts += 1
+            # The first reopen applied, its response was lost, then Harry closed it.
+            raise module.MergeControllerError("github_command_failed")
+        if command[:2] == ["gh", "api"] and "/pulls/42" in joined:
+            return json.dumps(pr_receipt("closed"))
+        if command[:3] == ["gh", "api", "--paginate"] and "/timeline?" in joined:
+            return json.dumps([[{
+                "id": 102, "event": "closed", "created_at": "2026-09-03T16:00:02Z",
+                "actor": {"login": module.TRUSTED_RELEASE_AUTHOR, "type": "User"},
+            }]])
+        raise AssertionError(command)
+
+    with pytest.raises(module.MergeControllerError, match="contracts_recheck_failed"):
+        module._reopen_closed_exact(
+            42, branch=branch, head_sha=head,
+            receipt_created_at="2026-09-03T16:00:00Z", runner=runner,
+        )
+    assert attempts == 1
+
+
 def test_schedule_recovers_exact_closed_pr_with_durable_recheck_marker() -> None:
     module = load_module()
     head = "d" * 40

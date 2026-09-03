@@ -772,7 +772,7 @@ def _latest_close_was_controller(
 
 
 def _reopen_closed_exact(
-    number: int, *, branch: str, head_sha: str,
+    number: int, *, branch: str, head_sha: str, receipt_created_at: str,
     runner: Callable[[list[str]], str],
 ) -> None:
     endpoint = f"repos/{REPOSITORY}/pulls/{number}"
@@ -786,8 +786,25 @@ def _reopen_closed_exact(
             )
             return
         except MergeControllerError:
+            live = _json_command(["gh", "api", endpoint], runner)
+            if isinstance(live, dict) and live.get("state") == "open":
+                try:
+                    _validate_pr_state_receipt(
+                        live, number=number, branch=branch, head_sha=head_sha, state="open",
+                    )
+                    return
+                except MergeControllerError:
+                    raise MergeControllerError("release_branch_moved") from None
+            try:
+                _validate_pr_state_receipt(
+                    live, number=number, branch=branch, head_sha=head_sha, state="closed",
+                )
+            except MergeControllerError:
+                raise MergeControllerError("release_branch_moved") from None
+            if not _latest_close_was_controller(number, receipt_created_at, runner):
+                raise MergeControllerError("contracts_recheck_failed")
             if attempt == 2:
-                raise MergeControllerError("contracts_recheck_failed") from None
+                raise MergeControllerError("contracts_recheck_failed")
             time.sleep(1)
 
 
@@ -798,7 +815,7 @@ def _reopen_for_contracts(
     branch = str(pr.get("headRefName") or "")
     endpoint = f"repos/{REPOSITORY}/pulls/{number}"
     _ensure_recheck_marker(number, pr, runner)
-    comment_id, _receipt_created_at = _create_reopen_receipt(number, branch, head_sha, runner)
+    comment_id, receipt_created_at = _create_reopen_receipt(number, branch, head_sha, runner)
     try:
         closed = _json_command([
             "gh", "api", "--method", "PATCH", endpoint, "-f", "state=closed",
@@ -817,7 +834,10 @@ def _reopen_for_contracts(
                 comment_id, number=number, branch=branch, head_sha=head_sha, runner=runner,
             )
             raise MergeControllerError("contracts_recheck_failed") from None
-    _reopen_closed_exact(number, branch=branch, head_sha=head_sha, runner=runner)
+    _reopen_closed_exact(
+        number, branch=branch, head_sha=head_sha,
+        receipt_created_at=receipt_created_at, runner=runner,
+    )
     refreshed = _pr_view(number, runner)
     refreshed_head, _author, _state = _validate_pr(refreshed, number)
     if refreshed_head != head_sha or refreshed.get("headRefName") != branch:
@@ -873,7 +893,10 @@ def _recover_closed_rechecks(
             )
             if not _latest_close_was_controller(number, receipt_created_at, runner):
                 continue
-            _reopen_closed_exact(number, branch=branch, head_sha=head_sha, runner=runner)
+            _reopen_closed_exact(
+                number, branch=branch, head_sha=head_sha,
+                receipt_created_at=receipt_created_at, runner=runner,
+            )
             reopened = _pr_view(number, runner)
             reopened_head, _reopened_author, _reopened_state = _validate_pr(reopened, number)
             if reopened_head != head_sha or reopened.get("headRefName") != branch:
