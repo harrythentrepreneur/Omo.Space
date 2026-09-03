@@ -1536,23 +1536,6 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
         env.get("RELEASE_FINALIZER_TOKEN", ""),
         targets=targets,
     )
-    eligibility = store.eligibility(green.target_sha)
-    pending_identities = {
-        (row["submission_id"], row["slug"])
-        for row in eligibility
-        if row.get("status") == "ready_for_deploy"
-        and row.get("release_phase") in {"pr_open", "ci_passed"}
-        and row.get("release_merge_sha_present") is False
-    }
-    receipt = mainline.merged_release_receipt(green.target_sha, pending_identities)
-    if receipt is not None:
-        matching = [item for item in targets if item["slug"] == receipt["slug"]]
-        if len(matching) != 1:
-            raise ControllerError("release_merge_receipt_invalid")
-        store.reconcile_merged(
-            green.target_sha,
-            {**receipt, "source_sha256": matching[0]["source_sha256"]},
-        )
     modal = ProductionModalAdapter(env)
     cloudflare = ProductionCloudflareAdapter(env)
     public = ProductionPublicAdapter(store, env.get("PRODUCTION_CANARY_API_KEY", ""))
@@ -1563,6 +1546,25 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
         )
     else:
         result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
+    if result.get("status") == "idle":
+        eligibility = store.eligibility(green.target_sha)
+        pending_identities = {
+            (row["submission_id"], row["slug"])
+            for row in eligibility
+            if row.get("status") == "ready_for_deploy"
+            and row.get("release_phase") in {"pr_open", "ci_passed"}
+            and row.get("release_merge_sha_present") is False
+        }
+        receipt = mainline.merged_release_receipt(green.target_sha, pending_identities)
+        if receipt is not None:
+            matching = [item for item in targets if item["slug"] == receipt["slug"]]
+            if len(matching) != 1:
+                raise ControllerError("release_merge_receipt_invalid")
+            store.reconcile_merged(
+                green.target_sha,
+                {**receipt, "source_sha256": matching[0]["source_sha256"]},
+            )
+            result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
     if result.get("status") == "idle":
         eligibility = store.eligibility(result["target_sha"])
         trusted_checkout = mainline.checkout_detached(result["target_sha"])
