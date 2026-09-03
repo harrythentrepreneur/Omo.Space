@@ -1,7 +1,7 @@
 # Autonomous Priority Label Sorter
 
 Generated Modal candidate for `autonomous-priority-label-sorter`. The source skill is vendored
-at `source/SKILL.md` (SHA-256 `fbaa1cbb1eff8232bb8538d1350ee97132fac9f1cd32c125e69be4ee51dc8d66`). Generated files must be changed
+at `source/SKILL.md` (SHA-256 `f72d2583a0c0969956a58dda72c740e38930b4eef3cc35962f772f7ccbc26a1b`). Generated files must be changed
 through the compiler profile, not edited by hand.
 
 ## Readiness
