@@ -1545,7 +1545,7 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
     })
     assert order == [
-        ("latest_green", SHA), ("eligibility", SHA),
+        ("latest_green", SHA), ("recovery", SHA), ("finalizer", SHA), ("eligibility", SHA),
         ("merge_receipt", SHA),
         ("reconcile", SHA, {
             "submission_id": "sub_12345678", "slug": "creator-workflow",
@@ -1553,7 +1553,7 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
             "branch": "omo-release/sub_12345678-creator-workflow",
             "head_sha": "b" * 40, "merge_sha": SHA,
         }),
-        ("recovery", SHA), ("finalizer", SHA), ("eligibility", SHA), ("checkout", SHA),
+        ("finalizer", SHA), ("eligibility", SHA), ("checkout", SHA),
         ("schedule", target, SHA), ("seed", target),
     ]
     assert result == {
@@ -1582,7 +1582,7 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
     })
     assert order == [
-        ("latest_green", SHA), ("eligibility", SHA),
+        ("latest_green", SHA), ("recovery", SHA), ("finalizer", SHA), ("eligibility", SHA),
         ("merge_receipt", SHA),
         ("reconcile", SHA, {
             "submission_id": "sub_12345678", "slug": "creator-workflow",
@@ -1590,7 +1590,7 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
             "branch": "omo-release/sub_12345678-creator-workflow",
             "head_sha": "b" * 40, "merge_sha": SHA,
         }),
-        ("recovery", SHA), ("finalizer", SHA), ("eligibility", SHA), ("checkout", SHA),
+        ("finalizer", SHA), ("eligibility", SHA), ("checkout", SHA),
         ("schedule", target, SHA), ("seed", target), ("balance", target),
     ]
     assert deployed_result["status"] == "seeded"
