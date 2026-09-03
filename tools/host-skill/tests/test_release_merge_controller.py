@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -431,9 +433,274 @@ def test_merge_workflow_loads_controller_only_from_main() -> None:
     assert "environment: Production" in workflow
     assert "GH_TOKEN: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}" in workflow
     assert "GH_TOKEN: ${{ github.token }}" not in workflow
-    assert "ref: main" in workflow and "persist-credentials: false" in workflow
+    assert "ref: main" in workflow and "fetch-depth: 0" in workflow
+    assert "token: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}" in workflow
+    assert "persist-credentials: true" in workflow
     assert "path: controller" in workflow
     assert "if [ ! -f controller/tools/host-skill/release_merge_controller.py ]; then" in workflow
     assert "exit 0" in workflow
     assert "python3 controller/tools/host-skill/release_merge_controller.py" in workflow
     assert "github.event.pull_request.head.sha" not in workflow
+
+
+def git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **(env or {})},
+    )
+    return result.stdout.strip()
+
+
+def commit_all(repo: Path, message: str) -> str:
+    git(repo, "add", "--all")
+    git(
+        repo,
+        "-c", "user.name=Release Test",
+        "-c", "user.email=release@example.invalid",
+        "commit", "-m", message,
+    )
+    return git(repo, "rev-parse", "HEAD")
+
+
+def write_release(repo: Path, slug: str, marker: str, sentinel: Path | None = None) -> None:
+    container = repo / "containers" / slug
+    container.mkdir(parents=True, exist_ok=True)
+    (container / "manifest.json").write_text(json.dumps({"slug": slug, "marker": marker}))
+    (container / "hosted-profile.json").write_text(json.dumps({"slug": slug}))
+    if sentinel is not None:
+        (container / "candidate.py").write_text(
+            "from pathlib import Path\nPath(" + repr(str(sentinel)) + ").write_text('executed')\n"
+        )
+    profile = repo / "packages" / "skill-to-modal" / "profiles" / f"{slug}.json"
+    receipt = repo / "packages" / "skill-to-modal" / "profile-authoring-specs" / f"{slug}.json"
+    run_manifest = repo / "site" / "run-manifests" / f"{slug}.json"
+    for path, value in (
+        (profile, {"slug": slug, "marker": marker}),
+        (receipt, {"slug": slug, "receipt": marker}),
+        (run_manifest, {"slug": slug, "run": marker}),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(value))
+
+
+def install_trusted_test_host(repo: Path) -> None:
+    host = repo / "tools" / "host-skill" / "host.py"
+    host.parent.mkdir(parents=True, exist_ok=True)
+    host.write_text(
+        "import json\n"
+        "from pathlib import Path\n"
+        "def refresh_cumulative_registration(root: Path, check: bool = False):\n"
+        "    profiles = sorted(json.loads(p.read_text())['slug'] for p in "
+        "(root / 'packages/skill-to-modal/profiles').glob('*.json'))\n"
+        "    (root / 'site/catalog.js').write_text('catalog=' + json.dumps(profiles) + '\\n')\n"
+        "    (root / 'site/deploy/hosted-skills.generated.mjs').write_text("
+        "'registry=' + json.dumps(profiles) + '\\n')\n"
+        "    return []\n"
+    )
+
+
+def test_dirty_release_revalidates_exact_head_and_slug_before_regeneration(monkeypatch) -> None:
+    module = load_module()
+    calls = []
+    dirty = open_pr(mergeStateStatus="DIRTY", reviewDecision="REVIEW_REQUIRED")
+    views = [dirty, dirty]
+    regenerated = "d" * 40
+
+    def runner(command):
+        calls.append(command)
+        if command[:3] == ["gh", "pr", "view"]:
+            return json.dumps(views.pop(0))
+        if command[:3] == ["gh", "pr", "list"]:
+            return json.dumps([dirty])
+        raise AssertionError(command)
+
+    observed = {}
+
+    def reconcile(number, pr, old_head, gh_runner, repo_root):
+        observed.update(number=number, pr=pr, old_head=old_head, repo_root=repo_root)
+        return regenerated
+
+    monkeypatch.setattr(module, "_regenerate_dirty_release", reconcile)
+    result = module.merge_release_pr(42, runner=runner, repo_root=Path("/trusted/controller"))
+    assert result == {
+        "status": "regenerated",
+        "pr_number": 42,
+        "previous_head_sha": HEAD,
+        "head_sha": regenerated,
+    }
+    assert observed == {
+        "number": 42,
+        "pr": dirty,
+        "old_head": HEAD,
+        "repo_root": Path("/trusted/controller"),
+    }
+    assert len([call for call in calls if call[:3] == ["gh", "pr", "view"]]) == 2
+    assert len([call for call in calls if call[:3] == ["gh", "pr", "list"]]) == 2
+
+
+@pytest.mark.parametrize("unsafe_kind", ["executable", "symlink", "foreign", "deletion"])
+def test_dirty_candidate_integrity_rejects_unsafe_git_delta(tmp_path: Path, unsafe_kind: str) -> None:
+    module = load_module()
+    repo = tmp_path / "repo"
+    git(tmp_path, "init", "--initial-branch=main", str(repo))
+    write_release(repo, "safe-workflow", "base")
+    install_trusted_test_host(repo)
+    (repo / "site" / "deploy").mkdir(parents=True, exist_ok=True)
+    (repo / "site" / "catalog.js").write_text("catalog=[]\n")
+    (repo / "site" / "deploy" / "hosted-skills.generated.mjs").write_text("registry=[]\n")
+    base = commit_all(repo, "base")
+    target = repo / "containers" / "safe-workflow" / "manifest.json"
+    if unsafe_kind == "executable":
+        target.chmod(0o755)
+    elif unsafe_kind == "symlink":
+        target.unlink()
+        target.symlink_to("../../outside")
+    elif unsafe_kind == "foreign":
+        (repo / "foreign.txt").write_text("not slug owned")
+    else:
+        target.unlink()
+    head = commit_all(repo, unsafe_kind)
+
+    with pytest.raises(module.MergeControllerError, match="release_candidate_integrity_invalid"):
+        module._candidate_blob_manifest(repo, base, head, "safe-workflow")
+
+
+def test_real_git_dirty_regeneration_preserves_candidate_data_and_both_parents(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    module = load_module()
+    origin = tmp_path / "origin.git"
+    seed = tmp_path / "seed"
+    git(tmp_path, "init", "--bare", str(origin))
+    git(tmp_path, "clone", str(origin), str(seed))
+    git(seed, "checkout", "-b", "main")
+    install_trusted_test_host(seed)
+    write_release(seed, "seed", "seed")
+    (seed / "site" / "deploy").mkdir(parents=True, exist_ok=True)
+    (seed / "site" / "catalog.js").write_text('catalog=["seed"]\n')
+    (seed / "site" / "deploy" / "hosted-skills.generated.mjs").write_text('registry=["seed"]\n')
+    base = commit_all(seed, "base")
+    git(seed, "push", "-u", "origin", "main")
+
+    branch_a = "omo-release/sub_" + "2" * 32 + "-release-a"
+    branch_b = "omo-release/sub_" + "3" * 32 + "-release-b"
+    git(seed, "checkout", "-b", branch_a, base)
+    write_release(seed, "release-a", "immutable-a")
+    (seed / "site" / "catalog.js").write_text('catalog=["release-a","seed"]\n')
+    (seed / "site" / "deploy" / "hosted-skills.generated.mjs").write_text('registry=["release-a","seed"]\n')
+    commit_all(seed, "release A")
+    git(seed, "push", "origin", branch_a)
+
+    sentinel = tmp_path / "candidate-executed"
+    git(seed, "checkout", "-b", branch_b, base)
+    write_release(seed, "release-b", "immutable-b", sentinel)
+    (seed / "site" / "catalog.js").write_text('catalog=["release-b","seed"]\n')
+    (seed / "site" / "deploy" / "hosted-skills.generated.mjs").write_text('registry=["release-b","seed"]\n')
+    old_b = commit_all(seed, "release B")
+    git(seed, "push", "origin", branch_b)
+
+    git(seed, "checkout", "main")
+    git(seed, "merge", "--no-ff", branch_a, "-m", "merge A")
+    latest_main = git(seed, "rev-parse", "HEAD")
+    git(seed, "push", "origin", "main")
+    immutable_paths = [
+        "containers/release-b/manifest.json",
+        "containers/release-b/candidate.py",
+        "packages/skill-to-modal/profiles/release-b.json",
+        "packages/skill-to-modal/profile-authoring-specs/release-b.json",
+        "site/run-manifests/release-b.json",
+    ]
+    old_blobs = {path: git(seed, "rev-parse", f"{old_b}:{path}") for path in immutable_paths}
+
+    dirty = open_pr(
+        headRefName=branch_b,
+        headRefOid=old_b,
+        mergeStateStatus="DIRTY",
+        reviewDecision="REVIEW_REQUIRED",
+    )
+    pushed_head = None
+
+    def runner(command):
+        nonlocal pushed_head
+        if command[:3] == ["gh", "pr", "list"]:
+            return json.dumps([dirty])
+        if command[:3] == ["gh", "pr", "view"]:
+            remote_head = git(seed, "ls-remote", origin.as_posix(), f"refs/heads/{branch_b}").split()[0]
+            if remote_head != old_b:
+                pushed_head = remote_head
+                return json.dumps(open_pr(
+                    headRefName=branch_b,
+                    headRefOid=remote_head,
+                    mergeStateStatus="BLOCKED",
+                    reviewDecision="REVIEW_REQUIRED",
+                ))
+            return json.dumps(dirty)
+        raise AssertionError(command)
+
+    git_calls = []
+    real_git = module._git
+
+    def traced_git(repo, *args, **kwargs):
+        git_calls.append(args)
+        return real_git(repo, *args, **kwargs)
+
+    monkeypatch.setattr(module, "_git", traced_git)
+    result = module.merge_release_pr(42, runner=runner, repo_root=seed)
+    assert result["status"] == "regenerated"
+    assert result["previous_head_sha"] == old_b
+    assert result["head_sha"] == pushed_head
+    assert pushed_head is not None
+    assert git(seed, "show", "-s", "--format=%P", pushed_head).split() == [latest_main, old_b]
+    assert git(seed, "merge-base", "--is-ancestor", latest_main, pushed_head) == ""
+    assert git(seed, "merge-base", "--is-ancestor", old_b, pushed_head) == ""
+    for path, blob in old_blobs.items():
+        assert git(seed, "rev-parse", f"{pushed_head}:{path}") == blob
+    assert "release-a" in git(seed, "show", f"{pushed_head}:site/catalog.js")
+    assert "release-b" in git(seed, "show", f"{pushed_head}:site/catalog.js")
+    changed = set(git(seed, "diff", "--name-only", latest_main, pushed_head).splitlines())
+    assert changed == set(immutable_paths) | {
+        "containers/release-b/hosted-profile.json",
+        "site/catalog.js",
+        "site/deploy/hosted-skills.generated.mjs",
+    }
+    assert not sentinel.exists()
+    push = next(args for args in git_calls if args and args[0] == "push")
+    assert push == (
+        "push", "origin", f"{pushed_head}:refs/heads/{branch_b}",
+        f"--force-with-lease=refs/heads/{branch_b}:{old_b}",
+    )
+    assert "--force" not in push
+
+
+def test_failed_dirty_push_distinguishes_cas_race_from_write_failure(monkeypatch) -> None:
+    module = load_module()
+    branch = f"omo-release/{SUBMISSION}-safe-workflow"
+
+    def fail_push(_repo, *args, **kwargs):
+        assert args[0] == "push"
+        assert f"--force-with-lease=refs/heads/{branch}:{HEAD}" in args
+        raise module.MergeControllerError(kwargs["error"])
+
+    monkeypatch.setattr(module, "_git", fail_push)
+    monkeypatch.setattr(
+        module, "_remote_head",
+        lambda _repo, ref: "c" * 40 if ref.endswith(branch) else MERGE,
+    )
+    with pytest.raises(module.MergeControllerError, match="release_branch_moved"):
+        module._push_dirty_head(
+            Path("/trusted"), branch=branch, old_head=HEAD,
+            new_head="d" * 40, main_sha=MERGE,
+        )
+
+    monkeypatch.setattr(
+        module, "_remote_head",
+        lambda _repo, ref: HEAD if ref.endswith(branch) else MERGE,
+    )
+    with pytest.raises(module.MergeControllerError, match="release_push_failed"):
+        module._push_dirty_head(
+            Path("/trusted"), branch=branch, old_head=HEAD,
+            new_head="d" * 40, main_sha=MERGE,
+        )

@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import subprocess
+import sys
+import tempfile
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Sequence
 
 REPOSITORY = "harrythentrepreneur/Omo.Space"
@@ -26,6 +30,12 @@ MAX_CANDIDATES = 1000
 MAX_RELEASE_HISTORY = 1000
 MAX_REVIEWS = 1000
 MAX_GITHUB_ID = 9_007_199_254_740_991
+MAX_DIRTY_RELEASE_FILES = 1000
+MAX_DIRTY_RELEASE_BYTES = 64 * 1024 * 1024
+SHARED_GENERATED_PATHS = {
+    "site/catalog.js",
+    "site/deploy/hosted-skills.generated.mjs",
+}
 
 
 class MergeControllerError(RuntimeError):
@@ -61,6 +71,173 @@ def _json_command(command: list[str], runner: Callable[[list[str]], str]) -> Any
         raise
     except Exception:
         raise MergeControllerError("github_response_invalid") from None
+
+
+def _git_bytes(
+    repo: Path,
+    args: list[str],
+    *,
+    error: str = "release_candidate_integrity_invalid",
+    env: dict[str, str] | None = None,
+) -> bytes:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo), *args],
+            shell=False,
+            check=False,
+            capture_output=True,
+            timeout=120,
+            env={**os.environ, **(env or {})},
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise MergeControllerError(error) from None
+    if result.returncode != 0 or len(result.stdout) > MAX_RESPONSE_BYTES * 64:
+        raise MergeControllerError(error)
+    return result.stdout
+
+
+def _git(
+    repo: Path,
+    *args: str,
+    error: str = "release_candidate_integrity_invalid",
+    env: dict[str, str] | None = None,
+) -> str:
+    try:
+        return _git_bytes(repo, list(args), error=error, env=env).decode("utf-8").strip()
+    except UnicodeDecodeError:
+        raise MergeControllerError(error) from None
+
+
+def _remote_head(repo: Path, ref: str) -> str:
+    raw = _git(
+        repo, "ls-remote", "--exit-code", "origin", ref,
+        error="release_regeneration_failed",
+    )
+    fields = raw.split()
+    if len(fields) != 2 or fields[1] != ref or not SHA_RE.fullmatch(fields[0]):
+        raise MergeControllerError("release_regeneration_failed")
+    return fields[0]
+
+
+def _push_dirty_head(
+    repo: Path, *, branch: str, old_head: str, new_head: str, main_sha: str,
+) -> None:
+    try:
+        _git(
+            repo,
+            "push", "origin", f"{new_head}:refs/heads/{branch}",
+            f"--force-with-lease=refs/heads/{branch}:{old_head}",
+            error="release_push_failed",
+        )
+    except MergeControllerError as error:
+        if error.code != "release_push_failed":
+            raise
+        if _remote_head(repo, f"refs/heads/{branch}") != old_head:
+            raise MergeControllerError("release_branch_moved") from None
+        if _remote_head(repo, f"refs/heads/{BASE}") != main_sha:
+            raise MergeControllerError("release_main_moved") from None
+        raise
+
+
+def _safe_release_path(path: str, slug: str) -> bool:
+    pure = PurePosixPath(path)
+    if (
+        not path
+        or pure.is_absolute()
+        or "\\" in path
+        or any(ord(character) < 32 or ord(character) == 127 for character in path)
+        or any(part in {"", ".", "..", ".git"} for part in pure.parts)
+    ):
+        return False
+    container_prefix = f"containers/{slug}/"
+    return path.startswith(container_prefix) or path in {
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
+        f"site/run-manifests/{slug}.json",
+    }
+
+
+def _raw_diff_records(repo: Path, old: str, new: str) -> list[tuple[str, str, str, str]]:
+    raw = _git_bytes(repo, ["diff", "--raw", "-z", "--no-abbrev", old, new])
+    fields = raw.split(b"\0")
+    records: list[tuple[str, str, str, str]] = []
+    index = 0
+    try:
+        while index < len(fields) and fields[index]:
+            header = fields[index].decode("ascii")
+            index += 1
+            path = fields[index].decode("utf-8")
+            index += 1
+            header_fields = header.split()
+            if len(header_fields) != 5 or not header_fields[0].startswith(":"):
+                raise ValueError
+            old_mode = header_fields[0][1:]
+            new_mode = header_fields[1]
+            status = header_fields[4]
+            if status.startswith(("R", "C")):
+                index += 1
+            records.append((status, old_mode, new_mode, path))
+    except (IndexError, UnicodeDecodeError, ValueError):
+        raise MergeControllerError("release_candidate_integrity_invalid") from None
+    return records
+
+
+def _candidate_blob_manifest(repo: Path, base: str, head: str, slug: str) -> dict[str, tuple[str, bytes]]:
+    """Return fixed slug-owned regular blobs after validating the candidate delta."""
+    merge_base = _git(repo, "merge-base", base, head)
+    if not SHA_RE.fullmatch(merge_base):
+        raise MergeControllerError("release_candidate_integrity_invalid")
+    changed: set[str] = set()
+    for status, old_mode, new_mode, path in _raw_diff_records(repo, merge_base, head):
+        if (
+            status not in {"A", "M"}
+            or (status == "M" and old_mode != new_mode)
+            or new_mode != "100644"
+            or not (_safe_release_path(path, slug) or path in SHARED_GENERATED_PATHS)
+        ):
+            raise MergeControllerError("release_candidate_integrity_invalid")
+        changed.add(path)
+    if not SHARED_GENERATED_PATHS.issubset(changed):
+        raise MergeControllerError("release_candidate_integrity_invalid")
+    if not any(_safe_release_path(path, slug) for path in changed):
+        raise MergeControllerError("release_candidate_integrity_invalid")
+
+    fixed_paths = [
+        f"containers/{slug}",
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
+        f"site/run-manifests/{slug}.json",
+    ]
+    listing = _git_bytes(repo, ["ls-tree", "-r", "-z", head, "--", *fixed_paths])
+    manifest: dict[str, tuple[str, bytes]] = {}
+    total_bytes = 0
+    try:
+        for record in listing.split(b"\0"):
+            if not record:
+                continue
+            metadata, raw_path = record.split(b"\t", 1)
+            mode, kind, blob_sha = metadata.decode("ascii").split()
+            path = raw_path.decode("utf-8")
+            if mode != "100644" or kind != "blob" or not SHA_RE.fullmatch(blob_sha) or not _safe_release_path(path, slug):
+                raise ValueError
+            content = _git_bytes(repo, ["cat-file", "blob", blob_sha])
+            total_bytes += len(content)
+            if path in manifest or len(manifest) >= MAX_DIRTY_RELEASE_FILES or total_bytes > MAX_DIRTY_RELEASE_BYTES:
+                raise ValueError
+            manifest[path] = (blob_sha, content)
+    except (UnicodeDecodeError, ValueError):
+        raise MergeControllerError("release_candidate_integrity_invalid") from None
+
+    required = {
+        f"containers/{slug}/manifest.json",
+        f"containers/{slug}/hosted-profile.json",
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
+        f"site/run-manifests/{slug}.json",
+    }
+    if not required.issubset(manifest):
+        raise MergeControllerError("release_candidate_integrity_invalid")
+    return manifest
 
 
 def _read_event(path: Path) -> dict[str, Any]:
@@ -359,7 +536,198 @@ def _update_branch_exact(
     raise MergeControllerError("update_branch_receipt_invalid")
 
 
-def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) -> dict[str, Any]:
+def _worktree_status_paths(worktree: Path) -> set[str]:
+    fields = _git_bytes(worktree, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]).split(b"\0")
+    paths: set[str] = set()
+    index = 0
+    try:
+        while index < len(fields) and fields[index]:
+            record = fields[index]
+            index += 1
+            if len(record) < 4 or record[2:3] != b" ":
+                raise ValueError
+            status = record[:2].decode("ascii")
+            path = record[3:].decode("utf-8")
+            if "R" in status or "C" in status:
+                index += 1
+            paths.add(path)
+    except (IndexError, UnicodeDecodeError, ValueError):
+        raise MergeControllerError("release_regeneration_failed") from None
+    return paths
+
+
+def _run_trusted_registration(worktree: Path) -> None:
+    script = (
+        "import importlib.util, pathlib, sys\n"
+        "root = pathlib.Path(sys.argv[1]).resolve(strict=True)\n"
+        "path = root / 'tools/host-skill/host.py'\n"
+        "spec = importlib.util.spec_from_file_location('trusted_release_host', path)\n"
+        "assert spec is not None and spec.loader is not None\n"
+        "module = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(module)\n"
+        "drift = module.refresh_cumulative_registration(root, check=False)\n"
+        "assert drift == []\n"
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-I", "-B", "-c", script, str(worktree)],
+            shell=False,
+            check=False,
+            capture_output=True,
+            timeout=120,
+            cwd=worktree,
+            env={**os.environ, "PYTHONPATH": ""},
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise MergeControllerError("release_regeneration_failed") from None
+    if result.returncode != 0 or len(result.stdout) + len(result.stderr) > MAX_RESPONSE_BYTES:
+        raise MergeControllerError("release_regeneration_failed")
+
+
+def _regenerate_dirty_release(
+    number: int,
+    pr: dict[str, Any],
+    old_head: str,
+    gh_runner: Callable[[list[str]], str],
+    repo_root: Path,
+) -> str:
+    branch = str(pr.get("headRefName") or "")
+    branch_match = BRANCH_RE.fullmatch(branch)
+    if branch_match is None:
+        raise MergeControllerError("release_pr_identity_invalid")
+    slug = branch_match.group("slug")
+    repo = repo_root.resolve(strict=True)
+    main_ref = "refs/reconcile-release/main"
+    candidate_ref = "refs/reconcile-release/candidate"
+    _git(
+        repo,
+        "fetch", "--no-tags", "origin",
+        f"+refs/heads/{BASE}:{main_ref}",
+        f"+refs/heads/{branch}:{candidate_ref}",
+        error="release_regeneration_failed",
+    )
+    main_sha = _git(repo, "rev-parse", "--verify", main_ref)
+    fetched_head = _git(repo, "rev-parse", "--verify", candidate_ref)
+    if not SHA_RE.fullmatch(main_sha) or fetched_head != old_head:
+        raise MergeControllerError("release_branch_moved")
+    manifest = _candidate_blob_manifest(repo, main_sha, old_head, slug)
+    allowed_paths = set(manifest) | SHARED_GENERATED_PATHS
+
+    new_head = ""
+    with tempfile.TemporaryDirectory(prefix="omo-release-reconcile-") as temporary:
+        worktree = Path(temporary) / "tree"
+        _git(repo, "worktree", "add", "--detach", str(worktree), main_sha, error="release_regeneration_failed")
+        try:
+            container = worktree / "containers" / slug
+            if container.is_symlink():
+                container.unlink()
+            elif container.exists():
+                if not container.is_dir():
+                    raise MergeControllerError("release_regeneration_failed")
+                shutil.rmtree(container)
+            for path, (_blob_sha, content) in manifest.items():
+                target = worktree / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                resolved_parent = target.parent.resolve()
+                if worktree != resolved_parent and worktree not in resolved_parent.parents:
+                    raise MergeControllerError("release_regeneration_failed")
+                if target.exists() or target.is_symlink():
+                    if not target.is_file() or target.is_symlink():
+                        raise MergeControllerError("release_regeneration_failed")
+                    target.unlink()
+                target.write_bytes(content)
+                target.chmod(0o644)
+
+            _run_trusted_registration(worktree)
+            for path, (blob_sha, _content) in manifest.items():
+                if _git(worktree, "hash-object", "--", path) != blob_sha:
+                    raise MergeControllerError("release_regeneration_failed")
+            status_paths = _worktree_status_paths(worktree)
+            if not status_paths or not status_paths.issubset(allowed_paths):
+                raise MergeControllerError("release_regeneration_failed")
+            _git(worktree, "add", "--all", "--", *sorted(allowed_paths), error="release_regeneration_failed")
+            tree_sha = _git(worktree, "write-tree", error="release_regeneration_failed")
+            identity = {
+                "GIT_AUTHOR_NAME": "Omo Trusted Release Controller",
+                "GIT_AUTHOR_EMAIL": "actions@users.noreply.github.com",
+                "GIT_COMMITTER_NAME": "Omo Trusted Release Controller",
+                "GIT_COMMITTER_EMAIL": "actions@users.noreply.github.com",
+            }
+            new_head = _git(
+                worktree,
+                "commit-tree", tree_sha,
+                "-p", main_sha,
+                "-p", old_head,
+                "-m", f"Regenerate generated release {slug} on current main",
+                error="release_regeneration_failed",
+                env=identity,
+            )
+        finally:
+            _git(repo, "worktree", "remove", "--force", str(worktree), error="release_regeneration_failed")
+
+    if not SHA_RE.fullmatch(new_head):
+        raise MergeControllerError("release_regeneration_failed")
+    parents = _git(repo, "show", "-s", "--format=%P", new_head).split()
+    if parents != [main_sha, old_head]:
+        raise MergeControllerError("release_regeneration_failed")
+    for ancestor in (main_sha, old_head):
+        _git(repo, "merge-base", "--is-ancestor", ancestor, new_head, error="release_regeneration_failed")
+    result_records = _raw_diff_records(repo, main_sha, new_head)
+    result_paths: set[str] = set()
+    for status, old_mode, new_mode, path in result_records:
+        if (
+            status not in {"A", "M"}
+            or (status == "M" and old_mode != new_mode)
+            or new_mode != "100644"
+            or path not in allowed_paths
+        ):
+            raise MergeControllerError("release_regeneration_failed")
+        result_paths.add(path)
+    if not result_paths or not result_paths.issubset(allowed_paths):
+        raise MergeControllerError("release_regeneration_failed")
+
+    _git(
+        repo, "fetch", "--no-tags", "origin", f"+refs/heads/{BASE}:{main_ref}",
+        error="release_regeneration_failed",
+    )
+    if _git(repo, "rev-parse", "--verify", main_ref) != main_sha:
+        raise MergeControllerError("release_main_moved")
+    _push_dirty_head(
+        repo, branch=branch, old_head=old_head, new_head=new_head, main_sha=main_sha,
+    )
+    _git(
+        repo,
+        "fetch", "--no-tags", "origin",
+        f"+refs/heads/{branch}:{candidate_ref}",
+        f"+refs/heads/{BASE}:{main_ref}",
+        error="release_regeneration_failed",
+    )
+    if _git(repo, "rev-parse", "--verify", candidate_ref) != new_head:
+        raise MergeControllerError("release_branch_moved")
+    if _git(repo, "rev-parse", "--verify", main_ref) != main_sha:
+        raise MergeControllerError("release_main_moved")
+
+    for attempt in range(10):
+        updated = _pr_view(number, gh_runner)
+        updated_head, _author, _state = _validate_pr(updated, number)
+        if updated.get("headRefName") != branch:
+            raise MergeControllerError("release_branch_moved")
+        if updated_head == new_head:
+            _validate_latest_release_for_slug(updated, gh_runner)
+            return new_head
+        if updated_head != old_head:
+            raise MergeControllerError("release_branch_moved")
+        if attempt < 9:
+            time.sleep(1)
+    raise MergeControllerError("release_branch_moved")
+
+
+def merge_release_pr(
+    number: int,
+    *,
+    runner: Callable[[list[str]], str] = _run,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
     if type(number) is not int or not 1 <= number <= 2_147_483_647:
         raise MergeControllerError("release_pr_identity_invalid")
     pr = _pr_view(number, runner)
@@ -377,6 +745,25 @@ def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) 
         return {
             "status": "updated", "pr_number": number,
             "previous_head_sha": head_sha, "head_sha": updated_head,
+        }
+    if merge_state == "DIRTY":
+        current = _pr_view(number, runner)
+        current_head, current_author, current_state = _validate_pr(current, number)
+        if current_head != head_sha or current_author != author_login:
+            raise MergeControllerError("exact_head_review_required")
+        _validate_latest_release_for_slug(current, runner)
+        if current_state != "DIRTY":
+            raise MergeControllerError("release_pr_not_mergeable")
+        regenerated_head = _regenerate_dirty_release(
+            number,
+            current,
+            head_sha,
+            runner,
+            repo_root or Path(__file__).resolve().parents[2],
+        )
+        return {
+            "status": "regenerated", "pr_number": number,
+            "previous_head_sha": head_sha, "head_sha": regenerated_head,
         }
     if pr.get("reviewDecision") != "APPROVED":
         raise MergeControllerError("separate_review_required")
@@ -419,6 +806,8 @@ def run(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> dict[
                 "required_checks_not_successful",
                 "release_pr_not_mergeable",
                 "superseded_release_pr",
+                "release_branch_moved",
+                "release_main_moved",
             } else "blocked"
             results.append({"status": status, "pr_number": number, "reason": error.code})
     return {"status": "complete", "results": results}
