@@ -118,7 +118,10 @@ def test_exact_review_history_is_authoritative_when_review_decision_is_stale() -
     calls = []
     result = module.merge_release_pr(
         42,
-        runner=successful_runner(calls, pr_changes={"reviewDecision": "REVIEW_REQUIRED"}),
+        runner=successful_runner(calls, pr_changes={
+            "reviewDecision": "REVIEW_REQUIRED",
+            "mergeStateStatus": "BLOCKED",
+        }),
     )
     assert result == {"status": "merged", "pr_number": 42, "head_sha": HEAD, "merge_sha": MERGE}
     assert any("/pulls/42/merge" in " ".join(command) for command in calls)
