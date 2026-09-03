@@ -38,8 +38,8 @@
   },
   "marketplace": {
     "category": "ops",
-    "description": "Clean and sort a bounded list of priority labels as an unattended production pipeline proof.",
-    "emoji": "🔤",
+    "description": "Clean and sort a bounded list of priority labels.",
+    "emoji": "🏷️",
     "inputs": [
       "labels: 1 to 10 bounded strings"
     ],

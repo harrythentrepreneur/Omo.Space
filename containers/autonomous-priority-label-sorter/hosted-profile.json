@@ -3,8 +3,8 @@
     "category": "ops",
     "cover": null,
     "demoCap": "Run reviewed example",
-    "desc": "Clean and sort a bounded list of priority labels as an unattended production pipeline proof.",
-    "emoji": "🔤",
+    "desc": "Clean and sort a bounded list of priority labels.",
+    "emoji": "🏷️",
     "exampleIn": "{\n  \"labels\": [\n    \" Urgent \",\n    \"backlog\",\n    \"Active\"\n  ]\n}",
     "exampleOut": [
       "cleaned sorted labels"
@@ -341,7 +341,7 @@
       ],
       "type": "object"
     },
-    "reviewed_source_sha256": "fbaa1cbb1eff8232bb8538d1350ee97132fac9f1cd32c125e69be4ee51dc8d66",
+    "reviewed_source_sha256": "f72d2583a0c0969956a58dda72c740e38930b4eef3cc35962f772f7ccbc26a1b",
     "run_price_cents": 10,
     "slug": "autonomous-priority-label-sorter"
   },
