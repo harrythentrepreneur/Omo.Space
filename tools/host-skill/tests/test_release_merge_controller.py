@@ -165,38 +165,39 @@ def test_older_release_stays_superseded_after_newer_same_slug_is_closed() -> Non
     assert not any(call[:4] == ["gh", "api", "--method", "PUT"] for call in calls)
 
 
-def test_behind_latest_release_is_exact_head_updated_then_requeued() -> None:
+def test_behind_latest_release_uses_identity_separated_regeneration(monkeypatch) -> None:
     module = load_module()
     old_head = HEAD
     new_head = "c" * 40
-    views = [
-        open_pr(mergeStateStatus="BEHIND"),
-        open_pr(mergeStateStatus="BEHIND"),
-        open_pr(headRefOid=new_head, reviewDecision="REVIEW_REQUIRED", mergeStateStatus="BLOCKED"),
-    ]
+    behind = open_pr(mergeStateStatus="BEHIND", reviewDecision="REVIEW_REQUIRED")
+    views = [behind, behind]
     calls = []
+    observed = {}
 
     def runner(command):
         calls.append(command)
-        joined = " ".join(command)
         if command[:3] == ["gh", "pr", "view"]:
             return json.dumps(views.pop(0))
         if command[:3] == ["gh", "pr", "list"]:
-            return json.dumps([open_pr(mergeStateStatus="BEHIND")])
-        if command[:4] == ["gh", "api", "--method", "PUT"] and "/update-branch" in joined:
-            assert f"expected_head_sha={old_head}" in command
-            return json.dumps({
-                "message": "Updating pull request branch.",
-                "url": "https://api.github.com/repos/harrythentrepreneur/Omo.Space/pulls/42",
-            })
+            return json.dumps([behind])
         raise AssertionError(command)
 
-    assert module.merge_release_pr(42, runner=runner) == {
-        "status": "updated",
+    def reconcile(number, pr, head, gh_runner, repo_root):
+        observed.update(number=number, pr=pr, head=head, repo_root=repo_root)
+        return new_head
+
+    monkeypatch.setattr(module, "_regenerate_dirty_release", reconcile)
+    assert module.merge_release_pr(42, runner=runner, repo_root=Path("/trusted/controller")) == {
+        "status": "regenerated",
         "pr_number": 42,
         "previous_head_sha": old_head,
         "head_sha": new_head,
     }
+    assert observed == {
+        "number": 42, "pr": behind, "head": old_head,
+        "repo_root": Path("/trusted/controller"),
+    }
+    assert not any("/update-branch" in " ".join(call) for call in calls)
     assert not any("/pulls/42/merge" in " ".join(call) for call in calls)
 
 

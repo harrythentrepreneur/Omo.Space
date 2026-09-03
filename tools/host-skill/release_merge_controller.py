@@ -788,26 +788,13 @@ def merge_release_pr(
                 break
         else:
             raise MergeControllerError("release_pr_not_mergeable")
-    if merge_state == "BEHIND":
-        current = _pr_view(number, runner)
-        current_head, _current_author, current_state = _validate_pr(current, number)
-        if current_head != head_sha:
-            raise MergeControllerError("exact_head_review_required")
-        _validate_latest_release_for_slug(current, runner)
-        if current_state != "BEHIND":
-            raise MergeControllerError("release_pr_not_mergeable")
-        updated_head = _update_branch_exact(number, current, head_sha, runner)
-        return {
-            "status": "updated", "pr_number": number,
-            "previous_head_sha": head_sha, "head_sha": updated_head,
-        }
-    if merge_state == "DIRTY":
+    if merge_state in {"BEHIND", "DIRTY"}:
         current = _pr_view(number, runner)
         current_head, current_author, current_state = _validate_pr(current, number)
         if current_head != head_sha or current_author != author_login:
             raise MergeControllerError("exact_head_review_required")
         _validate_latest_release_for_slug(current, runner)
-        if current_state != "DIRTY":
+        if current_state != merge_state:
             raise MergeControllerError("release_pr_not_mergeable")
         regenerated_head = _regenerate_dirty_release(
             number,
