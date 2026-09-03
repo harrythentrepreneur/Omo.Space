@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "sorted_labels": {
+      "items": {
+        "maxLength": 50,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "type": "array"
+    },
+    "status": {
+      "const": "completed"
+    }
+  },
+  "required": [
+    "sorted_labels",
+    "status"
+  ],
+  "type": "object"
+}
