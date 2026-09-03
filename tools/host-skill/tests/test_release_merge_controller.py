@@ -113,6 +113,17 @@ def test_merges_only_exact_head_after_kaviru2_review_and_actions_check() -> None
     assert not any("deploy" in " ".join(command).lower() for command in calls)
 
 
+def test_exact_review_history_is_authoritative_when_review_decision_is_stale() -> None:
+    module = load_module()
+    calls = []
+    result = module.merge_release_pr(
+        42,
+        runner=successful_runner(calls, pr_changes={"reviewDecision": "REVIEW_REQUIRED"}),
+    )
+    assert result == {"status": "merged", "pr_number": 42, "head_sha": HEAD, "merge_sha": MERGE}
+    assert any("/pulls/42/merge" in " ".join(command) for command in calls)
+
+
 def test_real_github_review_ids_above_signed_32_bit_are_valid() -> None:
     module = load_module()
     result = module.merge_release_pr(
