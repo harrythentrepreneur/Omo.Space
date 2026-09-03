@@ -392,6 +392,8 @@ def test_scheduled_candidates_are_isolated_when_one_is_malformed(tmp_path: Path)
     def runner(command):
         joined = " ".join(command)
         if command[:3] == ["gh", "pr", "list"]:
+            if "--state closed" in joined:
+                return "[]"
             if "number,state,isDraft" in joined:
                 return json.dumps([open_pr(number=42)])
             return json.dumps([
@@ -672,6 +674,8 @@ def test_real_git_dirty_regeneration_preserves_candidate_data_and_both_parents(
         nonlocal pushed_head, pr_state
         if command[:3] == ["gh", "pr", "list"]:
             return json.dumps([dirty])
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in " ".join(command):
+            return json.dumps([{"name": module.CONTRACT_RECHECK_LABEL}])
         if command[:4] == ["gh", "api", "--method", "PATCH"] and "/pulls/42" in " ".join(command):
             requested = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
             pr_state = requested
@@ -777,6 +781,8 @@ def test_regenerated_head_reopens_pr_to_reset_merge_base_and_trigger_contracts()
     def runner(command):
         nonlocal state
         calls.append(command)
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in " ".join(command):
+            return json.dumps([{"name": module.CONTRACT_RECHECK_LABEL}])
         if command[:4] == ["gh", "api", "--method", "PATCH"]:
             state = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
             return json.dumps({
@@ -797,3 +803,73 @@ def test_regenerated_head_reopens_pr_to_reset_merge_base_and_trigger_contracts()
         for command in calls if command[:4] == ["gh", "api", "--method", "PATCH"]
     ]
     assert transitions == ["state=closed", "state=open"]
+
+
+def test_uncertain_close_receipt_still_reopens_if_live_pr_is_closed() -> None:
+    module = load_module()
+    head = "d" * 40
+    branch = open_pr()["headRefName"]
+    current = open_pr(
+        headRefOid=head,
+        labels=[{"name": module.CONTRACT_RECHECK_LABEL}],
+    )
+    state = "open"
+
+    def receipt(requested):
+        return {
+            "number": 42, "state": requested, "draft": False,
+            "base": {"ref": "main"},
+            "head": {"ref": branch, "sha": head, "repo": {"full_name": module.REPOSITORY}},
+            "user": {"login": module.TRUSTED_RELEASE_AUTHOR},
+        }
+
+    def runner(command):
+        nonlocal state
+        if command[:4] == ["gh", "api", "--method", "PATCH"]:
+            requested = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
+            state = requested
+            if requested == "closed":
+                raise module.MergeControllerError("github_command_failed")
+            return json.dumps(receipt(requested))
+        if command[:2] == ["gh", "api"]:
+            return json.dumps(receipt(state))
+        if command[:3] == ["gh", "pr", "view"]:
+            return json.dumps({**current, "state": state.upper()})
+        if command[:3] == ["gh", "pr", "list"]:
+            return json.dumps([{**current, "state": state.upper()}])
+        raise AssertionError(command)
+
+    module._reopen_for_contracts(42, current, head, runner)
+    assert state == "open"
+
+
+def test_schedule_recovers_exact_closed_pr_with_durable_recheck_marker() -> None:
+    module = load_module()
+    head = "d" * 40
+    branch = open_pr()["headRefName"]
+    closed = {
+        **open_pr(
+            state="CLOSED", headRefOid=head,
+            labels=[{"name": module.CONTRACT_RECHECK_LABEL}],
+        ),
+        "mergedAt": None,
+    }
+
+    def runner(command):
+        joined = " ".join(command)
+        if command[:3] == ["gh", "pr", "list"]:
+            return json.dumps([closed])
+        if command[:4] == ["gh", "api", "--method", "PATCH"]:
+            return json.dumps({
+                "number": 42, "state": "open", "draft": False,
+                "base": {"ref": "main"},
+                "head": {"ref": branch, "sha": head, "repo": {"full_name": module.REPOSITORY}},
+                "user": {"login": module.TRUSTED_RELEASE_AUTHOR},
+            })
+        if command[:3] == ["gh", "pr", "view"]:
+            return json.dumps(open_pr(headRefOid=head, labels=closed["labels"]))
+        raise AssertionError(command)
+
+    assert module._recover_closed_rechecks(runner) == [
+        {"status": "reopened", "pr_number": 42, "head_sha": head},
+    ]
