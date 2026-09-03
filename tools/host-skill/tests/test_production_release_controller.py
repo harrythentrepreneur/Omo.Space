@@ -161,6 +161,61 @@ def test_github_trigger_run_attempt_mismatch_fails_closed(tmp_path):
     assert caught.value.code == "trigger_run_mismatch"
 
 
+def test_github_merged_release_receipt_binds_exact_merge_head_and_branch(tmp_path):
+    mod = load_module()
+    head = "b" * 40
+    branch = "omo-release/sub_12345678-creator-workflow"
+
+    def opener(request, timeout):
+        if request.full_url.endswith("/pulls/351"):
+            return Response({
+                "number": 351, "state": "closed", "merged_at": "2026-09-03T20:10:43Z",
+                "merge_commit_sha": SHA, "user": {"login": "harrythentrepreneur"},
+                "base": {"ref": "main", "repo": {"full_name": mod.REPOSITORY}},
+                "head": {"ref": branch, "sha": head, "repo": {"full_name": mod.REPOSITORY}},
+            })
+        raise AssertionError(request.full_url)
+
+    adapter = mod.GitHubMainlineAdapter(
+        tmp_path, SHA, 123, 2, "github-token", opener=opener
+    )
+    adapter._git = lambda *args, **kwargs: f"{'9' * 40}\tcontrol-plane fix\n{SHA}\tRelease creator workflow (#351)\n"
+    receipt = adapter.merged_release_receipt(
+        "9" * 40, {("sub_12345678", "creator-workflow")}
+    )
+    assert receipt == {
+        "submission_id": "sub_12345678", "slug": "creator-workflow",
+        "pr_number": 351, "branch": branch, "head_sha": head, "merge_sha": SHA,
+    }
+
+
+def test_finalization_store_reconciles_exact_merge_receipt():
+    mod = load_module()
+    receipt = {
+        "submission_id": "sub_12345678", "slug": "creator-workflow",
+        "source_sha256": "e" * 64, "pr_number": 351,
+        "branch": "omo-release/sub_12345678-creator-workflow",
+        "head_sha": "b" * 40, "merge_sha": SHA,
+    }
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request)
+        assert request.full_url.endswith("/api/internal/finalizations/reconcile-merged")
+        assert json.loads(request.data) == {"target_sha": SHA, "receipt": receipt}
+        return Response({
+            "ok": True, "id": receipt["submission_id"], "status": "ready_for_deploy",
+            "release_phase": "merged_verified", "release_merge_sha": SHA,
+        })
+
+    store = mod.HttpFinalizationStore(
+        "finalizer-token", targets=[{"slug": "creator-workflow", "source_sha256": "e" * 64}],
+        opener=opener,
+    )
+    assert store.reconcile_merged(SHA, receipt) is True
+    assert len(requests) == 1
+
+
 def test_finalization_store_uses_only_fixed_finalizer_routes_and_redacts_token():
     mod = load_module()
     assert mod.WORKER_BASE_URL == "https://omo.space"
@@ -1379,6 +1434,29 @@ def test_public_canary_seed_rejects_parent_symlink_tamper_and_oversize(monkeypat
             adapter.seed_submissions(checkout)
 
 
+def test_run_once_rejects_stale_trigger_before_any_reconciliation(monkeypatch, tmp_path):
+    mod = load_module()
+    current = "b" * 40
+
+    class Mainline:
+        def __init__(self, *args):
+            pass
+
+        def latest_green(self):
+            return mod.GreenMain(SHA, current, mod.WORKFLOW_NAME, "push", "main", "success")
+
+    monkeypatch.setattr(mod, "GitHubMainlineAdapter", Mainline)
+    monkeypatch.setattr(
+        mod, "derive_finalization_targets",
+        lambda *args: (_ for _ in ()).throw(AssertionError("must not derive or reconcile")),
+    )
+    result = mod.run_once(SimpleNamespace(trigger_sha=SHA, run_id="1", run_attempt="1"), {
+        "GITHUB_WORKSPACE": str(tmp_path), "GITHUB_TOKEN": "token",
+        "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
+    })
+    assert result == {"status": "superseded", "target_sha": current}
+
+
 def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatch, tmp_path):
     mod = load_module()
     order = []
@@ -1389,6 +1467,19 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
     class Mainline:
         def __init__(self, checkout, *args):
             assert checkout == target
+
+        def latest_green(self):
+            order.append(("latest_green", SHA))
+            return mod.GreenMain(SHA, SHA, mod.WORKFLOW_NAME, "push", "main", "success")
+
+        def merged_release_receipt(self, sha, identities):
+            assert identities == {("sub_12345678", "creator-workflow")}
+            order.append(("merge_receipt", sha))
+            return {
+                "submission_id": "sub_12345678", "slug": "creator-workflow",
+                "pr_number": 351, "branch": "omo-release/sub_12345678-creator-workflow",
+                "head_sha": "b" * 40, "merge_sha": sha,
+            }
 
         def checkout_detached(self, sha):
             order.append(("checkout", sha))
@@ -1425,14 +1516,18 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         def ensure_builder_schedule(self, checkout, sha):
             order.append(("schedule", checkout, sha))
 
-    store = SimpleNamespace(eligibility=lambda sha: order.append(("eligibility", sha)) or [{
-        "submission_id": "sub_" + "2" * 32,
-        "slug": "v02-release-label-sorter",
-        "status": "ready_for_deploy",
-        "release_phase": "merged_verified",
-        "selected_runtime": "worker-native",
-        "claimable": False,
-    }])
+    store = SimpleNamespace(
+        reconcile_merged=lambda sha, receipt: order.append(("reconcile", sha, receipt)) or True,
+        eligibility=lambda sha: order.append(("eligibility", sha)) or [{
+            "submission_id": "sub_12345678",
+            "slug": "creator-workflow",
+            "status": "ready_for_deploy",
+            "release_phase": "pr_open",
+            "release_merge_sha_present": False,
+            "selected_runtime": "worker-native",
+            "claimable": False,
+        }],
+    )
     discovered = [{"slug": "creator-workflow", "source_sha256": "4" * 64}]
     monkeypatch.setattr(mod, "GitHubMainlineAdapter", Mainline)
     monkeypatch.setattr(mod, "derive_finalization_targets", lambda mainline, sha: discovered if sha == SHA else None)
@@ -1450,16 +1545,25 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
     })
     assert order == [
+        ("latest_green", SHA), ("eligibility", SHA),
+        ("merge_receipt", SHA),
+        ("reconcile", SHA, {
+            "submission_id": "sub_12345678", "slug": "creator-workflow",
+            "source_sha256": "4" * 64, "pr_number": 351,
+            "branch": "omo-release/sub_12345678-creator-workflow",
+            "head_sha": "b" * 40, "merge_sha": SHA,
+        }),
         ("recovery", SHA), ("finalizer", SHA), ("eligibility", SHA), ("checkout", SHA),
         ("schedule", target, SHA), ("seed", target),
     ]
     assert result == {
         "status": "seeded", "target_sha": SHA,
         "eligibility": [{
-            "submission_id": "sub_" + "2" * 32,
-            "slug": "v02-release-label-sorter",
+            "submission_id": "sub_12345678",
+            "slug": "creator-workflow",
             "status": "ready_for_deploy",
-            "release_phase": "merged_verified",
+            "release_phase": "pr_open",
+            "release_merge_sha_present": False,
             "selected_runtime": "worker-native",
             "claimable": False,
         }],
@@ -1478,6 +1582,14 @@ def test_run_once_seeds_only_after_idle_and_clean_checkout_validation(monkeypatc
         "RELEASE_FINALIZER_TOKEN": "finalizer", "PRODUCTION_CANARY_API_KEY": "omo_" + "1" * 32,
     })
     assert order == [
+        ("latest_green", SHA), ("eligibility", SHA),
+        ("merge_receipt", SHA),
+        ("reconcile", SHA, {
+            "submission_id": "sub_12345678", "slug": "creator-workflow",
+            "source_sha256": "4" * 64, "pr_number": 351,
+            "branch": "omo-release/sub_12345678-creator-workflow",
+            "head_sha": "b" * 40, "merge_sha": SHA,
+        }),
         ("recovery", SHA), ("finalizer", SHA), ("eligibility", SHA), ("checkout", SHA),
         ("schedule", target, SHA), ("seed", target), ("balance", target),
     ]
@@ -1505,7 +1617,11 @@ def test_run_once_deployed_includes_bounded_eligibility_snapshot(monkeypatch, tm
     store = SimpleNamespace(eligibility=lambda sha: eligibility if sha == SHA else None)
     checkout = tmp_path / "target"
     checkout.mkdir()
-    mainline = SimpleNamespace(checkout_detached=lambda sha: checkout if sha == SHA else None)
+    mainline = SimpleNamespace(
+        latest_green=lambda: mod.GreenMain(SHA, SHA, mod.WORKFLOW_NAME, "push", "main", "success"),
+        checkout_detached=lambda sha: checkout if sha == SHA else None,
+        merged_release_receipt=lambda sha, identities: None,
+    )
     balance = {
         "status": "passed", "currency": "usd", "balance_cents": 480,
         "usage": [
