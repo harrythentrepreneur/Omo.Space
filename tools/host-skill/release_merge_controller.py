@@ -733,6 +733,20 @@ def merge_release_pr(
     pr = _pr_view(number, runner)
     head_sha, author_login, merge_state = _validate_pr(pr, number)
     _validate_latest_release_for_slug(pr, runner)
+    if merge_state == "UNKNOWN":
+        for _attempt in range(10):
+            time.sleep(1)
+            current = _pr_view(number, runner)
+            current_head, current_author, current_state = _validate_pr(current, number)
+            if current_head != head_sha or current_author != author_login:
+                raise MergeControllerError("exact_head_review_required")
+            _validate_latest_release_for_slug(current, runner)
+            if current_state != "UNKNOWN":
+                pr = current
+                merge_state = current_state
+                break
+        else:
+            raise MergeControllerError("release_pr_not_mergeable")
     if merge_state == "BEHIND":
         current = _pr_view(number, runner)
         current_head, _current_author, current_state = _validate_pr(current, number)

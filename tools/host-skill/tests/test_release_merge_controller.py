@@ -541,6 +541,29 @@ def test_dirty_release_revalidates_exact_head_and_slug_before_regeneration(monke
     assert len([call for call in calls if call[:3] == ["gh", "pr", "list"]]) == 2
 
 
+def test_transient_unknown_merge_state_settles_to_dirty_and_regenerates(monkeypatch) -> None:
+    module = load_module()
+    unknown = open_pr(mergeStateStatus="UNKNOWN", reviewDecision="REVIEW_REQUIRED")
+    dirty = open_pr(mergeStateStatus="DIRTY", reviewDecision="REVIEW_REQUIRED")
+    views = [unknown, dirty, dirty]
+
+    def runner(command):
+        if command[:3] == ["gh", "pr", "view"]:
+            return json.dumps(views.pop(0))
+        if command[:3] == ["gh", "pr", "list"]:
+            return json.dumps([dirty])
+        raise AssertionError(command)
+
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(module, "_regenerate_dirty_release", lambda *_args: "d" * 40)
+    result = module.merge_release_pr(42, runner=runner, repo_root=Path("/trusted/controller"))
+    assert result == {
+        "status": "regenerated", "pr_number": 42,
+        "previous_head_sha": HEAD, "head_sha": "d" * 40,
+    }
+    assert views == []
+
+
 @pytest.mark.parametrize("unsafe_kind", ["executable", "symlink", "foreign", "deletion"])
 def test_dirty_candidate_integrity_rejects_unsafe_git_delta(tmp_path: Path, unsafe_kind: str) -> None:
     module = load_module()
