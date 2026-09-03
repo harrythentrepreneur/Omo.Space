@@ -22,7 +22,7 @@ BRANCH_RE = re.compile(
     r"(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
 )
 MAX_RESPONSE_BYTES = 1024 * 1024
-MAX_CANDIDATES = 100
+MAX_CANDIDATES = 1000
 MAX_RELEASE_HISTORY = 1000
 MAX_REVIEWS = 1000
 MAX_GITHUB_ID = 9_007_199_254_740_991
@@ -76,15 +76,40 @@ def _read_event(path: Path) -> dict[str, Any]:
     return value
 
 
+def _open_candidate_pr_numbers(runner: Callable[[list[str]], str]) -> list[int]:
+    rows = _json_command([
+        "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
+        "--state", "open", "--limit", str(MAX_CANDIDATES + 1),
+        "--json", "number,headRefName",
+    ], runner)
+    if not isinstance(rows, list) or len(rows) > MAX_CANDIDATES:
+        raise MergeControllerError("github_response_invalid")
+    numbers: list[int] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise MergeControllerError("github_response_invalid")
+        number = row.get("number")
+        branch = str(row.get("headRefName") or "")
+        if type(number) is int and BRANCH_RE.fullmatch(branch):
+            numbers.append(number)
+    return sorted(set(numbers))
+
+
 def candidate_pr_numbers(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> list[int]:
     event = _read_event(event_path)
     workflow_run = event.get("workflow_run")
     if event.get("action") == "completed" and isinstance(workflow_run, dict):
-        if (
-            workflow_run.get("name") != "generated-workflow-contracts"
-            or workflow_run.get("event") != "pull_request"
-            or workflow_run.get("conclusion") != "success"
-        ):
+        name = workflow_run.get("name")
+        workflow_event = workflow_run.get("event")
+        if workflow_run.get("conclusion") != "success":
+            return []
+        if name == "trusted-release-review":
+            return _open_candidate_pr_numbers(runner)
+        if name != "generated-workflow-contracts":
+            return []
+        if workflow_event == "push":
+            return _open_candidate_pr_numbers(runner)
+        if workflow_event != "pull_request":
             return []
         pulls = workflow_run.get("pull_requests")
         if (
@@ -97,22 +122,7 @@ def candidate_pr_numbers(event_path: Path, *, runner: Callable[[list[str]], str]
         return [pulls[0]["number"]]
 
     if event.get("schedule") == "*/5 * * * *":
-        rows = _json_command([
-            "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
-            "--state", "open", "--limit", str(MAX_CANDIDATES),
-            "--json", "number,headRefName",
-        ], runner)
-        if not isinstance(rows, list) or len(rows) > MAX_CANDIDATES:
-            raise MergeControllerError("github_response_invalid")
-        numbers: list[int] = []
-        for row in rows:
-            if not isinstance(row, dict):
-                raise MergeControllerError("github_response_invalid")
-            number = row.get("number")
-            branch = str(row.get("headRefName") or "")
-            if type(number) is int and BRANCH_RE.fullmatch(branch):
-                numbers.append(number)
-        return sorted(set(numbers))
+        return _open_candidate_pr_numbers(runner)
     return []
 
 

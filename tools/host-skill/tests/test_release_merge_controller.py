@@ -310,6 +310,54 @@ def test_review_pagination_accepts_exact_review_after_first_30() -> None:
     assert "--paginate" in review_call and "--slurp" in review_call
 
 
+@pytest.mark.parametrize(
+    ("workflow_name", "workflow_event"),
+    [
+        ("generated-workflow-contracts", "push"),
+        ("trusted-release-review", "workflow_run"),
+    ],
+)
+def test_trusted_default_branch_completions_reconcile_open_release_prs(
+    tmp_path: Path, workflow_name: str, workflow_event: str,
+) -> None:
+    module = load_module()
+    event = tmp_path / "workflow-run.json"
+    event.write_text(json.dumps({
+        "action": "completed",
+        "repository": {"full_name": module.REPOSITORY},
+        "workflow_run": {
+            "name": workflow_name,
+            "event": workflow_event,
+            "conclusion": "success",
+            "pull_requests": [],
+        },
+    }))
+
+    def runner(command):
+        assert command[:3] == ["gh", "pr", "list"]
+        assert command[command.index("--limit") + 1] == str(module.MAX_CANDIDATES + 1)
+        return json.dumps([
+            {"number": 42, "headRefName": f"omo-release/{SUBMISSION}-safe-workflow"},
+            {"number": 9, "headRefName": "ordinary-feature"},
+        ])
+
+    assert module.candidate_pr_numbers(event, runner=runner) == [42]
+
+
+def test_candidate_scan_detects_truncation_instead_of_starving_release_prs(tmp_path: Path) -> None:
+    module = load_module()
+    event = tmp_path / "schedule.json"
+    event.write_text(json.dumps({
+        "schedule": "*/5 * * * *",
+        "repository": {"full_name": module.REPOSITORY},
+    }))
+    rows = [{"number": index + 1, "headRefName": f"ordinary-{index}"}
+            for index in range(module.MAX_CANDIDATES + 1)]
+
+    with pytest.raises(module.MergeControllerError, match="github_response_invalid"):
+        module.candidate_pr_numbers(event, runner=lambda _command: json.dumps(rows))
+
+
 def test_scheduled_candidates_are_isolated_when_one_is_malformed(tmp_path: Path) -> None:
     module = load_module()
     event = tmp_path / "schedule.json"
@@ -377,6 +425,7 @@ def test_merge_workflow_loads_controller_only_from_main() -> None:
     workflow = (ROOT / ".github/workflows/trusted-release-merge.yml").read_text()
     assert "pull_request_review:" not in workflow
     assert "workflow_run:" in workflow
+    assert "workflows: [generated-workflow-contracts, trusted-release-review]" in workflow
     assert "cron: '*/5 * * * *'" in workflow
     assert "contents: write" in workflow and "pull-requests: write" in workflow
     assert "environment: Production" in workflow
