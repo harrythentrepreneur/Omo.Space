@@ -6,6 +6,7 @@ import argparse
 import json
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -135,7 +136,7 @@ def _pr_view(number: int, runner: Callable[[list[str]], str]) -> dict[str, Any]:
     return value
 
 
-def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str]:
+def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str, str]:
     author = pr.get("author")
     repository = pr.get("headRepository")
     author_login = str(author.get("login") if isinstance(author, dict) else "")
@@ -153,11 +154,10 @@ def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str]:
         or author_login == TRUSTED_REVIEWER
     ):
         raise MergeControllerError("release_pr_identity_invalid")
-    if pr.get("reviewDecision") != "APPROVED":
-        raise MergeControllerError("separate_review_required")
-    if pr.get("mergeStateStatus") != "CLEAN":
-        raise MergeControllerError("release_pr_not_mergeable")
-    return head_sha, author_login
+    merge_state = str(pr.get("mergeStateStatus") or "")
+    if merge_state not in {"BEHIND", "BLOCKED", "CLEAN", "DIRTY", "DRAFT", "HAS_HOOKS", "UNKNOWN", "UNSTABLE"}:
+        raise MergeControllerError("github_response_invalid")
+    return head_sha, author_login, merge_state
 
 
 def _validate_latest_release_for_slug(pr: dict[str, Any], runner: Callable[[list[str]], str]) -> None:
@@ -329,12 +329,51 @@ def _merge_exact_head(number: int, head_sha: str, runner: Callable[[list[str]], 
     return merge_sha
 
 
+def _update_branch_exact(
+    number: int, pr: dict[str, Any], head_sha: str, runner: Callable[[list[str]], str],
+) -> str:
+    value = _json_command([
+        "gh", "api", "--method", "PUT",
+        f"repos/{REPOSITORY}/pulls/{number}/update-branch",
+        "-f", f"expected_head_sha={head_sha}",
+    ], runner)
+    message = value.get("message") if isinstance(value, dict) else None
+    url = value.get("url") if isinstance(value, dict) else None
+    if (
+        not isinstance(message, str)
+        or not 1 <= len(message) <= 500
+        or url != f"https://api.github.com/repos/{REPOSITORY}/pulls/{number}"
+    ):
+        raise MergeControllerError("update_branch_receipt_invalid")
+    expected_branch = pr.get("headRefName")
+    for attempt in range(10):
+        updated = _pr_view(number, runner)
+        updated_head, _author, _state = _validate_pr(updated, number)
+        if updated.get("headRefName") != expected_branch:
+            raise MergeControllerError("update_branch_receipt_invalid")
+        if updated_head != head_sha:
+            return updated_head
+        if attempt < 9:
+            time.sleep(1)
+    raise MergeControllerError("update_branch_receipt_invalid")
+
+
 def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) -> dict[str, Any]:
     if type(number) is not int or not 1 <= number <= 2_147_483_647:
         raise MergeControllerError("release_pr_identity_invalid")
     pr = _pr_view(number, runner)
-    head_sha, author_login = _validate_pr(pr, number)
+    head_sha, author_login, merge_state = _validate_pr(pr, number)
     _validate_latest_release_for_slug(pr, runner)
+    if merge_state == "BEHIND":
+        updated_head = _update_branch_exact(number, pr, head_sha, runner)
+        return {
+            "status": "updated", "pr_number": number,
+            "previous_head_sha": head_sha, "head_sha": updated_head,
+        }
+    if pr.get("reviewDecision") != "APPROVED":
+        raise MergeControllerError("separate_review_required")
+    if merge_state != "CLEAN":
+        raise MergeControllerError("release_pr_not_mergeable")
     _validate_separate_review(_review_pages(number, runner), head_sha=head_sha, author_login=author_login)
     _validate_required_check(head_sha, runner)
     api_merge_sha = _merge_exact_head(number, head_sha, runner)
