@@ -262,7 +262,13 @@ def validate_changed_entries(entries: list[tuple[str, str, str, str]], slug: str
         if new_mode != "100644" or old_mode not in {"000000", "100644"}:
             raise ReviewControllerError("candidate_git_entry_unsafe")
         seen.add(path)
-    if not _required_paths(slug).issubset(seen):
+    # Dirty-release reconciliation rebuilds from current protected main. A
+    # required artifact that is already byte-identical to main correctly
+    # disappears from the PR diff, while _derive_candidate_slug has already
+    # proven that every required file exists in the exact candidate checkout.
+    # Keep a changed required file as the release-identity anchor rather than
+    # requiring deterministic, unchanged artifacts to be rewritten.
+    if not _required_paths(slug).intersection(seen):
         raise ReviewControllerError("required_release_files_missing")
 
 
