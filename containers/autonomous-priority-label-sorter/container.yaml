@@ -9,7 +9,7 @@ generated:
 source:
   kind: vendored-skill-md
   path: source/SKILL.md
-  sha256: fbaa1cbb1eff8232bb8538d1350ee97132fac9f1cd32c125e69be4ee51dc8d66
+  sha256: f72d2583a0c0969956a58dda72c740e38930b4eef3cc35962f772f7ccbc26a1b
 image:
   base: debian-slim
   python: "3.12"
