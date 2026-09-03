@@ -4489,8 +4489,8 @@ window.OMO_CATALOG = [
     "category": "ops",
     "cover": null,
     "demoCap": "Run reviewed example",
-    "desc": "Clean and sort a bounded list of priority labels as an unattended production pipeline proof.",
-    "emoji": "\ud83d\udd24",
+    "desc": "Clean and sort a bounded list of priority labels.",
+    "emoji": "\ud83c\udff7\ufe0f",
     "exampleIn": "{\n  \"labels\": [\n    \" Urgent \",\n    \"backlog\",\n    \"Active\"\n  ]\n}",
     "exampleOut": [
       "cleaned sorted labels"
