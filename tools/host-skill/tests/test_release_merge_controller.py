@@ -68,6 +68,15 @@ def check_runs(conclusion="success", app_id=ACTIONS_APP_ID, run_id=7):
     }
 
 
+def reopen_receipt(module, number, branch, head, state, comment_id=91):
+    return {
+        "id": comment_id,
+        "body": module._reopen_receipt_body(number, branch, head, state),
+        "created_at": "2026-09-03T16:00:00Z",
+        "user": {"login": module.TRUSTED_REVIEWER, "type": "User"},
+    }
+
+
 def successful_runner(
     calls, *, reviews=None, pr_changes=None, check_value=None,
     merge_value=None,
@@ -676,6 +685,10 @@ def test_real_git_dirty_regeneration_preserves_candidate_data_and_both_parents(
             return json.dumps([dirty])
         if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in " ".join(command):
             return json.dumps([{"name": module.CONTRACT_RECHECK_LABEL}])
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/comments" in " ".join(command):
+            return json.dumps(reopen_receipt(module, 42, branch_b, pushed_head or old_b, "pending"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/issues/comments/91" in " ".join(command):
+            return json.dumps(reopen_receipt(module, 42, branch_b, pushed_head, "completed"))
         if command[:4] == ["gh", "api", "--method", "PATCH"] and "/pulls/42" in " ".join(command):
             requested = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
             pr_state = requested
@@ -783,6 +796,10 @@ def test_regenerated_head_reopens_pr_to_reset_merge_base_and_trigger_contracts()
         calls.append(command)
         if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in " ".join(command):
             return json.dumps([{"name": module.CONTRACT_RECHECK_LABEL}])
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/comments" in " ".join(command):
+            return json.dumps(reopen_receipt(module, 42, branch, head, "pending"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/issues/comments/91" in " ".join(command):
+            return json.dumps(reopen_receipt(module, 42, branch, head, "completed"))
         if command[:4] == ["gh", "api", "--method", "PATCH"]:
             state = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
             return json.dumps({
@@ -800,7 +817,9 @@ def test_regenerated_head_reopens_pr_to_reset_merge_base_and_trigger_contracts()
     module._reopen_for_contracts(42, current, head, runner)
     transitions = [
         next(field for field in command if field.startswith("state="))
-        for command in calls if command[:4] == ["gh", "api", "--method", "PATCH"]
+        for command in calls
+        if command[:4] == ["gh", "api", "--method", "PATCH"]
+        and any(field.startswith("state=") for field in command)
     ]
     assert transitions == ["state=closed", "state=open"]
 
@@ -825,6 +844,11 @@ def test_uncertain_close_receipt_still_reopens_if_live_pr_is_closed() -> None:
 
     def runner(command):
         nonlocal state
+        joined = " ".join(command)
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/comments" in joined:
+            return json.dumps(reopen_receipt(module, 42, branch, head, "pending"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/issues/comments/91" in joined:
+            return json.dumps(reopen_receipt(module, 42, branch, head, "completed"))
         if command[:4] == ["gh", "api", "--method", "PATCH"]:
             requested = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
             state = requested
@@ -859,6 +883,15 @@ def test_schedule_recovers_exact_closed_pr_with_durable_recheck_marker() -> None
         joined = " ".join(command)
         if command[:3] == ["gh", "pr", "list"]:
             return json.dumps([closed])
+        if command[:3] == ["gh", "api", "--paginate"] and "/comments?" in joined:
+            return json.dumps([[reopen_receipt(module, 42, branch, head, "pending")]])
+        if command[:3] == ["gh", "api", "--paginate"] and "/timeline?" in joined:
+            return json.dumps([[{
+                "id": 101, "event": "closed", "created_at": "2026-09-03T16:00:01Z",
+                "actor": {"login": module.TRUSTED_REVIEWER, "type": "User"},
+            }]])
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/issues/comments/91" in joined:
+            return json.dumps(reopen_receipt(module, 42, branch, head, "completed"))
         if command[:4] == ["gh", "api", "--method", "PATCH"]:
             return json.dumps({
                 "number": 42, "state": "open", "draft": False,
