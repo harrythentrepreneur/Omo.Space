@@ -1925,6 +1925,50 @@ const buildEnv = {
 };
 const internalHeaders = { Authorization: 'Bearer bridge-token-for-tests', Origin: 'https://omo.space' };
 const finalizerHeaders = { Authorization: 'Bearer finalizer-token-for-tests', Origin: 'https://omo.space' };
+const reconciledSubmissionId = 'sub_receiptbridge12345678';
+const reconciledSlug = 'receipt-bridge-workflow';
+const reconciledHead = 'a'.repeat(40);
+const reconciledMerge = 'b'.repeat(40);
+const reconciledSource = 'c'.repeat(64);
+workerTest.mockSubmissions.set(reconciledSubmissionId, {
+  id: reconciledSubmissionId, slug: reconciledSlug, published_slug: reconciledSlug,
+  source_sha256: reconciledSource, status: 'ready_for_deploy', release_phase: 'pr_open',
+  release_pr_number: 351,
+  release_pr_url: 'https://github.com/harrythentrepreneur/Omo.Space/pull/351',
+  release_branch: `omo-release/${reconciledSubmissionId}-${reconciledSlug}`,
+  release_head_sha: '9'.repeat(40), release_merge_sha: null,
+  release_artifact_hash: 'd'.repeat(64), build_evidence: { checks: ['contracts'] },
+  finalization_id: null, created_at: '2026-09-03T20:00:00Z',
+});
+const reconcilePayload = {
+  target_sha: reconciledMerge,
+  receipt: {
+    submission_id: reconciledSubmissionId, slug: reconciledSlug,
+    source_sha256: reconciledSource, pr_number: 351,
+    branch: `omo-release/${reconciledSubmissionId}-${reconciledSlug}`,
+    head_sha: reconciledHead, merge_sha: reconciledMerge,
+  },
+};
+const reconcileResponse = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/reconcile-merged', reconcilePayload, finalizerHeaders,
+), buildEnv);
+const reconcileBody = await reconcileResponse.json();
+const reconcileReplay = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/reconcile-merged', reconcilePayload, finalizerHeaders,
+), buildEnv);
+const reconcileUnauthorized = await worker.fetch(mkReq(
+  'POST', '/api/internal/finalizations/reconcile-merged', reconcilePayload, internalHeaders,
+), buildEnv);
+const reconciledRow = workerTest.mockSubmissions.get(reconciledSubmissionId);
+check('internal merge reconciliation: finalizer-only exact receipt advances atomically and idempotently',
+  reconcileResponse.status === 200 && reconcileReplay.status === 200 && reconcileUnauthorized.status === 401 &&
+  reconcileBody.id === reconciledSubmissionId && reconcileBody.release_merge_sha === reconciledMerge &&
+  reconciledRow.release_phase === 'merged_verified' && reconciledRow.release_merge_sha === reconciledMerge &&
+  reconciledRow.release_head_sha === reconciledHead &&
+  workerSrc.includes('omo-internal-finalization-reconcile-merged-v1') &&
+  workerSrc.includes("release_phase IN ('pr_open', 'ci_passed')") &&
+  workerSrc.includes('release_head_sha = $8'));
+workerTest.mockSubmissions.delete(reconciledSubmissionId);
 check('internal auth: constant-time helper is length-stable and exact',
   workerTest.constantTimeEquals('bridge-token-for-tests', 'bridge-token-for-tests') === true &&
   workerTest.constantTimeEquals('bridge-token-for-tests', 'bridge-token-for-testx') === false &&

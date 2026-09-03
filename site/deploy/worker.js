@@ -449,6 +449,8 @@ function dynamicRoute(pathname) {
   if (internalFinalizationClaim) return { handler: handleInternalFinalizationClaim, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationEligibility = /^\/api\/internal\/finalizations\/eligibility$/.exec(pathname);
   if (internalFinalizationEligibility) return { handler: handleInternalFinalizationEligibility, methods: ['POST'], internal: true, finalizer: true };
+  const internalFinalizationReconcileMerged = /^\/api\/internal\/finalizations\/reconcile-merged$/.exec(pathname);
+  if (internalFinalizationReconcileMerged) return { handler: handleInternalFinalizationReconcileMerged, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationResumeCompleted = /^\/api\/internal\/finalizations\/resume-completed$/.exec(pathname);
   if (internalFinalizationResumeCompleted) return { handler: handleInternalFinalizationResumeCompleted, methods: ['POST'], internal: true, finalizer: true };
   const internalFinalizationFailed = /^\/api\/internal\/finalizations\/failed$/.exec(pathname);
@@ -3157,6 +3159,40 @@ async function handleInternalFinalizationEligibility(request, env) {
   return internalJson({ ok: true, eligibility: await internalFinalizationEligibility(env, targetSha, targets) }, 200);
 }
 
+function safeMergedReleaseReceiptBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)
+      || Object.keys(body).sort().join(',') !== 'receipt,target_sha') return null;
+  const targetSha = safeGitSha(body.target_sha);
+  const receipt = body.receipt;
+  if (!targetSha || !receipt || typeof receipt !== 'object' || Array.isArray(receipt)
+      || Object.keys(receipt).sort().join(',') !== 'branch,head_sha,merge_sha,pr_number,slug,source_sha256,submission_id') return null;
+  const submissionId = safeSubmissionId(receipt.submission_id);
+  const slug = safeSlug(receipt.slug);
+  const sourceSha256 = safeSha256(receipt.source_sha256);
+  const branch = safeReleaseBranch(receipt.branch);
+  const headSha = safeGitSha(receipt.head_sha);
+  const mergeSha = safeGitSha(receipt.merge_sha);
+  const prNumber = Number(receipt.pr_number);
+  if (!submissionId || !slug || !sourceSha256 || !branch || !headSha || !mergeSha
+      || !Number.isSafeInteger(prNumber) || prNumber < 1
+      || branch !== `omo-release/${submissionId}-${slug}`) return null;
+  return { targetSha, submissionId, slug, sourceSha256, prNumber, branch, headSha, mergeSha };
+}
+
+async function handleInternalFinalizationReconcileMerged(request, env) {
+  const parsed = await readInternalJson(request);
+  if (parsed.error) return internalJson({ error: parsed.error }, parsed.status);
+  const receipt = safeMergedReleaseReceiptBody(parsed.body);
+  if (!receipt) return internalJson({ error: 'invalid_merge_receipt' }, 400);
+  const updated = await internalReconcileMergedRelease(env, receipt);
+  return updated
+    ? internalJson({
+        ok: true, id: receipt.submissionId, status: 'ready_for_deploy',
+        release_phase: 'merged_verified', release_merge_sha: receipt.mergeSha,
+      }, 200)
+    : internalJson({ error: 'merge_receipt_conflict' }, 409);
+}
+
 function safeFinalizationTargets(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 1000) return null;
   const targets = [];
@@ -5254,6 +5290,66 @@ async function internalFinalizationEligibility(env, targetSha, targets) {
   }
   const now = Date.now();
   return rows.map((row) => finalizationEligibilityRow(row, targetSha, now));
+}
+
+async function internalReconcileMergedRelease(env, receipt) {
+  const cutoff = builderAutonomyCutoff(env);
+  if (!cutoff) return false;
+  const prUrl = `https://github.com/harrythentrepreneur/Omo.Space/pull/${receipt.prNumber}`;
+  const values = [
+    receipt.mergeSha, receipt.submissionId, receipt.slug, receipt.sourceSha256,
+    receipt.prNumber, prUrl, receipt.branch, receipt.headSha, cutoff,
+  ];
+  if (databaseKind(env) === 'neon') {
+    const result = await getNeonPool(env).query(prepared(
+      'omo-internal-finalization-reconcile-merged-v1',
+      `UPDATE submissions
+       SET release_phase = 'merged_verified', release_merge_sha = $1,
+           release_head_sha = $8, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND slug = $3 AND published_slug = $3 AND source_sha256 = $4
+         AND release_pr_number = $5 AND release_pr_url = $6 AND release_branch = $7
+         AND release_head_sha IS NOT NULL AND release_artifact_hash IS NOT NULL
+         AND build_evidence IS NOT NULL AND status = 'ready_for_deploy'
+         AND finalization_id IS NULL AND created_at::timestamptz >= $9::timestamptz
+         AND ((release_phase IN ('pr_open', 'ci_passed') AND release_merge_sha IS NULL)
+              OR (release_phase = 'merged_verified' AND release_merge_sha = $1))
+       RETURNING id`,
+      values
+    ));
+    return result.rowCount === 1;
+  }
+  if (databaseKind(env) === 'd1') {
+    const result = await env.BALANCE_DB.prepare(
+      `UPDATE submissions
+       SET release_phase = 'merged_verified', release_merge_sha = ?, release_head_sha = ?, updated_at = ?
+       WHERE id = ? AND slug = ? AND published_slug = ? AND source_sha256 = ?
+         AND release_pr_number = ? AND release_pr_url = ? AND release_branch = ?
+         AND release_head_sha IS NOT NULL AND release_artifact_hash IS NOT NULL
+         AND build_evidence IS NOT NULL AND status = 'ready_for_deploy'
+         AND finalization_id IS NULL AND created_at >= ?
+         AND ((release_phase IN ('pr_open', 'ci_passed') AND release_merge_sha IS NULL)
+              OR (release_phase = 'merged_verified' AND release_merge_sha = ?))`
+    ).bind(
+      receipt.mergeSha, receipt.headSha, new Date().toISOString(), receipt.submissionId,
+      receipt.slug, receipt.slug, receipt.sourceSha256, receipt.prNumber, prUrl, receipt.branch,
+      cutoff, receipt.mergeSha,
+    ).run();
+    return Boolean(result.meta && result.meta.changes);
+  }
+  const row = mockSubmissions.get(receipt.submissionId);
+  if (!row || row.id !== receipt.submissionId || row.slug !== receipt.slug
+      || row.published_slug !== receipt.slug || row.source_sha256 !== receipt.sourceSha256
+      || Number(row.release_pr_number) !== receipt.prNumber || row.release_pr_url !== prUrl
+      || row.release_branch !== receipt.branch || !safeGitSha(row.release_head_sha)
+      || !safeSha256(row.release_artifact_hash) || !safeBuildEvidence(row.build_evidence).checks.length
+      || !afterBuilderAutonomyCutoff(row, env) || row.status !== 'ready_for_deploy' || row.finalization_id
+      || !((['pr_open', 'ci_passed'].includes(row.release_phase) && !row.release_merge_sha)
+           || (row.release_phase === 'merged_verified' && row.release_merge_sha === receipt.mergeSha))) return false;
+  row.release_phase = 'merged_verified';
+  row.release_merge_sha = receipt.mergeSha;
+  row.release_head_sha = receipt.headSha;
+  row.updated_at = new Date().toISOString();
+  return true;
 }
 
 function finalizationEligibilityRow(row, targetSha, now) {
