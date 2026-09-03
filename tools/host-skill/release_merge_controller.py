@@ -6,6 +6,7 @@ import argparse
 import json
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -16,9 +17,13 @@ TRUSTED_REVIEWER = "kaviru2"
 REQUIRED_CHECK = "contracts"
 REQUIRED_CHECK_APP_ID = 15368
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-BRANCH_RE = re.compile(r"^omo-release/sub_[A-Za-z0-9_-]{8,100}-[a-z0-9]+(?:-[a-z0-9]+)*$")
+BRANCH_RE = re.compile(
+    r"^omo-release/(?P<submission_id>sub_[0-9a-f]{32})-"
+    r"(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
+)
 MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_CANDIDATES = 100
+MAX_RELEASE_HISTORY = 1000
 MAX_REVIEWS = 1000
 MAX_GITHUB_ID = 9_007_199_254_740_991
 
@@ -73,16 +78,6 @@ def _read_event(path: Path) -> dict[str, Any]:
 
 def candidate_pr_numbers(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> list[int]:
     event = _read_event(event_path)
-    pull = event.get("pull_request")
-    review = event.get("review")
-    if event.get("action") == "submitted" and isinstance(pull, dict) and isinstance(review, dict):
-        if str(review.get("state") or "").lower() != "approved":
-            return []
-        number = pull.get("number")
-        if type(number) is not int or not 1 <= number <= 2_147_483_647:
-            raise MergeControllerError("invalid_event")
-        return [number]
-
     workflow_run = event.get("workflow_run")
     if event.get("action") == "completed" and isinstance(workflow_run, dict):
         if (
@@ -121,37 +116,6 @@ def candidate_pr_numbers(event_path: Path, *, runner: Callable[[list[str]], str]
     return []
 
 
-def _validate_protection(value: Any) -> None:
-    if not isinstance(value, dict):
-        raise MergeControllerError("branch_protection_inadequate")
-    checks = value.get("required_status_checks")
-    reviews = value.get("required_pull_request_reviews")
-    force_pushes = value.get("allow_force_pushes")
-    required = checks.get("checks") if isinstance(checks, dict) else None
-    count = reviews.get("required_approving_review_count") if isinstance(reviews, dict) else None
-    exact_check = any(
-        isinstance(item, dict)
-        and item.get("context") == REQUIRED_CHECK
-        and type(item.get("app_id")) is int
-        and item.get("app_id") == REQUIRED_CHECK_APP_ID
-        for item in required or []
-    )
-    if (
-        not isinstance(checks, dict)
-        or checks.get("strict") is not True
-        or not exact_check
-        or not isinstance(reviews, dict)
-        or type(count) is not int
-        or count < 1
-        or reviews.get("dismiss_stale_reviews") is not True
-        or reviews.get("require_code_owner_reviews") is not True
-        or reviews.get("require_last_push_approval") is not True
-        or not isinstance(force_pushes, dict)
-        or force_pushes.get("enabled") is not False
-    ):
-        raise MergeControllerError("branch_protection_inadequate")
-
-
 def _pr_view(number: int, runner: Callable[[list[str]], str]) -> dict[str, Any]:
     value = _json_command([
         "gh", "pr", "view", str(number), "--repo", REPOSITORY,
@@ -163,7 +127,7 @@ def _pr_view(number: int, runner: Callable[[list[str]], str]) -> dict[str, Any]:
     return value
 
 
-def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str]:
+def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str, str]:
     author = pr.get("author")
     repository = pr.get("headRepository")
     author_login = str(author.get("login") if isinstance(author, dict) else "")
@@ -181,11 +145,58 @@ def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str]:
         or author_login == TRUSTED_REVIEWER
     ):
         raise MergeControllerError("release_pr_identity_invalid")
-    if pr.get("reviewDecision") != "APPROVED":
-        raise MergeControllerError("separate_review_required")
-    if pr.get("mergeStateStatus") != "CLEAN":
-        raise MergeControllerError("release_pr_not_mergeable")
-    return head_sha, author_login
+    merge_state = str(pr.get("mergeStateStatus") or "")
+    if merge_state not in {"BEHIND", "BLOCKED", "CLEAN", "DIRTY", "DRAFT", "HAS_HOOKS", "UNKNOWN", "UNSTABLE"}:
+        raise MergeControllerError("github_response_invalid")
+    return head_sha, author_login, merge_state
+
+
+def _validate_latest_release_for_slug(pr: dict[str, Any], runner: Callable[[list[str]], str]) -> None:
+    branch = str(pr.get("headRefName") or "")
+    match = BRANCH_RE.fullmatch(branch)
+    if match is None:
+        raise MergeControllerError("release_pr_identity_invalid")
+    slug = match.group("slug")
+    rows = _json_command([
+        "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
+        "--state", "all", "--limit", str(MAX_RELEASE_HISTORY + 1),
+        "--json", "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author",
+    ], runner)
+    if not isinstance(rows, list) or len(rows) > MAX_RELEASE_HISTORY:
+        raise MergeControllerError("github_response_invalid")
+    matching_numbers: list[int] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise MergeControllerError("github_response_invalid")
+        row_match = BRANCH_RE.fullmatch(str(row.get("headRefName") or ""))
+        if row_match is None or row_match.group("slug") != slug:
+            continue
+        author = row.get("author")
+        repository = row.get("headRepository")
+        if (
+            not isinstance(author, dict)
+            or author.get("login") != TRUSTED_RELEASE_AUTHOR
+            or not isinstance(repository, dict)
+            or repository.get("nameWithOwner") != REPOSITORY
+        ):
+            continue
+        number = row.get("number")
+        head_sha = str(row.get("headRefOid") or "").lower()
+        if (
+            type(number) is not int
+            or not 1 <= number <= 2_147_483_647
+            or row.get("state") not in {"OPEN", "CLOSED", "MERGED"}
+            or row.get("isDraft") is not False
+            or row.get("baseRefName") != BASE
+            or not SHA_RE.fullmatch(head_sha)
+        ):
+            raise MergeControllerError("github_response_invalid")
+        matching_numbers.append(number)
+    current_number = pr.get("number")
+    if current_number not in matching_numbers:
+        raise MergeControllerError("github_response_invalid")
+    if current_number != max(matching_numbers):
+        raise MergeControllerError("superseded_release_pr")
 
 
 def _review_pages(number: int, runner: Callable[[list[str]], str]) -> list[dict[str, Any]]:
@@ -284,21 +295,95 @@ def _validate_required_check(head_sha: str, runner: Callable[[list[str]], str]) 
         raise MergeControllerError("required_checks_not_successful")
 
 
+def _merge_exact_head(number: int, head_sha: str, runner: Callable[[list[str]], str]) -> str:
+    """Use GitHub's compare-and-swap merge endpoint directly.
+
+    The REST ``sha`` field makes the mutation conditional on the exact head we
+    just validated.  This avoids gh's higher-level auto-merge/merge-queue
+    negotiation while leaving branch protection enforcement to GitHub.
+    """
+    value = _json_command([
+        "gh", "api", "--method", "PUT",
+        f"repos/{REPOSITORY}/pulls/{number}/merge",
+        "-f", f"sha={head_sha}", "-f", "merge_method=squash",
+    ], runner)
+    merge_sha = str(value.get("sha") if isinstance(value, dict) else "").lower()
+    message = value.get("message") if isinstance(value, dict) else None
+    if (
+        not isinstance(value, dict)
+        or value.get("merged") is not True
+        or not SHA_RE.fullmatch(merge_sha)
+        or not isinstance(message, str)
+        or not 1 <= len(message) <= 500
+    ):
+        raise MergeControllerError("merge_receipt_invalid")
+    return merge_sha
+
+
+def _update_branch_exact(
+    number: int, pr: dict[str, Any], head_sha: str, runner: Callable[[list[str]], str],
+) -> str:
+    value = _json_command([
+        "gh", "api", "--method", "PUT",
+        f"repos/{REPOSITORY}/pulls/{number}/update-branch",
+        "-f", f"expected_head_sha={head_sha}",
+    ], runner)
+    message = value.get("message") if isinstance(value, dict) else None
+    url = value.get("url") if isinstance(value, dict) else None
+    if (
+        not isinstance(message, str)
+        or not 1 <= len(message) <= 500
+        or url != f"https://api.github.com/repos/{REPOSITORY}/pulls/{number}"
+    ):
+        raise MergeControllerError("update_branch_receipt_invalid")
+    expected_branch = pr.get("headRefName")
+    for attempt in range(10):
+        updated = _pr_view(number, runner)
+        updated_head, _author, _state = _validate_pr(updated, number)
+        if updated.get("headRefName") != expected_branch:
+            raise MergeControllerError("update_branch_receipt_invalid")
+        if updated_head != head_sha:
+            return updated_head
+        if attempt < 9:
+            time.sleep(1)
+    raise MergeControllerError("update_branch_receipt_invalid")
+
+
 def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) -> dict[str, Any]:
     if type(number) is not int or not 1 <= number <= 2_147_483_647:
         raise MergeControllerError("release_pr_identity_invalid")
-    protection_value = _json_command([
-        "gh", "api", f"repos/{REPOSITORY}/branches/{BASE}/protection",
-    ], runner)
-    _validate_protection(protection_value)
     pr = _pr_view(number, runner)
-    head_sha, author_login = _validate_pr(pr, number)
+    head_sha, author_login, merge_state = _validate_pr(pr, number)
+    _validate_latest_release_for_slug(pr, runner)
+    if merge_state == "BEHIND":
+        current = _pr_view(number, runner)
+        current_head, _current_author, current_state = _validate_pr(current, number)
+        if current_head != head_sha:
+            raise MergeControllerError("exact_head_review_required")
+        _validate_latest_release_for_slug(current, runner)
+        if current_state != "BEHIND":
+            raise MergeControllerError("release_pr_not_mergeable")
+        updated_head = _update_branch_exact(number, current, head_sha, runner)
+        return {
+            "status": "updated", "pr_number": number,
+            "previous_head_sha": head_sha, "head_sha": updated_head,
+        }
+    if pr.get("reviewDecision") != "APPROVED":
+        raise MergeControllerError("separate_review_required")
+    if merge_state != "CLEAN":
+        raise MergeControllerError("release_pr_not_mergeable")
     _validate_separate_review(_review_pages(number, runner), head_sha=head_sha, author_login=author_login)
     _validate_required_check(head_sha, runner)
-    runner([
-        "gh", "pr", "merge", str(number), "--repo", REPOSITORY,
-        "--squash", "--match-head-commit", head_sha,
-    ])
+    current = _pr_view(number, runner)
+    current_head, current_author, current_state = _validate_pr(current, number)
+    if current_head != head_sha or current_author != author_login:
+        raise MergeControllerError("exact_head_review_required")
+    _validate_latest_release_for_slug(current, runner)
+    if current.get("reviewDecision") != "APPROVED":
+        raise MergeControllerError("separate_review_required")
+    if current_state != "CLEAN":
+        raise MergeControllerError("release_pr_not_mergeable")
+    api_merge_sha = _merge_exact_head(number, head_sha, runner)
     merged = _pr_view(number, runner)
     commit = merged.get("mergeCommit")
     merge_sha = str(commit.get("oid") if isinstance(commit, dict) else "").lower()
@@ -306,6 +391,7 @@ def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) 
         merged.get("state") != "MERGED"
         or str(merged.get("headRefOid") or "").lower() != head_sha
         or not SHA_RE.fullmatch(merge_sha)
+        or merge_sha != api_merge_sha
     ):
         raise MergeControllerError("merge_receipt_invalid")
     return {"status": "merged", "pr_number": number, "head_sha": head_sha, "merge_sha": merge_sha}
@@ -322,6 +408,7 @@ def run(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> dict[
                 "exact_head_review_required",
                 "required_checks_not_successful",
                 "release_pr_not_mergeable",
+                "superseded_release_pr",
             } else "blocked"
             results.append({"status": status, "pr_number": number, "reason": error.code})
     return {"status": "complete", "results": results}
@@ -332,8 +419,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--event", required=True)
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(run(Path(args.event)), separators=(",", ":"), sort_keys=True))
-        return 0
+        result = run(Path(args.event))
+        print(json.dumps(result, separators=(",", ":"), sort_keys=True))
+        return 1 if any(item.get("status") == "blocked" for item in result.get("results", [])) else 0
     except MergeControllerError as error:
         print(json.dumps({"error": error.code}, separators=(",", ":"), sort_keys=True))
         return 1

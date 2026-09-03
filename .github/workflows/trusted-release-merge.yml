@@ -1,8 +1,6 @@
 name: trusted-release-merge
 
 on:
-  pull_request_review:
-    types: [submitted, dismissed]
   workflow_run:
     workflows: [generated-workflow-contracts]
     types: [completed]
@@ -22,6 +20,7 @@ concurrency:
 jobs:
   merge:
     if: github.repository == 'harrythentrepreneur/Omo.Space'
+    environment: Production
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted merge controller from main
@@ -32,7 +31,9 @@ jobs:
           path: controller
       - name: Evaluate protected release PRs and merge exact approved heads
         env:
-          GH_TOKEN: ${{ github.token }}
+          # A non-GITHUB_TOKEN identity is required so the merge commit can
+          # trigger the protected push/finalization workflows.
+          GH_TOKEN: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}
         run: |
           if [ ! -f controller/tools/host-skill/release_merge_controller.py ]; then
             echo "trusted merge controller is not on main yet; bootstrap no-op"
