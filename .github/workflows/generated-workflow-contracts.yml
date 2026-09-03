@@ -2,7 +2,7 @@ name: generated-workflow-contracts
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
   push:
     branches:
       - main
@@ -12,7 +12,6 @@ permissions:
 
 jobs:
   contracts:
-    if: github.event.action != 'labeled' || github.event.label.name == 'omo-release-recheck'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

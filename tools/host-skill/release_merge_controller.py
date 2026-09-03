@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -37,6 +38,9 @@ SHARED_GENERATED_PATHS = {
     "site/deploy/hosted-skills.generated.mjs",
 }
 CONTRACT_RECHECK_LABEL = "omo-release-recheck"
+REOPEN_RECEIPT_PREFIX = "<!-- omo-release-reopen:v1 "
+REOPEN_RECEIPT_SUFFIX = " -->"
+MAX_REOPEN_RECEIPTS = 1000
 
 
 class MergeControllerError(RuntimeError):
@@ -569,31 +573,346 @@ def _validated_label_names(value: Any) -> set[str]:
     return names
 
 
-def _trigger_contracts_recheck(
+def _validate_pr_state_receipt(
+    value: Any, *, number: int, branch: str, head_sha: str, state: str,
+) -> None:
+    base = value.get("base") if isinstance(value, dict) else None
+    head = value.get("head") if isinstance(value, dict) else None
+    repository = head.get("repo") if isinstance(head, dict) else None
+    user = value.get("user") if isinstance(value, dict) else None
+    if (
+        not isinstance(value, dict)
+        or value.get("number") != number
+        or value.get("state") != state
+        or value.get("draft") is not False
+        or not isinstance(base, dict)
+        or base.get("ref") != BASE
+        or not isinstance(head, dict)
+        or head.get("ref") != branch
+        or str(head.get("sha") or "").lower() != head_sha
+        or not isinstance(repository, dict)
+        or repository.get("full_name") != REPOSITORY
+        or not isinstance(user, dict)
+        or user.get("login") != TRUSTED_RELEASE_AUTHOR
+    ):
+        raise MergeControllerError("contracts_recheck_failed")
+
+
+def _ensure_recheck_marker(
+    number: int, pr: dict[str, Any], runner: Callable[[list[str]], str],
+) -> None:
+    if CONTRACT_RECHECK_LABEL in _validated_label_names(pr.get("labels")):
+        return
+    value = _json_command([
+        "gh", "api", "--method", "POST",
+        f"repos/{REPOSITORY}/issues/{number}/labels",
+        "-f", f"labels[]={CONTRACT_RECHECK_LABEL}",
+    ], runner)
+    if CONTRACT_RECHECK_LABEL not in _validated_label_names(value):
+        raise MergeControllerError("contracts_recheck_failed")
+
+
+def _reopen_operation_id(number: int, branch: str, head_sha: str) -> str:
+    raw = f"{REPOSITORY}\n{number}\n{branch}\n{head_sha}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _reopen_receipt_body(
+    number: int, branch: str, head_sha: str, state: str,
+) -> str:
+    payload = {
+        "branch": branch,
+        "head_sha": head_sha,
+        "operation_id": _reopen_operation_id(number, branch, head_sha),
+        "pr_number": number,
+        "state": state,
+    }
+    return REOPEN_RECEIPT_PREFIX + json.dumps(payload, separators=(",", ":"), sort_keys=True) + REOPEN_RECEIPT_SUFFIX
+
+
+def _validate_reopen_receipt_comment(
+    value: Any, *, number: int, branch: str, head_sha: str, state: str,
+) -> tuple[int, str]:
+    user = value.get("user") if isinstance(value, dict) else None
+    comment_id = value.get("id") if isinstance(value, dict) else None
+    created_at = value.get("created_at") if isinstance(value, dict) else None
+    if (
+        type(comment_id) is not int
+        or not 1 <= comment_id <= MAX_GITHUB_ID
+        or not isinstance(user, dict)
+        or user.get("login") != TRUSTED_REVIEWER
+        or user.get("type") != "User"
+        or value.get("body") != _reopen_receipt_body(number, branch, head_sha, state)
+        or not isinstance(created_at, str)
+        or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", created_at)
+    ):
+        raise MergeControllerError("reopen_receipt_invalid")
+    return comment_id, created_at
+
+
+def _create_reopen_receipt(
+    number: int, branch: str, head_sha: str,
+    runner: Callable[[list[str]], str],
+) -> tuple[int, str]:
+    body = _reopen_receipt_body(number, branch, head_sha, "pending")
+    value = _json_command([
+        "gh", "api", "--method", "POST",
+        f"repos/{REPOSITORY}/issues/{number}/comments", "-f", f"body={body}",
+    ], runner)
+    return _validate_reopen_receipt_comment(
+        value, number=number, branch=branch, head_sha=head_sha, state="pending",
+    )
+
+
+def _complete_reopen_receipt(
+    comment_id: int, *, number: int, branch: str, head_sha: str,
+    runner: Callable[[list[str]], str],
+) -> None:
+    endpoint = f"repos/{REPOSITORY}/issues/comments/{comment_id}"
+    body = _reopen_receipt_body(number, branch, head_sha, "completed")
+    for attempt in range(3):
+        try:
+            value = _json_command([
+                "gh", "api", "--method", "PATCH", endpoint, "-f", f"body={body}",
+            ], runner)
+            _validate_reopen_receipt_comment(
+                value, number=number, branch=branch, head_sha=head_sha, state="completed",
+            )
+            return
+        except MergeControllerError:
+            try:
+                current = _json_command(["gh", "api", endpoint], runner)
+                _validate_reopen_receipt_comment(
+                    current, number=number, branch=branch, head_sha=head_sha, state="completed",
+                )
+                return
+            except MergeControllerError:
+                if attempt == 2:
+                    raise MergeControllerError("reopen_receipt_invalid") from None
+                time.sleep(1)
+
+
+def _latest_reopen_receipt(
+    number: int, branch: str, head_sha: str,
+    runner: Callable[[list[str]], str],
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    pages = _json_command([
+        "gh", "api", "--paginate", "--slurp",
+        f"repos/{REPOSITORY}/issues/{number}/comments?per_page=100",
+    ], runner)
+    if not isinstance(pages, list):
+        raise MergeControllerError("github_response_invalid")
+    receipts: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+    count = 0
+    for page in pages:
+        if not isinstance(page, list):
+            raise MergeControllerError("github_response_invalid")
+        for item in page:
+            count += 1
+            if count > MAX_REOPEN_RECEIPTS or not isinstance(item, dict):
+                raise MergeControllerError("github_response_invalid")
+            body = item.get("body")
+            user = item.get("user")
+            if not isinstance(body, str) or not body.startswith(REOPEN_RECEIPT_PREFIX):
+                continue
+            if not isinstance(user, dict) or user.get("login") != TRUSTED_REVIEWER or user.get("type") != "User":
+                continue
+            parsed: dict[str, Any] | None = None
+            for state in ("pending", "completed"):
+                try:
+                    _validate_reopen_receipt_comment(
+                        item, number=number, branch=branch, head_sha=head_sha, state=state,
+                    )
+                    parsed = {"state": state, "created_at": item["created_at"]}
+                    break
+                except MergeControllerError:
+                    pass
+            if parsed is None:
+                raise MergeControllerError("reopen_receipt_invalid")
+            receipts.append((int(item["id"]), item, parsed))
+    if not receipts:
+        return None
+    _comment_id, comment, parsed = max(receipts, key=lambda item: item[0])
+    return comment, parsed
+
+
+def _latest_close_was_controller(
+    number: int, receipt_created_at: str,
+    runner: Callable[[list[str]], str],
+) -> bool:
+    pages = _json_command([
+        "gh", "api", "--paginate", "--slurp",
+        "-H", "Accept: application/vnd.github+json",
+        f"repos/{REPOSITORY}/issues/{number}/timeline?per_page=100",
+    ], runner)
+    events: list[dict[str, Any]] = []
+    count = 0
+    if not isinstance(pages, list):
+        raise MergeControllerError("github_response_invalid")
+    for page in pages:
+        if not isinstance(page, list):
+            raise MergeControllerError("github_response_invalid")
+        for item in page:
+            count += 1
+            if count > MAX_REOPEN_RECEIPTS or not isinstance(item, dict):
+                raise MergeControllerError("github_response_invalid")
+            if item.get("event") == "closed":
+                events.append(item)
+    if not events:
+        return False
+    latest = max(events, key=lambda item: int(item.get("id") or 0))
+    actor = latest.get("actor")
+    created_at = latest.get("created_at")
+    return (
+        isinstance(actor, dict)
+        and actor.get("login") == TRUSTED_REVIEWER
+        and isinstance(created_at, str)
+        and created_at >= receipt_created_at
+    )
+
+
+def _reopen_closed_exact(
+    number: int, *, branch: str, head_sha: str, receipt_created_at: str,
+    runner: Callable[[list[str]], str],
+) -> None:
+    endpoint = f"repos/{REPOSITORY}/pulls/{number}"
+    for attempt in range(3):
+        try:
+            reopened = _json_command([
+                "gh", "api", "--method", "PATCH", endpoint, "-f", "state=open",
+            ], runner)
+            _validate_pr_state_receipt(
+                reopened, number=number, branch=branch, head_sha=head_sha, state="open",
+            )
+            return
+        except MergeControllerError:
+            live = _json_command(["gh", "api", endpoint], runner)
+            if isinstance(live, dict) and live.get("state") == "open":
+                try:
+                    _validate_pr_state_receipt(
+                        live, number=number, branch=branch, head_sha=head_sha, state="open",
+                    )
+                    return
+                except MergeControllerError:
+                    raise MergeControllerError("release_branch_moved") from None
+            try:
+                _validate_pr_state_receipt(
+                    live, number=number, branch=branch, head_sha=head_sha, state="closed",
+                )
+            except MergeControllerError:
+                raise MergeControllerError("release_branch_moved") from None
+            if not _latest_close_was_controller(number, receipt_created_at, runner):
+                raise MergeControllerError("contracts_recheck_failed")
+            if attempt == 2:
+                raise MergeControllerError("contracts_recheck_failed")
+            time.sleep(1)
+
+
+def _reopen_for_contracts(
     number: int, pr: dict[str, Any], head_sha: str,
     runner: Callable[[list[str]], str],
 ) -> None:
-    labels = _validated_label_names(pr.get("labels"))
-    endpoint = f"repos/{REPOSITORY}/issues/{number}/labels"
-    if CONTRACT_RECHECK_LABEL in labels:
-        remaining = _json_command([
-            "gh", "api", "--method", "DELETE",
-            f"{endpoint}/{CONTRACT_RECHECK_LABEL}",
+    branch = str(pr.get("headRefName") or "")
+    endpoint = f"repos/{REPOSITORY}/pulls/{number}"
+    _ensure_recheck_marker(number, pr, runner)
+    comment_id, receipt_created_at = _create_reopen_receipt(number, branch, head_sha, runner)
+    try:
+        closed = _json_command([
+            "gh", "api", "--method", "PATCH", endpoint, "-f", "state=closed",
         ], runner)
-        if CONTRACT_RECHECK_LABEL in _validated_label_names(remaining):
-            raise MergeControllerError("contracts_recheck_failed")
-    applied = _json_command([
-        "gh", "api", "--method", "POST", endpoint,
-        "-f", f"labels[]={CONTRACT_RECHECK_LABEL}",
-    ], runner)
-    if CONTRACT_RECHECK_LABEL not in _validated_label_names(applied):
-        raise MergeControllerError("contracts_recheck_failed")
+        _validate_pr_state_receipt(
+            closed, number=number, branch=branch, head_sha=head_sha, state="closed",
+        )
+    except MergeControllerError:
+        live = _json_command(["gh", "api", endpoint], runner)
+        try:
+            _validate_pr_state_receipt(
+                live, number=number, branch=branch, head_sha=head_sha, state="closed",
+            )
+        except MergeControllerError:
+            _complete_reopen_receipt(
+                comment_id, number=number, branch=branch, head_sha=head_sha, runner=runner,
+            )
+            raise MergeControllerError("contracts_recheck_failed") from None
+    _reopen_closed_exact(
+        number, branch=branch, head_sha=head_sha,
+        receipt_created_at=receipt_created_at, runner=runner,
+    )
     refreshed = _pr_view(number, runner)
     refreshed_head, _author, _state = _validate_pr(refreshed, number)
-    if refreshed_head != head_sha or refreshed.get("headRefName") != pr.get("headRefName"):
+    if refreshed_head != head_sha or refreshed.get("headRefName") != branch:
         raise MergeControllerError("release_branch_moved")
-    if CONTRACT_RECHECK_LABEL not in _validated_label_names(refreshed.get("labels")):
-        raise MergeControllerError("contracts_recheck_failed")
+    _validate_latest_release_for_slug(refreshed, runner)
+    _complete_reopen_receipt(
+        comment_id, number=number, branch=branch, head_sha=head_sha, runner=runner,
+    )
+
+
+def _recover_closed_rechecks(
+    runner: Callable[[list[str]], str],
+) -> list[dict[str, Any]]:
+    rows = _json_command([
+        "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
+        "--state", "closed", "--search", f"label:{CONTRACT_RECHECK_LABEL}",
+        "--limit", str(MAX_CANDIDATES + 1),
+        "--json", "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author,labels,mergedAt",
+    ], runner)
+    if not isinstance(rows, list) or len(rows) > MAX_CANDIDATES:
+        raise MergeControllerError("github_response_invalid")
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        number = row.get("number") if isinstance(row, dict) else None
+        try:
+            author = row.get("author") if isinstance(row, dict) else None
+            repository = row.get("headRepository") if isinstance(row, dict) else None
+            branch = str(row.get("headRefName") or "") if isinstance(row, dict) else ""
+            head_sha = str(row.get("headRefOid") or "").lower() if isinstance(row, dict) else ""
+            if (
+                type(number) is not int
+                or not 1 <= number <= 2_147_483_647
+                or row.get("state") != "CLOSED"
+                or row.get("mergedAt") is not None
+                or row.get("isDraft") is not False
+                or row.get("baseRefName") != BASE
+                or BRANCH_RE.fullmatch(branch) is None
+                or not SHA_RE.fullmatch(head_sha)
+                or not isinstance(repository, dict)
+                or repository.get("nameWithOwner") != REPOSITORY
+                or not isinstance(author, dict)
+                or author.get("login") != TRUSTED_RELEASE_AUTHOR
+                or CONTRACT_RECHECK_LABEL not in _validated_label_names(row.get("labels"))
+            ):
+                raise MergeControllerError("release_pr_identity_invalid")
+            _validate_latest_release_for_slug(row, runner)
+            receipt = _latest_reopen_receipt(number, branch, head_sha, runner)
+            if receipt is None or receipt[1].get("state") != "pending":
+                continue
+            comment, _receipt_data = receipt
+            comment_id, receipt_created_at = _validate_reopen_receipt_comment(
+                comment, number=number, branch=branch, head_sha=head_sha, state="pending",
+            )
+            if not _latest_close_was_controller(number, receipt_created_at, runner):
+                continue
+            _reopen_closed_exact(
+                number, branch=branch, head_sha=head_sha,
+                receipt_created_at=receipt_created_at, runner=runner,
+            )
+            reopened = _pr_view(number, runner)
+            reopened_head, _reopened_author, _reopened_state = _validate_pr(reopened, number)
+            if reopened_head != head_sha or reopened.get("headRefName") != branch:
+                raise MergeControllerError("release_branch_moved")
+            _validate_latest_release_for_slug(reopened, runner)
+            _complete_reopen_receipt(
+                comment_id, number=number, branch=branch, head_sha=head_sha, runner=runner,
+            )
+            results.append({"status": "reopened", "pr_number": number, "head_sha": head_sha})
+        except MergeControllerError as error:
+            results.append({
+                "status": "waiting" if error.code in {"release_branch_moved", "release_main_moved"} else "blocked",
+                "pr_number": number if type(number) is int else 0,
+                "reason": error.code,
+            })
+    return results
 
 
 def _run_trusted_registration(worktree: Path) -> None:
@@ -768,7 +1087,7 @@ def _regenerate_dirty_release(
             raise MergeControllerError("release_branch_moved")
         if updated_head == new_head:
             _validate_latest_release_for_slug(updated, gh_runner)
-            _trigger_contracts_recheck(number, updated, new_head, gh_runner)
+            _reopen_for_contracts(number, updated, new_head, gh_runner)
             return new_head
         if updated_head != old_head:
             raise MergeControllerError("release_branch_moved")
@@ -847,7 +1166,10 @@ def merge_release_pr(
 
 
 def run(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> dict[str, Any]:
-    results: list[dict[str, Any]] = []
+    event = _read_event(event_path)
+    results: list[dict[str, Any]] = (
+        _recover_closed_rechecks(runner) if event.get("schedule") == "*/5 * * * *" else []
+    )
     for number in candidate_pr_numbers(event_path, runner=runner):
         try:
             results.append(merge_release_pr(number, runner=runner))

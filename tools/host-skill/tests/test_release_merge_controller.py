@@ -68,6 +68,15 @@ def check_runs(conclusion="success", app_id=ACTIONS_APP_ID, run_id=7):
     }
 
 
+def reopen_receipt(module, number, branch, head, state, comment_id=91):
+    return {
+        "id": comment_id,
+        "body": module._reopen_receipt_body(number, branch, head, state),
+        "created_at": "2026-09-03T16:00:00Z",
+        "user": {"login": module.TRUSTED_REVIEWER, "type": "User"},
+    }
+
+
 def successful_runner(
     calls, *, reviews=None, pr_changes=None, check_value=None,
     merge_value=None,
@@ -392,6 +401,8 @@ def test_scheduled_candidates_are_isolated_when_one_is_malformed(tmp_path: Path)
     def runner(command):
         joined = " ".join(command)
         if command[:3] == ["gh", "pr", "list"]:
+            if "--state closed" in joined:
+                return "[]"
             if "number,state,isDraft" in joined:
                 return json.dumps([open_pr(number=42)])
             return json.dumps([
@@ -460,8 +471,8 @@ def test_merge_workflow_loads_controller_only_from_main() -> None:
     assert "github.event.pull_request.head.sha" not in workflow
 
     contracts = (ROOT / ".github/workflows/generated-workflow-contracts.yml").read_text()
-    assert "types: [opened, synchronize, reopened, labeled]" in contracts
-    assert "github.event.action != 'labeled' || github.event.label.name == 'omo-release-recheck'" in contracts
+    assert "types: [opened, synchronize, reopened]" in contracts
+    assert "omo-release-recheck" not in contracts
 
 
 def git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
@@ -666,25 +677,38 @@ def test_real_git_dirty_regeneration_preserves_candidate_data_and_both_parents(
         reviewDecision="REVIEW_REQUIRED",
     )
     pushed_head = None
-    recheck_label_applied = False
+    pr_state = "open"
 
     def runner(command):
-        nonlocal pushed_head, recheck_label_applied
+        nonlocal pushed_head, pr_state
         if command[:3] == ["gh", "pr", "list"]:
             return json.dumps([dirty])
         if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in " ".join(command):
-            recheck_label_applied = True
             return json.dumps([{"name": module.CONTRACT_RECHECK_LABEL}])
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/comments" in " ".join(command):
+            return json.dumps(reopen_receipt(module, 42, branch_b, pushed_head or old_b, "pending"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/issues/comments/91" in " ".join(command):
+            return json.dumps(reopen_receipt(module, 42, branch_b, pushed_head, "completed"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/pulls/42" in " ".join(command):
+            requested = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
+            pr_state = requested
+            remote_head = git(seed, "ls-remote", origin.as_posix(), f"refs/heads/{branch_b}").split()[0]
+            return json.dumps({
+                "number": 42, "state": requested, "draft": False,
+                "base": {"ref": "main"},
+                "head": {"ref": branch_b, "sha": remote_head, "repo": {"full_name": module.REPOSITORY}},
+                "user": {"login": module.TRUSTED_RELEASE_AUTHOR},
+            })
         if command[:3] == ["gh", "pr", "view"]:
             remote_head = git(seed, "ls-remote", origin.as_posix(), f"refs/heads/{branch_b}").split()[0]
             if remote_head != old_b:
                 pushed_head = remote_head
                 return json.dumps(open_pr(
+                    state=pr_state.upper(),
                     headRefName=branch_b,
                     headRefOid=remote_head,
                     mergeStateStatus="BLOCKED",
                     reviewDecision="REVIEW_REQUIRED",
-                    labels=[{"name": module.CONTRACT_RECHECK_LABEL}] if recheck_label_applied else [],
                 ))
             return json.dumps(dirty)
         raise AssertionError(command)
@@ -759,31 +783,164 @@ def test_failed_dirty_push_distinguishes_cas_race_from_write_failure(monkeypatch
         )
 
 
-def test_regenerated_head_triggers_fresh_contracts_without_reviewer_push_identity() -> None:
+def test_regenerated_head_reopens_pr_to_reset_merge_base_and_trigger_contracts() -> None:
     module = load_module()
     calls = []
-    current = open_pr(headRefOid="d" * 40, reviewDecision="REVIEW_REQUIRED", labels=[])
-
-    applied = False
+    head = "d" * 40
+    branch = open_pr()["headRefName"]
+    current = open_pr(headRefOid=head, reviewDecision="REVIEW_REQUIRED")
+    state = "open"
 
     def runner(command):
-        nonlocal applied
+        nonlocal state
         calls.append(command)
-        joined = " ".join(command)
-        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in joined:
-            applied = True
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in " ".join(command):
             return json.dumps([{"name": module.CONTRACT_RECHECK_LABEL}])
-        if command[:3] == ["gh", "pr", "view"]:
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/comments" in " ".join(command):
+            return json.dumps(reopen_receipt(module, 42, branch, head, "pending"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/issues/comments/91" in " ".join(command):
+            return json.dumps(reopen_receipt(module, 42, branch, head, "completed"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"]:
+            state = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
             return json.dumps({
-                **current,
-                "labels": [{"name": module.CONTRACT_RECHECK_LABEL}] if applied else [],
+                "number": 42, "state": state, "draft": False,
+                "base": {"ref": "main"},
+                "head": {"ref": branch, "sha": head, "repo": {"full_name": module.REPOSITORY}},
+                "user": {"login": module.TRUSTED_RELEASE_AUTHOR},
             })
+        if command[:3] == ["gh", "pr", "view"]:
+            return json.dumps({**current, "state": state.upper()})
+        if command[:3] == ["gh", "pr", "list"]:
+            return json.dumps([{**current, "state": state.upper()}])
         raise AssertionError(command)
 
-    module._trigger_contracts_recheck(42, current, "d" * 40, runner)
-    assert any(
-        command[:4] == ["gh", "api", "--method", "POST"]
-        and f"labels[]={module.CONTRACT_RECHECK_LABEL}" in command
+    module._reopen_for_contracts(42, current, head, runner)
+    transitions = [
+        next(field for field in command if field.startswith("state="))
         for command in calls
+        if command[:4] == ["gh", "api", "--method", "PATCH"]
+        and any(field.startswith("state=") for field in command)
+    ]
+    assert transitions == ["state=closed", "state=open"]
+
+
+def test_uncertain_close_receipt_still_reopens_if_live_pr_is_closed() -> None:
+    module = load_module()
+    head = "d" * 40
+    branch = open_pr()["headRefName"]
+    current = open_pr(
+        headRefOid=head,
+        labels=[{"name": module.CONTRACT_RECHECK_LABEL}],
     )
-    assert not any(command[:4] == ["gh", "api", "--method", "DELETE"] for command in calls)
+    state = "open"
+
+    def receipt(requested):
+        return {
+            "number": 42, "state": requested, "draft": False,
+            "base": {"ref": "main"},
+            "head": {"ref": branch, "sha": head, "repo": {"full_name": module.REPOSITORY}},
+            "user": {"login": module.TRUSTED_RELEASE_AUTHOR},
+        }
+
+    def runner(command):
+        nonlocal state
+        joined = " ".join(command)
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/comments" in joined:
+            return json.dumps(reopen_receipt(module, 42, branch, head, "pending"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/issues/comments/91" in joined:
+            return json.dumps(reopen_receipt(module, 42, branch, head, "completed"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"]:
+            requested = next(field.split("=", 1)[1] for field in command if field.startswith("state="))
+            state = requested
+            if requested == "closed":
+                raise module.MergeControllerError("github_command_failed")
+            return json.dumps(receipt(requested))
+        if command[:2] == ["gh", "api"]:
+            return json.dumps(receipt(state))
+        if command[:3] == ["gh", "pr", "view"]:
+            return json.dumps({**current, "state": state.upper()})
+        if command[:3] == ["gh", "pr", "list"]:
+            return json.dumps([{**current, "state": state.upper()}])
+        raise AssertionError(command)
+
+    module._reopen_for_contracts(42, current, head, runner)
+    assert state == "open"
+
+
+def test_uncertain_reopen_never_reopens_a_later_user_close() -> None:
+    module = load_module()
+    head = "d" * 40
+    branch = open_pr()["headRefName"]
+    attempts = 0
+
+    def pr_receipt(state):
+        return {
+            "number": 42, "state": state, "draft": False,
+            "base": {"ref": "main"},
+            "head": {"ref": branch, "sha": head, "repo": {"full_name": module.REPOSITORY}},
+            "user": {"login": module.TRUSTED_RELEASE_AUTHOR},
+        }
+
+    def runner(command):
+        nonlocal attempts
+        joined = " ".join(command)
+        if command[:4] == ["gh", "api", "--method", "PATCH"]:
+            attempts += 1
+            # The first reopen applied, its response was lost, then Harry closed it.
+            raise module.MergeControllerError("github_command_failed")
+        if command[:2] == ["gh", "api"] and "/pulls/42" in joined:
+            return json.dumps(pr_receipt("closed"))
+        if command[:3] == ["gh", "api", "--paginate"] and "/timeline?" in joined:
+            return json.dumps([[{
+                "id": 102, "event": "closed", "created_at": "2026-09-03T16:00:02Z",
+                "actor": {"login": module.TRUSTED_RELEASE_AUTHOR, "type": "User"},
+            }]])
+        raise AssertionError(command)
+
+    with pytest.raises(module.MergeControllerError, match="contracts_recheck_failed"):
+        module._reopen_closed_exact(
+            42, branch=branch, head_sha=head,
+            receipt_created_at="2026-09-03T16:00:00Z", runner=runner,
+        )
+    assert attempts == 1
+
+
+def test_schedule_recovers_exact_closed_pr_with_durable_recheck_marker() -> None:
+    module = load_module()
+    head = "d" * 40
+    branch = open_pr()["headRefName"]
+    closed = {
+        **open_pr(
+            state="CLOSED", headRefOid=head,
+            labels=[{"name": module.CONTRACT_RECHECK_LABEL}],
+        ),
+        "mergedAt": None,
+    }
+
+    def runner(command):
+        joined = " ".join(command)
+        if command[:3] == ["gh", "pr", "list"]:
+            return json.dumps([closed])
+        if command[:3] == ["gh", "api", "--paginate"] and "/comments?" in joined:
+            return json.dumps([[reopen_receipt(module, 42, branch, head, "pending")]])
+        if command[:3] == ["gh", "api", "--paginate"] and "/timeline?" in joined:
+            return json.dumps([[{
+                "id": 101, "event": "closed", "created_at": "2026-09-03T16:00:01Z",
+                "actor": {"login": module.TRUSTED_REVIEWER, "type": "User"},
+            }]])
+        if command[:4] == ["gh", "api", "--method", "PATCH"] and "/issues/comments/91" in joined:
+            return json.dumps(reopen_receipt(module, 42, branch, head, "completed"))
+        if command[:4] == ["gh", "api", "--method", "PATCH"]:
+            return json.dumps({
+                "number": 42, "state": "open", "draft": False,
+                "base": {"ref": "main"},
+                "head": {"ref": branch, "sha": head, "repo": {"full_name": module.REPOSITORY}},
+                "user": {"login": module.TRUSTED_RELEASE_AUTHOR},
+            })
+        if command[:3] == ["gh", "pr", "view"]:
+            return json.dumps(open_pr(headRefOid=head, labels=closed["labels"]))
+        raise AssertionError(command)
+
+    assert module._recover_closed_rechecks(runner) == [
+        {"status": "reopened", "pr_number": 42, "head_sha": head},
+    ]
