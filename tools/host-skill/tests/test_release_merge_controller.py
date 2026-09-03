@@ -688,7 +688,11 @@ def test_real_git_dirty_regeneration_preserves_candidate_data_and_both_parents(
     assert result["previous_head_sha"] == old_b
     assert result["head_sha"] == pushed_head
     assert pushed_head is not None
-    assert git(seed, "show", "-s", "--format=%P", pushed_head).split() == [latest_main, old_b]
+    seal_parents = git(seed, "show", "-s", "--format=%P", pushed_head).split()
+    assert len(seal_parents) == 1
+    reconciliation_head = seal_parents[0]
+    assert git(seed, "show", "-s", "--format=%P", reconciliation_head).split() == [latest_main, old_b]
+    assert git(seed, "rev-parse", f"{pushed_head}^{{tree}}") == git(seed, "rev-parse", f"{reconciliation_head}^{{tree}}")
     assert git(seed, "merge-base", "--is-ancestor", latest_main, pushed_head) == ""
     assert git(seed, "merge-base", "--is-ancestor", old_b, pushed_head) == ""
     for path, blob in old_blobs.items():
