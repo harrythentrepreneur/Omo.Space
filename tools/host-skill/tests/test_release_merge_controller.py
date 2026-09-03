@@ -38,6 +38,7 @@ def open_pr(**changes):
         "reviewDecision": "APPROVED",
         "mergeStateStatus": "CLEAN",
         "mergeCommit": None,
+        "labels": [],
     }
     value.update(changes)
     return value
@@ -434,13 +435,18 @@ def test_merge_workflow_loads_controller_only_from_main() -> None:
     assert "GH_TOKEN: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}" in workflow
     assert "GH_TOKEN: ${{ github.token }}" not in workflow
     assert "ref: main" in workflow and "fetch-depth: 0" in workflow
-    assert "token: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}" in workflow
+    assert "token: ${{ github.token }}" in workflow
+    assert "token: ${{ secrets.TRUSTED_RELEASE_REVIEW_TOKEN }}" not in workflow
     assert "persist-credentials: true" in workflow
     assert "path: controller" in workflow
     assert "if [ ! -f controller/tools/host-skill/release_merge_controller.py ]; then" in workflow
     assert "exit 0" in workflow
     assert "python3 controller/tools/host-skill/release_merge_controller.py" in workflow
     assert "github.event.pull_request.head.sha" not in workflow
+
+    contracts = (ROOT / ".github/workflows/generated-workflow-contracts.yml").read_text()
+    assert "types: [opened, synchronize, reopened, labeled]" in contracts
+    assert "github.event.action != 'labeled' || github.event.label.name == 'omo-release-recheck'" in contracts
 
 
 def git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
@@ -645,11 +651,15 @@ def test_real_git_dirty_regeneration_preserves_candidate_data_and_both_parents(
         reviewDecision="REVIEW_REQUIRED",
     )
     pushed_head = None
+    recheck_label_applied = False
 
     def runner(command):
-        nonlocal pushed_head
+        nonlocal pushed_head, recheck_label_applied
         if command[:3] == ["gh", "pr", "list"]:
             return json.dumps([dirty])
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in " ".join(command):
+            recheck_label_applied = True
+            return json.dumps([{"name": module.CONTRACT_RECHECK_LABEL}])
         if command[:3] == ["gh", "pr", "view"]:
             remote_head = git(seed, "ls-remote", origin.as_posix(), f"refs/heads/{branch_b}").split()[0]
             if remote_head != old_b:
@@ -659,6 +669,7 @@ def test_real_git_dirty_regeneration_preserves_candidate_data_and_both_parents(
                     headRefOid=remote_head,
                     mergeStateStatus="BLOCKED",
                     reviewDecision="REVIEW_REQUIRED",
+                    labels=[{"name": module.CONTRACT_RECHECK_LABEL}] if recheck_label_applied else [],
                 ))
             return json.dumps(dirty)
         raise AssertionError(command)
@@ -727,3 +738,33 @@ def test_failed_dirty_push_distinguishes_cas_race_from_write_failure(monkeypatch
             Path("/trusted"), branch=branch, old_head=HEAD,
             new_head="d" * 40, main_sha=MERGE,
         )
+
+
+def test_regenerated_head_triggers_fresh_contracts_without_reviewer_push_identity() -> None:
+    module = load_module()
+    calls = []
+    current = open_pr(headRefOid="d" * 40, reviewDecision="REVIEW_REQUIRED", labels=[])
+
+    applied = False
+
+    def runner(command):
+        nonlocal applied
+        calls.append(command)
+        joined = " ".join(command)
+        if command[:4] == ["gh", "api", "--method", "POST"] and "/issues/42/labels" in joined:
+            applied = True
+            return json.dumps([{"name": module.CONTRACT_RECHECK_LABEL}])
+        if command[:3] == ["gh", "pr", "view"]:
+            return json.dumps({
+                **current,
+                "labels": [{"name": module.CONTRACT_RECHECK_LABEL}] if applied else [],
+            })
+        raise AssertionError(command)
+
+    module._trigger_contracts_recheck(42, current, "d" * 40, runner)
+    assert any(
+        command[:4] == ["gh", "api", "--method", "POST"]
+        and f"labels[]={module.CONTRACT_RECHECK_LABEL}" in command
+        for command in calls
+    )
+    assert not any(command[:4] == ["gh", "api", "--method", "DELETE"] for command in calls)
