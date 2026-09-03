@@ -1,8 +1,6 @@
 name: trusted-release-merge
 
 on:
-  pull_request_review:
-    types: [submitted, dismissed]
   workflow_run:
     workflows: [generated-workflow-contracts]
     types: [completed]

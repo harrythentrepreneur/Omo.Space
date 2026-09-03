@@ -69,7 +69,8 @@ def successful_runner(
     calls, *, reviews=None, pr_changes=None, check_value=None,
     merge_value=None,
 ):
-    views = [open_pr(**(pr_changes or {})), open_pr(state="MERGED", mergeCommit={"oid": MERGE})]
+    current = open_pr(**(pr_changes or {}))
+    views = [current, current, open_pr(state="MERGED", mergeCommit={"oid": MERGE})]
     review_pages = reviews if reviews is not None else [[review()]]
 
     def runner(command):
@@ -139,11 +140,34 @@ def test_older_open_release_for_same_slug_is_never_merged() -> None:
     assert not any(call[:4] == ["gh", "api", "--method", "PUT"] for call in calls)
 
 
+def test_older_release_stays_superseded_after_newer_same_slug_is_closed() -> None:
+    module = load_module()
+    calls = []
+    newer = open_pr(
+        number=43,
+        state="MERGED",
+        headRefName="omo-release/sub_" + "2" * 32 + "-safe-workflow",
+        headRefOid="c" * 40,
+    )
+    base_runner = successful_runner(calls)
+
+    def runner(command):
+        if command[:3] == ["gh", "pr", "list"]:
+            calls.append(command)
+            return json.dumps([open_pr(), newer])
+        return base_runner(command)
+
+    with pytest.raises(module.MergeControllerError, match="superseded_release_pr"):
+        module.merge_release_pr(42, runner=runner)
+    assert not any(call[:4] == ["gh", "api", "--method", "PUT"] for call in calls)
+
+
 def test_behind_latest_release_is_exact_head_updated_then_requeued() -> None:
     module = load_module()
     old_head = HEAD
     new_head = "c" * 40
     views = [
+        open_pr(mergeStateStatus="BEHIND"),
         open_pr(mergeStateStatus="BEHIND"),
         open_pr(headRefOid=new_head, reviewDecision="REVIEW_REQUIRED", mergeStateStatus="BLOCKED"),
     ]
@@ -189,6 +213,23 @@ def test_rest_merge_receipt_must_confirm_a_valid_merge(receipt) -> None:
     with pytest.raises(module.MergeControllerError, match="merge_receipt_invalid"):
         module.merge_release_pr(42, runner=runner)
     assert len([call for call in calls if call[:4] == ["gh", "api", "--method", "PUT"]]) == 1
+
+
+def test_mutable_pr_identity_is_revalidated_immediately_before_merge() -> None:
+    module = load_module()
+    calls = []
+    views = [open_pr(), open_pr(baseRefName="other")]
+    base_runner = successful_runner(calls)
+
+    def runner(command):
+        if command[:3] == ["gh", "pr", "view"]:
+            calls.append(command)
+            return json.dumps(views.pop(0))
+        return base_runner(command)
+
+    with pytest.raises(module.MergeControllerError, match="release_pr_identity_invalid"):
+        module.merge_release_pr(42, runner=runner)
+    assert not any("/pulls/42/merge" in " ".join(call) for call in calls)
 
 
 def test_latest_matching_contracts_check_must_be_successful_and_well_typed() -> None:
@@ -276,7 +317,11 @@ def test_scheduled_candidates_are_isolated_when_one_is_malformed(tmp_path: Path)
         "schedule": "*/5 * * * *",
         "repository": {"full_name": module.REPOSITORY},
     }))
-    valid_views = [open_pr(number=42), open_pr(number=42, state="MERGED", mergeCommit={"oid": MERGE})]
+    valid_views = [
+        open_pr(number=42),
+        open_pr(number=42),
+        open_pr(number=42, state="MERGED", mergeCommit={"oid": MERGE}),
+    ]
 
     def runner(command):
         joined = " ".join(command)
@@ -330,7 +375,7 @@ def test_cli_fails_the_workflow_when_any_candidate_is_blocked(tmp_path: Path, mo
 
 def test_merge_workflow_loads_controller_only_from_main() -> None:
     workflow = (ROOT / ".github/workflows/trusted-release-merge.yml").read_text()
-    assert "pull_request_review:" in workflow
+    assert "pull_request_review:" not in workflow
     assert "workflow_run:" in workflow
     assert "cron: '*/5 * * * *'" in workflow
     assert "contents: write" in workflow and "pull-requests: write" in workflow

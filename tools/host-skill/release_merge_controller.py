@@ -23,6 +23,7 @@ BRANCH_RE = re.compile(
 )
 MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_CANDIDATES = 100
+MAX_RELEASE_HISTORY = 1000
 MAX_REVIEWS = 1000
 MAX_GITHUB_ID = 9_007_199_254_740_991
 
@@ -77,16 +78,6 @@ def _read_event(path: Path) -> dict[str, Any]:
 
 def candidate_pr_numbers(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> list[int]:
     event = _read_event(event_path)
-    pull = event.get("pull_request")
-    review = event.get("review")
-    if event.get("action") == "submitted" and isinstance(pull, dict) and isinstance(review, dict):
-        if str(review.get("state") or "").lower() != "approved":
-            return []
-        number = pull.get("number")
-        if type(number) is not int or not 1 <= number <= 2_147_483_647:
-            raise MergeControllerError("invalid_event")
-        return [number]
-
     workflow_run = event.get("workflow_run")
     if event.get("action") == "completed" and isinstance(workflow_run, dict):
         if (
@@ -168,10 +159,10 @@ def _validate_latest_release_for_slug(pr: dict[str, Any], runner: Callable[[list
     slug = match.group("slug")
     rows = _json_command([
         "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
-        "--state", "open", "--limit", str(MAX_CANDIDATES + 1),
+        "--state", "all", "--limit", str(MAX_RELEASE_HISTORY + 1),
         "--json", "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author",
     ], runner)
-    if not isinstance(rows, list) or len(rows) > MAX_CANDIDATES:
+    if not isinstance(rows, list) or len(rows) > MAX_RELEASE_HISTORY:
         raise MergeControllerError("github_response_invalid")
     matching_numbers: list[int] = []
     for row in rows:
@@ -194,7 +185,7 @@ def _validate_latest_release_for_slug(pr: dict[str, Any], runner: Callable[[list
         if (
             type(number) is not int
             or not 1 <= number <= 2_147_483_647
-            or row.get("state") != "OPEN"
+            or row.get("state") not in {"OPEN", "CLOSED", "MERGED"}
             or row.get("isDraft") is not False
             or row.get("baseRefName") != BASE
             or not SHA_RE.fullmatch(head_sha)
@@ -365,7 +356,14 @@ def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) 
     head_sha, author_login, merge_state = _validate_pr(pr, number)
     _validate_latest_release_for_slug(pr, runner)
     if merge_state == "BEHIND":
-        updated_head = _update_branch_exact(number, pr, head_sha, runner)
+        current = _pr_view(number, runner)
+        current_head, _current_author, current_state = _validate_pr(current, number)
+        if current_head != head_sha:
+            raise MergeControllerError("exact_head_review_required")
+        _validate_latest_release_for_slug(current, runner)
+        if current_state != "BEHIND":
+            raise MergeControllerError("release_pr_not_mergeable")
+        updated_head = _update_branch_exact(number, current, head_sha, runner)
         return {
             "status": "updated", "pr_number": number,
             "previous_head_sha": head_sha, "head_sha": updated_head,
@@ -376,6 +374,15 @@ def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) 
         raise MergeControllerError("release_pr_not_mergeable")
     _validate_separate_review(_review_pages(number, runner), head_sha=head_sha, author_login=author_login)
     _validate_required_check(head_sha, runner)
+    current = _pr_view(number, runner)
+    current_head, current_author, current_state = _validate_pr(current, number)
+    if current_head != head_sha or current_author != author_login:
+        raise MergeControllerError("exact_head_review_required")
+    _validate_latest_release_for_slug(current, runner)
+    if current.get("reviewDecision") != "APPROVED":
+        raise MergeControllerError("separate_review_required")
+    if current_state != "CLEAN":
+        raise MergeControllerError("release_pr_not_mergeable")
     api_merge_sha = _merge_exact_head(number, head_sha, runner)
     merged = _pr_view(number, runner)
     commit = merged.get("mergeCommit")
