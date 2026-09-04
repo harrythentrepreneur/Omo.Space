@@ -5149,6 +5149,55 @@ window.OMO_CATALOG = [
     }
   }
   ,{
+    "category": "ops",
+    "cover": null,
+    "demoCap": "Run reviewed example",
+    "desc": "Deterministically sort a short label list without any AI provider.",
+    "emoji": "\ud83d\udd24",
+    "exampleIn": "{\n  \"labels\": [\n    \" Stable \",\n    \"alpha\",\n    \"Beta\"\n  ]\n}",
+    "exampleOut": [
+      "cleaned, deterministically sorted labels"
+    ],
+    "free": false,
+    "icon": null,
+    "inputs": [
+      "labels: 1 to 12 strings, each 1 to 60 printable ASCII characters"
+    ],
+    "maker": "Submitted skill",
+    "makerName": "Submitted skill",
+    "name": "Upload Smoke Label Sorter",
+    "niche": "productivity",
+    "outputs": [
+      "cleaned, deterministically sorted labels"
+    ],
+    "priceMaintain": 0.0,
+    "priceOwn": 0.0,
+    "promise": "Return a deterministic sorted label list.",
+    "runManifest": "run-manifests/upload-smoke-label-sorter.json",
+    "runPrice": 0.1,
+    "slug": "upload-smoke-label-sorter",
+    "tags": [
+      "text",
+      "deterministic"
+    ],
+    "upvotes": 0,
+    "version": "1.0.0",
+    "workflow": {
+      "steps": [
+        {
+          "label": "pure_data.execute",
+          "role": "execute",
+          "type": "pipeline"
+        },
+        {
+          "label": "Running the workflow",
+          "role": "running",
+          "type": "pipeline"
+        }
+      ]
+    }
+  }
+  ,{
     "category": "utility",
     "cover": null,
     "demoCap": "Run reviewed example",
@@ -8180,6 +8229,7 @@ window.OMO_VISIBLE_SLUGS = [
   'gemini-ticket-priority-canary',
   'incident-route-classifier-canary',
   'release-tag-sorter-canary',
+  'upload-smoke-label-sorter',
   'upload-smoke-note-classifier',
   'v02-release-label-sorter',
   'v02-release-label-sorter-test',

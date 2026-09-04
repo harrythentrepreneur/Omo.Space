@@ -1,0 +1,28 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.7.0",
+  "cost_drivers": [
+    "bounded deterministic CPU"
+  ],
+  "description": "Deterministically sort a short label list without any AI provider.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "Upload Smoke Label Sorter",
+  "parsed_workflow_steps": [],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "execute",
+      "operation": "pure_data.execute",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "upload-smoke-label-sorter",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "7f05fdef2c6c87d3ad12587eca677d101a5a03b847e0da027794c0ca821d4dbc"
+  },
+  "unresolved": []
+}
