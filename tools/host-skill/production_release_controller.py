@@ -71,6 +71,7 @@ BRANCH = "main"
 WORKER_BASE_URL = "https://omo.space"
 SAFE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_ID_RE = re.compile(r"^[1-9][0-9]{0,19}$")
+
 REGISTRY_ROW_RE = re.compile(r'^  \[\n    "([a-z0-9]+(?:-[a-z0-9]+)*)",\n    \{$', re.MULTILINE)
 MAX_HTTP_BYTES = 1024 * 1024
 CANARY_SOURCE_MAX_BYTES = 200 * 1024
@@ -95,13 +96,13 @@ AUTONOMY_PROOF_SOURCES = (
         "name": "Autonomous Priority Label Sorter",
         "slug": "autonomous-priority-label-sorter",
         "path": "tools/host-skill/canaries/autonomous-priority-label-sorter/SKILL.md",
-        "sha256": "fbaa1cbb1eff8232bb8538d1350ee97132fac9f1cd32c125e69be4ee51dc8d66",
+        "sha256": "f72d2583a0c0969956a58dda72c740e38930b4eef3cc35962f772f7ccbc26a1b",
     },
     {
         "name": "Autonomous Reply Urgency Classifier",
         "slug": "autonomous-reply-urgency-classifier",
         "path": "tools/host-skill/canaries/autonomous-reply-urgency-classifier/SKILL.md",
-        "sha256": "4c262016815710b8a2a7cd48989ef28c0fc02f48290f9222a8ccf2301e70cb1a",
+        "sha256": "26dbb34409f92ade194064d7f491ab4cbfca823fda90d095c54ae3a5f1dc4a51",
     },
 )
 SUBMISSION_SEED_SOURCES = CANARY_SOURCES + AUTONOMY_PROOF_SOURCES
@@ -603,6 +604,78 @@ class GitHubMainlineAdapter:
         self.calls += 1
         return GreenMain(trigger, sha, WORKFLOW_NAME, "push", BRANCH, "success")
 
+    def merged_release_receipt(
+        self, target_sha: str, identities: set[tuple[str, str]]
+    ) -> dict[str, Any] | None:
+        """Resolve the newest pending release receipt from bounded main history."""
+        if (
+            not SAFE_SHA_RE.fullmatch(str(target_sha or ""))
+            or not isinstance(identities, set) or len(identities) > MAX_FINALIZATION_TARGETS
+            or any(
+                not re.fullmatch(r"sub_[A-Za-z0-9_-]{8,100}", submission)
+                or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug)
+                for submission, slug in identities
+            )
+        ):
+            raise ControllerError("release_merge_receipt_invalid")
+        if not identities:
+            return None
+        history = self._git(
+            "log", "--first-parent", "-n", "50", "--format=%H%x09%s", target_sha
+        ).splitlines()
+        for line in history:
+            try:
+                commit_sha, subject = line.split("\t", 1)
+            except ValueError:
+                raise ControllerError("release_merge_receipt_invalid") from None
+            commit_sha = commit_sha.lower()
+            if not SAFE_SHA_RE.fullmatch(commit_sha):
+                raise ControllerError("release_merge_receipt_invalid")
+            hint = re.search(r"\(#([1-9][0-9]{0,9})\)\s*$", subject)
+            if hint is None:
+                continue
+            number = int(hint.group(1))
+            pr = self._api(f"/pulls/{number}")
+            base_value = pr.get("base")
+            head_value = pr.get("head")
+            user_value = pr.get("user")
+            base: dict[str, Any] = base_value if isinstance(base_value, dict) else {}
+            head: dict[str, Any] = head_value if isinstance(head_value, dict) else {}
+            user: dict[str, Any] = user_value if isinstance(user_value, dict) else {}
+            base_repo_value = base.get("repo")
+            head_repo_value = head.get("repo")
+            base_repo: dict[str, Any] = base_repo_value if isinstance(base_repo_value, dict) else {}
+            head_repo: dict[str, Any] = head_repo_value if isinstance(head_repo_value, dict) else {}
+            branch = str(head.get("ref") or "")
+            matched = [
+                (submission, slug) for submission, slug in sorted(identities)
+                if branch == f"omo-release/{submission}-{slug}"
+            ]
+            if not matched:
+                continue
+            if len(matched) != 1:
+                raise ControllerError("release_merge_receipt_invalid")
+            submission_id, slug = matched[0]
+            valid = (
+                pr.get("number") == number and pr.get("state") == "closed" and bool(pr.get("merged_at"))
+                and str(pr.get("merge_commit_sha") or "").lower() == commit_sha
+                and user.get("login") == "harrythentrepreneur"
+                and base.get("ref") == BRANCH and base_repo.get("full_name") == REPOSITORY
+                and head_repo.get("full_name") == REPOSITORY
+                and SAFE_SHA_RE.fullmatch(str(head.get("sha") or "").lower())
+            )
+            if not valid:
+                raise ControllerError("release_merge_receipt_invalid")
+            return {
+                "submission_id": submission_id,
+                "slug": slug,
+                "pr_number": number,
+                "branch": branch,
+                "head_sha": str(head["sha"]).lower(),
+                "merge_sha": commit_sha,
+            }
+        return None
+
     def _git(self, *args: str, text: bool = True) -> Any:
         result = subprocess.run(
             ["git", "-C", str(self.checkout), *args], shell=False, capture_output=True,
@@ -781,6 +854,32 @@ class HttpFinalizationStore:
                 raise ControllerError("invalid_finalizer_eligibility_boolean")
             seen_ids.add(submission_id)
         return rows
+
+    def reconcile_merged(self, target_sha: str, receipt: dict[str, Any]) -> bool:
+        expected = {
+            "submission_id", "slug", "source_sha256", "pr_number",
+            "branch", "head_sha", "merge_sha",
+        }
+        if (
+            not SAFE_SHA_RE.fullmatch(str(target_sha or ""))
+            or not isinstance(receipt, dict) or set(receipt) != expected
+            or not SAFE_SHA_RE.fullmatch(str(receipt.get("merge_sha") or ""))
+            or not SAFE_SHA_RE.fullmatch(str(receipt.get("head_sha") or ""))
+        ):
+            raise ControllerError("release_merge_receipt_invalid")
+        status, body = self._post(
+            "/api/internal/finalizations/reconcile-merged",
+            {"target_sha": target_sha, "receipt": receipt},
+        )
+        if (
+            status != 200 or not isinstance(body, dict) or body.get("ok") is not True
+            or body.get("id") != receipt.get("submission_id")
+            or body.get("status") != "ready_for_deploy"
+            or body.get("release_phase") != "merged_verified"
+            or body.get("release_merge_sha") != target_sha
+        ):
+            raise ControllerError("release_merge_reconciliation_failed")
+        return True
 
     def resume_completed(self, target_sha: str) -> FinalizationClaim | None:
         status, body = self._post("/api/internal/finalizations/resume-completed", {"target_sha": target_sha})
@@ -1429,9 +1528,13 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
         checkout, args.trigger_sha, int(args.run_id), int(args.run_attempt),
         env.get("GITHUB_TOKEN", ""),
     )
+    green = mainline.latest_green()
+    if green.trigger_sha != green.target_sha:
+        return {"status": "superseded", "target_sha": green.target_sha}
+    targets = derive_finalization_targets(mainline, green.target_sha)
     store = HttpFinalizationStore(
         env.get("RELEASE_FINALIZER_TOKEN", ""),
-        targets=derive_finalization_targets(mainline, args.trigger_sha),
+        targets=targets,
     )
     modal = ProductionModalAdapter(env)
     cloudflare = ProductionCloudflareAdapter(env)
@@ -1443,6 +1546,25 @@ def run_once(args, environ: dict[str, str] | None = None) -> dict[str, Any]:
         )
     else:
         result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
+    if result.get("status") == "idle":
+        eligibility = store.eligibility(green.target_sha)
+        pending_identities = {
+            (row["submission_id"], row["slug"])
+            for row in eligibility
+            if row.get("status") == "ready_for_deploy"
+            and row.get("release_phase") in {"pr_open", "ci_passed"}
+            and row.get("release_merge_sha_present") is False
+        }
+        receipt = mainline.merged_release_receipt(green.target_sha, pending_identities)
+        if receipt is not None:
+            matching = [item for item in targets if item["slug"] == receipt["slug"]]
+            if len(matching) != 1:
+                raise ControllerError("release_merge_receipt_invalid")
+            store.reconcile_merged(
+                green.target_sha,
+                {**receipt, "source_sha256": matching[0]["source_sha256"]},
+            )
+            result = run_finalizer(mainline, store, modal, cloudflare, public, targets=TARGETS)
     if result.get("status") == "idle":
         eligibility = store.eligibility(result["target_sha"])
         trusted_checkout = mainline.checkout_detached(result["target_sha"])

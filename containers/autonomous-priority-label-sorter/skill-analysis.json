@@ -1,0 +1,28 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.7.0",
+  "cost_drivers": [
+    "bounded deterministic CPU"
+  ],
+  "description": "Clean and sort a bounded list of priority labels as an unattended production pipeline proof.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "Autonomous Priority Label Sorter",
+  "parsed_workflow_steps": [],
+  "required_env_names": [],
+  "reviewed_steps": [
+    {
+      "id": "execute",
+      "operation": "pure_data.execute",
+      "readiness": "ready",
+      "type": "native"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "autonomous-priority-label-sorter",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "f72d2583a0c0969956a58dda72c740e38930b4eef3cc35962f772f7ccbc26a1b"
+  },
+  "unresolved": []
+}

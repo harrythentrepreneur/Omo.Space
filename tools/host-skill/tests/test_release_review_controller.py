@@ -178,6 +178,26 @@ def test_extra_path_is_rejected() -> None:
         module.validate_changed_entries(entries, SLUG)
 
 
+def test_reconciled_release_allows_required_file_unchanged_from_main() -> None:
+    module = load_module()
+    unchanged = f"site/run-manifests/{SLUG}.json"
+    entries = [
+        (path, "M", "100644", "100644")
+        for path in required_paths()
+        if path != unchanged
+    ]
+
+    module.validate_changed_entries(entries, SLUG)
+
+
+def test_release_diff_must_still_change_a_required_identity_file() -> None:
+    module = load_module()
+    entries = [(f"containers/{SLUG}/README.md", "M", "100644", "100644")]
+
+    with pytest.raises(module.ReviewControllerError, match="required_release_files_missing"):
+        module.validate_changed_entries(entries, SLUG)
+
+
 @pytest.mark.parametrize("mode", ["120000", "160000", "100755"])
 def test_symlink_submodule_and_executable_modes_are_rejected(mode) -> None:
     module = load_module()

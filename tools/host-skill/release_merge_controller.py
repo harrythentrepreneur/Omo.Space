@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
+import shutil
 import subprocess
-from pathlib import Path
+import sys
+import tempfile
+import time
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Sequence
 
 REPOSITORY = "harrythentrepreneur/Omo.Space"
@@ -16,10 +22,25 @@ TRUSTED_REVIEWER = "kaviru2"
 REQUIRED_CHECK = "contracts"
 REQUIRED_CHECK_APP_ID = 15368
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-BRANCH_RE = re.compile(r"^omo-release/sub_[A-Za-z0-9_-]{8,100}-[a-z0-9]+(?:-[a-z0-9]+)*$")
+BRANCH_RE = re.compile(
+    r"^omo-release/(?P<submission_id>sub_[0-9a-f]{32})-"
+    r"(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
+)
 MAX_RESPONSE_BYTES = 1024 * 1024
-MAX_CANDIDATES = 100
+MAX_CANDIDATES = 1000
+MAX_RELEASE_HISTORY = 1000
 MAX_REVIEWS = 1000
+MAX_GITHUB_ID = 9_007_199_254_740_991
+MAX_DIRTY_RELEASE_FILES = 1000
+MAX_DIRTY_RELEASE_BYTES = 64 * 1024 * 1024
+SHARED_GENERATED_PATHS = {
+    "site/catalog.js",
+    "site/deploy/hosted-skills.generated.mjs",
+}
+CONTRACT_RECHECK_LABEL = "omo-release-recheck"
+REOPEN_RECEIPT_PREFIX = "<!-- omo-release-reopen:v1 "
+REOPEN_RECEIPT_SUFFIX = " -->"
+MAX_REOPEN_RECEIPTS = 1000
 
 
 class MergeControllerError(RuntimeError):
@@ -57,6 +78,173 @@ def _json_command(command: list[str], runner: Callable[[list[str]], str]) -> Any
         raise MergeControllerError("github_response_invalid") from None
 
 
+def _git_bytes(
+    repo: Path,
+    args: list[str],
+    *,
+    error: str = "release_candidate_integrity_invalid",
+    env: dict[str, str] | None = None,
+) -> bytes:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo), *args],
+            shell=False,
+            check=False,
+            capture_output=True,
+            timeout=120,
+            env={**os.environ, **(env or {})},
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise MergeControllerError(error) from None
+    if result.returncode != 0 or len(result.stdout) > MAX_RESPONSE_BYTES * 64:
+        raise MergeControllerError(error)
+    return result.stdout
+
+
+def _git(
+    repo: Path,
+    *args: str,
+    error: str = "release_candidate_integrity_invalid",
+    env: dict[str, str] | None = None,
+) -> str:
+    try:
+        return _git_bytes(repo, list(args), error=error, env=env).decode("utf-8").strip()
+    except UnicodeDecodeError:
+        raise MergeControllerError(error) from None
+
+
+def _remote_head(repo: Path, ref: str) -> str:
+    raw = _git(
+        repo, "ls-remote", "--exit-code", "origin", ref,
+        error="release_regeneration_failed",
+    )
+    fields = raw.split()
+    if len(fields) != 2 or fields[1] != ref or not SHA_RE.fullmatch(fields[0]):
+        raise MergeControllerError("release_regeneration_failed")
+    return fields[0]
+
+
+def _push_dirty_head(
+    repo: Path, *, branch: str, old_head: str, new_head: str, main_sha: str,
+) -> None:
+    try:
+        _git(
+            repo,
+            "push", "origin", f"{new_head}:refs/heads/{branch}",
+            f"--force-with-lease=refs/heads/{branch}:{old_head}",
+            error="release_push_failed",
+        )
+    except MergeControllerError as error:
+        if error.code != "release_push_failed":
+            raise
+        if _remote_head(repo, f"refs/heads/{branch}") != old_head:
+            raise MergeControllerError("release_branch_moved") from None
+        if _remote_head(repo, f"refs/heads/{BASE}") != main_sha:
+            raise MergeControllerError("release_main_moved") from None
+        raise
+
+
+def _safe_release_path(path: str, slug: str) -> bool:
+    pure = PurePosixPath(path)
+    if (
+        not path
+        or pure.is_absolute()
+        or "\\" in path
+        or any(ord(character) < 32 or ord(character) == 127 for character in path)
+        or any(part in {"", ".", "..", ".git"} for part in pure.parts)
+    ):
+        return False
+    container_prefix = f"containers/{slug}/"
+    return path.startswith(container_prefix) or path in {
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
+        f"site/run-manifests/{slug}.json",
+    }
+
+
+def _raw_diff_records(repo: Path, old: str, new: str) -> list[tuple[str, str, str, str]]:
+    raw = _git_bytes(repo, ["diff", "--raw", "-z", "--no-abbrev", old, new])
+    fields = raw.split(b"\0")
+    records: list[tuple[str, str, str, str]] = []
+    index = 0
+    try:
+        while index < len(fields) and fields[index]:
+            header = fields[index].decode("ascii")
+            index += 1
+            path = fields[index].decode("utf-8")
+            index += 1
+            header_fields = header.split()
+            if len(header_fields) != 5 or not header_fields[0].startswith(":"):
+                raise ValueError
+            old_mode = header_fields[0][1:]
+            new_mode = header_fields[1]
+            status = header_fields[4]
+            if status.startswith(("R", "C")):
+                index += 1
+            records.append((status, old_mode, new_mode, path))
+    except (IndexError, UnicodeDecodeError, ValueError):
+        raise MergeControllerError("release_candidate_integrity_invalid") from None
+    return records
+
+
+def _candidate_blob_manifest(repo: Path, base: str, head: str, slug: str) -> dict[str, tuple[str, bytes]]:
+    """Return fixed slug-owned regular blobs after validating the candidate delta."""
+    merge_base = _git(repo, "merge-base", base, head)
+    if not SHA_RE.fullmatch(merge_base):
+        raise MergeControllerError("release_candidate_integrity_invalid")
+    changed: set[str] = set()
+    for status, old_mode, new_mode, path in _raw_diff_records(repo, merge_base, head):
+        if (
+            status not in {"A", "M"}
+            or (status == "M" and old_mode != new_mode)
+            or new_mode != "100644"
+            or not (_safe_release_path(path, slug) or path in SHARED_GENERATED_PATHS)
+        ):
+            raise MergeControllerError("release_candidate_integrity_invalid")
+        changed.add(path)
+    if not SHARED_GENERATED_PATHS.issubset(changed):
+        raise MergeControllerError("release_candidate_integrity_invalid")
+    if not any(_safe_release_path(path, slug) for path in changed):
+        raise MergeControllerError("release_candidate_integrity_invalid")
+
+    fixed_paths = [
+        f"containers/{slug}",
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
+        f"site/run-manifests/{slug}.json",
+    ]
+    listing = _git_bytes(repo, ["ls-tree", "-r", "-z", head, "--", *fixed_paths])
+    manifest: dict[str, tuple[str, bytes]] = {}
+    total_bytes = 0
+    try:
+        for record in listing.split(b"\0"):
+            if not record:
+                continue
+            metadata, raw_path = record.split(b"\t", 1)
+            mode, kind, blob_sha = metadata.decode("ascii").split()
+            path = raw_path.decode("utf-8")
+            if mode != "100644" or kind != "blob" or not SHA_RE.fullmatch(blob_sha) or not _safe_release_path(path, slug):
+                raise ValueError
+            content = _git_bytes(repo, ["cat-file", "blob", blob_sha])
+            total_bytes += len(content)
+            if path in manifest or len(manifest) >= MAX_DIRTY_RELEASE_FILES or total_bytes > MAX_DIRTY_RELEASE_BYTES:
+                raise ValueError
+            manifest[path] = (blob_sha, content)
+    except (UnicodeDecodeError, ValueError):
+        raise MergeControllerError("release_candidate_integrity_invalid") from None
+
+    required = {
+        f"containers/{slug}/manifest.json",
+        f"containers/{slug}/hosted-profile.json",
+        f"packages/skill-to-modal/profiles/{slug}.json",
+        f"packages/skill-to-modal/profile-authoring-specs/{slug}.json",
+        f"site/run-manifests/{slug}.json",
+    }
+    if not required.issubset(manifest):
+        raise MergeControllerError("release_candidate_integrity_invalid")
+    return manifest
+
+
 def _read_event(path: Path) -> dict[str, Any]:
     try:
         if path.is_symlink() or not path.is_file() or not 1 <= path.stat().st_size <= MAX_RESPONSE_BYTES:
@@ -70,25 +258,40 @@ def _read_event(path: Path) -> dict[str, Any]:
     return value
 
 
+def _open_candidate_pr_numbers(runner: Callable[[list[str]], str]) -> list[int]:
+    rows = _json_command([
+        "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
+        "--state", "open", "--limit", str(MAX_CANDIDATES + 1),
+        "--json", "number,headRefName",
+    ], runner)
+    if not isinstance(rows, list) or len(rows) > MAX_CANDIDATES:
+        raise MergeControllerError("github_response_invalid")
+    numbers: list[int] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise MergeControllerError("github_response_invalid")
+        number = row.get("number")
+        branch = str(row.get("headRefName") or "")
+        if type(number) is int and BRANCH_RE.fullmatch(branch):
+            numbers.append(number)
+    return sorted(set(numbers))
+
+
 def candidate_pr_numbers(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> list[int]:
     event = _read_event(event_path)
-    pull = event.get("pull_request")
-    review = event.get("review")
-    if event.get("action") == "submitted" and isinstance(pull, dict) and isinstance(review, dict):
-        if str(review.get("state") or "").lower() != "approved":
-            return []
-        number = pull.get("number")
-        if type(number) is not int or not 1 <= number <= 2_147_483_647:
-            raise MergeControllerError("invalid_event")
-        return [number]
-
     workflow_run = event.get("workflow_run")
     if event.get("action") == "completed" and isinstance(workflow_run, dict):
-        if (
-            workflow_run.get("name") != "generated-workflow-contracts"
-            or workflow_run.get("event") != "pull_request"
-            or workflow_run.get("conclusion") != "success"
-        ):
+        name = workflow_run.get("name")
+        workflow_event = workflow_run.get("event")
+        if workflow_run.get("conclusion") != "success":
+            return []
+        if name == "trusted-release-review":
+            return _open_candidate_pr_numbers(runner)
+        if name != "generated-workflow-contracts":
+            return []
+        if workflow_event == "push":
+            return _open_candidate_pr_numbers(runner)
+        if workflow_event != "pull_request":
             return []
         pulls = workflow_run.get("pull_requests")
         if (
@@ -101,68 +304,22 @@ def candidate_pr_numbers(event_path: Path, *, runner: Callable[[list[str]], str]
         return [pulls[0]["number"]]
 
     if event.get("schedule") == "*/5 * * * *":
-        rows = _json_command([
-            "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
-            "--state", "open", "--limit", str(MAX_CANDIDATES),
-            "--json", "number,headRefName",
-        ], runner)
-        if not isinstance(rows, list) or len(rows) > MAX_CANDIDATES:
-            raise MergeControllerError("github_response_invalid")
-        numbers: list[int] = []
-        for row in rows:
-            if not isinstance(row, dict):
-                raise MergeControllerError("github_response_invalid")
-            number = row.get("number")
-            branch = str(row.get("headRefName") or "")
-            if type(number) is int and BRANCH_RE.fullmatch(branch):
-                numbers.append(number)
-        return sorted(set(numbers))
+        return _open_candidate_pr_numbers(runner)
     return []
-
-
-def _validate_protection(value: Any) -> None:
-    if not isinstance(value, dict):
-        raise MergeControllerError("branch_protection_inadequate")
-    checks = value.get("required_status_checks")
-    reviews = value.get("required_pull_request_reviews")
-    force_pushes = value.get("allow_force_pushes")
-    required = checks.get("checks") if isinstance(checks, dict) else None
-    count = reviews.get("required_approving_review_count") if isinstance(reviews, dict) else None
-    exact_check = any(
-        isinstance(item, dict)
-        and item.get("context") == REQUIRED_CHECK
-        and type(item.get("app_id")) is int
-        and item.get("app_id") == REQUIRED_CHECK_APP_ID
-        for item in required or []
-    )
-    if (
-        not isinstance(checks, dict)
-        or checks.get("strict") is not True
-        or not exact_check
-        or not isinstance(reviews, dict)
-        or type(count) is not int
-        or count < 1
-        or reviews.get("dismiss_stale_reviews") is not True
-        or reviews.get("require_code_owner_reviews") is not True
-        or reviews.get("require_last_push_approval") is not True
-        or not isinstance(force_pushes, dict)
-        or force_pushes.get("enabled") is not False
-    ):
-        raise MergeControllerError("branch_protection_inadequate")
 
 
 def _pr_view(number: int, runner: Callable[[list[str]], str]) -> dict[str, Any]:
     value = _json_command([
         "gh", "pr", "view", str(number), "--repo", REPOSITORY,
         "--json",
-        "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author,reviewDecision,mergeStateStatus,mergeCommit",
+        "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author,reviewDecision,mergeStateStatus,mergeCommit,labels",
     ], runner)
     if not isinstance(value, dict):
         raise MergeControllerError("github_response_invalid")
     return value
 
 
-def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str]:
+def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str, str]:
     author = pr.get("author")
     repository = pr.get("headRepository")
     author_login = str(author.get("login") if isinstance(author, dict) else "")
@@ -180,11 +337,58 @@ def _validate_pr(pr: dict[str, Any], number: int) -> tuple[str, str]:
         or author_login == TRUSTED_REVIEWER
     ):
         raise MergeControllerError("release_pr_identity_invalid")
-    if pr.get("reviewDecision") != "APPROVED":
-        raise MergeControllerError("separate_review_required")
-    if pr.get("mergeStateStatus") != "CLEAN":
-        raise MergeControllerError("release_pr_not_mergeable")
-    return head_sha, author_login
+    merge_state = str(pr.get("mergeStateStatus") or "")
+    if merge_state not in {"BEHIND", "BLOCKED", "CLEAN", "DIRTY", "DRAFT", "HAS_HOOKS", "UNKNOWN", "UNSTABLE"}:
+        raise MergeControllerError("github_response_invalid")
+    return head_sha, author_login, merge_state
+
+
+def _validate_latest_release_for_slug(pr: dict[str, Any], runner: Callable[[list[str]], str]) -> None:
+    branch = str(pr.get("headRefName") or "")
+    match = BRANCH_RE.fullmatch(branch)
+    if match is None:
+        raise MergeControllerError("release_pr_identity_invalid")
+    slug = match.group("slug")
+    rows = _json_command([
+        "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
+        "--state", "all", "--limit", str(MAX_RELEASE_HISTORY + 1),
+        "--json", "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author",
+    ], runner)
+    if not isinstance(rows, list) or len(rows) > MAX_RELEASE_HISTORY:
+        raise MergeControllerError("github_response_invalid")
+    matching_numbers: list[int] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise MergeControllerError("github_response_invalid")
+        row_match = BRANCH_RE.fullmatch(str(row.get("headRefName") or ""))
+        if row_match is None or row_match.group("slug") != slug:
+            continue
+        author = row.get("author")
+        repository = row.get("headRepository")
+        if (
+            not isinstance(author, dict)
+            or author.get("login") != TRUSTED_RELEASE_AUTHOR
+            or not isinstance(repository, dict)
+            or repository.get("nameWithOwner") != REPOSITORY
+        ):
+            continue
+        number = row.get("number")
+        head_sha = str(row.get("headRefOid") or "").lower()
+        if (
+            type(number) is not int
+            or not 1 <= number <= 2_147_483_647
+            or row.get("state") not in {"OPEN", "CLOSED", "MERGED"}
+            or row.get("isDraft") is not False
+            or row.get("baseRefName") != BASE
+            or not SHA_RE.fullmatch(head_sha)
+        ):
+            raise MergeControllerError("github_response_invalid")
+        matching_numbers.append(number)
+    current_number = pr.get("number")
+    if current_number not in matching_numbers:
+        raise MergeControllerError("github_response_invalid")
+    if current_number != max(matching_numbers):
+        raise MergeControllerError("superseded_release_pr")
 
 
 def _review_pages(number: int, runner: Callable[[list[str]], str]) -> list[dict[str, Any]]:
@@ -209,7 +413,7 @@ def _review_pages(number: int, runner: Callable[[list[str]], str]) -> list[dict[
             user_type = user.get("type") if isinstance(user, dict) else None
             if (
                 type(review_id) is not int
-                or not 1 <= review_id <= 2_147_483_647
+                or not 1 <= review_id <= MAX_GITHUB_ID
                 or state not in {"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING"}
                 or not isinstance(login, str)
                 or not 1 <= len(login) <= 100
@@ -283,21 +487,671 @@ def _validate_required_check(head_sha: str, runner: Callable[[list[str]], str]) 
         raise MergeControllerError("required_checks_not_successful")
 
 
-def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) -> dict[str, Any]:
+def _merge_exact_head(number: int, head_sha: str, runner: Callable[[list[str]], str]) -> str:
+    """Use GitHub's compare-and-swap merge endpoint directly.
+
+    The REST ``sha`` field makes the mutation conditional on the exact head we
+    just validated.  This avoids gh's higher-level auto-merge/merge-queue
+    negotiation while leaving branch protection enforcement to GitHub.
+    """
+    value = _json_command([
+        "gh", "api", "--method", "PUT",
+        f"repos/{REPOSITORY}/pulls/{number}/merge",
+        "-f", f"sha={head_sha}", "-f", "merge_method=squash",
+    ], runner)
+    merge_sha = str(value.get("sha") if isinstance(value, dict) else "").lower()
+    message = value.get("message") if isinstance(value, dict) else None
+    if (
+        not isinstance(value, dict)
+        or value.get("merged") is not True
+        or not SHA_RE.fullmatch(merge_sha)
+        or not isinstance(message, str)
+        or not 1 <= len(message) <= 500
+    ):
+        raise MergeControllerError("merge_receipt_invalid")
+    return merge_sha
+
+
+def _update_branch_exact(
+    number: int, pr: dict[str, Any], head_sha: str, runner: Callable[[list[str]], str],
+) -> str:
+    value = _json_command([
+        "gh", "api", "--method", "PUT",
+        f"repos/{REPOSITORY}/pulls/{number}/update-branch",
+        "-f", f"expected_head_sha={head_sha}",
+    ], runner)
+    message = value.get("message") if isinstance(value, dict) else None
+    url = value.get("url") if isinstance(value, dict) else None
+    if (
+        not isinstance(message, str)
+        or not 1 <= len(message) <= 500
+        or url != f"https://api.github.com/repos/{REPOSITORY}/pulls/{number}"
+    ):
+        raise MergeControllerError("update_branch_receipt_invalid")
+    expected_branch = pr.get("headRefName")
+    for attempt in range(10):
+        updated = _pr_view(number, runner)
+        updated_head, _author, _state = _validate_pr(updated, number)
+        if updated.get("headRefName") != expected_branch:
+            raise MergeControllerError("update_branch_receipt_invalid")
+        if updated_head != head_sha:
+            return updated_head
+        if attempt < 9:
+            time.sleep(1)
+    raise MergeControllerError("update_branch_receipt_invalid")
+
+
+def _worktree_status_paths(worktree: Path) -> set[str]:
+    fields = _git_bytes(worktree, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]).split(b"\0")
+    paths: set[str] = set()
+    index = 0
+    try:
+        while index < len(fields) and fields[index]:
+            record = fields[index]
+            index += 1
+            if len(record) < 4 or record[2:3] != b" ":
+                raise ValueError
+            status = record[:2].decode("ascii")
+            path = record[3:].decode("utf-8")
+            if "R" in status or "C" in status:
+                index += 1
+            paths.add(path)
+    except (IndexError, UnicodeDecodeError, ValueError):
+        raise MergeControllerError("release_regeneration_failed") from None
+    return paths
+
+
+def _validated_label_names(value: Any) -> set[str]:
+    if not isinstance(value, list) or len(value) > 100:
+        raise MergeControllerError("github_response_invalid")
+    names: set[str] = set()
+    for item in value:
+        name = item.get("name") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not 1 <= len(name) <= 100:
+            raise MergeControllerError("github_response_invalid")
+        names.add(name)
+    return names
+
+
+def _validate_pr_state_receipt(
+    value: Any, *, number: int, branch: str, head_sha: str, state: str,
+) -> None:
+    base = value.get("base") if isinstance(value, dict) else None
+    head = value.get("head") if isinstance(value, dict) else None
+    repository = head.get("repo") if isinstance(head, dict) else None
+    user = value.get("user") if isinstance(value, dict) else None
+    if (
+        not isinstance(value, dict)
+        or value.get("number") != number
+        or value.get("state") != state
+        or value.get("draft") is not False
+        or not isinstance(base, dict)
+        or base.get("ref") != BASE
+        or not isinstance(head, dict)
+        or head.get("ref") != branch
+        or str(head.get("sha") or "").lower() != head_sha
+        or not isinstance(repository, dict)
+        or repository.get("full_name") != REPOSITORY
+        or not isinstance(user, dict)
+        or user.get("login") != TRUSTED_RELEASE_AUTHOR
+    ):
+        raise MergeControllerError("contracts_recheck_failed")
+
+
+def _ensure_recheck_marker(
+    number: int, pr: dict[str, Any], runner: Callable[[list[str]], str],
+) -> None:
+    if CONTRACT_RECHECK_LABEL in _validated_label_names(pr.get("labels")):
+        return
+    value = _json_command([
+        "gh", "api", "--method", "POST",
+        f"repos/{REPOSITORY}/issues/{number}/labels",
+        "-f", f"labels[]={CONTRACT_RECHECK_LABEL}",
+    ], runner)
+    if CONTRACT_RECHECK_LABEL not in _validated_label_names(value):
+        raise MergeControllerError("contracts_recheck_failed")
+
+
+def _reopen_operation_id(number: int, branch: str, head_sha: str) -> str:
+    raw = f"{REPOSITORY}\n{number}\n{branch}\n{head_sha}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _reopen_receipt_body(
+    number: int, branch: str, head_sha: str, state: str,
+) -> str:
+    payload = {
+        "branch": branch,
+        "head_sha": head_sha,
+        "operation_id": _reopen_operation_id(number, branch, head_sha),
+        "pr_number": number,
+        "state": state,
+    }
+    return REOPEN_RECEIPT_PREFIX + json.dumps(payload, separators=(",", ":"), sort_keys=True) + REOPEN_RECEIPT_SUFFIX
+
+
+def _validate_reopen_receipt_comment(
+    value: Any, *, number: int, branch: str, head_sha: str, state: str,
+) -> tuple[int, str]:
+    user = value.get("user") if isinstance(value, dict) else None
+    comment_id = value.get("id") if isinstance(value, dict) else None
+    created_at = value.get("created_at") if isinstance(value, dict) else None
+    if (
+        type(comment_id) is not int
+        or not 1 <= comment_id <= MAX_GITHUB_ID
+        or not isinstance(user, dict)
+        or user.get("login") != TRUSTED_REVIEWER
+        or user.get("type") != "User"
+        or value.get("body") != _reopen_receipt_body(number, branch, head_sha, state)
+        or not isinstance(created_at, str)
+        or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", created_at)
+    ):
+        raise MergeControllerError("reopen_receipt_invalid")
+    return comment_id, created_at
+
+
+def _create_reopen_receipt(
+    number: int, branch: str, head_sha: str,
+    runner: Callable[[list[str]], str],
+) -> tuple[int, str]:
+    body = _reopen_receipt_body(number, branch, head_sha, "pending")
+    value = _json_command([
+        "gh", "api", "--method", "POST",
+        f"repos/{REPOSITORY}/issues/{number}/comments", "-f", f"body={body}",
+    ], runner)
+    return _validate_reopen_receipt_comment(
+        value, number=number, branch=branch, head_sha=head_sha, state="pending",
+    )
+
+
+def _complete_reopen_receipt(
+    comment_id: int, *, number: int, branch: str, head_sha: str,
+    runner: Callable[[list[str]], str],
+) -> None:
+    endpoint = f"repos/{REPOSITORY}/issues/comments/{comment_id}"
+    body = _reopen_receipt_body(number, branch, head_sha, "completed")
+    for attempt in range(3):
+        try:
+            value = _json_command([
+                "gh", "api", "--method", "PATCH", endpoint, "-f", f"body={body}",
+            ], runner)
+            _validate_reopen_receipt_comment(
+                value, number=number, branch=branch, head_sha=head_sha, state="completed",
+            )
+            return
+        except MergeControllerError:
+            try:
+                current = _json_command(["gh", "api", endpoint], runner)
+                _validate_reopen_receipt_comment(
+                    current, number=number, branch=branch, head_sha=head_sha, state="completed",
+                )
+                return
+            except MergeControllerError:
+                if attempt == 2:
+                    raise MergeControllerError("reopen_receipt_invalid") from None
+                time.sleep(1)
+
+
+def _latest_reopen_receipt(
+    number: int, branch: str, head_sha: str,
+    runner: Callable[[list[str]], str],
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    pages = _json_command([
+        "gh", "api", "--paginate", "--slurp",
+        f"repos/{REPOSITORY}/issues/{number}/comments?per_page=100",
+    ], runner)
+    if not isinstance(pages, list):
+        raise MergeControllerError("github_response_invalid")
+    receipts: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+    count = 0
+    for page in pages:
+        if not isinstance(page, list):
+            raise MergeControllerError("github_response_invalid")
+        for item in page:
+            count += 1
+            if count > MAX_REOPEN_RECEIPTS or not isinstance(item, dict):
+                raise MergeControllerError("github_response_invalid")
+            body = item.get("body")
+            user = item.get("user")
+            if not isinstance(body, str) or not body.startswith(REOPEN_RECEIPT_PREFIX):
+                continue
+            if not isinstance(user, dict) or user.get("login") != TRUSTED_REVIEWER or user.get("type") != "User":
+                continue
+            parsed: dict[str, Any] | None = None
+            for state in ("pending", "completed"):
+                try:
+                    _validate_reopen_receipt_comment(
+                        item, number=number, branch=branch, head_sha=head_sha, state=state,
+                    )
+                    parsed = {"state": state, "created_at": item["created_at"]}
+                    break
+                except MergeControllerError:
+                    pass
+            if parsed is None:
+                raise MergeControllerError("reopen_receipt_invalid")
+            receipts.append((int(item["id"]), item, parsed))
+    if not receipts:
+        return None
+    _comment_id, comment, parsed = max(receipts, key=lambda item: item[0])
+    return comment, parsed
+
+
+def _latest_close_was_controller(
+    number: int, receipt_created_at: str,
+    runner: Callable[[list[str]], str],
+) -> bool:
+    pages = _json_command([
+        "gh", "api", "--paginate", "--slurp",
+        "-H", "Accept: application/vnd.github+json",
+        f"repos/{REPOSITORY}/issues/{number}/timeline?per_page=100",
+    ], runner)
+    events: list[dict[str, Any]] = []
+    count = 0
+    if not isinstance(pages, list):
+        raise MergeControllerError("github_response_invalid")
+    for page in pages:
+        if not isinstance(page, list):
+            raise MergeControllerError("github_response_invalid")
+        for item in page:
+            count += 1
+            if count > MAX_REOPEN_RECEIPTS or not isinstance(item, dict):
+                raise MergeControllerError("github_response_invalid")
+            if item.get("event") == "closed":
+                events.append(item)
+    if not events:
+        return False
+    latest = max(events, key=lambda item: int(item.get("id") or 0))
+    actor = latest.get("actor")
+    created_at = latest.get("created_at")
+    return (
+        isinstance(actor, dict)
+        and actor.get("login") == TRUSTED_REVIEWER
+        and isinstance(created_at, str)
+        and created_at >= receipt_created_at
+    )
+
+
+def _reopen_closed_exact(
+    number: int, *, branch: str, head_sha: str, receipt_created_at: str,
+    runner: Callable[[list[str]], str],
+) -> None:
+    endpoint = f"repos/{REPOSITORY}/pulls/{number}"
+    for attempt in range(3):
+        try:
+            reopened = _json_command([
+                "gh", "api", "--method", "PATCH", endpoint, "-f", "state=open",
+            ], runner)
+            _validate_pr_state_receipt(
+                reopened, number=number, branch=branch, head_sha=head_sha, state="open",
+            )
+            return
+        except MergeControllerError:
+            live = _json_command(["gh", "api", endpoint], runner)
+            if isinstance(live, dict) and live.get("state") == "open":
+                try:
+                    _validate_pr_state_receipt(
+                        live, number=number, branch=branch, head_sha=head_sha, state="open",
+                    )
+                    return
+                except MergeControllerError:
+                    raise MergeControllerError("release_branch_moved") from None
+            try:
+                _validate_pr_state_receipt(
+                    live, number=number, branch=branch, head_sha=head_sha, state="closed",
+                )
+            except MergeControllerError:
+                raise MergeControllerError("release_branch_moved") from None
+            if not _latest_close_was_controller(number, receipt_created_at, runner):
+                raise MergeControllerError("contracts_recheck_failed")
+            if attempt == 2:
+                raise MergeControllerError("contracts_recheck_failed")
+            time.sleep(1)
+
+
+def _reopen_for_contracts(
+    number: int, pr: dict[str, Any], head_sha: str,
+    runner: Callable[[list[str]], str],
+) -> None:
+    branch = str(pr.get("headRefName") or "")
+    endpoint = f"repos/{REPOSITORY}/pulls/{number}"
+    _ensure_recheck_marker(number, pr, runner)
+    comment_id, receipt_created_at = _create_reopen_receipt(number, branch, head_sha, runner)
+    try:
+        closed = _json_command([
+            "gh", "api", "--method", "PATCH", endpoint, "-f", "state=closed",
+        ], runner)
+        _validate_pr_state_receipt(
+            closed, number=number, branch=branch, head_sha=head_sha, state="closed",
+        )
+    except MergeControllerError:
+        live = _json_command(["gh", "api", endpoint], runner)
+        try:
+            _validate_pr_state_receipt(
+                live, number=number, branch=branch, head_sha=head_sha, state="closed",
+            )
+        except MergeControllerError:
+            _complete_reopen_receipt(
+                comment_id, number=number, branch=branch, head_sha=head_sha, runner=runner,
+            )
+            raise MergeControllerError("contracts_recheck_failed") from None
+    _reopen_closed_exact(
+        number, branch=branch, head_sha=head_sha,
+        receipt_created_at=receipt_created_at, runner=runner,
+    )
+    refreshed = _pr_view(number, runner)
+    refreshed_head, _author, _state = _validate_pr(refreshed, number)
+    if refreshed_head != head_sha or refreshed.get("headRefName") != branch:
+        raise MergeControllerError("release_branch_moved")
+    _validate_latest_release_for_slug(refreshed, runner)
+    _complete_reopen_receipt(
+        comment_id, number=number, branch=branch, head_sha=head_sha, runner=runner,
+    )
+
+
+def _recover_closed_rechecks(
+    runner: Callable[[list[str]], str],
+) -> list[dict[str, Any]]:
+    rows = _json_command([
+        "gh", "pr", "list", "--repo", REPOSITORY, "--base", BASE,
+        "--state", "closed", "--search", f"label:{CONTRACT_RECHECK_LABEL}",
+        "--limit", str(MAX_CANDIDATES + 1),
+        "--json", "number,state,isDraft,baseRefName,headRefName,headRefOid,headRepository,author,labels,mergedAt",
+    ], runner)
+    if not isinstance(rows, list) or len(rows) > MAX_CANDIDATES:
+        raise MergeControllerError("github_response_invalid")
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        number = row.get("number") if isinstance(row, dict) else None
+        try:
+            author = row.get("author") if isinstance(row, dict) else None
+            repository = row.get("headRepository") if isinstance(row, dict) else None
+            branch = str(row.get("headRefName") or "") if isinstance(row, dict) else ""
+            head_sha = str(row.get("headRefOid") or "").lower() if isinstance(row, dict) else ""
+            if (
+                type(number) is not int
+                or not 1 <= number <= 2_147_483_647
+                or row.get("state") != "CLOSED"
+                or row.get("mergedAt") is not None
+                or row.get("isDraft") is not False
+                or row.get("baseRefName") != BASE
+                or BRANCH_RE.fullmatch(branch) is None
+                or not SHA_RE.fullmatch(head_sha)
+                or not isinstance(repository, dict)
+                or repository.get("nameWithOwner") != REPOSITORY
+                or not isinstance(author, dict)
+                or author.get("login") != TRUSTED_RELEASE_AUTHOR
+                or CONTRACT_RECHECK_LABEL not in _validated_label_names(row.get("labels"))
+            ):
+                raise MergeControllerError("release_pr_identity_invalid")
+            _validate_latest_release_for_slug(row, runner)
+            receipt = _latest_reopen_receipt(number, branch, head_sha, runner)
+            if receipt is None or receipt[1].get("state") != "pending":
+                continue
+            comment, _receipt_data = receipt
+            comment_id, receipt_created_at = _validate_reopen_receipt_comment(
+                comment, number=number, branch=branch, head_sha=head_sha, state="pending",
+            )
+            if not _latest_close_was_controller(number, receipt_created_at, runner):
+                continue
+            _reopen_closed_exact(
+                number, branch=branch, head_sha=head_sha,
+                receipt_created_at=receipt_created_at, runner=runner,
+            )
+            reopened = _pr_view(number, runner)
+            reopened_head, _reopened_author, _reopened_state = _validate_pr(reopened, number)
+            if reopened_head != head_sha or reopened.get("headRefName") != branch:
+                raise MergeControllerError("release_branch_moved")
+            _validate_latest_release_for_slug(reopened, runner)
+            _complete_reopen_receipt(
+                comment_id, number=number, branch=branch, head_sha=head_sha, runner=runner,
+            )
+            results.append({"status": "reopened", "pr_number": number, "head_sha": head_sha})
+        except MergeControllerError as error:
+            results.append({
+                "status": "waiting" if error.code in {"release_branch_moved", "release_main_moved"} else "blocked",
+                "pr_number": number if type(number) is int else 0,
+                "reason": error.code,
+            })
+    return results
+
+
+def _run_trusted_registration(worktree: Path) -> None:
+    script = (
+        "import importlib.util, pathlib, sys\n"
+        "root = pathlib.Path(sys.argv[1]).resolve(strict=True)\n"
+        "path = root / 'tools/host-skill/host.py'\n"
+        "spec = importlib.util.spec_from_file_location('trusted_release_host', path)\n"
+        "assert spec is not None and spec.loader is not None\n"
+        "module = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(module)\n"
+        "drift = module.refresh_cumulative_registration(root, check=False)\n"
+        "assert drift == []\n"
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-I", "-B", "-c", script, str(worktree)],
+            shell=False,
+            check=False,
+            capture_output=True,
+            timeout=120,
+            cwd=worktree,
+            env={**os.environ, "PYTHONPATH": ""},
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise MergeControllerError("release_regeneration_failed") from None
+    if result.returncode != 0 or len(result.stdout) + len(result.stderr) > MAX_RESPONSE_BYTES:
+        raise MergeControllerError("release_regeneration_failed")
+
+
+def _regenerate_dirty_release(
+    number: int,
+    pr: dict[str, Any],
+    old_head: str,
+    gh_runner: Callable[[list[str]], str],
+    repo_root: Path,
+) -> str:
+    branch = str(pr.get("headRefName") or "")
+    branch_match = BRANCH_RE.fullmatch(branch)
+    if branch_match is None:
+        raise MergeControllerError("release_pr_identity_invalid")
+    slug = branch_match.group("slug")
+    repo = repo_root.resolve(strict=True)
+    main_ref = "refs/reconcile-release/main"
+    candidate_ref = "refs/reconcile-release/candidate"
+    _git(
+        repo,
+        "fetch", "--no-tags", "origin",
+        f"+refs/heads/{BASE}:{main_ref}",
+        f"+refs/heads/{branch}:{candidate_ref}",
+        error="release_regeneration_failed",
+    )
+    main_sha = _git(repo, "rev-parse", "--verify", main_ref)
+    fetched_head = _git(repo, "rev-parse", "--verify", candidate_ref)
+    if not SHA_RE.fullmatch(main_sha) or fetched_head != old_head:
+        raise MergeControllerError("release_branch_moved")
+    manifest = _candidate_blob_manifest(repo, main_sha, old_head, slug)
+    allowed_paths = set(manifest) | SHARED_GENERATED_PATHS
+
+    reconciliation_head = ""
+    new_head = ""
+    with tempfile.TemporaryDirectory(prefix="omo-release-reconcile-") as temporary:
+        worktree = Path(temporary) / "tree"
+        _git(repo, "worktree", "add", "--detach", str(worktree), main_sha, error="release_regeneration_failed")
+        try:
+            container = worktree / "containers" / slug
+            if container.is_symlink():
+                container.unlink()
+            elif container.exists():
+                if not container.is_dir():
+                    raise MergeControllerError("release_regeneration_failed")
+                shutil.rmtree(container)
+            for path, (_blob_sha, content) in manifest.items():
+                target = worktree / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                resolved_parent = target.parent.resolve()
+                if worktree != resolved_parent and worktree not in resolved_parent.parents:
+                    raise MergeControllerError("release_regeneration_failed")
+                if target.exists() or target.is_symlink():
+                    if not target.is_file() or target.is_symlink():
+                        raise MergeControllerError("release_regeneration_failed")
+                    target.unlink()
+                target.write_bytes(content)
+                target.chmod(0o644)
+
+            _run_trusted_registration(worktree)
+            for path, (blob_sha, _content) in manifest.items():
+                if _git(worktree, "hash-object", "--", path) != blob_sha:
+                    raise MergeControllerError("release_regeneration_failed")
+            status_paths = _worktree_status_paths(worktree)
+            if not status_paths or not status_paths.issubset(allowed_paths):
+                raise MergeControllerError("release_regeneration_failed")
+            _git(worktree, "add", "--all", "--", *sorted(allowed_paths), error="release_regeneration_failed")
+            tree_sha = _git(worktree, "write-tree", error="release_regeneration_failed")
+            identity = {
+                "GIT_AUTHOR_NAME": "Omo Trusted Release Controller",
+                "GIT_AUTHOR_EMAIL": "actions@users.noreply.github.com",
+                "GIT_COMMITTER_NAME": "Omo Trusted Release Controller",
+                "GIT_COMMITTER_EMAIL": "actions@users.noreply.github.com",
+            }
+            reconciliation_head = _git(
+                worktree,
+                "commit-tree", tree_sha,
+                "-p", main_sha,
+                "-p", old_head,
+                "-m", f"Regenerate generated release {slug} on current main",
+                error="release_regeneration_failed",
+                env=identity,
+            )
+            new_head = _git(
+                worktree,
+                "commit-tree", tree_sha,
+                "-p", reconciliation_head,
+                "-m", f"Seal regenerated release {slug}",
+                error="release_regeneration_failed",
+                env=identity,
+            )
+        finally:
+            _git(repo, "worktree", "remove", "--force", str(worktree), error="release_regeneration_failed")
+
+    if not SHA_RE.fullmatch(reconciliation_head) or not SHA_RE.fullmatch(new_head):
+        raise MergeControllerError("release_regeneration_failed")
+    if _git(repo, "show", "-s", "--format=%P", new_head).split() != [reconciliation_head]:
+        raise MergeControllerError("release_regeneration_failed")
+    if _git(repo, "show", "-s", "--format=%P", reconciliation_head).split() != [main_sha, old_head]:
+        raise MergeControllerError("release_regeneration_failed")
+    if _git(repo, "rev-parse", f"{new_head}^{{tree}}") != _git(
+        repo, "rev-parse", f"{reconciliation_head}^{{tree}}"
+    ):
+        raise MergeControllerError("release_regeneration_failed")
+    for ancestor in (main_sha, old_head):
+        _git(repo, "merge-base", "--is-ancestor", ancestor, new_head, error="release_regeneration_failed")
+    result_records = _raw_diff_records(repo, main_sha, new_head)
+    result_paths: set[str] = set()
+    for status, old_mode, new_mode, path in result_records:
+        if (
+            status not in {"A", "M"}
+            or (status == "M" and old_mode != new_mode)
+            or new_mode != "100644"
+            or path not in allowed_paths
+        ):
+            raise MergeControllerError("release_regeneration_failed")
+        result_paths.add(path)
+    if not result_paths or not result_paths.issubset(allowed_paths):
+        raise MergeControllerError("release_regeneration_failed")
+
+    _git(
+        repo, "fetch", "--no-tags", "origin", f"+refs/heads/{BASE}:{main_ref}",
+        error="release_regeneration_failed",
+    )
+    if _git(repo, "rev-parse", "--verify", main_ref) != main_sha:
+        raise MergeControllerError("release_main_moved")
+    _push_dirty_head(
+        repo, branch=branch, old_head=old_head, new_head=new_head, main_sha=main_sha,
+    )
+    _git(
+        repo,
+        "fetch", "--no-tags", "origin",
+        f"+refs/heads/{branch}:{candidate_ref}",
+        f"+refs/heads/{BASE}:{main_ref}",
+        error="release_regeneration_failed",
+    )
+    if _git(repo, "rev-parse", "--verify", candidate_ref) != new_head:
+        raise MergeControllerError("release_branch_moved")
+    if _git(repo, "rev-parse", "--verify", main_ref) != main_sha:
+        raise MergeControllerError("release_main_moved")
+
+    for attempt in range(10):
+        updated = _pr_view(number, gh_runner)
+        updated_head, _author, _state = _validate_pr(updated, number)
+        if updated.get("headRefName") != branch:
+            raise MergeControllerError("release_branch_moved")
+        if updated_head == new_head:
+            _validate_latest_release_for_slug(updated, gh_runner)
+            _reopen_for_contracts(number, updated, new_head, gh_runner)
+            return new_head
+        if updated_head != old_head:
+            raise MergeControllerError("release_branch_moved")
+        if attempt < 9:
+            time.sleep(1)
+    raise MergeControllerError("release_branch_moved")
+
+
+def merge_release_pr(
+    number: int,
+    *,
+    runner: Callable[[list[str]], str] = _run,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
     if type(number) is not int or not 1 <= number <= 2_147_483_647:
         raise MergeControllerError("release_pr_identity_invalid")
-    protection_value = _json_command([
-        "gh", "api", f"repos/{REPOSITORY}/branches/{BASE}/protection",
-    ], runner)
-    _validate_protection(protection_value)
     pr = _pr_view(number, runner)
-    head_sha, author_login = _validate_pr(pr, number)
+    head_sha, author_login, merge_state = _validate_pr(pr, number)
+    _validate_latest_release_for_slug(pr, runner)
+    if merge_state == "UNKNOWN":
+        for _attempt in range(10):
+            time.sleep(1)
+            current = _pr_view(number, runner)
+            current_head, current_author, current_state = _validate_pr(current, number)
+            if current_head != head_sha or current_author != author_login:
+                raise MergeControllerError("exact_head_review_required")
+            _validate_latest_release_for_slug(current, runner)
+            if current_state != "UNKNOWN":
+                pr = current
+                merge_state = current_state
+                break
+        else:
+            raise MergeControllerError("release_pr_not_mergeable")
+    if merge_state in {"BEHIND", "DIRTY"}:
+        current = _pr_view(number, runner)
+        current_head, current_author, current_state = _validate_pr(current, number)
+        if current_head != head_sha or current_author != author_login:
+            raise MergeControllerError("exact_head_review_required")
+        _validate_latest_release_for_slug(current, runner)
+        if current_state != merge_state:
+            raise MergeControllerError("release_pr_not_mergeable")
+        regenerated_head = _regenerate_dirty_release(
+            number,
+            current,
+            head_sha,
+            runner,
+            repo_root or Path(__file__).resolve().parents[2],
+        )
+        return {
+            "status": "regenerated", "pr_number": number,
+            "previous_head_sha": head_sha, "head_sha": regenerated_head,
+        }
+    if merge_state not in {"CLEAN", "BLOCKED"}:
+        raise MergeControllerError("release_pr_not_mergeable")
     _validate_separate_review(_review_pages(number, runner), head_sha=head_sha, author_login=author_login)
     _validate_required_check(head_sha, runner)
-    runner([
-        "gh", "pr", "merge", str(number), "--repo", REPOSITORY,
-        "--squash", "--match-head-commit", head_sha,
-    ])
+    current = _pr_view(number, runner)
+    current_head, current_author, current_state = _validate_pr(current, number)
+    if current_head != head_sha or current_author != author_login:
+        raise MergeControllerError("exact_head_review_required")
+    _validate_latest_release_for_slug(current, runner)
+    if current_state not in {"CLEAN", "BLOCKED"}:
+        raise MergeControllerError("release_pr_not_mergeable")
+    api_merge_sha = _merge_exact_head(number, head_sha, runner)
     merged = _pr_view(number, runner)
     commit = merged.get("mergeCommit")
     merge_sha = str(commit.get("oid") if isinstance(commit, dict) else "").lower()
@@ -305,13 +1159,17 @@ def merge_release_pr(number: int, *, runner: Callable[[list[str]], str] = _run) 
         merged.get("state") != "MERGED"
         or str(merged.get("headRefOid") or "").lower() != head_sha
         or not SHA_RE.fullmatch(merge_sha)
+        or merge_sha != api_merge_sha
     ):
         raise MergeControllerError("merge_receipt_invalid")
     return {"status": "merged", "pr_number": number, "head_sha": head_sha, "merge_sha": merge_sha}
 
 
 def run(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> dict[str, Any]:
-    results: list[dict[str, Any]] = []
+    event = _read_event(event_path)
+    results: list[dict[str, Any]] = (
+        _recover_closed_rechecks(runner) if event.get("schedule") == "*/5 * * * *" else []
+    )
     for number in candidate_pr_numbers(event_path, runner=runner):
         try:
             results.append(merge_release_pr(number, runner=runner))
@@ -321,6 +1179,9 @@ def run(event_path: Path, *, runner: Callable[[list[str]], str] = _run) -> dict[
                 "exact_head_review_required",
                 "required_checks_not_successful",
                 "release_pr_not_mergeable",
+                "superseded_release_pr",
+                "release_branch_moved",
+                "release_main_moved",
             } else "blocked"
             results.append({"status": status, "pr_number": number, "reason": error.code})
     return {"status": "complete", "results": results}
@@ -331,8 +1192,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--event", required=True)
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(run(Path(args.event)), separators=(",", ":"), sort_keys=True))
-        return 0
+        result = run(Path(args.event))
+        print(json.dumps(result, separators=(",", ":"), sort_keys=True))
+        return 1 if any(item.get("status") == "blocked" for item in result.get("results", [])) else 0
     except MergeControllerError as error:
         print(json.dumps({"error": error.code}, separators=(",", ":"), sort_keys=True))
         return 1

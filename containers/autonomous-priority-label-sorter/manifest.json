@@ -1,0 +1,91 @@
+{
+  "artifacts": [],
+  "description": "Clean and sort a bounded list of priority labels as an unattended production pipeline proof.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{run_id}"
+  },
+  "form": [
+    {
+      "field": "labels",
+      "widget": "textarea"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "maxLength": 50,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 10,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "labels"
+    ],
+    "type": "object"
+  },
+  "name": "Autonomous Priority Label Sorter",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "sorted_labels": {
+        "items": {
+          "maxLength": 50,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 10,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      }
+    },
+    "required": [
+      "sorted_labels",
+      "status"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "reviewed_deterministic",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "1e92951251d7d4fe2b2fccca6f79194df6c246aaa7c0d2642345e650f0b29e1c",
+  "providers": [],
+  "pure_data": {
+    "program_digest": "sha256:ef4e469732f3a529f73da1ad0c1a76e03314a50c8f78cb09f8f8cafc56985407",
+    "program_path": "runtime/pure-data-program.json",
+    "provenance": {
+      "compiler_version": "skill-to-modal/0.7.0",
+      "profile_version": "1.0.0",
+      "reviewed_source_sha256": "f72d2583a0c0969956a58dda72c740e38930b4eef3cc35962f772f7ccbc26a1b"
+    }
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [],
+    "status": "ready"
+  },
+  "required_env_names": [],
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "autonomous-priority-label-sorter",
+  "source_sha256": "f72d2583a0c0969956a58dda72c740e38930b4eef3cc35962f772f7ccbc26a1b",
+  "version": "1.0.0"
+}
