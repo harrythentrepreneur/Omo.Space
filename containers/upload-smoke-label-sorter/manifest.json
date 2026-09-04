@@ -1,0 +1,91 @@
+{
+  "artifacts": [],
+  "description": "Deterministically sort a short label list without any AI provider.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{run_id}"
+  },
+  "form": [
+    {
+      "field": "labels",
+      "widget": "textarea"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "labels": {
+        "items": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "labels"
+    ],
+    "type": "object"
+  },
+  "name": "Upload Smoke Label Sorter",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "sorted_labels": {
+        "items": {
+          "maxLength": 60,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+      },
+      "status": {
+        "const": "completed"
+      }
+    },
+    "required": [
+      "sorted_labels",
+      "status"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "reviewed_deterministic",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "d740583122dc3b004a61379e1bce24127af3ae2bfc4466e71df60734c9c6d6ef",
+  "providers": [],
+  "pure_data": {
+    "program_digest": "sha256:c82597c542b2dd9142f2f0bc8be28c3cc8133f832c3b502568d13284e9318ad6",
+    "program_path": "runtime/pure-data-program.json",
+    "provenance": {
+      "compiler_version": "skill-to-modal/0.7.0",
+      "profile_version": "1.0.0",
+      "reviewed_source_sha256": "7f05fdef2c6c87d3ad12587eca677d101a5a03b847e0da027794c0ca821d4dbc"
+    }
+  },
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [],
+    "status": "ready"
+  },
+  "required_env_names": [],
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "upload-smoke-label-sorter",
+  "source_sha256": "7f05fdef2c6c87d3ad12587eca677d101a5a03b847e0da027794c0ca821d4dbc",
+  "version": "1.0.0"
+}
