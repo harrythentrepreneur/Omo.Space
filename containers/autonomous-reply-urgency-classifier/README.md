@@ -1,7 +1,7 @@
 # Autonomous Reply Urgency Classifier
 
 Generated Modal candidate for `autonomous-reply-urgency-classifier`. The source skill is vendored
-at `source/SKILL.md` (SHA-256 `26dbb34409f92ade194064d7f491ab4cbfca823fda90d095c54ae3a5f1dc4a51`). Generated files must be changed
+at `source/SKILL.md` (SHA-256 `4c262016815710b8a2a7cd48989ef28c0fc02f48290f9222a8ccf2301e70cb1a`). Generated files must be changed
 through the compiler profile, not edited by hand.
 
 ## Readiness

@@ -5,24 +5,16 @@
       "message": "My account is locked and I cannot continue preparing the lesson."
     },
     "output": {
-      "reason": "The account is locked, preventing the user from continuing their work.",
+      "reason": "The account is locked and prevents continued use.",
       "urgency": "high"
     }
   },
   "negative_cases": [
     {
-      "id": "empty_message",
+      "id": "message_too_short",
       "input": {
         "blocked": false,
-        "message": ""
-      },
-      "reason": "INVALID_INPUT"
-    },
-    {
-      "id": "message_too_long",
-      "input": {
-        "blocked": false,
-        "message": "This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters. This is a very long message that exceeds the maximum allowed length of 500 characters."
+        "message": "short"
       },
       "reason": "INVALID_INPUT"
     }

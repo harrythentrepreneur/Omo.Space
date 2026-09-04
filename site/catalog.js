@@ -4539,11 +4539,10 @@ window.OMO_CATALOG = [
     "cover": null,
     "demoCap": "Run reviewed example",
     "desc": "Classify one bounded customer message into low, medium or high urgency as an unattended production pipeline proof.",
-    "emoji": "\ud83d\udea8",
+    "emoji": "\ud83d\udcac",
     "exampleIn": "{\n  \"blocked\": true,\n  \"message\": \"My account is locked and I cannot continue preparing the lesson.\"\n}",
     "exampleOut": [
-      "urgency: low, medium, or high",
-      "reason: one grounded sentence between 10 and 180 characters"
+      "urgency label and grounded reason"
     ],
     "free": false,
     "icon": null,
@@ -4556,21 +4555,18 @@ window.OMO_CATALOG = [
     "name": "Autonomous Reply Urgency Classifier",
     "niche": "customer-service",
     "outputs": [
-      "urgency: low, medium, or high",
-      "reason: one grounded sentence between 10 and 180 characters"
+      "urgency label and grounded reason"
     ],
     "priceMaintain": 0.0,
     "priceOwn": 0.0,
-    "promise": "Classify a customer message by urgency with a grounded reason.",
+    "promise": "Return a bounded urgency label and grounded reason.",
     "runManifest": "run-manifests/autonomous-reply-urgency-classifier.json",
     "runPrice": 0.1,
     "slug": "autonomous-reply-urgency-classifier",
     "tags": [
-      "llm",
-      "classification",
+      "text",
       "customer-service",
-      "bounded",
-      "deterministic"
+      "classification"
     ],
     "upvotes": 0,
     "version": "1.0.0",

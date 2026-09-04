@@ -71,7 +71,7 @@
     "quote_status": "cost_model",
     "report_path": "pricing-report.json"
   },
-  "profile_sha256": "719f2f80deacae50512964684851c029e3ac823a882bdf00b45bbc146949ebfe",
+  "profile_sha256": "c46ced79b1e9cad83a09e29976ffc6ec03e9a9f34a8388e2d14deaf845ece78c",
   "readiness": {
     "blockers": [],
     "can_submit": true,
@@ -82,6 +82,6 @@
   },
   "schema_version": "cognition.workflow-manifest/v1",
   "slug": "autonomous-reply-urgency-classifier",
-  "source_sha256": "26dbb34409f92ade194064d7f491ab4cbfca823fda90d095c54ae3a5f1dc4a51",
+  "source_sha256": "4c262016815710b8a2a7cd48989ef28c0fc02f48290f9222a8ccf2301e70cb1a",
   "version": "1.0.0"
 }
