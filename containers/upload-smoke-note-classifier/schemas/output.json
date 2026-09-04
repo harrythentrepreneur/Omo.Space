@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "label": {
+      "enum": [
+        "action_needed",
+        "informational",
+        "urgent"
+      ],
+      "maxLength": 15,
+      "minLength": 1,
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 160,
+      "minLength": 10,
+      "type": "string"
+    }
+  },
+  "required": [
+    "label",
+    "reason"
+  ],
+  "type": "object"
+}
