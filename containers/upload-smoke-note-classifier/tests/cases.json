@@ -1,0 +1,20 @@
+{
+  "happy_path": {
+    "input": {
+      "note": "The customer cannot log in and their lesson plan is due today."
+    },
+    "output": {
+      "label": "urgent",
+      "reason": "The customer cannot log in and their lesson plan is due today."
+    }
+  },
+  "negative_cases": [
+    {
+      "id": "too_short_note",
+      "input": {
+        "note": "Short"
+      },
+      "reason": "INVALID_VALUE"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "artifact": null,
+  "compiler": "skill-to-modal/0.7.0",
+  "cost_drivers": [
+    "exactly one bounded schema-validated Gemini 2.5 Flash call"
+  ],
+  "description": "Classify a short note for a safe workflow upload test.",
+  "detected_provider_needs": [],
+  "input_adapters": [],
+  "name": "Upload Smoke Note Classifier",
+  "parsed_workflow_steps": [],
+  "required_env_names": [
+    "GEMINI_API_KEY"
+  ],
+  "reviewed_steps": [
+    {
+      "id": "generate",
+      "operation": "chat.completions.strict_json",
+      "prompt": "system.txt",
+      "provider": "gemini",
+      "readiness": "ready",
+      "type": "llm"
+    }
+  ],
+  "schema_version": "cognition.skill-analysis/v1",
+  "slug": "upload-smoke-note-classifier",
+  "source": {
+    "path": "source/SKILL.md",
+    "sha256": "c3a9e5741363d3adc618567dd474418555fa23c44ef388cbe8feb3074f860936"
+  },
+  "unresolved": []
+}

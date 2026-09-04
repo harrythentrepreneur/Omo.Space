@@ -1,0 +1,79 @@
+{
+  "artifacts": [],
+  "description": "Classify a short note for a safe workflow upload test.",
+  "endpoint": {
+    "auth": "modal_proxy_token",
+    "method": "POST",
+    "path": "/v1/runs",
+    "poll_path_template": "/v1/runs/{call_id}"
+  },
+  "form": [
+    {
+      "field": "note",
+      "widget": "text"
+    }
+  ],
+  "input_adapters": [],
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "note": {
+        "maxLength": 300,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "note"
+    ],
+    "type": "object"
+  },
+  "name": "Upload Smoke Note Classifier",
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "label": {
+        "enum": [
+          "action_needed",
+          "informational",
+          "urgent"
+        ],
+        "maxLength": 15,
+        "minLength": 1,
+        "type": "string"
+      },
+      "reason": {
+        "maxLength": 160,
+        "minLength": 10,
+        "type": "string"
+      }
+    },
+    "required": [
+      "label",
+      "reason"
+    ],
+    "type": "object"
+  },
+  "output_schema_path": "schemas/output.json",
+  "pricing": {
+    "chargeable": true,
+    "currency": "USD",
+    "display_price_usd": 0.1,
+    "label": "$0.10 per run",
+    "quote_status": "cost_model",
+    "report_path": "pricing-report.json"
+  },
+  "profile_sha256": "a88748a9a943a0dcfd36b66828737cc05e808795b8c008a942f98f2555df0f49",
+  "readiness": {
+    "blockers": [],
+    "can_submit": true,
+    "required_env_names": [
+      "GEMINI_API_KEY"
+    ],
+    "status": "ready"
+  },
+  "schema_version": "cognition.workflow-manifest/v1",
+  "slug": "upload-smoke-note-classifier",
+  "source_sha256": "c3a9e5741363d3adc618567dd474418555fa23c44ef388cbe8feb3074f860936",
+  "version": "1.0.0"
+}
