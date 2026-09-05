@@ -104,6 +104,8 @@
   var lastFocused = null;
   var activeOpenTarget = '';
   var activeDestination = '';
+  var activeReturnTo = '';
+  var backgroundState = [];
 
   if (!modal || !card || !form) return;
 
@@ -116,7 +118,29 @@
     return /^[a-z0-9][a-z0-9-]{0,100}$/i.test(slug) ? slug : '';
   }
 
+  function validatedReturnTo(value) {
+    if (!value) return '';
+    var target;
+    try { target = new URL(String(value), window.location.origin); }
+    catch (error) { return ''; }
+    if (target.origin !== window.location.origin) return '';
+    var path = target.pathname.replace(/\/+$/, '') || '/';
+    var slug;
+    if (path === '/api' || path === '/api.html') return '/api.html';
+    if (path === '/dashboard' || path === '/dashboard.html') {
+      slug = validOpenTarget(target.searchParams.get('open'));
+      return '/dashboard.html' + (slug ? '?open=' + encodeURIComponent(slug) : '');
+    }
+    if (path === '/workflow' || path === '/workflow.html' || path === '/run' || path === '/run.html') {
+      slug = validOpenTarget(target.searchParams.get('slug'));
+      if (!slug) return '';
+      return (path.indexOf('/run') === 0 ? '/run.html' : '/workflow.html') + '?slug=' + encodeURIComponent(slug);
+    }
+    return '';
+  }
+
   function redirectTarget() {
+    if (activeReturnTo) return activeReturnTo;
     var slug = activeOpenTarget;
     var destination = activeDestination;
     var pilotToken = '';
@@ -203,14 +227,39 @@
     updateValidity();
   }
 
+  function setBackgroundInert(inert) {
+    if (inert) {
+      backgroundState = [];
+      Array.prototype.forEach.call(document.body.children, function (element) {
+        if (element === modal || element.tagName === 'SCRIPT') return;
+        backgroundState.push({
+          element: element,
+          ariaHidden: element.getAttribute('aria-hidden'),
+          inert: !!element.inert
+        });
+        element.setAttribute('aria-hidden', 'true');
+        element.inert = true;
+      });
+      return;
+    }
+    backgroundState.forEach(function (state) {
+      if (state.ariaHidden == null) state.element.removeAttribute('aria-hidden');
+      else state.element.setAttribute('aria-hidden', state.ariaHidden);
+      state.element.inert = state.inert;
+    });
+    backgroundState = [];
+  }
+
   function open(nextMode, options) {
     lastFocused = document.activeElement;
     activeOpenTarget = validOpenTarget(options && options.open);
     activeDestination = options && options.destination === 'run' ? 'run' : '';
+    activeReturnTo = validatedReturnTo(options && options.returnTo);
     setMode(nextMode || 'signup');
     activeVerification = null;
     formView.hidden = false;
     verificationView.hidden = true;
+    if (modal.hidden) setBackgroundInert(true);
     modal.hidden = false;
     document.body.classList.add('auth-modal-open');
     window.requestAnimationFrame(function () {
@@ -221,6 +270,7 @@
   function close() {
     if (modal.hidden) return;
     modal.hidden = true;
+    setBackgroundInert(false);
     document.body.classList.remove('auth-modal-open');
     setMessage(errorMessage, '');
     setMessage(verificationError, '');
@@ -513,12 +563,25 @@
     return activateSession(result);
   }
 
+  function handoffToClerk(result) {
+    if (!window.Clerk || typeof window.Clerk.openSignIn !== 'function') throw signInStateError(result);
+    var destination = new URL(redirectTarget(), window.location.href).href;
+    close();
+    window.Clerk.openSignIn({
+      fallbackRedirectUrl: destination,
+      signUpFallbackRedirectUrl: destination
+    });
+  }
+
   function handleSignInStatus(signIn, result) {
     if (result && result.status === 'complete') return finishSignIn(result);
     var status = result && result.status;
+    if (status === 'needs_first_factor' || status === 'needs_new_password') {
+      return handoffToClerk(result);
+    }
     if (status === 'needs_verification' || status === 'needs_second_factor' || status === 'needs_client_trust') {
       var factor = verificationFactor(result);
-      if (!factor) throw signInStateError(result);
+      if (!factor) return handoffToClerk(result);
       return prepareSignInVerification(signIn, result, factor).then(function (prepared) {
         var controller = methodOwner(prepared, signIn, ['attemptSecondFactorVerification', 'attemptSecondFactor']);
         showVerificationView({
@@ -730,16 +793,37 @@
     var requestedMode = '';
     var hasOpenTarget = false;
     var cameFromOmoPage = false;
+    var canonicalOptions = {};
     try {
       var params = new URLSearchParams(window.location.search);
       requestedMode = params.get('mode') || params.get('auth') || '';
       hasOpenTarget = params.has('open');
+      canonicalOptions = {
+        returnTo: params.get('return_to') || '',
+        open: params.get('open') || '',
+        destination: params.get('destination') === 'run' ? 'run' : ''
+      };
       if (document.referrer) {
         var referrer = new URL(document.referrer);
         cameFromOmoPage = referrer.origin === window.location.origin &&
           !/(^|\/)signup(?:\.html)?\/?$/.test(referrer.pathname);
       }
     } catch (error) {}
-    open(requestedMode === 'login' || (!requestedMode && !hasOpenTarget && cameFromOmoPage) ? 'login' : 'signup');
+    var canonicalMode = requestedMode === 'login' || (!requestedMode && !hasOpenTarget && cameFromOmoPage) ? 'login' : 'signup';
+    function continueCanonicalAuth() {
+      activeOpenTarget = validOpenTarget(canonicalOptions.open);
+      activeDestination = canonicalOptions.destination;
+      activeReturnTo = validatedReturnTo(canonicalOptions.returnTo);
+      if (window.ClerkAuth && window.ClerkAuth.isSignedIn && window.ClerkAuth.isSignedIn()) {
+        redirectAfterAuth();
+        return;
+      }
+      open(canonicalMode, canonicalOptions);
+    }
+    if (window.ClerkAuth && typeof window.ClerkAuth.ensureLoaded === 'function') {
+      Promise.resolve(window.ClerkAuth.ensureLoaded()).then(continueCanonicalAuth, continueCanonicalAuth);
+    } else {
+      continueCanonicalAuth();
+    }
   }
 })();

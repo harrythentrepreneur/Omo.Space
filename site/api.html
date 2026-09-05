@@ -299,79 +299,103 @@
   <script src="clerk.js"></script>
   <script>
     (function () {
-      var BAL_KEY = 'omo_balance_v1';
-      var KEY_KEY = 'omo_apikey_v1';
       var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
       var el = function (id) { return document.getElementById(id); };
-      var fmtUsd = function (n) { return '$' + Number(n || 0).toFixed(2); };
+      var fmtUsd = function (n) { return '$' + Number(n).toFixed(2); };
       var accountKey = '';
-      var accountBalance = 5;
-
-      function getKey() {
-        var k = localStorage.getItem(KEY_KEY);
-        if (k) return k;
-        k = 'omo_' + Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10);
-        localStorage.setItem(KEY_KEY, k);
-        return k;
-      }
-
-      function currentKey() { return accountKey || getKey(); }
-
-      function paint(signedIn) {
-        el('balance-pill').textContent = 'Balance ' + fmtUsd(accountBalance);
-        if (signedIn) {
-          el('api-key-value').textContent = '••••••••••••••••';
-          el('curl-key').textContent = currentKey();
-          el('curl-key2').textContent = currentKey();
-          el('auth-notice').hidden = true;
-        } else {
-          el('api-key-value').textContent = '••••••••••••••••';
-          el('auth-notice').hidden = false;
-        }
-      }
-
-      function render() {
-        var signedIn = window.ClerkAuth && window.ClerkAuth.isSignedIn();
-        var savedBalance = Number(localStorage.getItem(BAL_KEY));
-        if (isFinite(savedBalance)) accountBalance = savedBalance;
-        if (!signedIn) { paint(false); return; }
-
-        accountKey = getKey();
-        paint(true);
-        var user = window.ClerkAuth.getUser && window.ClerkAuth.getUser();
-        if (!user || !user.id || typeof fetch !== 'function' || window.location.protocol === 'file:') return;
-        fetch(API_BASE + '/api/me?user_id=' + encodeURIComponent(user.id))
-          .then(function (response) { return response.json().catch(function () { return {}; }); })
-          .then(function (data) {
-            if (!data || !data.ok) return;
-            accountBalance = Number(data.balance_usd != null ? data.balance_usd : data.balance);
-            accountKey = data.api_key || accountKey;
-            localStorage.setItem(BAL_KEY, String(accountBalance));
-            localStorage.setItem(KEY_KEY, accountKey);
-            paint(true);
-          }).catch(function () {});
-      }
-
+      var accountBalance = null;
+      var accountRequestId = 0;
       var revealed = false;
-      el('reveal-btn').addEventListener('click', function () {
-        if (!window.ClerkAuth || !window.ClerkAuth.isSignedIn()) { window.ClerkAuth && window.ClerkAuth.signIn(); return; }
-        if (!revealed) {
-          el('api-key-value').textContent = currentKey();
-          el('curl-key').textContent = currentKey();
-          el('curl-key2').textContent = currentKey();
-          this.textContent = 'Hide';
-          revealed = true;
-        } else {
-          el('api-key-value').textContent = '••••••••••••••••';
-          this.textContent = 'Reveal';
-          revealed = false;
+
+      function activeUser() {
+        if (!window.ClerkAuth || !window.ClerkAuth.isSignedIn || !window.ClerkAuth.isSignedIn()) return null;
+        var user = window.ClerkAuth.getUser && window.ClerkAuth.getUser();
+        return user && user.id ? user : null;
+      }
+
+      function setNotice(message, isError) {
+        var notice = el('auth-notice');
+        notice.textContent = message || '';
+        notice.hidden = !message;
+        notice.setAttribute('role', isError ? 'alert' : 'status');
+      }
+
+      function paintSignedOut() {
+        accountRequestId += 1;
+        accountKey = '';
+        accountBalance = null;
+        revealed = false;
+        el('balance-pill').textContent = 'Balance —';
+        el('api-key-value').textContent = '••••••••••••••••';
+        el('curl-key').textContent = 'YOUR_KEY';
+        el('curl-key2').textContent = 'YOUR_KEY';
+        el('reveal-btn').textContent = 'Reveal';
+        setNotice('Sign in to load your server-issued API key and balance.', false);
+      }
+
+      function paintAccount() {
+        el('balance-pill').textContent = accountBalance == null ? 'Balance —' : 'Balance ' + fmtUsd(accountBalance);
+        el('api-key-value').textContent = revealed && accountKey ? accountKey : '••••••••••••••••';
+        el('curl-key').textContent = accountKey || 'YOUR_KEY';
+        el('curl-key2').textContent = accountKey || 'YOUR_KEY';
+        el('reveal-btn').textContent = revealed ? 'Hide' : 'Reveal';
+        setNotice(accountKey ? '' : 'Your account did not return an API key. Retry after refreshing your session.', !accountKey);
+      }
+
+      function loadAccount() {
+        var user = activeUser();
+        var requestId = ++accountRequestId;
+        accountKey = '';
+        accountBalance = null;
+        revealed = false;
+        if (!user) { paintSignedOut(); return; }
+        el('balance-pill').textContent = 'Balance …';
+        setNotice('Loading your authenticated account…', false);
+        if (!window.ClerkAuth || typeof window.ClerkAuth.getToken !== 'function') {
+          setNotice('Your verified session is unavailable. Sign in again and retry.', true);
+          return;
         }
+        window.ClerkAuth.getToken().then(function (token) {
+          return fetch(API_BASE + '/api/me', { headers: { Authorization: 'Bearer ' + token } });
+        }).then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (data) {
+            if (!response.ok || !data || !data.ok) throw new Error(data.message || 'Your account could not be loaded.');
+            return data;
+          });
+        }).then(function (data) {
+          var current = activeUser();
+          if (requestId !== accountRequestId || !current || current.id !== user.id) return;
+          accountBalance = Number(data.balance_usd != null ? data.balance_usd : data.balance);
+          if (!isFinite(accountBalance)) accountBalance = null;
+          accountKey = typeof data.api_key === 'string' ? data.api_key : '';
+          paintAccount();
+        }).catch(function (error) {
+          var current = activeUser();
+          if (requestId !== accountRequestId || !current || current.id !== user.id) return;
+          accountKey = '';
+          accountBalance = null;
+          paintAccount();
+          setNotice((error && error.message ? error.message : 'Your account could not be loaded.') + ' Retry by refreshing this page.', true);
+        });
+      }
+
+      function requestSignIn() {
+        var link = document.querySelector('[data-omo-login]');
+        if (link && typeof link.click === 'function') link.click();
+        else window.location.assign('/signup.html?mode=login&return_to=%2Fapi.html');
+      }
+
+      el('reveal-btn').addEventListener('click', function () {
+        if (!activeUser()) { requestSignIn(); return; }
+        if (!accountKey) { loadAccount(); return; }
+        revealed = !revealed;
+        paintAccount();
       });
       el('copy-btn').addEventListener('click', function () {
-        if (!window.ClerkAuth || !window.ClerkAuth.isSignedIn()) { window.ClerkAuth && window.ClerkAuth.signIn(); return; }
-        var key = currentKey();
+        if (!activeUser()) { requestSignIn(); return; }
+        if (!accountKey) { loadAccount(); return; }
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(key).then(function () {
+          navigator.clipboard.writeText(accountKey).then(function () {
             var old = el('copy-btn').textContent;
             el('copy-btn').textContent = 'Copied ✓';
             setTimeout(function () { el('copy-btn').textContent = old; }, 1400);
@@ -379,9 +403,9 @@
         }
       });
       if (window.ClerkAuth && window.ClerkAuth.onAuthChange) {
-        window.ClerkAuth.onAuthChange(render);
+        window.ClerkAuth.onAuthChange(loadAccount);
       }
-      render();
+      loadAccount();
     })();
   </script>
 </body>

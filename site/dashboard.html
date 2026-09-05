@@ -523,7 +523,7 @@
     <div class="gate-mark" aria-hidden="true">✦</div>
     <h1>Your catalogue is one tap away.</h1>
     <p>Sign in to browse every helper, run demos, and manage your $5 starter credits.</p>
-    <button class="button button-accent" id="gate-signin-btn" type="button">Sign in</button>
+    <a class="button button-accent" id="gate-signin-btn" data-omo-login href="/signup.html?mode=login&amp;return_to=%2Fdashboard.html">Sign in</a>
   </main>
 
   <footer class="site-footer omo-footer">
@@ -567,7 +567,6 @@
       } catch (error) {}
 
       var API_BASE = (window.OMO_API_BASE || '').replace(/\/+$/, '');
-      var KEY_KEY = 'omo_apikey_v1';
       var SEEN_KEY = 'omo_seen_dashboard';
       var VOTE_KEY = 'cognition_votes_v1';
 
@@ -903,11 +902,8 @@
         activeVideoRun = null;
       }
       function getClerkSessionToken() {
-        if (window.Clerk && window.Clerk.session && typeof window.Clerk.session.getToken === 'function') {
-          return window.Clerk.session.getToken().then(function (token) {
-            if (!token) throw new Error('Your sign-in session has expired. Sign in again.');
-            return token;
-          });
+        if (window.ClerkAuth && typeof window.ClerkAuth.getToken === 'function') {
+          return window.ClerkAuth.getToken();
         }
         return Promise.reject(new Error('A verified sign-in session is not available.'));
       }
@@ -917,13 +913,7 @@
         return getClerkSessionToken().then(function (token) {
           headers.Authorization = 'Bearer ' + token;
           return headers;
-        }).catch(function (error) {
-          if (account && account.mode === 'server' && /^omo_[A-Za-z0-9_-]+$/.test(account.apiKey || '')) {
-            headers.Authorization = 'Bearer ' + account.apiKey;
-            return headers;
-          }
-          throw error;
-        });
+        }).catch(function (error) { throw error; });
       }
       function newIdempotencyKey() {
         try { if (window.crypto && typeof window.crypto.randomUUID === 'function') return 'dashboard-' + window.crypto.randomUUID(); } catch (e) {}
@@ -1235,20 +1225,9 @@
         attempt(1);
       }
 
-      /* Credits and API key logic retained from the previous dashboard. */
-      var account = { mode: 'unavailable', userId: '', balanceUsd: 0, apiKey: '', runs: [] };
+      /* User-bound credit and recent-run account state. */
+      var account = { mode: 'unavailable', userId: '', balanceUsd: 0, runs: [] };
       var accountRequestId = 0;
-      function fnv1a(str) {
-        var h = 0x811c9dc5;
-        for (var j = 0; j < str.length; j++) { h ^= str.charCodeAt(j); h = (h * 0x01000193) >>> 0; }
-        return h >>> 0;
-      }
-      function hashHex(str) {
-        var a = fnv1a(str).toString(16); var b = fnv1a('\u0001' + str + '\u0002').toString(16);
-        while (a.length < 8) a = '0' + a; while (b.length < 8) b = '0' + b;
-        return a + b;
-      }
-      function defaultKey(userId) { return 'omo_' + hashHex(userId + '|omo-demo') + hashHex('omo-demo|' + userId); }
       function showNote(message, isError) {
         var notice = el('dash-notice');
         if (!notice) return;
@@ -1271,12 +1250,10 @@
         account.mode = data.mode === 'preview' ? 'mock' : 'server';
         account.userId = user.id;
         account.balanceUsd = data.balanceUsd;
-        account.apiKey = data.apiKey || (data.mode === 'preview' ? lsGet(KEY_KEY) || defaultKey(user.id) : '');
         account.runs = Array.isArray(data.runs) ? data.runs : [];
-        if (data.mode === 'preview' && account.apiKey) lsSet(KEY_KEY, account.apiKey);
       }
       function markAccountUnavailable(message) {
-        account.mode = 'unavailable'; account.balanceUsd = null; account.apiKey = ''; account.runs = [];
+        account.mode = 'unavailable'; account.balanceUsd = null; account.runs = [];
         showNote(message || 'Your verified account session is unavailable. Sign in again.', true);
       }
       function loadAccount(user) {
@@ -1319,7 +1296,6 @@
         account.mode = 'unavailable';
         account.userId = '';
         account.balanceUsd = 0;
-        account.apiKey = '';
         account.runs = [];
       }
       function showGate() {
@@ -1479,9 +1455,6 @@
             button.textContent = 'Log out';
           });
         });
-        function signIn() { if (window.ClerkAuth && ClerkAuth.signIn) ClerkAuth.signIn(); }
-        if (el('gate-signin-btn')) el('gate-signin-btn').addEventListener('click', signIn);
-        if (el('top-signin-btn')) el('top-signin-btn').addEventListener('click', signIn);
         if (window.ClerkAuth && ClerkAuth.onAuthChange) ClerkAuth.onAuthChange(refreshAuth);
         window.addEventListener('omo:credits', applyPublishedCredits);
       }

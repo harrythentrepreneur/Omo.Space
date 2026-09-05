@@ -71,6 +71,7 @@
       return window.ClerkAuth.isSignedIn();
     }
 
+    if (!demoAuthConfigured()) return false;
     try {
       var user = JSON.parse(window.localStorage.getItem('cognition_user') || 'null');
       return !!(user && user.id);
@@ -84,6 +85,7 @@
       return window.ClerkAuth.getUser();
     }
 
+    if (!demoAuthConfigured()) return null;
     try {
       return JSON.parse(window.localStorage.getItem('cognition_user') || 'null');
     } catch (error) {
@@ -247,8 +249,73 @@
     for (var i = 0; i < links.length; i += 1) renderCreditLink(links[i], balanceCents, state);
   }
 
+  function validAuthSlug(value) {
+    var slug = String(value || '').trim();
+    return /^[a-z0-9][a-z0-9-]{0,100}$/i.test(slug) ? slug : '';
+  }
+
+  function validatedAuthDestination() {
+    var pathname = window.location.pathname || '/';
+    var page = (pathname.split('/').pop() || '').toLowerCase();
+    var params;
+    try { params = new URLSearchParams(window.location.search || ''); }
+    catch (error) { params = new URLSearchParams(); }
+    var slug = validAuthSlug(params.get(page === 'dashboard.html' || page === 'dashboard' ? 'open' : 'slug'));
+    if (page === 'run.html' || page === 'run') return slug ? '/run.html?slug=' + encodeURIComponent(slug) : '/dashboard.html';
+    if (page === 'workflow.html' || page === 'workflow') return slug ? '/workflow.html?slug=' + encodeURIComponent(slug) : '/dashboard.html';
+    if (page === 'api.html' || page === 'api') return '/api.html';
+    if (page === 'dashboard.html' || page === 'dashboard') {
+      return '/dashboard.html' + (slug ? '?open=' + encodeURIComponent(slug) : '');
+    }
+    return '/dashboard.html';
+  }
+
+  function authOptions() {
+    var target = validatedAuthDestination();
+    var parsed = new URL(target, window.location.origin);
+    var slug = validAuthSlug(parsed.searchParams.get(parsed.pathname === '/dashboard.html' ? 'open' : 'slug'));
+    return {
+      returnTo: target,
+      open: slug,
+      destination: parsed.pathname === '/run.html' ? 'run' : ''
+    };
+  }
+
+  function canonicalLoginHref() {
+    return '/signup.html?mode=login&return_to=' + encodeURIComponent(validatedAuthDestination());
+  }
+
+  function renderLoginFeedback(link, message, withFallback) {
+    if (typeof link.insertAdjacentElement !== 'function') return;
+    var id = link.getAttribute('data-omo-login-status-id');
+    if (!id) {
+      id = 'omo-login-status-' + Math.random().toString(36).slice(2, 9);
+      link.setAttribute('data-omo-login-status-id', id);
+    }
+    var status = document.getElementById(id);
+    if (!status) {
+      status = document.createElement('span');
+      status.id = id;
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      status.style.cssText = 'display:block;margin-top:6px;font-size:12px;line-height:1.35;color:var(--moss,#6F7E77)';
+      link.insertAdjacentElement('afterend', status);
+    }
+    status.textContent = message || '';
+    status.hidden = !message;
+    if (message && withFallback) {
+      status.appendChild(document.createTextNode(' '));
+      var fallback = document.createElement('a');
+      fallback.href = canonicalLoginHref();
+      fallback.textContent = 'Continue on the sign-in page.';
+      status.appendChild(fallback);
+    }
+    if (message) link.setAttribute('aria-describedby', id);
+    else link.removeAttribute('aria-describedby');
+  }
+
   function renderSignedOutLink(link) {
-    link.href = '/signup.html';
+    link.href = canonicalLoginHref();
     link.hidden = false;
     link.classList.remove('omo-nav-auth-pending');
     link.classList.remove('omo-nav-credit');
@@ -263,6 +330,7 @@
     link.removeAttribute('tabindex');
     link.removeAttribute('title');
     link.removeAttribute('aria-controls');
+    renderLoginFeedback(link, '', false);
   }
 
   function primeAuthLinks() {
@@ -517,9 +585,9 @@
     if (window.OmoAuth && typeof window.OmoAuth.open === 'function') return window.OmoAuth;
     if (window.OmoSignupModal && typeof window.OmoSignupModal.openSignIn === 'function') {
       return {
-        open: function (mode) {
-          if (mode === 'login') window.OmoSignupModal.openSignIn();
-          else window.OmoSignupModal.open();
+        open: function (mode, options) {
+          if (mode === 'login') window.OmoSignupModal.openSignIn(options);
+          else window.OmoSignupModal.open(options);
         }
       };
     }
@@ -533,7 +601,7 @@
 
     authModalPromise = new Promise(function (resolve, reject) {
       var script = document.createElement('script');
-      script.src = 'signup-modal.js';
+      script.src = '/signup-modal.js';
       script.onload = function () {
         var loadedApi = authModalApi();
         if (loadedApi) resolve(loadedApi);
@@ -543,6 +611,9 @@
         reject(new Error('The Omo login popup could not be loaded.'));
       };
       document.head.appendChild(script);
+    }).catch(function (error) {
+      authModalPromise = null;
+      throw error;
     });
 
     return authModalPromise;
@@ -558,10 +629,19 @@
     if (isSignedIn()) return;
 
     event.preventDefault();
+    link.setAttribute('aria-busy', 'true');
+    link.textContent = 'Opening sign-in…';
+    renderLoginFeedback(link, 'Loading the secure sign-in form…', false);
     loadAuthModal().then(function (api) {
-      api.open('login');
+      link.removeAttribute('aria-busy');
+      link.textContent = 'Log in';
+      renderLoginFeedback(link, '', false);
+      api.open('login', authOptions());
     }).catch(function (error) {
       window.console.error(error);
+      link.removeAttribute('aria-busy');
+      link.textContent = 'Retry login';
+      renderLoginFeedback(link, 'Login popup unavailable.', true);
     });
   }
 
